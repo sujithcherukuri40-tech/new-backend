@@ -461,6 +461,12 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
                     await DetectEventsAsync();
                 }
                 
+                // If no events were detected, extract basic events from MSG messages
+                if (DetectedEvents.Count == 0)
+                {
+                    ExtractBasicEventsFromLog();
+                }
+                
                 // Load GPS track for map
                 LoadGpsTrack();
                 
@@ -502,6 +508,13 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
         
         // Get parameters from log
         var logParams = _logAnalyzerService.GetLogParameters();
+        
+        // Fallback: If no parameters from service, try to extract from PARM messages directly
+        if (logParams.Count == 0)
+        {
+            logParams = ExtractParametersFromParmMessages();
+        }
+        
         HasLogParameters = logParams.Count > 0;
         
         if (!HasLogParameters)
@@ -567,6 +580,66 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
         }
 
         StatusMessage = $"Loaded {LogParameters.Count} parameters from log";
+    }
+    
+    /// <summary>
+    /// Extracts parameters from PARM messages when GetLogParameters() returns empty.
+    /// This is a fallback mechanism to ensure parameters are displayed.
+    /// </summary>
+    private Dictionary<string, float> ExtractParametersFromParmMessages()
+    {
+        var parameters = new Dictionary<string, float>();
+        
+        try
+        {
+            var parmMessages = _logAnalyzerService.GetMessages("PARM", 0, 10000);
+            
+            foreach (var msg in parmMessages)
+            {
+                // Try to extract parameter name and value
+                string? paramName = null;
+                float paramValue = 0;
+                
+                // Try different field name variations
+                if (msg.Fields.TryGetValue("Name", out var nameObj))
+                {
+                    paramName = nameObj?.ToString();
+                }
+                else if (msg.Fields.TryGetValue("N", out var nObj))
+                {
+                    paramName = nObj?.ToString();
+                }
+                
+                if (msg.Fields.TryGetValue("Value", out var valueObj))
+                {
+                    if (float.TryParse(valueObj?.ToString(), out var val))
+                    {
+                        paramValue = val;
+                    }
+                }
+                else if (msg.Fields.TryGetValue("V", out var vObj))
+                {
+                    if (float.TryParse(vObj?.ToString(), out var val))
+                    {
+                        paramValue = val;
+                    }
+                }
+                
+                if (!string.IsNullOrWhiteSpace(paramName))
+                {
+                    // Store last value for each parameter (in case of changes during flight)
+                    parameters[paramName] = paramValue;
+                }
+            }
+            
+            _logger.LogInformation("Extracted {Count} parameters from PARM messages", parameters.Count);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error extracting parameters from PARM messages");
+        }
+        
+        return parameters;
     }
     
     partial void OnParameterSearchTextChanged(string value)
@@ -717,6 +790,193 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
         foreach (var evt in filtered)
         {
             FilteredEvents.Add(evt);
+        }
+    }
+
+    /// <summary>
+    /// Fallback event extraction when event detector is unavailable or returns empty.
+    /// Extracts events from MSG, EV, MODE, and ERR message types.
+    /// </summary>
+    private void ExtractBasicEventsFromLog()
+    {
+        var eventId = 1;
+        
+        try
+        {
+            // Extract from MSG messages (text messages)
+            var msgMessages = _logAnalyzerService.GetMessages("MSG", 0, 5000);
+            foreach (var msg in msgMessages)
+            {
+                var text = msg.Fields.GetValueOrDefault("Message")?.ToString() ?? 
+                           msg.Fields.GetValueOrDefault("Text")?.ToString() ?? "";
+                
+                if (string.IsNullOrWhiteSpace(text)) continue;
+                
+                // Parse timestamp from message
+                double timestamp = 0;
+                if (msg.Fields.TryGetValue("TimeUS", out var timeObj) && double.TryParse(timeObj?.ToString(), out var timeUs))
+                {
+                    timestamp = timeUs / 1_000_000.0; // Convert microseconds to seconds
+                }
+                
+                // Determine severity from message content
+                var severity = LogEventSeverity.Info;
+                var title = "Message";
+                
+                if (text.Contains("error", StringComparison.OrdinalIgnoreCase) ||
+                    text.Contains("fail", StringComparison.OrdinalIgnoreCase))
+                {
+                    severity = LogEventSeverity.Error;
+                    title = "Error";
+                }
+                else if (text.Contains("warning", StringComparison.OrdinalIgnoreCase) ||
+                         text.Contains("low", StringComparison.OrdinalIgnoreCase))
+                {
+                    severity = LogEventSeverity.Warning;
+                    title = "Warning";
+                }
+                else if (text.Contains("critical", StringComparison.OrdinalIgnoreCase) ||
+                         text.Contains("crash", StringComparison.OrdinalIgnoreCase) ||
+                         text.Contains("failsafe", StringComparison.OrdinalIgnoreCase))
+                {
+                    severity = LogEventSeverity.Critical;
+                    title = "Critical";
+                }
+                else if (text.Contains("arm", StringComparison.OrdinalIgnoreCase))
+                {
+                    title = text.Contains("disarm", StringComparison.OrdinalIgnoreCase) ? "Disarmed" : "Armed";
+                }
+                else if (text.Contains("mode", StringComparison.OrdinalIgnoreCase))
+                {
+                    title = "Mode Change";
+                }
+                
+                DetectedEvents.Add(new LogEvent
+                {
+                    Id = eventId++,
+                    Timestamp = timestamp,
+                    Type = LogEventType.Custom,
+                    Severity = severity,
+                    Title = title,
+                    Description = text
+                });
+            }
+            
+            // Extract from MODE messages
+            var modeMessages = _logAnalyzerService.GetMessages("MODE", 0, 1000);
+            foreach (var msg in modeMessages)
+            {
+                double timestamp = 0;
+                if (msg.Fields.TryGetValue("TimeUS", out var timeObj) && double.TryParse(timeObj?.ToString(), out var timeUs))
+                {
+                    timestamp = timeUs / 1_000_000.0;
+                }
+                
+                var modeName = msg.Fields.GetValueOrDefault("Mode")?.ToString() ?? 
+                               msg.Fields.GetValueOrDefault("ModeNum")?.ToString() ?? "Unknown";
+                
+                DetectedEvents.Add(new LogEvent
+                {
+                    Id = eventId++,
+                    Timestamp = timestamp,
+                    Type = LogEventType.ModeChange,
+                    Severity = LogEventSeverity.Info,
+                    Title = "Mode Change",
+                    Description = $"Flight mode: {modeName}"
+                });
+            }
+            
+            // Extract from EV (Event) messages
+            var evMessages = _logAnalyzerService.GetMessages("EV", 0, 1000);
+            foreach (var msg in evMessages)
+            {
+                double timestamp = 0;
+                if (msg.Fields.TryGetValue("TimeUS", out var timeObj) && double.TryParse(timeObj?.ToString(), out var timeUs))
+                {
+                    timestamp = timeUs / 1_000_000.0;
+                }
+                
+                var evId = msg.Fields.GetValueOrDefault("Id")?.ToString() ?? "0";
+                var severity = LogEventSeverity.Info;
+                var title = $"Event {evId}";
+                var description = $"Event ID: {evId}";
+                
+                // Map known ArduPilot event IDs
+                if (int.TryParse(evId, out var eventIdNum))
+                {
+                    (title, severity) = eventIdNum switch
+                    {
+                        10 => ("Armed", LogEventSeverity.Info),
+                        11 => ("Disarmed", LogEventSeverity.Info),
+                        15 => ("Battery Failsafe", LogEventSeverity.Critical),
+                        17 => ("GPS Failsafe", LogEventSeverity.Error),
+                        28 => ("Radio Failsafe", LogEventSeverity.Error),
+                        _ => ($"Event {evId}", LogEventSeverity.Info)
+                    };
+                }
+                
+                DetectedEvents.Add(new LogEvent
+                {
+                    Id = eventId++,
+                    Timestamp = timestamp,
+                    Type = LogEventType.Custom,
+                    Severity = severity,
+                    Title = title,
+                    Description = description
+                });
+            }
+            
+            // Extract from ERR (Error) messages
+            var errMessages = _logAnalyzerService.GetMessages("ERR", 0, 1000);
+            foreach (var msg in errMessages)
+            {
+                double timestamp = 0;
+                if (msg.Fields.TryGetValue("TimeUS", out var timeObj) && double.TryParse(timeObj?.ToString(), out var timeUs))
+                {
+                    timestamp = timeUs / 1_000_000.0;
+                }
+                
+                var subsys = msg.Fields.GetValueOrDefault("Subsys")?.ToString() ?? "Unknown";
+                var errCode = msg.Fields.GetValueOrDefault("ECode")?.ToString() ?? "Unknown";
+                
+                DetectedEvents.Add(new LogEvent
+                {
+                    Id = eventId++,
+                    Timestamp = timestamp,
+                    Type = LogEventType.Custom,
+                    Severity = LogEventSeverity.Error,
+                    Title = $"Error: {subsys}",
+                    Description = $"Subsystem: {subsys}, Error Code: {errCode}"
+                });
+            }
+            
+            // Sort events by timestamp
+            var sortedEvents = DetectedEvents.OrderBy(e => e.Timestamp).ToList();
+            DetectedEvents.Clear();
+            foreach (var evt in sortedEvents)
+            {
+                evt.Id = DetectedEvents.Count + 1;
+                DetectedEvents.Add(evt);
+            }
+            
+            // Update event summary
+            EventSummary = new EventSummary
+            {
+                TotalEvents = DetectedEvents.Count,
+                InfoCount = DetectedEvents.Count(e => e.Severity == LogEventSeverity.Info),
+                WarningCount = DetectedEvents.Count(e => e.Severity == LogEventSeverity.Warning),
+                ErrorCount = DetectedEvents.Count(e => e.Severity == LogEventSeverity.Error),
+                CriticalCount = DetectedEvents.Count(e => e.Severity == LogEventSeverity.Critical)
+            };
+            
+            // Apply filters to show events
+            FilterEvents();
+            
+            _logger.LogInformation("Extracted {Count} basic events from log", DetectedEvents.Count);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error extracting basic events from log");
         }
     }
 

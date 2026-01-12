@@ -328,13 +328,41 @@ public class DataFlashLogParser
             {
                 _messages.Add(msg);
                 
-                // Handle special message types
-                if (format.Name == "PARM" && msg.Fields.TryGetValue("Name", out var nameObj) &&
-                    msg.Fields.TryGetValue("Value", out var valueObj))
+                // Handle special message types - PARM stores parameter values
+                if (format.Name == "PARM")
                 {
-                    if (nameObj is string name && valueObj is double value)
+                    string? paramName = null;
+                    double? paramValue = null;
+                    
+                    // Try to get parameter name from various field names
+                    if (msg.Fields.TryGetValue("Name", out var nameObj))
                     {
-                        _parameters[name] = (float)value;
+                        paramName = nameObj?.ToString()?.Trim();
+                    }
+                    else if (msg.Fields.TryGetValue("N", out var nObj))
+                    {
+                        paramName = nObj?.ToString()?.Trim();
+                    }
+                    
+                    // Try to get parameter value
+                    if (msg.Fields.TryGetValue("Value", out var valueObj))
+                    {
+                        if (valueObj is double d)
+                            paramValue = d;
+                        else if (double.TryParse(valueObj?.ToString(), out var parsed))
+                            paramValue = parsed;
+                    }
+                    else if (msg.Fields.TryGetValue("V", out var vObj))
+                    {
+                        if (vObj is double d)
+                            paramValue = d;
+                        else if (double.TryParse(vObj?.ToString(), out var parsed))
+                            paramValue = parsed;
+                    }
+                    
+                    if (!string.IsNullOrWhiteSpace(paramName) && paramValue.HasValue)
+                    {
+                        _parameters[paramName] = (float)paramValue.Value;
                     }
                 }
             }
