@@ -48,6 +48,7 @@ public partial class MainWindowViewModel : ViewModelBase
     public ResetParametersPageViewModel ResetParametersPage { get; }
     public SprayingConfigPageViewModel SprayingConfigPage { get; }
     public AdvancedSettingsPageViewModel AdvancedSettingsPage { get; }
+    public FirmwarePageViewModel FirmwarePage { get; }
 
     private readonly IParameterService _parameterService;
     private readonly IConnectionService _connectionService;
@@ -72,6 +73,7 @@ public partial class MainWindowViewModel : ViewModelBase
         ResetParametersPageViewModel resetParametersPage,
         SprayingConfigPageViewModel sprayingConfigPage,
         AdvancedSettingsPageViewModel advancedSettingsPage,
+        FirmwarePageViewModel firmwarePage,
         IParameterService parameterService,
         IConnectionService connectionService)
     {
@@ -92,6 +94,7 @@ public partial class MainWindowViewModel : ViewModelBase
         ResetParametersPage = resetParametersPage;
         SprayingConfigPage = sprayingConfigPage;
         AdvancedSettingsPage = advancedSettingsPage;
+        FirmwarePage = firmwarePage;
         _parameterService = parameterService;
         _connectionService = connectionService;
 

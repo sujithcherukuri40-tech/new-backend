@@ -124,6 +124,11 @@
                                     CommandParameter="{Binding DroneDetailsPage}"
                                     Click="NavButton_Click" />
 
+							<Button Content="Firmware"
+                                    Classes="nav-button"
+                                    CommandParameter="{Binding FirmwarePage}"
+                                    Click="NavButton_Click" />
+
 							<Button Content="Airframe"
                                     Classes="nav-button"
                                     CommandParameter="{Binding AirframePage}"
@@ -269,6 +274,9 @@
 					</DataTemplate>
 					<DataTemplate DataType="vm:SprayingConfigPageViewModel">
 						<views:SprayingConfigPage />
+					</DataTemplate>
+					<DataTemplate DataType="vm:FirmwarePageViewModel">
+						<views:FirmwarePage />
 					</DataTemplate>
 				</ContentControl.DataTemplates>
 			</ContentControl>

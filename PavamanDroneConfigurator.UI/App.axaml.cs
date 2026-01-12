@@ -55,6 +55,11 @@ public partial class App : Application
         services.AddSingleton<AccelImuValidator>();
         services.AddSingleton<AccelerometerCalibrationService>();
 
+        // Firmware Services (Mission Planner-equivalent firmware flashing)
+        services.AddSingleton<Stm32Bootloader>();
+        services.AddSingleton<FirmwareDownloader>();
+        services.AddSingleton<IFirmwareService, FirmwareService>();
+
         // Repositories (Data Layer)
         services.AddSingleton<IParameterMetadataRepository, ParameterMetadataRepository>();
 
@@ -103,6 +108,7 @@ public partial class App : Application
         services.AddTransient<ResetParametersPageViewModel>();
         services.AddTransient<SprayingConfigPageViewModel>();
         services.AddTransient<AdvancedSettingsPageViewModel>();
+        services.AddTransient<FirmwarePageViewModel>();
 
         Services = services.BuildServiceProvider();
     }

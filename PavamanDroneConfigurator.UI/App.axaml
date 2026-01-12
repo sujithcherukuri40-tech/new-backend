@@ -9,6 +9,9 @@
     <Application.Resources>
         <converters:BoolToArmedColorConverter x:Key="BoolToArmedColorConverter"/>
         <converters:BoolToArmedTextConverter x:Key="BoolToArmedTextConverter"/>
+        <converters:BoolToColorConverter x:Key="BoolToColorConverter"/>
+        <converters:ZeroToBoolConverter x:Key="ZeroToBoolConverter"/>
+        <converters:BoolToStringConverter x:Key="BoolToStringConverter"/>
     </Application.Resources>
 
     <Application.DataTemplates>
