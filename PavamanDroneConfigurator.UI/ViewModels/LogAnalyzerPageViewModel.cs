@@ -598,37 +598,27 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
             {
                 // Try to extract parameter name and value
                 string? paramName = null;
-                float paramValue = 0;
+                float? paramValue = null;  // Use nullable to distinguish missing from zero
                 
-                // Try different field name variations
+                // Try different field name variations for parameter name
                 if (msg.Fields.TryGetValue("Name", out var nameObj))
                 {
-                    paramName = nameObj?.ToString();
+                    paramName = nameObj?.ToString()?.Trim();
                 }
                 else if (msg.Fields.TryGetValue("N", out var nObj))
                 {
-                    paramName = nObj?.ToString();
+                    paramName = nObj?.ToString()?.Trim();
                 }
                 
-                if (msg.Fields.TryGetValue("Value", out var valueObj))
-                {
-                    if (float.TryParse(valueObj?.ToString(), out var val))
-                    {
-                        paramValue = val;
-                    }
-                }
-                else if (msg.Fields.TryGetValue("V", out var vObj))
-                {
-                    if (float.TryParse(vObj?.ToString(), out var val))
-                    {
-                        paramValue = val;
-                    }
-                }
+                // Try to extract parameter value
+                paramValue = TryExtractParameterValue(msg.Fields, "Value") ?? 
+                             TryExtractParameterValue(msg.Fields, "V");
                 
-                if (!string.IsNullOrWhiteSpace(paramName))
+                // Only store if we have both a valid name and a successfully parsed value
+                if (!string.IsNullOrWhiteSpace(paramName) && paramValue.HasValue)
                 {
                     // Store last value for each parameter (in case of changes during flight)
-                    parameters[paramName] = paramValue;
+                    parameters[paramName] = paramValue.Value;
                 }
             }
             
@@ -640,6 +630,22 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
         }
         
         return parameters;
+    }
+    
+    /// <summary>
+    /// Tries to extract a float value from a message field.
+    /// Returns null if the field doesn't exist or can't be parsed.
+    /// </summary>
+    private static float? TryExtractParameterValue(Dictionary<string, string> fields, string fieldName)
+    {
+        if (fields.TryGetValue(fieldName, out var valueStr))
+        {
+            if (float.TryParse(valueStr, out var value))
+            {
+                return value;
+            }
+        }
+        return null;
     }
     
     partial void OnParameterSearchTextChanged(string value)

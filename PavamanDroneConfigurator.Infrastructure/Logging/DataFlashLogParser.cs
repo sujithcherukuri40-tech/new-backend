@@ -331,34 +331,8 @@ public class DataFlashLogParser
                 // Handle special message types - PARM stores parameter values
                 if (format.Name == "PARM")
                 {
-                    string? paramName = null;
-                    double? paramValue = null;
-                    
-                    // Try to get parameter name from various field names
-                    if (msg.Fields.TryGetValue("Name", out var nameObj))
-                    {
-                        paramName = nameObj?.ToString()?.Trim();
-                    }
-                    else if (msg.Fields.TryGetValue("N", out var nObj))
-                    {
-                        paramName = nObj?.ToString()?.Trim();
-                    }
-                    
-                    // Try to get parameter value
-                    if (msg.Fields.TryGetValue("Value", out var valueObj))
-                    {
-                        if (valueObj is double d)
-                            paramValue = d;
-                        else if (double.TryParse(valueObj?.ToString(), out var parsed))
-                            paramValue = parsed;
-                    }
-                    else if (msg.Fields.TryGetValue("V", out var vObj))
-                    {
-                        if (vObj is double d)
-                            paramValue = d;
-                        else if (double.TryParse(vObj?.ToString(), out var parsed))
-                            paramValue = parsed;
-                    }
+                    var paramName = TryGetStringField(msg.Fields, "Name", "N");
+                    var paramValue = TryGetDoubleField(msg.Fields, "Value", "V");
                     
                     if (!string.IsNullOrWhiteSpace(paramName) && paramValue.HasValue)
                     {
@@ -367,6 +341,39 @@ public class DataFlashLogParser
                 }
             }
         }
+    }
+    
+    /// <summary>
+    /// Tries to get a string value from message fields using multiple possible field names.
+    /// </summary>
+    private static string? TryGetStringField(Dictionary<string, object> fields, params string[] fieldNames)
+    {
+        foreach (var name in fieldNames)
+        {
+            if (fields.TryGetValue(name, out var obj))
+            {
+                return obj?.ToString()?.Trim();
+            }
+        }
+        return null;
+    }
+    
+    /// <summary>
+    /// Tries to get a double value from message fields using multiple possible field names.
+    /// </summary>
+    private static double? TryGetDoubleField(Dictionary<string, object> fields, params string[] fieldNames)
+    {
+        foreach (var name in fieldNames)
+        {
+            if (fields.TryGetValue(name, out var obj))
+            {
+                if (obj is double d)
+                    return d;
+                if (double.TryParse(obj?.ToString(), out var parsed))
+                    return parsed;
+            }
+        }
+        return null;
     }
 
     private void ParseFormatMessage(byte[] data, ref int pos)
