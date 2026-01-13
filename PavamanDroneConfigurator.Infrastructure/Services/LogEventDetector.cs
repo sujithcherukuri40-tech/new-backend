@@ -14,6 +14,9 @@ public class LogEventDetector : ILogEventDetector
     private DataFlashLogParser? _parser;
     private ParsedLog? _parsedLog;
     private List<LogEvent>? _cachedEvents;
+    
+    // GPS data cache for location lookups
+    private List<(double Timestamp, double Lat, double Lng, double Alt)>? _gpsCache;
 
     // Thresholds for event detection
     private const double VIBRATION_WARNING_THRESHOLD = 30.0;  // m/s²
@@ -40,6 +43,50 @@ public class LogEventDetector : ILogEventDetector
         _parser = parser;
         _parsedLog = parsedLog;
         _cachedEvents = null;
+        _gpsCache = null;
+    }
+    
+    /// <summary>
+    /// Builds GPS cache for location lookups.
+    /// </summary>
+    private void BuildGpsCache()
+    {
+        if (_gpsCache != null || _parser == null) return;
+        
+        _gpsCache = new List<(double, double, double, double)>();
+        
+        var gpsMessages = _parser.GetMessages("GPS");
+        foreach (var msg in gpsMessages)
+        {
+            var lat = msg.GetField<double>("Lat") ?? 0;
+            var lng = msg.GetField<double>("Lng") ?? 0;
+            var alt = msg.GetField<double>("Alt") ?? 0;
+            
+            // Skip invalid coordinates
+            if (Math.Abs(lat) < 0.001 && Math.Abs(lng) < 0.001) continue;
+            
+            _gpsCache.Add((msg.Timestamp.TotalSeconds, lat, lng, alt));
+        }
+    }
+    
+    /// <summary>
+    /// Gets GPS location at a specific timestamp.
+    /// </summary>
+    private (double? Lat, double? Lng, double? Alt) GetLocationAtTime(double timestamp)
+    {
+        BuildGpsCache();
+        
+        if (_gpsCache == null || _gpsCache.Count == 0)
+            return (null, null, null);
+        
+        // Find closest GPS point
+        var closest = _gpsCache.MinBy(g => Math.Abs(g.Timestamp - timestamp));
+        
+        // Only return if within 5 seconds
+        if (Math.Abs(closest.Timestamp - timestamp) <= 5)
+            return (closest.Lat, closest.Lng, closest.Alt);
+        
+        return (null, null, null);
     }
 
     public async Task<List<LogEvent>> DetectEventsAsync(
@@ -64,75 +111,88 @@ public class LogEventDetector : ILogEventDetector
             try
             {
                 progress?.Report(0);
+                
+                // Build GPS cache first
+                BuildGpsCache();
+                progress?.Report(5);
 
                 // Detect mode changes
                 var modeEvents = DetectModeChanges(ref eventId);
                 events.AddRange(modeEvents);
-                progress?.Report(10);
+                progress?.Report(15);
 
                 if (cancellationToken.IsCancellationRequested) return events;
 
                 // Detect arming/disarming
                 var armingEvents = DetectArmingEvents(ref eventId);
                 events.AddRange(armingEvents);
-                progress?.Report(20);
+                progress?.Report(25);
 
                 if (cancellationToken.IsCancellationRequested) return events;
 
                 // Detect failsafes
                 var failsafeEvents = DetectFailsafeEvents(ref eventId);
                 events.AddRange(failsafeEvents);
-                progress?.Report(30);
+                progress?.Report(35);
 
                 if (cancellationToken.IsCancellationRequested) return events;
 
                 // Detect EKF issues
                 var ekfEvents = DetectEkfEvents(ref eventId);
                 events.AddRange(ekfEvents);
-                progress?.Report(40);
+                progress?.Report(45);
 
                 if (cancellationToken.IsCancellationRequested) return events;
 
                 // Detect GPS issues
                 var gpsEvents = DetectGpsEvents(ref eventId);
                 events.AddRange(gpsEvents);
-                progress?.Report(50);
+                progress?.Report(55);
 
                 if (cancellationToken.IsCancellationRequested) return events;
 
                 // Detect vibration issues
                 var vibeEvents = DetectVibrationEvents(ref eventId);
                 events.AddRange(vibeEvents);
-                progress?.Report(60);
+                progress?.Report(65);
 
                 if (cancellationToken.IsCancellationRequested) return events;
 
                 // Detect battery issues
                 var batteryEvents = DetectBatteryEvents(ref eventId);
                 events.AddRange(batteryEvents);
-                progress?.Report(70);
+                progress?.Report(75);
 
                 if (cancellationToken.IsCancellationRequested) return events;
 
                 // Detect RC issues
                 var rcEvents = DetectRcEvents(ref eventId);
                 events.AddRange(rcEvents);
-                progress?.Report(80);
+                progress?.Report(85);
 
                 if (cancellationToken.IsCancellationRequested) return events;
 
                 // Detect crash/impact
                 var crashEvents = DetectCrashEvents(ref eventId);
                 events.AddRange(crashEvents);
-                progress?.Report(90);
+                progress?.Report(95);
 
                 // Sort by timestamp
                 events = events.OrderBy(e => e.Timestamp).ToList();
                 
-                // Renumber
+                // Renumber and add location data
                 for (int i = 0; i < events.Count; i++)
                 {
                     events[i].Id = i + 1;
+                    
+                    // Add location if not already set
+                    if (!events[i].HasLocation)
+                    {
+                        var loc = GetLocationAtTime(events[i].Timestamp);
+                        events[i].Latitude = loc.Lat;
+                        events[i].Longitude = loc.Lng;
+                        events[i].Altitude = loc.Alt;
+                    }
                 }
 
                 _cachedEvents = events;
@@ -170,7 +230,11 @@ public class LogEventDetector : ILogEventDetector
                         Type = LogEventType.ModeChange,
                         Severity = LogEventSeverity.Info,
                         Title = "Mode Change",
-                        Description = text
+                        Description = text,
+                        Source = "Navigator",
+                        Subsystem = "Flight Mode",
+                        ComponentId = 1,
+                        RawMessage = text
                     });
                 }
             }
@@ -192,7 +256,11 @@ public class LogEventDetector : ILogEventDetector
                     Severity = LogEventSeverity.Info,
                     Title = "Mode Change",
                     Description = $"Flight mode changed to {modeName}",
-                    Data = { ["Mode"] = modeName }
+                    Source = "Navigator",
+                    Subsystem = "Flight Mode",
+                    ComponentId = 1,
+                    Data = { ["Mode"] = modeName },
+                    RawMessage = $"MODE: {modeName}"
                 });
                 lastMode = modeName;
             }
@@ -219,9 +287,14 @@ public class LogEventDetector : ILogEventDetector
                     Id = eventId++,
                     Timestamp = msg.Timestamp.TotalSeconds,
                     Type = LogEventType.Arming,
-                    Severity = LogEventSeverity.Info,
+                    Severity = LogEventSeverity.Notice,
                     Title = "Armed",
-                    Description = "Vehicle armed"
+                    Description = "Vehicle armed and ready for flight",
+                    Source = "Autopilot",
+                    Subsystem = "Arming",
+                    ComponentId = 1,
+                    EventId = 10,
+                    RawMessage = "EV: Armed (ID=10)"
                 });
             }
             else if ((int)evId == 11)
@@ -231,9 +304,14 @@ public class LogEventDetector : ILogEventDetector
                     Id = eventId++,
                     Timestamp = msg.Timestamp.TotalSeconds,
                     Type = LogEventType.Disarming,
-                    Severity = LogEventSeverity.Info,
+                    Severity = LogEventSeverity.Notice,
                     Title = "Disarmed",
-                    Description = "Vehicle disarmed"
+                    Description = "Vehicle disarmed",
+                    Source = "Autopilot",
+                    Subsystem = "Arming",
+                    ComponentId = 1,
+                    EventId = 11,
+                    RawMessage = "EV: Disarmed (ID=11)"
                 });
             }
         }
@@ -251,9 +329,13 @@ public class LogEventDetector : ILogEventDetector
                     Id = eventId++,
                     Timestamp = msg.Timestamp.TotalSeconds,
                     Type = LogEventType.Arming,
-                    Severity = LogEventSeverity.Info,
+                    Severity = LogEventSeverity.Notice,
                     Title = "Armed",
-                    Description = text
+                    Description = text,
+                    Source = "Autopilot",
+                    Subsystem = "Arming",
+                    ComponentId = 1,
+                    RawMessage = text
                 });
             }
             else if (text.Contains("Disarm", StringComparison.OrdinalIgnoreCase))
@@ -263,9 +345,13 @@ public class LogEventDetector : ILogEventDetector
                     Id = eventId++,
                     Timestamp = msg.Timestamp.TotalSeconds,
                     Type = LogEventType.Disarming,
-                    Severity = LogEventSeverity.Info,
+                    Severity = LogEventSeverity.Notice,
                     Title = "Disarmed",
-                    Description = text
+                    Description = text,
+                    Source = "Autopilot",
+                    Subsystem = "Arming",
+                    ComponentId = 1,
+                    RawMessage = text
                 });
             }
         }
@@ -284,15 +370,14 @@ public class LogEventDetector : ILogEventDetector
             var evId = (int)(msg.GetField<double>("Id") ?? 0);
             
             // ArduPilot failsafe event IDs
-            // 15 = Battery Failsafe, 17 = GPS Failsafe, 28 = Radio Failsafe, etc.
-            var failsafeEvents = new Dictionary<int, (LogEventType Type, string Title)>
+            var failsafeEvents = new Dictionary<int, (LogEventType Type, string Title, string Source, LogEventSeverity Severity)>
             {
-                [15] = (LogEventType.BatteryFailsafe, "Battery Failsafe"),
-                [17] = (LogEventType.Failsafe, "GPS Failsafe"),
-                [28] = (LogEventType.RcLoss, "Radio Failsafe"),
-                [29] = (LogEventType.BatteryFailsafe, "Battery Failsafe"),
-                [36] = (LogEventType.Failsafe, "EKF Failsafe"),
-                [37] = (LogEventType.Failsafe, "EKF Failsafe Cleared")
+                [15] = (LogEventType.BatteryFailsafe, "Battery Failsafe", "Power", LogEventSeverity.Critical),
+                [17] = (LogEventType.Failsafe, "GPS Failsafe", "GPS", LogEventSeverity.Error),
+                [28] = (LogEventType.RcLoss, "Radio Failsafe", "RC Input", LogEventSeverity.Error),
+                [29] = (LogEventType.BatteryFailsafe, "Battery Failsafe", "Power", LogEventSeverity.Critical),
+                [36] = (LogEventType.Failsafe, "EKF Failsafe", "EKF/AHRS", LogEventSeverity.Critical),
+                [37] = (LogEventType.Failsafe, "EKF Failsafe Cleared", "EKF/AHRS", LogEventSeverity.Notice)
             };
 
             if (failsafeEvents.TryGetValue(evId, out var fsInfo))
@@ -302,9 +387,14 @@ public class LogEventDetector : ILogEventDetector
                     Id = eventId++,
                     Timestamp = msg.Timestamp.TotalSeconds,
                     Type = fsInfo.Type,
-                    Severity = LogEventSeverity.Error,
+                    Severity = fsInfo.Severity,
                     Title = fsInfo.Title,
-                    Description = $"Failsafe triggered (Event ID: {evId})"
+                    Description = $"Failsafe triggered (Event ID: {evId})",
+                    Source = fsInfo.Source,
+                    Subsystem = "Failsafe",
+                    ComponentId = 1,
+                    EventId = evId,
+                    RawMessage = $"EV: {fsInfo.Title} (ID={evId})"
                 });
             }
         }
@@ -323,7 +413,11 @@ public class LogEventDetector : ILogEventDetector
                     Type = LogEventType.Failsafe,
                     Severity = LogEventSeverity.Error,
                     Title = "Failsafe",
-                    Description = text
+                    Description = text,
+                    Source = "Autopilot",
+                    Subsystem = "Failsafe",
+                    ComponentId = 1,
+                    RawMessage = text
                 });
             }
         }
@@ -334,6 +428,11 @@ public class LogEventDetector : ILogEventDetector
     private List<LogEvent> DetectEkfEvents(ref int eventId)
     {
         var events = new List<LogEvent>();
+        
+        // Limit events to prevent too many similar events
+        int ekfWarningCount = 0;
+        int ekfErrorCount = 0;
+        const int maxEventsPerType = 10;
 
         // Check NKF messages for EKF status
         var nkfMessages = _parser!.GetMessages("NKF4");
@@ -344,7 +443,7 @@ public class LogEventDetector : ILogEventDetector
         {
             var sqErr = msg.GetField<double>("SV") ?? 0;
             
-            if (sqErr > EKF_VARIANCE_ERROR)
+            if (sqErr > EKF_VARIANCE_ERROR && ekfErrorCount < maxEventsPerType)
             {
                 events.Add(new LogEvent
                 {
@@ -354,10 +453,15 @@ public class LogEventDetector : ILogEventDetector
                     Severity = LogEventSeverity.Error,
                     Title = "EKF Error",
                     Description = $"EKF variance too high: {sqErr:F2}",
-                    Data = { ["Variance"] = sqErr }
+                    Source = "EKF/AHRS",
+                    Subsystem = "State Estimation",
+                    ComponentId = 1,
+                    Data = { ["Variance"] = sqErr },
+                    RawMessage = $"NKF4: SV={sqErr:F2}"
                 });
+                ekfErrorCount++;
             }
-            else if (sqErr > EKF_VARIANCE_WARNING)
+            else if (sqErr > EKF_VARIANCE_WARNING && ekfWarningCount < maxEventsPerType)
             {
                 events.Add(new LogEvent
                 {
@@ -367,8 +471,13 @@ public class LogEventDetector : ILogEventDetector
                     Severity = LogEventSeverity.Warning,
                     Title = "EKF Warning",
                     Description = $"EKF variance elevated: {sqErr:F2}",
-                    Data = { ["Variance"] = sqErr }
+                    Source = "EKF/AHRS",
+                    Subsystem = "State Estimation",
+                    ComponentId = 1,
+                    Data = { ["Variance"] = sqErr },
+                    RawMessage = $"NKF4: SV={sqErr:F2}"
                 });
+                ekfWarningCount++;
             }
         }
 
@@ -381,12 +490,17 @@ public class LogEventDetector : ILogEventDetector
 
         var gpsMessages = _parser!.GetMessages("GPS");
         int? lastStatus = null;
+        int hdopWarningCount = 0;
+        const int maxHdopWarnings = 5;
 
         foreach (var msg in gpsMessages)
         {
             var status = (int)(msg.GetField<double>("Status") ?? 0);
             var numSats = (int)(msg.GetField<double>("NSats") ?? msg.GetField<double>("nSat") ?? 0);
             var hdop = msg.GetField<double>("HDop") ?? msg.GetField<double>("HDOP") ?? 0;
+            var lat = msg.GetField<double>("Lat") ?? 0;
+            var lng = msg.GetField<double>("Lng") ?? 0;
+            var alt = msg.GetField<double>("Alt") ?? 0;
 
             // GPS status: 0=NoGPS, 1=NoFix, 2=2D, 3=3D, 4=DGPS, 5=RTK Float, 6=RTK Fix
             if (status < 3 && lastStatus >= 3)
@@ -399,7 +513,14 @@ public class LogEventDetector : ILogEventDetector
                     Severity = LogEventSeverity.Error,
                     Title = "GPS Fix Lost",
                     Description = $"GPS fix lost (Status: {status}, Sats: {numSats})",
-                    Data = { ["Status"] = status, ["Sats"] = numSats }
+                    Source = "GPS",
+                    Subsystem = "Position",
+                    ComponentId = 25,
+                    Latitude = lat,
+                    Longitude = lng,
+                    Altitude = alt,
+                    Data = { ["Status"] = status, ["Sats"] = numSats },
+                    RawMessage = $"GPS: Status={status}, NSats={numSats}, HDOP={hdop:F1}"
                 });
             }
             else if (status >= 3 && lastStatus < 3 && lastStatus.HasValue)
@@ -409,14 +530,21 @@ public class LogEventDetector : ILogEventDetector
                     Id = eventId++,
                     Timestamp = msg.Timestamp.TotalSeconds,
                     Type = LogEventType.GpsRecovery,
-                    Severity = LogEventSeverity.Info,
+                    Severity = LogEventSeverity.Notice,
                     Title = "GPS Fix Recovered",
                     Description = $"GPS fix recovered (Status: {status}, Sats: {numSats})",
-                    Data = { ["Status"] = status, ["Sats"] = numSats }
+                    Source = "GPS",
+                    Subsystem = "Position",
+                    ComponentId = 25,
+                    Latitude = lat,
+                    Longitude = lng,
+                    Altitude = alt,
+                    Data = { ["Status"] = status, ["Sats"] = numSats },
+                    RawMessage = $"GPS: Status={status}, NSats={numSats}, HDOP={hdop:F1}"
                 });
             }
 
-            if (hdop > GPS_HDOP_ERROR)
+            if (hdop > GPS_HDOP_ERROR && hdopWarningCount < maxHdopWarnings)
             {
                 events.Add(new LogEvent
                 {
@@ -426,8 +554,16 @@ public class LogEventDetector : ILogEventDetector
                     Severity = LogEventSeverity.Warning,
                     Title = "GPS HDOP High",
                     Description = $"GPS horizontal dilution of precision is poor: {hdop:F1}",
-                    Data = { ["HDOP"] = hdop }
+                    Source = "GPS",
+                    Subsystem = "Position",
+                    ComponentId = 25,
+                    Latitude = lat,
+                    Longitude = lng,
+                    Altitude = alt,
+                    Data = { ["HDOP"] = hdop, ["Sats"] = numSats },
+                    RawMessage = $"GPS: HDOP={hdop:F1}, NSats={numSats}"
                 });
+                hdopWarningCount++;
             }
 
             lastStatus = status;
@@ -439,6 +575,10 @@ public class LogEventDetector : ILogEventDetector
     private List<LogEvent> DetectVibrationEvents(ref int eventId)
     {
         var events = new List<LogEvent>();
+        int vibeWarningCount = 0;
+        int vibeErrorCount = 0;
+        int clipCount = 0;
+        const int maxEventsPerType = 5;
 
         var vibeMessages = _parser!.GetMessages("VIBE");
         
@@ -453,7 +593,7 @@ public class LogEventDetector : ILogEventDetector
 
             var maxVibe = Math.Max(vibeX, Math.Max(vibeY, vibeZ));
 
-            if (maxVibe > VIBRATION_ERROR_THRESHOLD)
+            if (maxVibe > VIBRATION_ERROR_THRESHOLD && vibeErrorCount < maxEventsPerType)
             {
                 events.Add(new LogEvent
                 {
@@ -463,10 +603,15 @@ public class LogEventDetector : ILogEventDetector
                     Severity = LogEventSeverity.Error,
                     Title = "High Vibration",
                     Description = $"Excessive vibration detected: X={vibeX:F1}, Y={vibeY:F1}, Z={vibeZ:F1} m/s²",
-                    Data = { ["VibeX"] = vibeX, ["VibeY"] = vibeY, ["VibeZ"] = vibeZ }
+                    Source = "IMU",
+                    Subsystem = "Vibration",
+                    ComponentId = 1,
+                    Data = { ["VibeX"] = vibeX, ["VibeY"] = vibeY, ["VibeZ"] = vibeZ },
+                    RawMessage = $"VIBE: X={vibeX:F1}, Y={vibeY:F1}, Z={vibeZ:F1}"
                 });
+                vibeErrorCount++;
             }
-            else if (maxVibe > VIBRATION_WARNING_THRESHOLD)
+            else if (maxVibe > VIBRATION_WARNING_THRESHOLD && vibeWarningCount < maxEventsPerType)
             {
                 events.Add(new LogEvent
                 {
@@ -476,12 +621,17 @@ public class LogEventDetector : ILogEventDetector
                     Severity = LogEventSeverity.Warning,
                     Title = "Elevated Vibration",
                     Description = $"Vibration elevated: X={vibeX:F1}, Y={vibeY:F1}, Z={vibeZ:F1} m/s²",
-                    Data = { ["VibeX"] = vibeX, ["VibeY"] = vibeY, ["VibeZ"] = vibeZ }
+                    Source = "IMU",
+                    Subsystem = "Vibration",
+                    ComponentId = 1,
+                    Data = { ["VibeX"] = vibeX, ["VibeY"] = vibeY, ["VibeZ"] = vibeZ },
+                    RawMessage = $"VIBE: X={vibeX:F1}, Y={vibeY:F1}, Z={vibeZ:F1}"
                 });
+                vibeWarningCount++;
             }
 
             var totalClips = clip0 + clip1 + clip2;
-            if (totalClips > CLIPPING_THRESHOLD)
+            if (totalClips > CLIPPING_THRESHOLD && clipCount < maxEventsPerType)
             {
                 events.Add(new LogEvent
                 {
@@ -491,8 +641,13 @@ public class LogEventDetector : ILogEventDetector
                     Severity = LogEventSeverity.Warning,
                     Title = "Accelerometer Clipping",
                     Description = $"Accelerometer clipping detected: {totalClips:F0} clips",
-                    Data = { ["Clips"] = totalClips }
+                    Source = "IMU",
+                    Subsystem = "Accelerometer",
+                    ComponentId = 1,
+                    Data = { ["Clips"] = totalClips },
+                    RawMessage = $"VIBE: Clips={totalClips:F0}"
                 });
+                clipCount++;
             }
         }
 
@@ -513,6 +668,7 @@ public class LogEventDetector : ILogEventDetector
         foreach (var msg in batMessages)
         {
             var voltage = msg.GetField<double>("Volt") ?? 0;
+            var current = msg.GetField<double>("Curr") ?? 0;
             var cellCount = EstimateCellCount(voltage);
             
             if (cellCount > 0)
@@ -529,7 +685,11 @@ public class LogEventDetector : ILogEventDetector
                         Severity = LogEventSeverity.Critical,
                         Title = "Battery Critical",
                         Description = $"Battery voltage critical: {voltage:F1}V ({voltPerCell:F2}V/cell)",
-                        Data = { ["Voltage"] = voltage, ["VoltPerCell"] = voltPerCell }
+                        Source = "Power",
+                        Subsystem = "Battery",
+                        ComponentId = 1,
+                        Data = { ["Voltage"] = voltage, ["VoltPerCell"] = voltPerCell, ["Current"] = current },
+                        RawMessage = $"BAT: Volt={voltage:F1}V, Curr={current:F1}A"
                     });
                     criticalVoltageReported = true;
                 }
@@ -543,7 +703,11 @@ public class LogEventDetector : ILogEventDetector
                         Severity = LogEventSeverity.Warning,
                         Title = "Battery Low",
                         Description = $"Battery voltage low: {voltage:F1}V ({voltPerCell:F2}V/cell)",
-                        Data = { ["Voltage"] = voltage, ["VoltPerCell"] = voltPerCell }
+                        Source = "Power",
+                        Subsystem = "Battery",
+                        ComponentId = 1,
+                        Data = { ["Voltage"] = voltage, ["VoltPerCell"] = voltPerCell, ["Current"] = current },
+                        RawMessage = $"BAT: Volt={voltage:F1}V, Curr={current:F1}A"
                     });
                     lowVoltageReported = true;
                 }
@@ -559,12 +723,14 @@ public class LogEventDetector : ILogEventDetector
 
         var rcMessages = _parser!.GetMessages("RCIN");
         ushort? lastRssi = null;
+        int rssiWarningCount = 0;
+        const int maxRssiWarnings = 5;
 
         foreach (var msg in rcMessages)
         {
             var rssi = (ushort)(msg.GetField<double>("RSSI") ?? 255);
             
-            if (rssi < 50 && (lastRssi == null || lastRssi >= 50))
+            if (rssi < 50 && (lastRssi == null || lastRssi >= 50) && rssiWarningCount < maxRssiWarnings)
             {
                 events.Add(new LogEvent
                 {
@@ -574,8 +740,13 @@ public class LogEventDetector : ILogEventDetector
                     Severity = LogEventSeverity.Warning,
                     Title = "RC Signal Weak",
                     Description = $"RC signal strength low: RSSI={rssi}",
-                    Data = { ["RSSI"] = rssi }
+                    Source = "RC Input",
+                    Subsystem = "Receiver",
+                    ComponentId = 1,
+                    Data = { ["RSSI"] = rssi },
+                    RawMessage = $"RCIN: RSSI={rssi}"
                 });
+                rssiWarningCount++;
             }
             else if (rssi >= 50 && lastRssi < 50)
             {
@@ -584,10 +755,14 @@ public class LogEventDetector : ILogEventDetector
                     Id = eventId++,
                     Timestamp = msg.Timestamp.TotalSeconds,
                     Type = LogEventType.RcRecovery,
-                    Severity = LogEventSeverity.Info,
+                    Severity = LogEventSeverity.Notice,
                     Title = "RC Signal Recovered",
                     Description = $"RC signal recovered: RSSI={rssi}",
-                    Data = { ["RSSI"] = rssi }
+                    Source = "RC Input",
+                    Subsystem = "Receiver",
+                    ComponentId = 1,
+                    Data = { ["RSSI"] = rssi },
+                    RawMessage = $"RCIN: RSSI={rssi}"
                 });
             }
 
@@ -614,9 +789,13 @@ public class LogEventDetector : ILogEventDetector
                     Id = eventId++,
                     Timestamp = msg.Timestamp.TotalSeconds,
                     Type = LogEventType.Crash,
-                    Severity = LogEventSeverity.Critical,
+                    Severity = LogEventSeverity.Emergency,
                     Title = "Crash Detected",
-                    Description = text
+                    Description = text,
+                    Source = "Autopilot",
+                    Subsystem = "Safety",
+                    ComponentId = 1,
+                    RawMessage = text
                 });
             }
         }
@@ -679,11 +858,17 @@ public class LogEventDetector : ILogEventDetector
         return new EventSummary
         {
             TotalEvents = events.Count,
+            DebugCount = events.Count(e => e.Severity == LogEventSeverity.Debug),
             InfoCount = events.Count(e => e.Severity == LogEventSeverity.Info),
+            NoticeCount = events.Count(e => e.Severity == LogEventSeverity.Notice),
             WarningCount = events.Count(e => e.Severity == LogEventSeverity.Warning),
             ErrorCount = events.Count(e => e.Severity == LogEventSeverity.Error),
             CriticalCount = events.Count(e => e.Severity == LogEventSeverity.Critical),
+            EmergencyCount = events.Count(e => e.Severity == LogEventSeverity.Emergency),
             EventsByType = events.GroupBy(e => e.Type)
+                .ToDictionary(g => g.Key, g => g.Count()),
+            EventsBySource = events.GroupBy(e => e.Source)
+                .Where(g => !string.IsNullOrEmpty(g.Key))
                 .ToDictionary(g => g.Key, g => g.Count()),
             FlightDurationSeconds = _parsedLog?.Duration.TotalSeconds ?? 0
         };

@@ -29,7 +29,7 @@ public class ArduPilotMetadataLoader : IArduPilotMetadataLoader
         _logger = logger;
         _defaultFilePath = defaultFilePath ?? Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.Desktop),
-            "5", "json1.json");
+            "6", "json1.json");
     }
 
     /// <inheritdoc/>
