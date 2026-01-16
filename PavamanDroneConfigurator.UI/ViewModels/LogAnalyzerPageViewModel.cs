@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Text.Json;
 using Avalonia.Controls;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
@@ -226,6 +227,56 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
 
     [ObservableProperty]
     private EventSummary? _eventSummary;
+    
+    // Enhanced Events Tab Properties
+    [ObservableProperty]
+    private EventDisplaySummary _eventDisplaySummary = new();
+    
+    [ObservableProperty]
+    private EventPaginationState _eventPagination = new();
+    
+    [ObservableProperty]
+    private int _selectedTimeRangeIndex = 4; // Default to "All"
+    
+    [ObservableProperty]
+    private string _selectedSeverityFilter = "All";
+    
+    [ObservableProperty]
+    private string _selectedEventTypeFilter = "All";
+    
+    [ObservableProperty]
+    private string _selectedSourceFilter = "All";
+    
+    [ObservableProperty]
+    private ObservableCollection<string> _availableSeverities = new() { "All", "Error", "Warning", "Info", "Critical" };
+    
+    [ObservableProperty]
+    private ObservableCollection<string> _availableEventTypes = new() { "All" };
+    
+    [ObservableProperty]
+    private ObservableCollection<string> _availableSources = new() { "All" };
+    
+    [ObservableProperty]
+    private int _selectedAutoRefreshIndex;
+    
+    private System.Timers.Timer? _autoRefreshTimer;
+    
+    public ObservableCollection<string> TimeRangeOptions { get; } = new()
+    {
+        "Last 1 hour",
+        "Last 24 hours", 
+        "Last 7 days",
+        "Custom",
+        "All"
+    };
+    
+    public ObservableCollection<string> AutoRefreshOptions { get; } = new()
+    {
+        "Off",
+        "5 seconds",
+        "10 seconds",
+        "30 seconds"
+    };
 
     #endregion
 
@@ -755,10 +806,14 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
             }
 
             EventSummary = _eventDetector.GetEventSummary();
-            ErrorCount = EventSummary.ErrorCount + EventSummary.CriticalCount;
+            ErrorCount = EventSummary.ErrorCount + EventSummary.CriticalCount + EventSummary.EmergencyCount;
             WarningCount = EventSummary.WarningCount;
 
+            // Populate filter dropdowns based on detected events
+            PopulateEventFilterDropdowns();
+
             FilterEvents();
+            UpdateEventDisplaySummary();
             StatusMessage = $"Detected {events.Count} events";
         }
         catch (Exception ex)
@@ -771,31 +826,136 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
         }
     }
 
+    /// <summary>
+    /// Populates the filter dropdown options based on detected events.
+    /// </summary>
+    private void PopulateEventFilterDropdowns()
+    {
+        // Populate severity filter
+        AvailableSeverities.Clear();
+        AvailableSeverities.Add("All");
+        var severities = DetectedEvents.Select(e => e.SeverityDisplay).Distinct().OrderBy(s => s);
+        foreach (var sev in severities)
+        {
+            if (!AvailableSeverities.Contains(sev))
+                AvailableSeverities.Add(sev);
+        }
+        
+        // Populate event type filter
+        AvailableEventTypes.Clear();
+        AvailableEventTypes.Add("All");
+        var eventTypes = DetectedEvents.Select(e => e.TypeDisplay).Distinct().OrderBy(t => t);
+        foreach (var type in eventTypes)
+        {
+            if (!AvailableEventTypes.Contains(type))
+                AvailableEventTypes.Add(type);
+        }
+        
+        // Populate source filter
+        AvailableSources.Clear();
+        AvailableSources.Add("All");
+        var sources = DetectedEvents.Select(e => e.Source).Where(s => !string.IsNullOrEmpty(s)).Distinct().OrderBy(s => s);
+        foreach (var source in sources)
+        {
+            if (!AvailableSources.Contains(source))
+                AvailableSources.Add(source);
+        }
+    }
+
     private void FilterEvents()
     {
         FilteredEvents.Clear();
 
         var filtered = DetectedEvents.Where(e =>
         {
-            if (e.Severity == LogEventSeverity.Info && !ShowInfoEvents) return false;
+            // Apply severity checkbox filters
+            if ((e.Severity == LogEventSeverity.Info || e.Severity == LogEventSeverity.Debug || e.Severity == LogEventSeverity.Notice) && !ShowInfoEvents) return false;
             if (e.Severity == LogEventSeverity.Warning && !ShowWarningEvents) return false;
             if (e.Severity == LogEventSeverity.Error && !ShowErrorEvents) return false;
-            if (e.Severity == LogEventSeverity.Critical && !ShowCriticalEvents) return false;
+            if ((e.Severity == LogEventSeverity.Critical || e.Severity == LogEventSeverity.Emergency) && !ShowCriticalEvents) return false;
 
+            // Apply dropdown filters
+            if (SelectedSeverityFilter != "All" && e.SeverityDisplay != SelectedSeverityFilter) return false;
+            if (SelectedEventTypeFilter != "All" && e.TypeDisplay != SelectedEventTypeFilter) return false;
+            if (SelectedSourceFilter != "All" && e.Source != SelectedSourceFilter) return false;
+
+            // Apply text search
             if (!string.IsNullOrWhiteSpace(EventSearchText))
             {
                 var search = EventSearchText.ToLowerInvariant();
                 if (!e.Title.ToLowerInvariant().Contains(search) &&
-                    !e.Description.ToLowerInvariant().Contains(search))
+                    !e.Description.ToLowerInvariant().Contains(search) &&
+                    !e.Source.ToLowerInvariant().Contains(search) &&
+                    !(e.Details?.ToLowerInvariant().Contains(search) ?? false))
                     return false;
             }
 
             return true;
         });
 
-        foreach (var evt in filtered)
+        foreach (var evt in filtered.OrderBy(e => e.Timestamp))
         {
             FilteredEvents.Add(evt);
+        }
+        
+        UpdateEventDisplaySummary();
+    }
+
+    [RelayCommand]
+    private void JumpToEvent(LogEvent? evt)
+    {
+        if (evt == null) return;
+        JumpToTime(evt.Timestamp);
+        SelectedTabIndex = TAB_PLOT;
+    }
+
+    private void JumpToTime(double timestamp)
+    {
+        CursorTime = timestamp;
+        CursorTimeDisplay = TimeSpan.FromSeconds(timestamp).ToString(@"hh\:mm\:ss\.fff");
+        
+        // Update zoom window to center on this time
+        var windowSize = (ZoomEndTime - ZoomStartTime);
+        var halfWindow = windowSize / 2;
+        ZoomStartTime = Math.Max(0, timestamp - halfWindow);
+        ZoomEndTime = ZoomStartTime + windowSize;
+        
+        // Update cursor readouts
+        UpdateCursorReadouts();
+        
+        // Update map position
+        UpdateMapPosition(timestamp);
+    }
+
+    private void UpdateCursorReadouts()
+    {
+        CursorReadouts.Clear();
+
+        foreach (var field in SelectedGraphFields)
+        {
+            var stats = _logAnalyzerService.GetFieldStatistics(field.DisplayName);
+            // Would get actual value at cursor time from query engine
+            CursorReadouts.Add(new CursorReadout
+            {
+                FieldName = field.DisplayName,
+                Color = field.Color ?? "#FFFFFF",
+                Value = stats.Average // Placeholder
+            });
+        }
+    }
+
+    private void UpdateMapPosition(double timestamp)
+    {
+        // Find GPS position at timestamp
+        if (GpsTrack.Count > 0)
+        {
+            var nearest = GpsTrack.MinBy(p => Math.Abs(p.Timestamp - timestamp));
+            if (nearest != null)
+            {
+                CurrentMapPosition = nearest;
+                MapCenterLat = nearest.Latitude;
+                MapCenterLng = nearest.Longitude;
+            }
         }
     }
 
@@ -864,7 +1024,9 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
                     Type = LogEventType.Custom,
                     Severity = severity,
                     Title = title,
-                    Description = text
+                    Description = text,
+                    Source = "MSG",
+                    RawMessage = text
                 });
             }
             
@@ -888,7 +1050,8 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
                     Type = LogEventType.ModeChange,
                     Severity = LogEventSeverity.Info,
                     Title = "Mode Change",
-                    Description = $"Flight mode: {modeName}"
+                    Description = $"Flight mode: {modeName}",
+                    Source = "Navigator"
                 });
             }
             
@@ -912,8 +1075,8 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
                 {
                     (title, severity) = eventIdNum switch
                     {
-                        10 => ("Armed", LogEventSeverity.Info),
-                        11 => ("Disarmed", LogEventSeverity.Info),
+                        10 => ("Armed", LogEventSeverity.Notice),
+                        11 => ("Disarmed", LogEventSeverity.Notice),
                         15 => ("Battery Failsafe", LogEventSeverity.Critical),
                         17 => ("GPS Failsafe", LogEventSeverity.Error),
                         28 => ("Radio Failsafe", LogEventSeverity.Error),
@@ -928,7 +1091,9 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
                     Type = LogEventType.Custom,
                     Severity = severity,
                     Title = title,
-                    Description = description
+                    Description = description,
+                    Source = "Autopilot",
+                    EventId = int.TryParse(evId, out var eid) ? eid : null
                 });
             }
             
@@ -952,7 +1117,8 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
                     Type = LogEventType.Custom,
                     Severity = LogEventSeverity.Error,
                     Title = $"Error: {subsys}",
-                    Description = $"Subsystem: {subsys}, Error Code: {errCode}"
+                    Description = $"Subsystem: {subsys}, Error Code: {errCode}",
+                    Source = subsys
                 });
             }
             
@@ -969,11 +1135,14 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
             EventSummary = new EventSummary
             {
                 TotalEvents = DetectedEvents.Count,
-                InfoCount = DetectedEvents.Count(e => e.Severity == LogEventSeverity.Info),
+                InfoCount = DetectedEvents.Count(e => e.Severity == LogEventSeverity.Info || e.Severity == LogEventSeverity.Notice || e.Severity == LogEventSeverity.Debug),
                 WarningCount = DetectedEvents.Count(e => e.Severity == LogEventSeverity.Warning),
                 ErrorCount = DetectedEvents.Count(e => e.Severity == LogEventSeverity.Error),
-                CriticalCount = DetectedEvents.Count(e => e.Severity == LogEventSeverity.Critical)
+                CriticalCount = DetectedEvents.Count(e => e.Severity == LogEventSeverity.Critical || e.Severity == LogEventSeverity.Emergency)
             };
+            
+            // Populate filter dropdowns
+            PopulateEventFilterDropdowns();
             
             // Apply filters to show events
             FilterEvents();
@@ -986,62 +1155,213 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
         }
     }
 
-    [RelayCommand]
-    private void JumpToEvent(LogEvent? evt)
+    #endregion
+
+    #region Enhanced Events Commands
+
+    partial void OnSelectedAutoRefreshIndexChanged(int value)
     {
-        if (evt == null) return;
-        JumpToTime(evt.Timestamp);
-        SelectedTabIndex = TAB_PLOT;
+        SetupAutoRefresh(value);
     }
-
-    private void JumpToTime(double timestamp)
+    
+    private void SetupAutoRefresh(int index)
     {
-        CursorTime = timestamp;
-        CursorTimeDisplay = TimeSpan.FromSeconds(timestamp).ToString(@"hh\:mm\:ss\.fff");
+        _autoRefreshTimer?.Stop();
+        _autoRefreshTimer?.Dispose();
+        _autoRefreshTimer = null;
         
-        // Update zoom window to center on this time
-        var windowSize = (ZoomEndTime - ZoomStartTime);
-        var halfWindow = windowSize / 2;
-        ZoomStartTime = Math.Max(0, timestamp - halfWindow);
-        ZoomEndTime = ZoomStartTime + windowSize;
-        
-        // Update cursor readouts
-        UpdateCursorReadouts();
-        
-        // Update map position
-        UpdateMapPosition(timestamp);
-    }
-
-    private void UpdateCursorReadouts()
-    {
-        CursorReadouts.Clear();
-
-        foreach (var field in SelectedGraphFields)
+        int intervalSeconds = index switch
         {
-            var stats = _logAnalyzerService.GetFieldStatistics(field.DisplayName);
-            // Would get actual value at cursor time from query engine
-            CursorReadouts.Add(new CursorReadout
+            1 => 5,
+            2 => 10,
+            3 => 30,
+            _ => 0
+        };
+        
+        if (intervalSeconds > 0)
+        {
+            _autoRefreshTimer = new System.Timers.Timer(intervalSeconds * 1000);
+            _autoRefreshTimer.Elapsed += (s, e) =>
             {
-                FieldName = field.DisplayName,
-                Color = field.Color ?? "#FFFFFF",
-                Value = stats.Average // Placeholder
-            });
+                Dispatcher.UIThread.Post(FilterEvents);
+            };
+            _autoRefreshTimer.Start();
         }
     }
-
-    private void UpdateMapPosition(double timestamp)
+    
+    [RelayCommand]
+    private void ApplyEventsFilter()
     {
-        // Find GPS position at timestamp
-        if (GpsTrack.Count > 0)
+        FilterEvents();
+        UpdateEventDisplaySummary();
+    }
+    
+    [RelayCommand]
+    private void ClearEventsFilter()
+    {
+        SelectedTimeRangeIndex = 4; // All
+        SelectedSeverityFilter = "All";
+        SelectedEventTypeFilter = "All";
+        SelectedSourceFilter = "All";
+        EventSearchText = string.Empty;
+        ShowInfoEvents = true;
+        ShowWarningEvents = true;
+        ShowErrorEvents = true;
+        ShowCriticalEvents = true;
+        FilterEvents();
+        UpdateEventDisplaySummary();
+    }
+    
+    private void UpdateEventDisplaySummary()
+    {
+        EventDisplaySummary = new EventDisplaySummary
         {
-            var nearest = GpsTrack.MinBy(p => Math.Abs(p.Timestamp - timestamp));
-            if (nearest != null)
+            TotalEvents = FilteredEvents.Count,
+            ErrorCount = FilteredEvents.Count(e => e.Severity == LogEventSeverity.Error),
+            WarningCount = FilteredEvents.Count(e => e.Severity == LogEventSeverity.Warning),
+            InfoCount = FilteredEvents.Count(e => e.Severity == LogEventSeverity.Info),
+            CriticalCount = FilteredEvents.Count(e => e.Severity == LogEventSeverity.Critical)
+        };
+        
+        EventPagination.TotalItems = FilteredEvents.Count;
+    }
+    
+    [RelayCommand]
+    private void GoToPreviousEventPage()
+    {
+        if (EventPagination.CanGoToPreviousPage)
+        {
+            EventPagination.CurrentPage--;
+            OnPropertyChanged(nameof(EventPagination));
+        }
+    }
+    
+    [RelayCommand]
+    private void GoToNextEventPage()
+    {
+        if (EventPagination.CanGoToNextPage)
+        {
+            EventPagination.CurrentPage++;
+            OnPropertyChanged(nameof(EventPagination));
+        }
+    }
+    
+    [RelayCommand]
+    private async Task ExportEventsToCsvAsync()
+    {
+        if (_parentWindow == null || FilteredEvents.Count == 0)
+        {
+            StatusMessage = "No events to export";
+            return;
+        }
+        
+        try
+        {
+            var file = await _parentWindow.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
             {
-                CurrentMapPosition = nearest;
-                MapCenterLat = nearest.Latitude;
-                MapCenterLng = nearest.Longitude;
+                Title = "Export Events to CSV",
+                DefaultExtension = "csv",
+                SuggestedFileName = $"events_export_{DateTime.Now:yyyyMMdd_HHmmss}.csv",
+                FileTypeChoices = new[]
+                {
+                    new FilePickerFileType("CSV Files") { Patterns = new[] { "*.csv" } }
+                }
+            });
+            
+            if (file != null)
+            {
+                IsBusy = true;
+                StatusMessage = "Exporting events to CSV...";
+                
+                await using var writer = new StreamWriter(file.Path.LocalPath);
+                
+                // Write header
+                await writer.WriteLineAsync("Timestamp,Severity,Event Type,Source,Message,Details");
+                
+                // Write data
+                foreach (var evt in FilteredEvents)
+                {
+                    var line = $"\"{evt.TimestampDisplay}\",\"{evt.Severity}\",\"{EscapeCsv(evt.Title)}\",\"{evt.Type}\",\"{EscapeCsv(evt.Description)}\",\"{EscapeCsv(evt.Details ?? "")}\"";
+                    await writer.WriteLineAsync(line);
+                }
+                
+                StatusMessage = $"Exported {FilteredEvents.Count} events to CSV";
             }
         }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to export events to CSV");
+            StatusMessage = $"Export failed: {ex.Message}";
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+    
+    [RelayCommand]
+    private async Task ExportEventsToJsonAsync()
+    {
+        if (_parentWindow == null || FilteredEvents.Count == 0)
+        {
+            StatusMessage = "No events to export";
+            return;
+        }
+        
+        try
+        {
+            var file = await _parentWindow.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+            {
+                Title = "Export Events to JSON",
+                DefaultExtension = "json",
+                SuggestedFileName = $"events_export_{DateTime.Now:yyyyMMdd_HHmmss}.json",
+                FileTypeChoices = new[]
+                {
+                    new FilePickerFileType("JSON Files") { Patterns = new[] { "*.json" } }
+                }
+            });
+            
+            if (file != null)
+            {
+                IsBusy = true;
+                StatusMessage = "Exporting events to JSON...";
+                
+                var exportData = FilteredEvents.Select(e => new
+                {
+                    e.Id,
+                    e.TimestampDisplay,
+                    e.Timestamp,
+                    Severity = e.Severity.ToString(),
+                    EventType = e.Title,
+                    Source = e.Type.ToString(),
+                    e.Description,
+                    e.Details
+                }).ToList();
+                
+                var json = JsonSerializer.Serialize(exportData, new JsonSerializerOptions 
+                { 
+                    WriteIndented = true 
+                });
+                
+                await File.WriteAllTextAsync(file.Path.LocalPath, json);
+                
+                StatusMessage = $"Exported {FilteredEvents.Count} events to JSON";
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to export events to JSON");
+            StatusMessage = $"Export failed: {ex.Message}";
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+    
+    private static string EscapeCsv(string value)
+    {
+        return value.Replace("\"", "\"\"").Replace("\n", " ").Replace("\r", "");
     }
 
     #endregion

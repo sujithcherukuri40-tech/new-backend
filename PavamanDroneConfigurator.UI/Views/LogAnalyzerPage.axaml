@@ -64,6 +64,140 @@
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="RowBackground" Value="White"/>
         </Style>
+        
+        <!-- DARK THEME STYLES FOR EVENTS TAB -->
+        <Style Selector="Border.EventsPanel">
+            <Setter Property="Background" Value="#1E293B"/>
+            <Setter Property="BorderBrush" Value="#334155"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="6"/>
+        </Style>
+        
+        <Style Selector="TextBlock.EventsHeader">
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Foreground" Value="#E2E8F0"/>
+        </Style>
+        
+        <Style Selector="Button.EventsButton">
+            <Setter Property="Background" Value="#3B82F6"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Padding" Value="16,8"/>
+            <Setter Property="CornerRadius" Value="4"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+        </Style>
+        
+        <Style Selector="Button.EventsButtonSecondary">
+            <Setter Property="Background" Value="#475569"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Padding" Value="16,8"/>
+            <Setter Property="CornerRadius" Value="4"/>
+            <Setter Property="FontSize" Value="12"/>
+        </Style>
+        
+        <Style Selector="ComboBox.EventsComboBox">
+            <Setter Property="Background" Value="#334155"/>
+            <Setter Property="Foreground" Value="#E2E8F0"/>
+            <Setter Property="BorderBrush" Value="#475569"/>
+            <Setter Property="Padding" Value="10,6"/>
+            <Setter Property="MinWidth" Value="120"/>
+        </Style>
+        
+        <Style Selector="Border.StatCard">
+            <Setter Property="Padding" Value="20,12"/>
+            <Setter Property="CornerRadius" Value="6"/>
+            <Setter Property="MinWidth" Value="140"/>
+        </Style>
+        
+        <Style Selector="Border.StatCardTotal">
+            <Setter Property="Background" Value="#334155"/>
+        </Style>
+        
+        <Style Selector="Border.StatCardError">
+            <Setter Property="Background" Value="#7F1D1D"/>
+        </Style>
+        
+        <Style Selector="Border.StatCardWarning">
+            <Setter Property="Background" Value="#78350F"/>
+        </Style>
+        
+        <Style Selector="Border.StatCardInfo">
+            <Setter Property="Background" Value="#1E3A5F"/>
+        </Style>
+        
+        <!-- Severity Badge Styles -->
+        <Style Selector="Border.SeverityBadge">
+            <Setter Property="Padding" Value="8,4"/>
+            <Setter Property="CornerRadius" Value="4"/>
+            <Setter Property="HorizontalAlignment" Value="Center"/>
+        </Style>
+        
+        <Style Selector="Border.SeverityError">
+            <Setter Property="Background" Value="#DC2626"/>
+        </Style>
+        
+        <Style Selector="Border.SeverityWarning">
+            <Setter Property="Background" Value="#F59E0B"/>
+        </Style>
+        
+        <Style Selector="Border.SeverityInfo">
+            <Setter Property="Background" Value="#3B82F6"/>
+        </Style>
+        
+        <Style Selector="Border.SeverityCritical">
+            <Setter Property="Background" Value="#991B1B"/>
+        </Style>
+        
+        <!-- DataGrid Dark Theme -->
+        <Style Selector="DataGrid.EventsDataGrid">
+            <Setter Property="Background" Value="#1E293B"/>
+            <Setter Property="Foreground" Value="#E2E8F0"/>
+            <Setter Property="BorderBrush" Value="#334155"/>
+            <Setter Property="RowBackground" Value="#1E293B"/>
+            <Setter Property="GridLinesVisibility" Value="Horizontal"/>
+            <Setter Property="HorizontalGridLinesBrush" Value="#334155"/>
+        </Style>
+        
+        <Style Selector="DataGridColumnHeader">
+            <Setter Property="Background" Value="#0F172A"/>
+            <Setter Property="Foreground" Value="#94A3B8"/>
+            <Setter Property="Padding" Value="12,10"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="FontSize" Value="12"/>
+        </Style>
+        
+        <Style Selector="DataGridRow">
+            <Setter Property="Background" Value="Transparent"/>
+        </Style>
+        
+        <Style Selector="DataGridRow:pointerover /template/ Rectangle#BackgroundRectangle">
+            <Setter Property="Fill" Value="#334155"/>
+        </Style>
+        
+        <Style Selector="DataGridCell">
+            <Setter Property="Padding" Value="12,10"/>
+            <Setter Property="FontSize" Value="12"/>
+        </Style>
+        
+        <!-- Pagination Button Styles -->
+        <Style Selector="Button.PaginationButton">
+            <Setter Property="Background" Value="#334155"/>
+            <Setter Property="Foreground" Value="#E2E8F0"/>
+            <Setter Property="Padding" Value="10,6"/>
+            <Setter Property="CornerRadius" Value="4"/>
+            <Setter Property="MinWidth" Value="36"/>
+            <Setter Property="FontSize" Value="12"/>
+        </Style>
+        
+        <Style Selector="Button.PaginationButton:disabled">
+            <Setter Property="Opacity" Value="0.5"/>
+        </Style>
+        
+        <Style Selector="Button.PaginationButtonActive">
+            <Setter Property="Background" Value="#3B82F6"/>
+            <Setter Property="Foreground" Value="White"/>
+        </Style>
     </UserControl.Styles>
 
     <Grid RowDefinitions="Auto,*,Auto" Background="#F5F5F5">
@@ -332,70 +466,287 @@
                 </Grid>
             </TabItem>
             
-            <!-- EVENTS TAB -->
+            <!-- ENHANCED EVENTS TAB -->
             <TabItem Header="Events">
-                <Grid RowDefinitions="Auto,*" Background="White">
-                    <!-- Filters -->
-                    <Border Grid.Row="0" Background="#F8F8F8" Padding="12" BorderBrush="#E1E1E1" BorderThickness="0,0,0,1">
-                        <StackPanel Orientation="Horizontal" Spacing="20">
-                            <TextBox Text="{Binding EventSearchText}" Watermark="?? Search events..." 
-                                     Width="250" Background="White" Foreground="#333333" BorderThickness="1" 
-                                     BorderBrush="#DDDDDD" Padding="8,6"  FontSize="12"/>
-                            <CheckBox Content="Info" IsChecked="{Binding ShowInfoEvents}" Foreground="#3B82F6" FontSize="12"/>
-                            <CheckBox Content="Warning" IsChecked="{Binding ShowWarningEvents}" Foreground="#F59E0B" FontSize="12"/>
-                            <CheckBox Content="Error" IsChecked="{Binding ShowErrorEvents}" Foreground="#EF4444" FontSize="12"/>
-                            <CheckBox Content="Critical" IsChecked="{Binding ShowCriticalEvents}" Foreground="#DC2626" FontSize="12"/>
+                <Grid RowDefinitions="Auto,Auto,*,Auto" Background="#0F172A">
+                    
+                    <!-- Filter Bar -->
+                    <Border Grid.Row="0" Background="#1E293B" Padding="16,12" BorderBrush="#334155" BorderThickness="0,0,0,1">
+                        <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,*,Auto,Auto">
+                            <!-- Time Range -->
+                            <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8" Margin="0,0,20,0">
+                                <TextBlock Text="Time Range:" Foreground="#94A3B8" VerticalAlignment="Center" FontSize="12"/>
+                                <ComboBox Classes="EventsComboBox" 
+                                          ItemsSource="{Binding TimeRangeOptions}"
+                                          SelectedIndex="{Binding SelectedTimeRangeIndex}"/>
+                            </StackPanel>
+                            
+                            <!-- Severity Filter -->
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" Margin="0,0,20,0">
+                                <TextBlock Text="Severity:" Foreground="#94A3B8" VerticalAlignment="Center" FontSize="12"/>
+                                <ComboBox Classes="EventsComboBox"
+                                          ItemsSource="{Binding AvailableSeverities}"
+                                          SelectedItem="{Binding SelectedSeverityFilter}"/>
+                            </StackPanel>
+                            
+                            <!-- Event Type Filter -->
+                            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" Margin="0,0,20,0">
+                                <TextBlock Text="Event Type:" Foreground="#94A3B8" VerticalAlignment="Center" FontSize="12"/>
+                                <ComboBox Classes="EventsComboBox"
+                                          ItemsSource="{Binding AvailableEventTypes}"
+                                          SelectedItem="{Binding SelectedEventTypeFilter}"
+                                          MinWidth="150"/>
+                            </StackPanel>
+                            
+                            <!-- Source Filter -->
+                            <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="8" Margin="0,0,20,0">
+                                <TextBlock Text="Source:" Foreground="#94A3B8" VerticalAlignment="Center" FontSize="12"/>
+                                <ComboBox Classes="EventsComboBox"
+                                          ItemsSource="{Binding AvailableSources}"
+                                          SelectedItem="{Binding SelectedSourceFilter}"/>
+                            </StackPanel>
+                            
+                            <!-- Search Box -->
+                            <TextBox Grid.Column="4" Text="{Binding EventSearchText}" 
+                                     Watermark="?? Search events..." 
+                                     Background="#334155" Foreground="#E2E8F0" 
+                                     BorderBrush="#475569" Padding="10,8"
+                                     Margin="0,0,16,0" FontSize="12"/>
+                            
+                            <!-- Filter Button -->
+                            <Button Grid.Column="5" Classes="EventsButton" Content="Filter" 
+                                    Command="{Binding ApplyEventsFilterCommand}" Margin="0,0,8,0"/>
+                            
+                            <!-- Clear Button -->
+                            <Button Grid.Column="6" Classes="EventsButtonSecondary" Content="Clear" 
+                                    Command="{Binding ClearEventsFilterCommand}"/>
+                        </Grid>
+                    </Border>
+                    
+                    <!-- Summary Stats Row -->
+                    <Border Grid.Row="1" Background="#1E293B" Padding="16,16" BorderBrush="#334155" BorderThickness="0,0,0,1">
+                        <StackPanel Orientation="Horizontal" Spacing="16">
+                            <!-- Total Events -->
+                            <Border Classes="StatCard StatCardTotal">
+                                <StackPanel Orientation="Horizontal" Spacing="10">
+                                    <TextBlock Text="??" FontSize="16" VerticalAlignment="Center"/>
+                                    <StackPanel>
+                                        <TextBlock Text="Total Events" Foreground="#94A3B8" FontSize="11"/>
+                                        <TextBlock Text="{Binding EventDisplaySummary.TotalEventsDisplay, FallbackValue=0}" 
+                                                   Foreground="#E2E8F0" FontSize="18" FontWeight="Bold"/>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+                            
+                            <!-- Errors -->
+                            <Border Classes="StatCard StatCardError">
+                                <StackPanel Orientation="Horizontal" Spacing="10">
+                                    <TextBlock Text="?" FontSize="16" Foreground="#FCA5A5" VerticalAlignment="Center"/>
+                                    <StackPanel>
+                                        <TextBlock Text="Errors" Foreground="#FCA5A5" FontSize="11"/>
+                                        <TextBlock Text="{Binding EventDisplaySummary.ErrorCountDisplay, FallbackValue=0}" 
+                                                   Foreground="White" FontSize="18" FontWeight="Bold"/>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+                            
+                            <!-- Warnings -->
+                            <Border Classes="StatCard StatCardWarning">
+                                <StackPanel Orientation="Horizontal" Spacing="10">
+                                    <TextBlock Text="?" FontSize="16" Foreground="#FCD34D" VerticalAlignment="Center"/>
+                                    <StackPanel>
+                                        <TextBlock Text="Warnings" Foreground="#FCD34D" FontSize="11"/>
+                                        <TextBlock Text="{Binding EventDisplaySummary.WarningCountDisplay, FallbackValue=0}" 
+                                                   Foreground="White" FontSize="18" FontWeight="Bold"/>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+                            
+                            <!-- Info Events -->
+                            <Border Classes="StatCard StatCardInfo">
+                                <StackPanel Orientation="Horizontal" Spacing="10">
+                                    <TextBlock Text="?" FontSize="16" Foreground="#93C5FD" VerticalAlignment="Center"/>
+                                    <StackPanel>
+                                        <TextBlock Text="Info Events" Foreground="#93C5FD" FontSize="11"/>
+                                        <TextBlock Text="{Binding EventDisplaySummary.InfoCountDisplay, FallbackValue=0}" 
+                                                   Foreground="White" FontSize="18" FontWeight="Bold"/>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+                            
+                            <!-- Spacer -->
+                            <Border Width="1"/>
+                            
+                            <!-- Export Buttons -->
+                            <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center" Margin="16,0,0,0">
+                                <Button Classes="EventsButtonSecondary" Content="?? CSV" 
+                                        Command="{Binding ExportEventsToCsvCommand}"
+                                        IsEnabled="{Binding IsLogLoaded}"
+                                        ToolTip.Tip="Export events to CSV"/>
+                                <Button Classes="EventsButtonSecondary" Content="?? JSON" 
+                                        Command="{Binding ExportEventsToJsonCommand}"
+                                        IsEnabled="{Binding IsLogLoaded}"
+                                        ToolTip.Tip="Export events to JSON"/>
+                            </StackPanel>
+                            
+                            <!-- Auto Refresh -->
+                            <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center" Margin="16,0,0,0">
+                                <TextBlock Text="Auto-refresh:" Foreground="#94A3B8" VerticalAlignment="Center" FontSize="11"/>
+                                <ComboBox Classes="EventsComboBox" MinWidth="100"
+                                          ItemsSource="{Binding AutoRefreshOptions}"
+                                          SelectedIndex="{Binding SelectedAutoRefreshIndex}"/>
+                            </StackPanel>
                         </StackPanel>
                     </Border>
                     
-                    <!-- Events List -->
-                    <DataGrid Grid.Row="1" ItemsSource="{Binding FilteredEvents}" SelectedItem="{Binding SelectedEvent}"
-                              AutoGenerateColumns="False" GridLinesVisibility="Horizontal"
-                              IsReadOnly="True" CanUserResizeColumns="True" HeadersVisibility="Column">
+                    <!-- Events Data Grid -->
+                    <DataGrid Grid.Row="2" Classes="EventsDataGrid"
+                              ItemsSource="{Binding FilteredEvents}" 
+                              SelectedItem="{Binding SelectedEvent}"
+                              AutoGenerateColumns="False"
+                              IsReadOnly="True" 
+                              CanUserResizeColumns="True" 
+                              CanUserSortColumns="True"
+                              HeadersVisibility="Column"
+                              SelectionMode="Single">
                         <DataGrid.Columns>
-                            <DataGridTextColumn Header="Time" Binding="{Binding TimestampDisplay}" Width="120"/>
-                            <DataGridTemplateColumn Header="Severity" Width="100">
+                            <!-- Timestamp Column -->
+                            <DataGridTextColumn Header="Timestamp" 
+                                                Binding="{Binding TimestampDisplay}" 
+                                                Width="160"/>
+                            
+                            <!-- Severity Column with Colored Badges -->
+                            <DataGridTemplateColumn Header="Severity" Width="120">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate x:DataType="interfaces:LogEvent">
-                                        <Border Padding="6,3"  HorizontalAlignment="Center">
-                                            <Border.Styles>
-                                                <Style Selector="Border[Tag=Info]">
-                                                    <Setter Property="Background" Value="#EEF2FF"/>
-                                                </Style>
-                                                <Style Selector="Border[Tag=Warning]">
-                                                    <Setter Property="Background" Value="#FEF3C7"/>
-                                                </Style>
-                                                <Style Selector="Border[Tag=Error]">
-                                                    <Setter Property="Background" Value="#FEE2E2"/>
-                                                </Style>
-                                                <Style Selector="Border[Tag=Critical]">
-                                                    <Setter Property="Background" Value="#FEE2E2"/>
-                                                </Style>
-                                            </Border.Styles>
-                                            <TextBlock Text="{Binding SeverityDisplay}" FontSize="10" FontWeight="SemiBold">
-                                                <TextBlock.Styles>
-                                                    <Style Selector="TextBlock[Tag=Info]">
-                                                        <Setter Property="Foreground" Value="#3B82F6"/>
-                                                    </Style>
-                                                    <Style Selector="TextBlock[Tag=Warning]">
-                                                        <Setter Property="Foreground" Value="#F59E0B"/>
-                                                    </Style>
-                                                    <Style Selector="TextBlock[Tag=Error]">
-                                                        <Setter Property="Foreground" Value="#EF4444"/>
-                                                    </Style>
-                                                    <Style Selector="TextBlock[Tag=Critical]">
-                                                        <Setter Property="Foreground" Value="#DC2626"/>
-                                                    </Style>
-                                                </TextBlock.Styles>
-                                            </TextBlock>
-                                        </Border>
+                                        <Panel>
+                                            <!-- Error Badge -->
+                                            <Border Background="#DC2626" Padding="8,4" CornerRadius="4" HorizontalAlignment="Center"
+                                                    IsVisible="{Binding Severity, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static interfaces:LogEventSeverity.Error}}">
+                                                <StackPanel Orientation="Horizontal" Spacing="4">
+                                                    <TextBlock Text="?" Foreground="White" FontSize="10"/>
+                                                    <TextBlock Text="Error" Foreground="White" FontSize="11" FontWeight="SemiBold"/>
+                                                </StackPanel>
+                                            </Border>
+                                            
+                                            <!-- Warning Badge -->
+                                            <Border Background="#F59E0B" Padding="8,4" CornerRadius="4" HorizontalAlignment="Center"
+                                                    IsVisible="{Binding Severity, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static interfaces:LogEventSeverity.Warning}}">
+                                                <StackPanel Orientation="Horizontal" Spacing="4">
+                                                    <TextBlock Text="?" Foreground="White" FontSize="10"/>
+                                                    <TextBlock Text="Warning" Foreground="White" FontSize="11" FontWeight="SemiBold"/>
+                                                </StackPanel>
+                                            </Border>
+                                            
+                                            <!-- Info Badge -->
+                                            <Border Background="#3B82F6" Padding="8,4" CornerRadius="4" HorizontalAlignment="Center"
+                                                    IsVisible="{Binding Severity, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static interfaces:LogEventSeverity.Info}}">
+                                                <StackPanel Orientation="Horizontal" Spacing="4">
+                                                    <TextBlock Text="?" Foreground="White" FontSize="10"/>
+                                                    <TextBlock Text="Info" Foreground="White" FontSize="11" FontWeight="SemiBold"/>
+                                                </StackPanel>
+                                            </Border>
+                                            
+                                            <!-- Critical Badge -->
+                                            <Border Background="#991B1B" Padding="8,4" CornerRadius="4" HorizontalAlignment="Center"
+                                                    IsVisible="{Binding Severity, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static interfaces:LogEventSeverity.Critical}}">
+                                                <StackPanel Orientation="Horizontal" Spacing="4">
+                                                    <TextBlock Text="??" Foreground="White" FontSize="10"/>
+                                                    <TextBlock Text="Critical" Foreground="White" FontSize="11" FontWeight="SemiBold"/>
+                                                </StackPanel>
+                                            </Border>
+                                        </Panel>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
-                            <DataGridTextColumn Header="Event" Binding="{Binding Title}" Width="180"/>
-                            <DataGridTextColumn Header="Description" Binding="{Binding Description}" Width="*"/>
+                            
+                            <!-- Event Type Column -->
+                            <DataGridTextColumn Header="Event Type" 
+                                                Binding="{Binding Title}" 
+                                                Width="180"/>
+                            
+                            <!-- Source Column -->
+                            <DataGridTextColumn Header="Source" 
+                                                Binding="{Binding Type}" 
+                                                Width="140"/>
+                            
+                            <!-- Message Column -->
+                            <DataGridTextColumn Header="Message" 
+                                                Binding="{Binding Description}" 
+                                                Width="*"/>
+                            
+                            <!-- User/Host Column -->
+                            <DataGridTextColumn Header="User / Host" 
+                                                Binding="{Binding Details}" 
+                                                Width="140"/>
+                            
+                            <!-- Expand/Details Column -->
+                            <DataGridTemplateColumn Header="" Width="50">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate x:DataType="interfaces:LogEvent">
+                                        <Button Content="?" Background="Transparent" Foreground="#64748B"
+                                                Command="{Binding $parent[DataGrid].((vm:LogAnalyzerPageViewModel)DataContext).JumpToEventCommand}"
+                                                CommandParameter="{Binding}"
+                                                Padding="8,4" FontSize="10"
+                                                ToolTip.Tip="View in graph"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
                         </DataGrid.Columns>
                     </DataGrid>
+                    
+                    <!-- Pagination Footer -->
+                    <Border Grid.Row="3" Background="#1E293B" Padding="16,12" BorderBrush="#334155" BorderThickness="0,1,0,0">
+                        <Grid ColumnDefinitions="*,Auto">
+                            <!-- Showing X to Y of Z -->
+                            <TextBlock Grid.Column="0" 
+                                       Text="{Binding EventPagination.DisplayText, FallbackValue='No events loaded'}"
+                                       Foreground="#94A3B8" FontSize="12" VerticalAlignment="Center"/>
+                            
+                            <!-- Pagination Controls -->
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4">
+                                <Button Classes="PaginationButton" Content="Previous" 
+                                        Command="{Binding GoToPreviousEventPageCommand}"
+                                        IsEnabled="{Binding EventPagination.CanGoToPreviousPage}"/>
+                                
+                                <!-- Page Numbers -->
+                                <Button Classes="PaginationButton PaginationButtonActive" Content="1" 
+                                        IsVisible="{Binding EventPagination.TotalPages, Converter={x:Static ObjectConverters.IsNotNull}}"/>
+                                
+                                <Button Classes="PaginationButton" Content="2" 
+                                        IsVisible="{Binding EventPagination.TotalPages, Converter={x:Static ObjectConverters.IsNotNull}}"/>
+                                
+                                <Button Classes="PaginationButton" Content="3" 
+                                        IsVisible="{Binding EventPagination.TotalPages, Converter={x:Static ObjectConverters.IsNotNull}}"/>
+                                
+                                <TextBlock Text="..." Foreground="#64748B" VerticalAlignment="Center" Margin="4,0"
+                                           IsVisible="{Binding EventPagination.TotalPages, Converter={x:Static ObjectConverters.IsNotNull}}"/>
+                                
+                                <Button Classes="PaginationButton" 
+                                        Content="{Binding EventPagination.TotalPages, FallbackValue=1}"
+                                        IsVisible="{Binding EventPagination.TotalPages, Converter={x:Static ObjectConverters.IsNotNull}}"/>
+                                
+                                <Button Classes="PaginationButton" Content="›" 
+                                        Command="{Binding GoToNextEventPageCommand}"
+                                        IsEnabled="{Binding EventPagination.CanGoToNextPage}"
+                                        FontSize="14"/>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                    
+                    <!-- No Events Placeholder -->
+                    <Border Grid.Row="2" Background="#0F172A" IsVisible="{Binding !IsLogLoaded}">
+                        <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                            <TextBlock Text="??" FontSize="48" HorizontalAlignment="Center" Margin="0,0,0,16"/>
+                            <TextBlock Text="No log file loaded" Foreground="#64748B" FontSize="18" 
+                                       HorizontalAlignment="Center" FontWeight="SemiBold"/>
+                            <TextBlock Text="Load a log file to view events" Foreground="#475569" FontSize="13" 
+                                       HorizontalAlignment="Center" Margin="0,8,0,0"/>
+                            <Button Content="?? Load Log" Classes="EventsButton" 
+                                    Command="{Binding BrowseLocalFileCommand}"
+                                    Margin="0,24,0,0" HorizontalAlignment="Center"/>
+                        </StackPanel>
+                    </Border>
                 </Grid>
             </TabItem>
             
