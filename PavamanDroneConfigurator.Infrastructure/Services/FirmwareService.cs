@@ -29,6 +29,7 @@ public sealed class FirmwareService : IFirmwareService, IDisposable
     
     // ArduPilot firmware server URLs
     private const string FIRMWARE_MANIFEST_URL = "https://firmware.ardupilot.org/manifest.json";
+    private const string FIRMWARE_MANIFEST_URL_GZ = "https://firmware.ardupilot.org/manifest.json.gz";
     private const string FIRMWARE_BASE_URL = "https://firmware.ardupilot.org";
     
     // Temp directory for firmware downloads
@@ -265,23 +266,50 @@ public sealed class FirmwareService : IFirmwareService, IDisposable
                 return Array.Empty<FirmwareVersion>();
             }
             
-            var query = manifest.Firmware
+            // Base filter by vehicle type
+            IEnumerable<FirmwareEntry> baseQuery = manifest.Firmware
                 .Where(f => f.VehicleType.Equals(vehicleType, StringComparison.OrdinalIgnoreCase) ||
-                           f.MavType.Equals(vehicleType, StringComparison.OrdinalIgnoreCase))
-                .Where(f => f.BoardId.Equals(boardId, StringComparison.OrdinalIgnoreCase) ||
-                           f.Platform.Equals(boardId, StringComparison.OrdinalIgnoreCase))
-                .Where(f => f.Format.Equals("apj", StringComparison.OrdinalIgnoreCase) || 
-                           f.Format.Equals("px4", StringComparison.OrdinalIgnoreCase));
-            
-            if (!string.IsNullOrWhiteSpace(releaseType))
+                           f.MavType.Equals(vehicleType, StringComparison.OrdinalIgnoreCase));
+
+            // Apply release/format filters
+            IEnumerable<FirmwareEntry> ApplyCommonFilters(IEnumerable<FirmwareEntry> query)
             {
-                query = query.Where(f => string.Equals(f.MavFirmwareVersionType, releaseType, StringComparison.OrdinalIgnoreCase));
+                var filtered = query;
+
+                if (!string.IsNullOrWhiteSpace(releaseType))
+                {
+                    filtered = filtered.Where(f => string.Equals(f.MavFirmwareVersionType, releaseType, StringComparison.OrdinalIgnoreCase));
+                }
+                else
+                {
+                    filtered = filtered.Where(f =>
+                        f.MavFirmwareVersionType.Equals("OFFICIAL", StringComparison.OrdinalIgnoreCase) ||
+                        f.MavFirmwareVersionType.Equals("STABLE", StringComparison.OrdinalIgnoreCase));
+                }
+
+                filtered = filtered.Where(f =>
+                    f.Format.Equals("apj", StringComparison.OrdinalIgnoreCase) || 
+                    f.Format.Equals("px4", StringComparison.OrdinalIgnoreCase));
+
+                return filtered;
             }
-            else
+
+            // Board-specific query first (if boardId provided)
+            IEnumerable<FirmwareEntry> boardScoped = baseQuery;
+            if (!string.IsNullOrWhiteSpace(boardId))
             {
-                query = query.Where(f =>
-                    f.MavFirmwareVersionType.Equals("OFFICIAL", StringComparison.OrdinalIgnoreCase) ||
-                    f.MavFirmwareVersionType.Equals("STABLE", StringComparison.OrdinalIgnoreCase));
+                boardScoped = baseQuery.Where(f =>
+                    f.BoardId.Equals(boardId, StringComparison.OrdinalIgnoreCase) ||
+                    f.Platform.Equals(boardId, StringComparison.OrdinalIgnoreCase));
+            }
+
+            var query = ApplyCommonFilters(boardScoped);
+
+            // Fallback: any board for this vehicle type
+            if (!query.Any() && !string.IsNullOrWhiteSpace(boardId))
+            {
+                _logger.LogWarning("No firmware found for {Vehicle}/{Board}. Falling back to any board.", vehicleType, boardId);
+                query = ApplyCommonFilters(baseQuery);
             }
 
             var versions = query
@@ -292,7 +320,9 @@ public sealed class FirmwareService : IFirmwareService, IDisposable
                     BoardType = f.BoardId,
                     DownloadUrl = f.Url,
                     GitHash = f.GitHash,
-                    IsLatest = f.Latest
+                    IsLatest = f.Latest,
+                    Platform = f.Platform,
+                    Format = f.Format
                 })
                 .OrderByDescending(v => v.IsLatest)
                 .ThenByDescending(v => v.Version)
@@ -975,13 +1005,18 @@ public sealed class FirmwareService : IFirmwareService, IDisposable
         try
         {
             Log("Fetching firmware manifest...");
-            
-            var response = await _httpClient.GetStringAsync(FIRMWARE_MANIFEST_URL, ct);
-            var manifest = JsonSerializer.Deserialize<FirmwareManifest>(response, new JsonSerializerOptions
+
+            var manifestJson = await FetchManifestWithRetryAsync(ct);
+            if (string.IsNullOrWhiteSpace(manifestJson))
+            {
+                return null;
+            }
+
+            var manifest = JsonSerializer.Deserialize<FirmwareManifest>(manifestJson, new JsonSerializerOptions
             {
                 PropertyNameCaseInsensitive = true
             });
-            
+
             Log($"Manifest loaded: {manifest?.Firmware.Count ?? 0} entries");
             return manifest;
         }
@@ -990,6 +1025,46 @@ public sealed class FirmwareService : IFirmwareService, IDisposable
             _logger.LogError(ex, "Failed to fetch firmware manifest");
             return null;
         }
+    }
+
+    private async Task<string?> FetchManifestWithRetryAsync(CancellationToken ct)
+    {
+        var endpoints = new[] { FIRMWARE_MANIFEST_URL_GZ, FIRMWARE_MANIFEST_URL };
+        const int maxAttemptsPerEndpoint = 2;
+
+        foreach (var endpoint in endpoints)
+        {
+            for (int attempt = 1; attempt <= maxAttemptsPerEndpoint; attempt++)
+            {
+                try
+                {
+                    if (endpoint.EndsWith(".gz", StringComparison.OrdinalIgnoreCase))
+                    {
+                        using var response = await _httpClient.GetAsync(endpoint, ct);
+                        response.EnsureSuccessStatusCode();
+                        await using var stream = await response.Content.ReadAsStreamAsync(ct);
+                        await using var gzipStream = new System.IO.Compression.GZipStream(stream, System.IO.Compression.CompressionMode.Decompress);
+                        using var reader = new StreamReader(gzipStream);
+                        return await reader.ReadToEndAsync(ct);
+                    }
+                    else
+                    {
+                        return await _httpClient.GetStringAsync(endpoint, ct);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Manifest fetch failed from {Endpoint} (attempt {Attempt}/{Max})", endpoint, attempt, maxAttemptsPerEndpoint);
+                    if (attempt == maxAttemptsPerEndpoint)
+                    {
+                        break;
+                    }
+                    await Task.Delay(TimeSpan.FromSeconds(1), ct);
+                }
+            }
+        }
+
+        return null;
     }
     
     #endregion

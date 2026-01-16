@@ -7,27 +7,6 @@ using System.Text.RegularExpressions;
 
 namespace PavamanDroneConfigurator.Infrastructure.Services;
 
-/// <summary>
-/// Mission Planner-equivalent Calibration Service with STRICT supervisory control.
-/// 
-/// ABSOLUTE RULES:
-/// 1. Firmware is the SINGLE SOURCE OF TRUTH
-/// 2. UI NEVER decides calibration success
-/// 3. Steps advance ONLY via STATUSTEXT messages from FC
-/// 4. All state transitions are driven by FC responses
-/// 5. Never invent sensor values
-/// 6. Never skip validation
-/// 7. Never continue after failure
-/// 8. Never soften failure language
-/// 9. Behavior must be deterministic
-/// 10. Flight safety always takes precedence
-/// 
-/// PRE-CONDITIONS MUST PASS before calibration begins:
-/// - Vehicle DISARMED
-/// - Motors UNPOWERED
-/// - MAVLink heartbeat stable
-/// - No sensor timeout flags
-/// </summary>
 public class CalibrationService : ICalibrationService
 {
     private readonly ILogger<CalibrationService> _logger;
@@ -349,7 +328,6 @@ public class CalibrationService : ICalibrationService
                 .FirstOrDefault(p => p.Position == _currentPositionNumber);
             if (posResult != null)
             {
-                posResult.Accepted = true;
                 posResult.FcAcceptedTime = DateTime.UtcNow;
             }
         }
@@ -537,18 +515,13 @@ public class CalibrationService : ICalibrationService
             _currentDiagnostics?.AddDiagnostic(CalibrationDiagnosticSeverity.Info,
                 $"FC requested position {_currentPositionNumber}: {GetPositionName(_currentPositionNumber)}");
             
-            // Add position result entry - only if it doesn't already exist for this position
-            var existingResult = _currentDiagnostics?.AccelPositionResults
-                .FirstOrDefault(p => p.Position == _currentPositionNumber);
-            if (existingResult == null && _currentDiagnostics != null)
+            // Add position result entry
+            _currentDiagnostics?.AccelPositionResults.Add(new AccelPositionResult
             {
-                _currentDiagnostics.AccelPositionResults.Add(new AccelPositionResult
-                {
-                    Position = _currentPositionNumber,
-                    PositionName = GetPositionName(_currentPositionNumber),
-                    Attempts = 0  // Will be incremented when user confirms
-                });
-            }
+                Position = _currentPositionNumber,
+                PositionName = GetPositionName(_currentPositionNumber),
+                Attempts = 1
+            });
 
             TransitionState(CalibrationStateMachine.WaitingForUserPosition);
             
@@ -959,9 +932,6 @@ public class CalibrationService : ICalibrationService
             {
                 posResult.UserConfirmedTime = DateTime.UtcNow;
                 posResult.Attempts++;
-                // Reset acceptance state for retry attempt
-                posResult.Accepted = false;
-                posResult.FcAcceptedTime = null;
             }
 
             // Transition to validating state

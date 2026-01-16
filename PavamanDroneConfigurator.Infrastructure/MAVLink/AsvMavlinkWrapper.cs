@@ -131,7 +131,7 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
             // [0-3] custom_mode (uint32)
             // [4]   type (uint8) - MAV_TYPE_GCS = 6
             // [5]   autopilot (uint8) - MAV_AUTOPILOT_INVALID = 8
-            // [6]   base_mode (uint8)
+            // [6]   base_mode (unit8)
             // [7]   system_status (uint8)
             // [8]   mavlink_version (uint8)
 
