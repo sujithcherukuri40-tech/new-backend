@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using System;
 using PavamanDroneConfigurator.Core.Enums;
 using PavamanDroneConfigurator.Core.Interfaces;
 using PavamanDroneConfigurator.Core.Models;
@@ -177,7 +178,7 @@ public class CalibrationService : ICalibrationService
         var rawImuData = new RawImuData
         {
             TimeUsec = imuData.TimeUsec,
-            // Back-convert from m/s² to raw format (approximate)
+            // Back-convert from m/sï¿½ to raw format (approximate)
             XAcc = (short)(imuData.AccelX / 0.00981), // Assuming SCALED_IMU format
             YAcc = (short)(imuData.AccelY / 0.00981),
             ZAcc = (short)(imuData.AccelZ / 0.00981),
@@ -230,6 +231,12 @@ public class CalibrationService : ICalibrationService
                 // Start a completion timer for simple calibrations
                 // These typically complete in 1-3 seconds
                 _ = WaitForSimpleCalibrationCompletion();
+            }
+            else if (_currentCalibrationType == CalibrationType.Accelerometer)
+            {
+                // Accelerometer calibration must wait for FC STATUSTEXT position requests
+                UpdateState(CalibrationState.InProgress, 0,
+                    "Waiting for flight controller position requests...", canConfirm: false);
             }
         }
         else
@@ -442,6 +449,12 @@ public class CalibrationService : ICalibrationService
 
     private bool IsCompletionMessage(string lowerText)
     {
+        // Accelerometer requires explicit success confirmation
+        if (_currentCalibrationType == CalibrationType.Accelerometer)
+        {
+            return lowerText.Contains("calibration") && lowerText.Contains("successful");
+        }
+
         // Check for explicit completion keywords
         if (StatusKeywords.Complete.Any(kw => lowerText.Contains(kw)))
             return true;
@@ -467,13 +480,6 @@ public class CalibrationService : ICalibrationService
                 // ArduPilot sends "Baro" or "pressure" related messages
                 if ((lowerText.Contains("baro") || lowerText.Contains("pressure")) && 
                     (lowerText.Contains("complete") || lowerText.Contains("done") || lowerText.Contains("calibrated")))
-                    return true;
-                break;
-                
-            case CalibrationType.Accelerometer:
-                // For accel, need explicit "calibration successful"
-                if (lowerText.Contains("accel") && lowerText.Contains("calibration") && 
-                    (lowerText.Contains("successful") || lowerText.Contains("complete")))
                     return true;
                 break;
                 
@@ -525,7 +531,7 @@ public class CalibrationService : ICalibrationService
 
             TransitionState(CalibrationStateMachine.WaitingForUserPosition);
             
-            int progress = ((_currentPositionNumber - 1) * 100) / 6;
+            int progress = (int)Math.Round(((_currentPositionNumber - 1) * 100.0) / 6.0);
             var instruction = GetPositionInstruction(_currentPositionNumber);
             var step = GetCalibrationStep(_currentPositionNumber);
             
@@ -544,7 +550,7 @@ public class CalibrationService : ICalibrationService
             
             TransitionState(CalibrationStateMachine.Sampling);
             
-            int progress = (_currentPositionNumber * 100) / 6;
+            int progress = (int)Math.Round((_currentPositionNumber * 100.0) / 6.0);
             UpdateState(CalibrationState.InProgress, progress,
                 $"Position {_currentPositionNumber}/6: {GetPositionName(_currentPositionNumber)} - Sampling... Hold still!",
                 canConfirm: false);
@@ -656,7 +662,7 @@ public class CalibrationService : ICalibrationService
         
         if (_currentCalibrationType == CalibrationType.Accelerometer)
         {
-            lock (_lock) { _currentPositionNumber = 7; }
+            lock (_lock) { _currentPositionNumber = Math.Clamp(_currentPositionNumber, 1, 6); }
         }
         
         FinishCalibration(CalibrationResult.Success, 
@@ -1190,7 +1196,10 @@ public class CalibrationService : ICalibrationService
         _currentState.State = state;
         _currentState.Progress = progress;
         _currentState.Message = message;
-        _currentState.CurrentPosition = _currentPositionNumber;
+        var clampedPosition = _currentCalibrationType == CalibrationType.Accelerometer
+            ? Math.Clamp(_currentPositionNumber, 0, 6)
+            : _currentPositionNumber;
+        _currentState.CurrentPosition = clampedPosition;
         _currentState.CanConfirmPosition = canConfirm;
 
         CalibrationStateChanged?.Invoke(this, _currentState);

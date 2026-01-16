@@ -415,27 +415,28 @@ public partial class SensorsCalibrationPageViewModel : ViewModelBase
 
     private void UpdateStepIndicators(int step, bool markCurrentAsComplete = false)
     {
-        AccelStepNumber = step;
+        var clampedStep = Math.Clamp(step, 0, 6);
+        AccelStepNumber = clampedStep;
         
         // Mark previous step as complete if requested (when FC validates it)
-        if (markCurrentAsComplete && step >= 1 && step <= 6)
+        if (markCurrentAsComplete && clampedStep >= 1 && clampedStep <= 6)
         {
-            _validatedSteps.Add(step);
-            AddDebugLog($"Step {step} validated and marked complete by FC");
+            _validatedSteps.Add(clampedStep);
+            AddDebugLog($"Step {clampedStep} validated and marked complete by FC");
         }
         
         // Update active and complete states based on validated steps
-        IsStep1Active = step == 1;
+        IsStep1Active = clampedStep == 1;
         IsStep1Complete = _validatedSteps.Contains(1);
-        IsStep2Active = step == 2;
+        IsStep2Active = clampedStep == 2;
         IsStep2Complete = _validatedSteps.Contains(2);
-        IsStep3Active = step == 3;
+        IsStep3Active = clampedStep == 3;
         IsStep3Complete = _validatedSteps.Contains(3);
-        IsStep4Active = step == 4;
+        IsStep4Active = clampedStep == 4;
         IsStep4Complete = _validatedSteps.Contains(4);
-        IsStep5Active = step == 5;
+        IsStep5Active = clampedStep == 5;
         IsStep5Complete = _validatedSteps.Contains(5);
-        IsStep6Active = step == 6;
+        IsStep6Active = clampedStep == 6;
         IsStep6Complete = _validatedSteps.Contains(6);
 
         // Update colors: Red for active (waiting), Green for complete, Gray for pending
@@ -464,12 +465,12 @@ public partial class SensorsCalibrationPageViewModel : ViewModelBase
         Step6BackgroundColor = IsStep6Complete ? "#D1FAE5" : (IsStep6Active ? "#FEE2E2" : "#F8FAFC");
 
         // Update calibration image based on current step
-        if (step >= 1 && step <= 6)
+        if (clampedStep >= 1 && clampedStep <= 6)
         {
-            CurrentCalibrationImage = CalibrationImagePaths[step - 1];
+            CurrentCalibrationImage = CalibrationImagePaths[clampedStep - 1];
         }
         
-        AddDebugLog($"Step indicators updated: Step {step}, Validated: {string.Join(",", _validatedSteps)}, Image: {CurrentCalibrationImage}");
+        AddDebugLog($"Step indicators updated: Step {clampedStep}, Validated: {string.Join(",", _validatedSteps)}, Image: {CurrentCalibrationImage}");
     }
 
     #region Tab Selection Changed
@@ -680,7 +681,7 @@ public partial class SensorsCalibrationPageViewModel : ViewModelBase
                     ? "Calibration completed successfully! Reboot recommended."
                     : "Calibration failed. Please try again.";
                 AccelCalibrationProgress = success ? 100 : 0;
-                if (success) UpdateStepIndicators(7);
+                if (success) UpdateStepIndicators(6, markCurrentAsComplete: true);
                 break;
 
             case CalibrationType.Compass:
