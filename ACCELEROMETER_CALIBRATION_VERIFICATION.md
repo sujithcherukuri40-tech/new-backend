@@ -126,7 +126,7 @@ ValidatingPosition → SendingPositionToFC → FCSampling → [repeat 6x] → Co
 
 ### ✅ Assets (6 images)
 
-**Location:** `PavamanDroneConfigurator.UI/Assets/Images/Caliberation-images/`
+**Location:** `PavamanDroneConfigurator.UI/Assets/Images/Caliberation-images/` (note: "Caliberation" is the actual folder name)
 
 | Image | Size | Position | Status |
 |-------|------|----------|--------|
