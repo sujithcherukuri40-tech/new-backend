@@ -44,6 +44,12 @@ public sealed class Px4Uploader : IDisposable
     private const int STABILIZATION_DELAY = 500; // USB stabilization delay after connect
     private const int PROGRAM_CHUNK_DELAY = 5;   // Small delay between chunks to avoid USB overruns
     private const int MAX_PROGRAM_RETRIES = 3;   // Retry failed program chunks
+    private const int CRC_VERIFICATION_TIMEOUT = 30000; // CRC calculation can take up to 30 seconds
+    private const double CRC_PROGRESS_DURATION_MS = 10000.0; // Duration for progress bar during CRC verification
+    
+    // INVALID response detection constants
+    private const int MIN_BYTES_FOR_INVALID_CHECK = 4; // Minimum bytes before checking for INVALID
+    private const int INVALID_HEADER_SIZE = 2; // INSYNC + INVALID bytes
     
     // Consecutive failure thresholds before giving up
     // These are tuned based on Mission Planner's behavior for the ~60% failure zone
@@ -671,9 +677,8 @@ public sealed class Px4Uploader : IDisposable
         
         // CRC calculation can be slow, give it extra time with progress reporting
         var sw = Stopwatch.StartNew();
-        int timeoutMs = 30000; // 30 second timeout
         
-        while (sw.ElapsedMilliseconds < timeoutMs)
+        while (sw.ElapsedMilliseconds < CRC_VERIFICATION_TIMEOUT)
         {
             if (_port != null && _port.BytesToRead >= 4)
             {
@@ -682,7 +687,7 @@ public sealed class Px4Uploader : IDisposable
             }
             
             // Report progress during CRC calculation
-            double progress = (sw.ElapsedMilliseconds / 10000.0) * 100.0;
+            double progress = (sw.ElapsedMilliseconds / CRC_PROGRESS_DURATION_MS) * 100.0;
             if (progress < 100)
             {
                 ProgressEvent?.Invoke(progress);
@@ -1091,7 +1096,7 @@ public sealed class Px4Uploader : IDisposable
                     
                     // Mission Planner compatible: early INVALID detection
                     // If we get INSYNC + INVALID at the start of a multi-byte read, fail fast
-                    if (count >= 4 && offset >= 2 && 
+                    if (count >= MIN_BYTES_FOR_INVALID_CHECK && offset >= INVALID_HEADER_SIZE && 
                         buffer[0] == (byte)ProtocolCode.INSYNC && 
                         buffer[1] == (byte)ProtocolCode.INVALID)
                     {
