@@ -44,6 +44,11 @@ public sealed class Px4Uploader : IDisposable
     private const int STABILIZATION_DELAY = 500; // USB stabilization delay after connect
     private const int PROGRAM_CHUNK_DELAY = 5;   // Small delay between chunks to avoid USB overruns
     private const int MAX_PROGRAM_RETRIES = 3;   // Retry failed program chunks
+    
+    // Consecutive failure thresholds before giving up
+    // These are tuned based on Mission Planner's behavior for the ~60% failure zone
+    private const int MAX_CONSECUTIVE_TIMEOUTS = 5;  // Timeout failures before abort
+    private const int MAX_CONSECUTIVE_IO_ERRORS = 3; // IO errors (USB disconnect) before abort
 
     // Detected board info
     public int BoardType { get; private set; }
@@ -415,7 +420,7 @@ public sealed class Px4Uploader : IDisposable
                     _logger.LogWarning(ex, "Timeout programming chunk {Count}/{Total} (attempt {Retry})", 
                         count + 1, total, retry + 1);
                     
-                    if (consecutiveFailures > 5)
+                    if (consecutiveFailures > MAX_CONSECUTIVE_TIMEOUTS)
                     {
                         throw new Exception($"Lost communication with the board after {consecutiveFailures} consecutive failures at {(count * 100.0 / total):F0}%");
                     }
@@ -427,7 +432,7 @@ public sealed class Px4Uploader : IDisposable
                         count + 1, total, retry + 1);
                     
                     // IOException often means USB disconnect - this is the ~60% failure zone
-                    if (consecutiveFailures > 3)
+                    if (consecutiveFailures > MAX_CONSECUTIVE_IO_ERRORS)
                     {
                         throw new IOException($"Lost communication with the board at {(count * 100.0 / total):F0}%. Check USB cable and connection.", ex);
                     }
@@ -508,7 +513,7 @@ public sealed class Px4Uploader : IDisposable
                     consecutiveFailures++;
                     _logger.LogWarning(ex, "Timeout programming external flash chunk {Count}/{Total}", count + 1, total);
                     
-                    if (consecutiveFailures > 5)
+                    if (consecutiveFailures > MAX_CONSECUTIVE_TIMEOUTS)
                     {
                         throw new Exception($"Lost communication during external flash programming at {(count * 100.0 / total):F0}%");
                     }
@@ -518,7 +523,7 @@ public sealed class Px4Uploader : IDisposable
                     consecutiveFailures++;
                     _logger.LogWarning(ex, "IO error programming external flash chunk {Count}/{Total}", count + 1, total);
                     
-                    if (consecutiveFailures > 3)
+                    if (consecutiveFailures > MAX_CONSECUTIVE_IO_ERRORS)
                     {
                         throw new IOException($"Lost communication during external flash programming at {(count * 100.0 / total):F0}%", ex);
                     }
@@ -715,7 +720,8 @@ public sealed class Px4Uploader : IDisposable
                 if (IsSameFirmware(firmware.Image, FlashSize))
                 {
                     Log("Same firmware already installed. Skipping upload.");
-                    Reboot();
+                    // Don't reboot here - let the caller handle it
+                    // This prevents losing the exception if reboot causes disconnect
                     throw new Exception("Same firmware already installed");
                 }
             }

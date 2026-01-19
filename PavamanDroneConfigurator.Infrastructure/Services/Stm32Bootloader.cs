@@ -50,6 +50,10 @@ public sealed class Stm32Bootloader
     private const int STABILIZATION_DELAY = 500; // USB stabilization delay
     private const int PROGRAM_TIMEOUT = 2000; // Timeout for program operations
     
+    // Consecutive failure thresholds - consistent with Px4Uploader
+    private const int MAX_CONSECUTIVE_TIMEOUTS = 5;  // Timeout failures before abort
+    private const int MAX_CONSECUTIVE_IO_ERRORS = 3; // IO errors (USB disconnect) before abort
+    
     private bool _usePx4Protocol = false;
     
     public Stm32Bootloader(ILogger logger)
@@ -580,7 +584,7 @@ public sealed class Stm32Bootloader
                         consecutiveFailures++;
                         _logger.LogWarning(ex, "IO error programming chunk at offset {Offset}", offset);
                         
-                        if (consecutiveFailures > 3)
+                        if (consecutiveFailures > MAX_CONSECUTIVE_IO_ERRORS)
                         {
                             throw new IOException($"Lost communication during programming at {(offset * 100.0 / totalBytes):F0}%", ex);
                         }
@@ -590,7 +594,7 @@ public sealed class Stm32Bootloader
                         consecutiveFailures++;
                         _logger.LogWarning(ex, "Timeout programming chunk at offset {Offset}", offset);
                         
-                        if (consecutiveFailures > 5)
+                        if (consecutiveFailures > MAX_CONSECUTIVE_TIMEOUTS)
                         {
                             throw new TimeoutException($"Repeated timeouts during programming at {(offset * 100.0 / totalBytes):F0}%", ex);
                         }
