@@ -12,6 +12,8 @@
         <converters:BoolToColorConverter x:Key="BoolToColorConverter"/>
         <converters:ZeroToBoolConverter x:Key="ZeroToBoolConverter"/>
         <converters:BoolToStringConverter x:Key="BoolToStringConverter"/>
+        <converters:DirectionToColorConverter x:Key="DirectionToColorConverter"/>
+        <converters:DirectionToPrefixConverter x:Key="DirectionToPrefixConverter"/>
     </Application.Resources>
 
     <Application.DataTemplates>
