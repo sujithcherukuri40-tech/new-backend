@@ -153,6 +153,11 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
     private int _totalMessagePages;
 
     private const int MessagesPerPage = 100;
+    
+    // Raw data preview constants
+    private const int MaxRawDataRowsPerType = 50;
+    private const int MaxRawDataTotalRows = 200;
+    private const int MaxMessageTypesForRawData = 10;
 
     #endregion
 
@@ -736,6 +741,8 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
     
     /// <summary>
     /// Loads raw log messages for display in the Events tab data preview.
+    /// This loads a limited sample of messages to avoid performance issues with large log files.
+    /// The sample is taken from the first few message types to give a representative preview.
     /// </summary>
     private void LoadRawLogMessages()
     {
@@ -746,17 +753,15 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
             // Get a sample of messages from multiple types to show raw data
             var messageTypes = _logAnalyzerService.GetMessageTypes();
             int totalLoaded = 0;
-            const int maxRowsPerType = 50;
-            const int maxTotalRows = 200;
             
-            foreach (var msgType in messageTypes.Take(10))
+            foreach (var msgType in messageTypes.Take(MaxMessageTypesForRawData))
             {
-                if (totalLoaded >= maxTotalRows) break;
+                if (totalLoaded >= MaxRawDataTotalRows) break;
                 
-                var messages = _logAnalyzerService.GetMessages(msgType.Name, 0, maxRowsPerType);
+                var messages = _logAnalyzerService.GetMessages(msgType.Name, 0, MaxRawDataRowsPerType);
                 foreach (var msg in messages)
                 {
-                    if (totalLoaded >= maxTotalRows) break;
+                    if (totalLoaded >= MaxRawDataTotalRows) break;
                     RawLogMessages.Add(msg);
                     totalLoaded++;
                 }

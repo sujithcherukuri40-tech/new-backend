@@ -468,7 +468,7 @@
             
             <!-- ENHANCED EVENTS TAB -->
             <TabItem Header="Events">
-                <Grid RowDefinitions="Auto,Auto,2*,*,Auto" Background="#0F172A">
+                <Grid RowDefinitions="Auto,Auto,3*,1*,Auto" Background="#0F172A">
                     
                     <!-- Filter Bar -->
                     <Border Grid.Row="0" Background="#1E293B" Padding="16,12" BorderBrush="#334155" BorderThickness="0,0,0,1">
