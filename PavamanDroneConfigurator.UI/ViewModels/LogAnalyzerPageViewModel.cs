@@ -153,6 +153,11 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
     private int _totalMessagePages;
 
     private const int MessagesPerPage = 100;
+    
+    // Raw data preview constants
+    private const int MaxRawDataRowsPerType = 50;
+    private const int MaxRawDataTotalRows = 200;
+    private const int MaxMessageTypesForRawData = 10;
 
     #endregion
 
@@ -277,6 +282,16 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
         "10 seconds",
         "30 seconds"
     };
+    
+    // Raw data display for Events tab
+    [ObservableProperty]
+    private ObservableCollection<LogMessageView> _rawLogMessages = new();
+    
+    [ObservableProperty]
+    private bool _hasRawLogData;
+    
+    [ObservableProperty]
+    private string _rawDataRowCount = "0 rows";
 
     #endregion
 
@@ -526,6 +541,9 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
                 
                 // Load log parameters with metadata
                 await LoadLogParametersAsync();
+                
+                // Load raw log messages for display
+                LoadRawLogMessages();
 
                 StatusMessage = $"Log loaded: {result.MessageCount:N0} messages";
             }
@@ -718,6 +736,47 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
         foreach (var p in filtered)
         {
             FilteredLogParameters.Add(p);
+        }
+    }
+    
+    /// <summary>
+    /// Loads raw log messages for display in the Events tab data preview.
+    /// This loads a limited sample of messages to avoid performance issues with large log files.
+    /// The sample is taken from the first few message types to give a representative preview.
+    /// </summary>
+    private void LoadRawLogMessages()
+    {
+        RawLogMessages.Clear();
+        
+        try
+        {
+            // Get a sample of messages from multiple types to show raw data
+            var messageTypes = _logAnalyzerService.GetMessageTypes();
+            int totalLoaded = 0;
+            
+            foreach (var msgType in messageTypes.Take(MaxMessageTypesForRawData))
+            {
+                if (totalLoaded >= MaxRawDataTotalRows) break;
+                
+                var messages = _logAnalyzerService.GetMessages(msgType.Name, 0, MaxRawDataRowsPerType);
+                foreach (var msg in messages)
+                {
+                    if (totalLoaded >= MaxRawDataTotalRows) break;
+                    RawLogMessages.Add(msg);
+                    totalLoaded++;
+                }
+            }
+            
+            HasRawLogData = RawLogMessages.Count > 0;
+            RawDataRowCount = $"{RawLogMessages.Count:N0} rows (sample)";
+            
+            _logger.LogInformation("Loaded {Count} raw log messages for display", RawLogMessages.Count);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading raw log messages");
+            HasRawLogData = false;
+            RawDataRowCount = "Error loading data";
         }
     }
 
