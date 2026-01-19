@@ -233,6 +233,11 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
     [ObservableProperty]
     private EventSummary? _eventSummary;
     
+    /// <summary>
+    /// Indicates whether there are filtered events available for export
+    /// </summary>
+    public bool HasFilteredEvents => FilteredEvents.Count > 0;
+    
     // Enhanced Events Tab Properties
     [ObservableProperty]
     private EventDisplaySummary _eventDisplaySummary = new();
@@ -533,6 +538,10 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
                     ExtractBasicEventsFromLog();
                 }
                 
+                // Ensure events are filtered and displayed automatically
+                FilterEvents();
+                UpdateEventDisplaySummary();
+                
                 // Load GPS track for map
                 LoadGpsTrack();
                 
@@ -545,7 +554,7 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
                 // Load raw log messages for display
                 LoadRawLogMessages();
 
-                StatusMessage = $"Log loaded: {result.MessageCount:N0} messages";
+                StatusMessage = $"Log loaded: {result.MessageCount:N0} messages - {DetectedEvents.Count} events detected";
             }
             else
             {
@@ -958,6 +967,7 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
         }
         
         UpdateEventDisplaySummary();
+        OnPropertyChanged(nameof(HasFilteredEvents));
     }
 
     [RelayCommand]
@@ -1209,6 +1219,9 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
             
             // Apply filters to show events
             FilterEvents();
+            
+            // Update event display summary to refresh UI statistics
+            UpdateEventDisplaySummary();
             
             _logger.LogInformation("Extracted {Count} basic events from log", DetectedEvents.Count);
         }
