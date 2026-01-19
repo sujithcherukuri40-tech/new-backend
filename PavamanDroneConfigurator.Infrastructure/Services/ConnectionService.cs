@@ -671,18 +671,23 @@ public sealed class ConnectionService : IConnectionService, IDisposable
 
     public void SendAccelCalVehiclePos(int position)
     {
+        _logger.LogInformation("SendAccelCalVehiclePos called: position={Position}, connectionType={Type}, isConnected={Connected}", 
+            position, _currentConnectionType, _isConnected);
+        
         if (_currentConnectionType == ConnectionType.Bluetooth && _bluetoothConnection != null)
         {
+            _logger.LogInformation("Sending via Bluetooth connection");
             _ = _bluetoothConnection.SendAccelCalVehiclePosAsync(position);
             return;
         }
 
         if (_mavlink == null)
         {
-            _logger.LogWarning("Cannot send MAV_CMD_ACCELCAL_VEHICLE_POS - not connected");
+            _logger.LogWarning("Cannot send MAV_CMD_ACCELCAL_VEHICLE_POS - not connected (mavlink is null)");
             return;
         }
 
+        _logger.LogInformation("Sending via MAVLink wrapper");
         _ = _mavlink.SendAccelCalVehiclePosAsync(position);
     }
 

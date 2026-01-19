@@ -706,9 +706,11 @@
                 <!-- DEBUG LOGS PANEL -->
                 <Border Classes="SectionCard" IsVisible="{Binding ShowDebugLogs}">
                     <StackPanel>
-                        <Grid ColumnDefinitions="*,Auto">
+                        <Grid ColumnDefinitions="*,Auto,Auto">
                             <TextBlock Grid.Column="0" Classes="SectionTitle" Text="Debug Logs"/>
-                            <Button Grid.Column="1" Content="Clear" Command="{Binding ClearDebugLogsCommand}" 
+                            <Button Grid.Column="1" Content="Copy" Command="{Binding CopyDebugLogsCommand}" 
+                                    Background="Transparent" Foreground="#64748B" Padding="8,4" Margin="0,0,8,0"/>
+                            <Button Grid.Column="2" Content="Clear" Command="{Binding ClearDebugLogsCommand}" 
                                     Background="Transparent" Foreground="#64748B" Padding="8,4"/>
                         </Grid>
                         

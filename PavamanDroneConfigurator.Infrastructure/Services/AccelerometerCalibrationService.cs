@@ -457,18 +457,22 @@ public class AccelerometerCalibrationService : IDisposable
     
     private void OnRawImuReceived(object? sender, RawImuEventArgs e)
     {
-        // Convert from event args to RawImuData
+        // RawImuEventArgs already contains m/s² values from ConnectionService
+        // We need to convert them to milli-g for SCALED_IMU processing
+        // 1 m/s² = 101.97162 milli-g (since 1g = 9.80665 m/s²)
+        const double MS2_TO_MILLI_G = 1000.0 / 9.80665; // ? 101.97162
+        
         _latestImuData = new RawImuData
         {
             TimeUsec = e.TimeUsec,
-            XAcc = (short)(e.AccelX / 0.00981), // Convert m/s² back to raw (approx)
-            YAcc = (short)(e.AccelY / 0.00981),
-            ZAcc = (short)(e.AccelZ / 0.00981),
-            XGyro = (short)(e.GyroX / 0.001),
-            YGyro = (short)(e.GyroY / 0.001),
-            ZGyro = (short)(e.GyroZ / 0.001),
-            Temperature = (short)(e.Temperature * 100),
-            IsScaled = true
+            XAcc = (short)(e.AccelX * MS2_TO_MILLI_G),  // Convert m/s² to milli-g
+            YAcc = (short)(e.AccelY * MS2_TO_MILLI_G),
+            ZAcc = (short)(e.AccelZ * MS2_TO_MILLI_G),
+            XGyro = (short)(e.GyroX * 1000),  // Convert rad/s to milli-rad/s
+            YGyro = (short)(e.GyroY * 1000),
+            ZGyro = (short)(e.GyroZ * 1000),
+            Temperature = (short)(e.Temperature * 100),  // Convert °C to centi-degrees
+            IsScaled = true  // Mark as scaled IMU data (SCALED_IMU format)
         };
         
         // Collect samples during validation phase

@@ -319,6 +319,30 @@ public partial class SensorsCalibrationPageViewModel : ViewModelBase
         AddDebugLog("Logs cleared");
     }
 
+    [RelayCommand]
+    private async Task CopyDebugLogsAsync()
+    {
+        try
+        {
+            var allLogs = string.Join(Environment.NewLine, DebugLogs);
+            var topLevel = Avalonia.Application.Current?.ApplicationLifetime is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop
+                ? desktop.MainWindow
+                : null;
+            
+            if (topLevel?.Clipboard != null)
+            {
+                await topLevel.Clipboard.SetTextAsync(allLogs);
+                AddDebugLog($"Copied {DebugLogs.Count} log entries to clipboard");
+                StatusMessage = $"Copied {DebugLogs.Count} logs to clipboard";
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to copy logs");
+            ShowError("Copy Failed", $"Failed to copy logs: {ex.Message}");
+        }
+    }
+
     private void InitializeFlowTypeOptions()
     {
         FlowTypeOptions.Add(new FlowTypeOption { Type = FlowType.Disabled, Label = "Disable" });
@@ -673,12 +697,12 @@ public partial class SensorsCalibrationPageViewModel : ViewModelBase
             return;
         }
 
-        AddDebugLog("Starting accelerometer calibration...");
+        AddDebugLog("Starting accelerometer calibration (Mission Planner style)...");
         
-        // Reset UI - reset all steps to pending (gray)
+        // Reset UI
         AccelCalibrationProgress = 0;
         ResetStepColors();
-        AccelInstructions = "Starting calibration...";
+        AccelInstructions = "Place the drone LEVEL on a flat surface. The FC will sample all 6 positions internally after you confirm position 1.";
         
         var success = await _calibrationService.StartAccelerometerCalibrationAsync(fullSixAxis: true);
         if (!success)
