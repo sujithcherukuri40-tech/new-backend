@@ -375,6 +375,7 @@ public class MissionPlannerManifest
 
 /// <summary>
 /// Mission Planner compatible firmware entry
+/// Uses correct types to match ArduPilot manifest.json format
 /// </summary>
 public class MissionPlannerFirmwareEntry
 {
@@ -384,8 +385,17 @@ public class MissionPlannerFirmwareEntry
     [JsonPropertyName("vehicletype")]
     public string? VehicleType { get; set; }
     
+    /// <summary>
+    /// Board ID - ArduPilot manifest uses a number, not string
+    /// </summary>
     [JsonPropertyName("board_id")]
-    public string? BoardId { get; set; }
+    public long BoardIdLong { get; set; }
+    
+    /// <summary>
+    /// Board ID string for backward compatibility
+    /// </summary>
+    [JsonIgnore]
+    public string? BoardId => BoardIdLong > 0 ? BoardIdLong.ToString() : null;
     
     [JsonPropertyName("platform")]
     public string? Platform { get; set; }
@@ -408,8 +418,17 @@ public class MissionPlannerFirmwareEntry
     [JsonPropertyName("mav-firmware-version-int")]
     public int MavFirmwareVersionInt { get; set; }
     
+    /// <summary>
+    /// The "latest" field in manifest - is a long/int (0 or 1)
+    /// </summary>
     [JsonPropertyName("latest")]
-    public bool Latest { get; set; }
+    public long LatestLong { get; set; }
+    
+    /// <summary>
+    /// Computed property to convert to bool
+    /// </summary>
+    [JsonIgnore]
+    public bool Latest => LatestLong == 1;
     
     [JsonPropertyName("frame")]
     public string? Frame { get; set; }
