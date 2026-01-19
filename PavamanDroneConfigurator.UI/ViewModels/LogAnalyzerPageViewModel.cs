@@ -1200,6 +1200,10 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
                 CriticalCount = DetectedEvents.Count(e => e.Severity == LogEventSeverity.Critical || e.Severity == LogEventSeverity.Emergency)
             };
             
+            // Update the overview counts for display in other tabs
+            ErrorCount = EventSummary.ErrorCount + EventSummary.CriticalCount;
+            WarningCount = EventSummary.WarningCount;
+            
             // Populate filter dropdowns
             PopulateEventFilterDropdowns();
             
@@ -1278,11 +1282,15 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
             TotalEvents = FilteredEvents.Count,
             ErrorCount = FilteredEvents.Count(e => e.Severity == LogEventSeverity.Error),
             WarningCount = FilteredEvents.Count(e => e.Severity == LogEventSeverity.Warning),
-            InfoCount = FilteredEvents.Count(e => e.Severity == LogEventSeverity.Info),
-            CriticalCount = FilteredEvents.Count(e => e.Severity == LogEventSeverity.Critical)
+            InfoCount = FilteredEvents.Count(e => e.Severity == LogEventSeverity.Info || e.Severity == LogEventSeverity.Notice || e.Severity == LogEventSeverity.Debug),
+            CriticalCount = FilteredEvents.Count(e => e.Severity == LogEventSeverity.Critical || e.Severity == LogEventSeverity.Emergency)
         };
         
         EventPagination.TotalItems = FilteredEvents.Count;
+        
+        // Notify UI of property changes
+        OnPropertyChanged(nameof(EventDisplaySummary));
+        OnPropertyChanged(nameof(EventPagination));
     }
     
     [RelayCommand]
@@ -1332,7 +1340,16 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
                 IsBusy = true;
                 StatusMessage = "Exporting events to CSV...";
                 
-                await using var writer = new StreamWriter(file.Path.LocalPath);
+                var filePath = file.Path.LocalPath;
+                
+                // Ensure directory exists
+                var directory = Path.GetDirectoryName(filePath);
+                if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
+                {
+                    Directory.CreateDirectory(directory);
+                }
+                
+                await using var writer = new StreamWriter(filePath, false, System.Text.Encoding.UTF8);
                 
                 // Write header
                 await writer.WriteLineAsync("Timestamp,Severity,Event Type,Source,Message,Details");
@@ -1344,6 +1361,7 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
                     await writer.WriteLineAsync(line);
                 }
                 
+                await writer.FlushAsync();
                 StatusMessage = $"Exported {FilteredEvents.Count} events to CSV";
             }
         }
@@ -1385,6 +1403,15 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
                 IsBusy = true;
                 StatusMessage = "Exporting events to JSON...";
                 
+                var filePath = file.Path.LocalPath;
+                
+                // Ensure directory exists
+                var directory = Path.GetDirectoryName(filePath);
+                if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
+                {
+                    Directory.CreateDirectory(directory);
+                }
+                
                 var exportData = FilteredEvents.Select(e => new
                 {
                     e.Id,
@@ -1402,7 +1429,7 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
                     WriteIndented = true 
                 });
                 
-                await File.WriteAllTextAsync(file.Path.LocalPath, json);
+                await File.WriteAllTextAsync(filePath, json, System.Text.Encoding.UTF8);
                 
                 StatusMessage = $"Exported {FilteredEvents.Count} events to JSON";
             }
@@ -1559,7 +1586,14 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
     {
         try
         {
-            using var writer = new System.IO.StreamWriter(filePath);
+            // Ensure directory exists
+            var directory = Path.GetDirectoryName(filePath);
+            if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+            
+            await using var writer = new System.IO.StreamWriter(filePath, false, System.Text.Encoding.UTF8);
             
             // Write header
             var fields = SelectedGraphFields.Count > 0 
@@ -1616,6 +1650,7 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
                 }
             }
             
+            await writer.FlushAsync();
             StatusMessage = $"Exported to {Path.GetFileName(filePath)}";
         }
         catch (Exception ex)
@@ -1694,7 +1729,14 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
                 throw new Exception("No GPS data to export");
             }
             
-            using var writer = new System.IO.StreamWriter(filePath);
+            // Ensure directory exists
+            var directory = Path.GetDirectoryName(filePath);
+            if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+            
+            await using var writer = new System.IO.StreamWriter(filePath, false, System.Text.Encoding.UTF8);
             
             // Write KML header
             await writer.WriteLineAsync("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
@@ -1739,6 +1781,7 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
             await writer.WriteLineAsync("  </Document>");
             await writer.WriteLineAsync("</kml>");
             
+            await writer.FlushAsync();
             StatusMessage = $"Exported {GpsTrack.Count} GPS points to {Path.GetFileName(filePath)}";
         }
         catch (Exception ex)
