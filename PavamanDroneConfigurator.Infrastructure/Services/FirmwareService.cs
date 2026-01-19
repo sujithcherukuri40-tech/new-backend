@@ -918,11 +918,12 @@ public sealed class FirmwareService : IFirmwareService, IDisposable
             uploader.Erase();
             Log("Flash erased successfully");
             
-            // Program external flash if present
+            // Program external flash if present (BEFORE internal flash programming)
+            // Mission Planner order: erase internal -> erase external -> program external -> verify external -> program internal -> verify internal
             if (firmware.ExtFlashImageSize > 0 && uploader.ExtFlashSize > 0)
             {
                 Log("Erasing external flash...");
-                uploader.EraseExternalFlash();
+                uploader.EraseExternalFlash(firmware.ExtFlashImageSize);
                 
                 Log($"Programming external flash ({firmware.ExtFlashImageSize / 1024}KB)...");
                 uploader.ProgramExternalFlash(firmware.ExtFlashImage);
