@@ -443,11 +443,15 @@ public class CalibrationService : ICalibrationService, IDisposable
         
         InitializeCalibration(CalibrationType.Accelerometer);
         
-        _logger.LogInformation("Starting accelerometer calibration (Mission Planner style)");
+        _logger.LogInformation("Starting accelerometer calibration with param5=1 (position-based, 6 positions required)");
         SetState(CalibrationStateMachine.WaitingForAck, "Starting calibration...", 0);
         
-        // Send command - param5=4 for full 6-position cal, param5=1 for simple
-        _connectionService.SendPreflightCalibration(gyro: 0, mag: 0, groundPressure: 0, airspeed: 0, accel: fullSixAxis ? 4 : 1);
+        // ArduPilot accelerometer calibration modes:
+        // param5=1: Position-based calibration (6 positions, FC validates each) - RECOMMENDED
+        // param5=2: Level calibration only (single position)
+        // param5=4: Simple calibration (automatic, no user positions)
+        // We use param5=1 to match Mission Planner's behavior
+        _connectionService.SendPreflightCalibration(gyro: 0, mag: 0, groundPressure: 0, airspeed: 0, accel: 1);
         
         return Task.FromResult(true);
     }

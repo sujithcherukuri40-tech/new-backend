@@ -22,6 +22,7 @@ namespace PavamanDroneConfigurator.Infrastructure.Services;
 public sealed class ConnectionService : IConnectionService, IDisposable
 {
     private readonly ILogger<ConnectionService> _logger;
+    private readonly IMavLinkMessageLogger _mavLinkLogger;
     private readonly object _lock = new();
 
     private SerialPort? _serialPort;
@@ -58,9 +59,10 @@ public sealed class ConnectionService : IConnectionService, IDisposable
     public event EventHandler<CommandAckEventArgs>? CommandAckReceived;
     public event EventHandler<RawImuEventArgs>? RawImuReceived;
 
-    public ConnectionService(ILogger<ConnectionService> logger)
+    public ConnectionService(ILogger<ConnectionService> logger, IMavLinkMessageLogger mavLinkLogger)
     {
         _logger = logger;
+        _mavLinkLogger = mavLinkLogger;
 
         _portScanTimer = new System.Timers.Timer(3000);
         _portScanTimer.Elapsed += (_, _) => ScanSerialPorts();
@@ -382,7 +384,7 @@ public sealed class ConnectionService : IConnectionService, IDisposable
             return;
         }
 
-        _mavlink = new AsvMavlinkWrapper(_logger);
+        _mavlink = new AsvMavlinkWrapper(_logger, _mavLinkLogger);
         _mavlink.HeartbeatReceived += OnMavlinkHeartbeat;
         _mavlink.ParamValueReceived += OnMavlinkParamValue;
         _mavlink.HeartbeatDataReceived += OnMavlinkHeartbeatData;

@@ -6,6 +6,7 @@ using System.IO;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using PavamanDroneConfigurator.Infrastructure.Services;
 
 namespace PavamanDroneConfigurator.Infrastructure.MAVLink
 {
@@ -16,6 +17,7 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
     public sealed class AsvMavlinkWrapper : IDisposable
     {
         private readonly ILogger _logger;
+        private readonly IMavLinkMessageLogger? _mavLinkLogger;
         private Stream? _inputStream;
         private Stream? _outputStream;
         private CancellationTokenSource? _cts;
@@ -82,9 +84,10 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
         public event EventHandler<RcChannelsData>? RcChannelsReceived;
         public event EventHandler<RawImuData>? RawImuReceived;
 
-        public AsvMavlinkWrapper(ILogger logger)
+        public AsvMavlinkWrapper(ILogger logger, IMavLinkMessageLogger? mavLinkLogger = null)
         {
             _logger = logger;
+            _mavLinkLogger = mavLinkLogger;
         }
 
         public void Initialize(Stream inputStream, Stream outputStream)
@@ -381,6 +384,10 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
             _targetComponentId = compId;
 
             _logger.LogDebug("Heartbeat from FC: sysid={SysId} compid={CompId}", sysId, compId);
+            
+            // Log to MAVLink logger
+            _mavLinkLogger?.LogIncoming("HEARTBEAT", $"sysid={sysId}, compid={compId}");
+            
             HeartbeatReceived?.Invoke(this, (sysId, compId));
 
             // Parse heartbeat payload for flight mode info and vehicle type
@@ -461,6 +468,28 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
             byte result = payload[2];
 
             _logger.LogDebug("COMMAND_ACK: cmd={Command} result={Result}", command, result);
+            
+            // Log to MAVLink logger with command name if available
+            string cmdName = command switch
+            {
+                MAV_CMD_PREFLIGHT_CALIBRATION => "MAV_CMD_PREFLIGHT_CALIBRATION",
+                MAV_CMD_ACCELCAL_VEHICLE_POS => "MAV_CMD_ACCELCAL_VEHICLE_POS",
+                MAV_CMD_COMPONENT_ARM_DISARM => "MAV_CMD_COMPONENT_ARM_DISARM",
+                MAV_CMD_PREFLIGHT_REBOOT_SHUTDOWN => "MAV_CMD_PREFLIGHT_REBOOT_SHUTDOWN",
+                _ => command.ToString()
+            };
+            string resultName = result switch
+            {
+                0 => "ACCEPTED",
+                1 => "TEMPORARILY_REJECTED",
+                2 => "DENIED",
+                3 => "UNSUPPORTED",
+                4 => "FAILED",
+                5 => "IN_PROGRESS",
+                _ => result.ToString()
+            };
+            _mavLinkLogger?.LogIncoming("COMMAND_ACK", $"cmd={cmdName}, result={resultName}");
+            
             CommandAckReceived?.Invoke(this, (command, result));
         }
 
@@ -476,6 +505,22 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
             string text = System.Text.Encoding.ASCII.GetString(payload, 1, Math.Min(50, payload.Length - 1)).TrimEnd('\0');
 
             _logger.LogDebug("STATUSTEXT: severity={Severity} text={Text}", severity, text);
+            
+            // Log to MAVLink logger
+            string severityName = severity switch
+            {
+                0 => "EMERGENCY",
+                1 => "ALERT",
+                2 => "CRITICAL",
+                3 => "ERROR",
+                4 => "WARNING",
+                5 => "NOTICE",
+                6 => "INFO",
+                7 => "DEBUG",
+                _ => severity.ToString()
+            };
+            _mavLinkLogger?.LogIncoming("STATUSTEXT", $"[{severityName}] {text}");
+            
             StatusTextReceived?.Invoke(this, (severity, text));
         }
 
@@ -696,6 +741,10 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
             _logger.LogInformation("Sending MAV_CMD_PREFLIGHT_CALIBRATION: gyro={Gyro} mag={Mag} baro={Baro} airspeed={Airspeed} accel={Accel}",
                 gyro, mag, groundPressure, airspeed, accel);
 
+            // Log to MAVLink logger
+            _mavLinkLogger?.LogOutgoing("COMMAND_LONG", 
+                $"cmd=MAV_CMD_PREFLIGHT_CALIBRATION(241), param1(gyro)={gyro}, param2(mag)={mag}, param3(baro)={groundPressure}, param4(airspeed)={airspeed}, param5(accel)={accel}");
+
             await SendCommandLongAsync(
                 MAV_CMD_PREFLIGHT_CALIBRATION,
                 gyro,           // param1: gyroscope
@@ -750,6 +799,21 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
         public async Task SendAccelCalVehiclePosAsync(int position, CancellationToken ct = default)
         {
             _logger.LogInformation("Sending MAV_CMD_ACCELCAL_VEHICLE_POS: position={Position}", position);
+            
+            // Log to MAVLink logger
+            string posName = position switch
+            {
+                1 => "LEVEL",
+                2 => "LEFT",
+                3 => "RIGHT",
+                4 => "NOSE_DOWN",
+                5 => "NOSE_UP",
+                6 => "BACK",
+                _ => position.ToString()
+            };
+            _mavLinkLogger?.LogOutgoing("COMMAND_LONG", 
+                $"cmd=MAV_CMD_ACCELCAL_VEHICLE_POS(42429), param1(position)={position} ({posName})");
+            
             await SendCommandLongAsync(
                 MAV_CMD_ACCELCAL_VEHICLE_POS,
                 position,   // param1: position (1-6)
@@ -1004,21 +1068,21 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
         public bool IsScaled { get; set; }
 
         /// <summary>
-        /// Get acceleration in m/s² (scaled)
+        /// Get acceleration in m/sï¿½ (scaled)
         /// </summary>
         public (double X, double Y, double Z) GetAcceleration()
         {
             if (IsScaled)
             {
-                // SCALED_IMU: values are in milli-g, convert to m/s²
-                const double MILLI_G_TO_MS2 = 0.00981; // 1 milli-g = 0.00981 m/s²
+                // SCALED_IMU: values are in milli-g, convert to m/sï¿½
+                const double MILLI_G_TO_MS2 = 0.00981; // 1 milli-g = 0.00981 m/sï¿½
                 return (XAcc * MILLI_G_TO_MS2, YAcc * MILLI_G_TO_MS2, ZAcc * MILLI_G_TO_MS2);
             }
             else
             {
                 // RAW_IMU: values are raw ADC, typical scale is 1/1000 g per LSB for most IMUs
-                // This varies by sensor, typical MPU6000/9250: 16-bit, ±16g range = 32g / 65536 = 0.000488 g/LSB
-                const double RAW_TO_MS2 = 0.00478; // Approximate conversion for ±16g range
+                // This varies by sensor, typical MPU6000/9250: 16-bit, ï¿½16g range = 32g / 65536 = 0.000488 g/LSB
+                const double RAW_TO_MS2 = 0.00478; // Approximate conversion for ï¿½16g range
                 return (XAcc * RAW_TO_MS2, YAcc * RAW_TO_MS2, ZAcc * RAW_TO_MS2);
             }
         }
@@ -1043,7 +1107,7 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
         }
 
         /// <summary>
-        /// Get temperature in °C
+        /// Get temperature in ï¿½C
         /// </summary>
         public double GetTemperature()
         {

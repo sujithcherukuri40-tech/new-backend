@@ -46,6 +46,9 @@ public partial class App : Application
         // ArduPilot JSON Metadata Loader (for Advanced Settings)
         services.AddSingleton<IArduPilotMetadataLoader, ArduPilotMetadataLoader>();
 
+        // MAVLink Message Logger (for diagnostics and debugging)
+        services.AddSingleton<IMavLinkMessageLogger, MavLinkMessageLogger>();
+
         // Calibration Services (Mission Planner-equivalent strict validation)
         services.AddSingleton<CalibrationPreConditionChecker>();
         services.AddSingleton<CalibrationAbortMonitor>();
