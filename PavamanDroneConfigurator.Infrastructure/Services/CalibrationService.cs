@@ -138,10 +138,8 @@ public class CalibrationService : ICalibrationService, IDisposable
         
         if (requestedPosition.HasValue)
         {
-            int previousPosition;
             lock (_lock)
             {
-                previousPosition = _currentPosition;
                 _currentPosition = requestedPosition.Value;
                 _waitingForUserClick = true;
             }
@@ -926,6 +924,13 @@ public class CalibrationService : ICalibrationService, IDisposable
     /// </summary>
     private static int CalculateProgressFromPosition(int requestedPosition)
     {
+        // Validate input range
+        if (requestedPosition < 1 || requestedPosition > ACCELEROMETER_TOTAL_POSITIONS)
+        {
+            // Return safe default - should not happen if FC is working correctly
+            return requestedPosition < 1 ? 0 : 100;
+        }
+        
         // Position 1 (LEVEL) = 0% (just starting)
         // Position 2 (LEFT) = 16.67% (position 1 complete)
         // Position 3 (RIGHT) = 33.33% (positions 1-2 complete)
