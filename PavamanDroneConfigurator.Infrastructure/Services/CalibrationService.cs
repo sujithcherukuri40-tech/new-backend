@@ -45,6 +45,9 @@ public class CalibrationService : ICalibrationService, IDisposable
     
     // Position display names - ONLY for UI, not for validation
     private static readonly string[] PositionNames = { "LEVEL", "LEFT", "RIGHT", "NOSE DOWN", "NOSE UP", "BACK" };
+    
+    // Total positions required for accelerometer calibration
+    private const int ACCELEROMETER_TOTAL_POSITIONS = 6;
 
     public CalibrationStateModel? CurrentState => _currentState;
     public bool IsCalibrating { get { lock (_lock) return _isCalibrating; } }
@@ -146,7 +149,8 @@ public class CalibrationService : ICalibrationService, IDisposable
             _logger.LogInformation("FC requests position {Pos}: {Name}", requestedPosition.Value, GetPositionName(requestedPosition.Value));
             
             // Calculate progress based on positions completed
-            // When FC requests position N, it means position N-1 was completed (except for position 1)
+            // When FC requests position N, it means positions 1 to N-1 are complete
+            // (e.g., requesting position 1 = 0% complete, requesting position 2 = 16.67% complete)
             int progress = CalculateProgressFromPosition(requestedPosition.Value);
             _logger.LogInformation("Progress from STATUSTEXT: {Progress}% (FC requesting position {Pos})", progress, requestedPosition.Value);
             
@@ -168,7 +172,7 @@ public class CalibrationService : ICalibrationService, IDisposable
             
             _logger.LogInformation("FC is sampling position {Pos}", pos);
             SetState(CalibrationStateMachine.Sampling, 
-                $"FC is sampling position {pos}/6 - Hold vehicle still!", 
+                $"FC is sampling position {pos}/{ACCELEROMETER_TOTAL_POSITIONS} - Hold vehicle still!", 
                 GetProgress());
         }
         // FC says position detected/held
@@ -781,7 +785,7 @@ public class CalibrationService : ICalibrationService, IDisposable
             ProgressPercent = progress,
             StatusText = message,
             CurrentStep = pos,
-            TotalSteps = type == CalibrationType.Accelerometer ? 6 : 1,
+            TotalSteps = type == CalibrationType.Accelerometer ? ACCELEROMETER_TOTAL_POSITIONS : 1,
             StateMachine = newState
         });
     }
@@ -852,7 +856,7 @@ public class CalibrationService : ICalibrationService, IDisposable
             ProgressPercent = success ? 100 : 0,
             StatusText = message,
             CurrentStep = pos,
-            TotalSteps = type == CalibrationType.Accelerometer ? 6 : 1,
+            TotalSteps = type == CalibrationType.Accelerometer ? ACCELEROMETER_TOTAL_POSITIONS : 1,
             StateMachine = success ? CalibrationStateMachine.Completed : CalibrationStateMachine.Failed
         });
     }
@@ -893,7 +897,7 @@ public class CalibrationService : ICalibrationService, IDisposable
             ProgressPercent = 0,
             StatusText = reason,
             CurrentStep = pos,
-            TotalSteps = type == CalibrationType.Accelerometer ? 6 : 1,
+            TotalSteps = type == CalibrationType.Accelerometer ? ACCELEROMETER_TOTAL_POSITIONS : 1,
             StateMachine = CalibrationStateMachine.Failed
         });
     }
@@ -913,7 +917,7 @@ public class CalibrationService : ICalibrationService, IDisposable
         }
         
         if (type != CalibrationType.Accelerometer) return 50;
-        return (int)((pos - 1) * 100.0 / 6.0);
+        return (int)((pos - 1) * 100.0 / ACCELEROMETER_TOTAL_POSITIONS);
     }
 
     /// <summary>
@@ -929,12 +933,12 @@ public class CalibrationService : ICalibrationService, IDisposable
         // Position 5 (NOSE UP) = 66.67% (positions 1-4 complete)
         // Position 6 (BACK) = 83.33% (positions 1-5 complete)
         int positionsComplete = requestedPosition - 1;
-        return (int)((positionsComplete * 100.0) / 6.0);
+        return (int)((positionsComplete * 100.0) / ACCELEROMETER_TOTAL_POSITIONS);
     }
 
     private static string GetPositionName(int position)
     {
-        return position >= 1 && position <= 6 ? PositionNames[position - 1] : "UNKNOWN";
+        return position >= 1 && position <= ACCELEROMETER_TOTAL_POSITIONS ? PositionNames[position - 1] : "UNKNOWN";
     }
 
     private static string GetTypeName(CalibrationType type)
