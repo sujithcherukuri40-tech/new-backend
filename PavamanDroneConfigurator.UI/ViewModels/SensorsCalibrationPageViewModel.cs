@@ -9,6 +9,7 @@ using Microsoft.Extensions.Logging;
 using PavamanDroneConfigurator.Core.Enums;
 using PavamanDroneConfigurator.Core.Interfaces;
 using PavamanDroneConfigurator.Core.Models;
+using PavamanDroneConfigurator.Infrastructure.Services;
 
 namespace PavamanDroneConfigurator.UI.ViewModels;
 
@@ -22,6 +23,7 @@ public partial class SensorsCalibrationPageViewModel : ViewModelBase
     private readonly ICalibrationService _calibrationService;
     private readonly ISensorConfigService _sensorConfigService;
     private readonly IConnectionService _connectionService;
+    private readonly IMavLinkMessageLogger _mavLinkLogger;
 
     #region Status Properties
 
@@ -57,6 +59,12 @@ public partial class SensorsCalibrationPageViewModel : ViewModelBase
 
     [ObservableProperty]
     private ObservableCollection<string> _debugLogs = new();
+    
+    [ObservableProperty]
+    private bool _showMavLinkLog;
+
+    [ObservableProperty]
+    private ObservableCollection<MavLinkLogEntry> _mavLinkMessages = new();
 
     #endregion
 
@@ -261,18 +269,21 @@ public partial class SensorsCalibrationPageViewModel : ViewModelBase
         ILogger<SensorsCalibrationPageViewModel> logger,
         ICalibrationService calibrationService,
         ISensorConfigService sensorConfigService,
-        IConnectionService connectionService)
+        IConnectionService connectionService,
+        IMavLinkMessageLogger mavLinkLogger)
     {
         _logger = logger;
         _calibrationService = calibrationService;
         _sensorConfigService = sensorConfigService;
         _connectionService = connectionService;
+        _mavLinkLogger = mavLinkLogger;
 
         _connectionService.ConnectionStateChanged += OnConnectionStateChanged;
         _calibrationService.CalibrationStateChanged += OnCalibrationStateChanged;
         _calibrationService.CalibrationProgressChanged += OnCalibrationProgressChanged;
         _calibrationService.CalibrationStepRequired += OnCalibrationStepRequired;
         _calibrationService.StatusTextReceived += OnStatusTextReceived;
+        _mavLinkLogger.MessageLogged += OnMavLinkMessageLogged;
 
         InitializeFlowTypeOptions();
         UpdateConnectionStatus(_connectionService.IsConnected);
@@ -317,6 +328,14 @@ public partial class SensorsCalibrationPageViewModel : ViewModelBase
     {
         DebugLogs.Clear();
         AddDebugLog("Logs cleared");
+    }
+    
+    [RelayCommand]
+    private void ClearMavLinkLog()
+    {
+        MavLinkMessages.Clear();
+        _mavLinkLogger.ClearLog();
+        AddDebugLog("MAVLink log cleared");
     }
 
     [RelayCommand]
@@ -492,6 +511,16 @@ public partial class SensorsCalibrationPageViewModel : ViewModelBase
     private void OnStatusTextReceived(object? sender, CalibrationStatusTextEventArgs e)
     {
         AddDebugLog($"FC: {e.Text}");
+    }
+    
+    private void OnMavLinkMessageLogged(object? sender, MavLinkLogEntry e)
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            MavLinkMessages.Insert(0, e); // Newest first
+            if (MavLinkMessages.Count > 100)
+                MavLinkMessages.RemoveAt(MavLinkMessages.Count - 1);
+        });
     }
 
     private void UpdateAccelStepIndicator(int currentStep, CalibrationStateMachine state)
@@ -909,6 +938,7 @@ public partial class SensorsCalibrationPageViewModel : ViewModelBase
             _calibrationService.CalibrationProgressChanged -= OnCalibrationProgressChanged;
             _calibrationService.CalibrationStepRequired -= OnCalibrationStepRequired;
             _calibrationService.StatusTextReceived -= OnStatusTextReceived;
+            _mavLinkLogger.MessageLogged -= OnMavLinkMessageLogged;
         }
         base.Dispose(disposing);
     }
