@@ -1,96 +1,67 @@
 using Microsoft.Extensions.Logging;
 using System;
+using System.Threading;
+using System.Threading.Tasks;
 using PavamanDroneConfigurator.Core.Enums;
 using PavamanDroneConfigurator.Core.Interfaces;
 using PavamanDroneConfigurator.Core.Models;
-using PavamanDroneConfigurator.Infrastructure.MAVLink;
-using System.Text.RegularExpressions;
 
 namespace PavamanDroneConfigurator.Infrastructure.Services;
 
-public class CalibrationService : ICalibrationService
+/// <summary>
+/// Calibration service matching Mission Planner's exact behavior.
+/// 
+/// CRITICAL: For accelerometer calibration, the FC validates positions using its IMU.
+/// We do NOT auto-advance. We wait for FC to confirm each position via STATUSTEXT.
+/// 
+/// Mission Planner flow:
+/// 1. Send MAV_CMD_PREFLIGHT_CALIBRATION (param5=4)
+/// 2. FC sends STATUSTEXT "Place vehicle level and press any key"
+/// 3. User clicks button -> send MAV_CMD_ACCELCAL_VEHICLE_POS(1)
+/// 4. FC validates using IMU, if correct: sends "Place vehicle on its left side..."
+/// 5. If wrong: FC sends "rotation bad" or similar, user must retry
+/// 6. Repeat for all 6 positions
+/// 7. FC sends "Calibration successful" when done
+/// </summary>
+public class CalibrationService : ICalibrationService, IDisposable
 {
     private readonly ILogger<CalibrationService> _logger;
     private readonly IConnectionService _connectionService;
-    private readonly CalibrationPreConditionChecker _preConditionChecker;
-    private readonly CalibrationAbortMonitor _abortMonitor;
-    private readonly AccelPositionValidator _positionValidator;
-    private readonly AccelerometerCalibrationService _accelCalibrationService;
+    private readonly AccelerometerCalibrationService? _accelCalService;
     
-    // State
-    private CalibrationStateModel _currentState = new();
-    private CalibrationDiagnostics? _currentDiagnostics;
-    private CalibrationStateMachine _stateMachine = CalibrationStateMachine.Idle;
-    private CalibrationType _currentCalibrationType;
-    private int _currentPositionNumber;
-    private bool _isCalibrating;
+    // State tracking
     private readonly object _lock = new();
-    
-    // IMU data collection
-    private RawImuData? _latestImuData;
-    private readonly List<RawImuData> _imuSamples = new();
-    private const int IMU_SAMPLES_REQUIRED = 50; // Collect 50 samples (~1 second at 50Hz)
+    private CalibrationType _currentType;
+    private int _currentPosition;
+    private int _expectedPosition; // Position FC is waiting for
+    private bool _isCalibrating;
+    private bool _waitingForFcResponse; // True after sending position, waiting for FC
+    private CalibrationStateMachine _state = CalibrationStateMachine.Idle;
+    private DateTime _calibrationStartTime;
+    private DateTime _positionSentTime;
+    private CancellationTokenSource? _calibrationCts;
+    private bool _disposed;
     
     // Timeouts
+    private const int FC_RESPONSE_TIMEOUT_MS = 10000; // Wait up to 10s for FC to validate position
     private const int COMMAND_ACK_TIMEOUT_MS = 5000;
-    private const int POSITION_SAMPLE_TIMEOUT_MS = 30000;
-    private const int CALIBRATION_TIMEOUT_MS = 300000; // 5 minutes max
     
-    // Position constants
-    private static readonly string[] AccelPositionNames = 
-        { "LEVEL", "LEFT", "RIGHT", "NOSE DOWN", "NOSE UP", "BACK" };
+    private CalibrationStateModel _currentState = new();
     
-    private static readonly string[] AccelPositionInstructions =
-    {
-        "Place vehicle LEVEL on a flat surface, then click 'Click When In Position'",
-        "Place vehicle on its LEFT side, then click 'Click When In Position'",
-        "Place vehicle on its RIGHT side, then click 'Click When In Position'",
-        "Place vehicle with NOSE DOWN, then click 'Click When In Position'",
-        "Place vehicle with NOSE UP, then click 'Click When In Position'",
-        "Place vehicle on its BACK (upside down), then click 'Click When In Position'"
+    private static readonly string[] PositionNames = { "LEVEL", "LEFT", "RIGHT", "NOSE DOWN", "NOSE UP", "BACK" };
+    private static readonly string[] PositionInstructions = {
+        "Place vehicle LEVEL on a flat surface",
+        "Place vehicle on its LEFT side",
+        "Place vehicle on its RIGHT side",
+        "Place vehicle NOSE DOWN",
+        "Place vehicle NOSE UP",
+        "Place vehicle on its BACK (upside down)"
     };
 
-    // ArduPilot STATUSTEXT keywords for pattern matching
-    private static class StatusKeywords
-    {
-        // Completion - expanded list matching ArduPilot actual messages
-        public static readonly string[] Complete = { 
-            "calibration successful", "calibration complete", "calibration done", 
-            "cal complete", "cal done", "calibration finished",
-            "level calibration", "level complete", "ahrs", "trim",
-            "accel offsets", "ins", "gyro", "gyros calibrated",
-            "baro", "ground pressure", "pressure calibration",
-            "compass", "mag offsets", "offsets saved"
-        };
-        
-        // Failure
-        public static readonly string[] Failed = { 
-            "calibration failed", "calibration cancelled", "calibration timeout",
-            "cal failed", "failed", "error", "timeout", "cancelled"
-        };
-        
-        // Position requests (for accel only)
-        public const string Place = "place";
-        public const string Level = "level";
-        public const string Left = "left";
-        public const string Right = "right";
-        public const string NoseDown = "nose down";
-        public const string NoseUp = "nose up";
-        public const string Back = "back";
-        public const string Upside = "upside";
-        
-        // Sampling/progress
-        public static readonly string[] Sampling = { "sampling", "reading", "detected", "hold still", "calibrating" };
-        
-        // Progress
-        public const string Progress = "progress";
-        public const string Percent = "%";
-    }
-
     public CalibrationStateModel? CurrentState => _currentState;
-    public bool IsCalibrating => _isCalibrating;
-    public CalibrationStateMachine StateMachineState => _stateMachine;
-    public CalibrationDiagnostics? CurrentDiagnostics => _currentDiagnostics;
+    public bool IsCalibrating { get { lock (_lock) return _isCalibrating; } }
+    public CalibrationStateMachine StateMachineState { get { lock (_lock) return _state; } }
+    public CalibrationDiagnostics? CurrentDiagnostics => null;
 
     public event EventHandler<CalibrationStateModel>? CalibrationStateChanged;
     public event EventHandler<CalibrationProgressEventArgs>? CalibrationProgressChanged;
@@ -100,586 +71,375 @@ public class CalibrationService : ICalibrationService
     public CalibrationService(
         ILogger<CalibrationService> logger,
         IConnectionService connectionService,
-        CalibrationPreConditionChecker preConditionChecker,
-        CalibrationAbortMonitor abortMonitor,
-        AccelPositionValidator positionValidator,
-        AccelerometerCalibrationService accelCalibrationService)
+        AccelerometerCalibrationService? accelCalService = null)
     {
         _logger = logger;
         _connectionService = connectionService;
-        _preConditionChecker = preConditionChecker;
-        _abortMonitor = abortMonitor;
-        _positionValidator = positionValidator;
-        _accelCalibrationService = accelCalibrationService;
+        _accelCalService = accelCalService;
         
         _connectionService.StatusTextReceived += OnStatusTextReceived;
         _connectionService.CommandAckReceived += OnCommandAckReceived;
-        _connectionService.RawImuReceived += OnRawImuReceived;
-        _abortMonitor.AbortTriggered += OnAbortTriggered;
+        _connectionService.ConnectionStateChanged += OnConnectionStateChanged;
         
-        // Wire up accelerometer calibration events
-        _accelCalibrationService.StateChanged += OnAccelStateChanged;
-        _accelCalibrationService.PositionRequested += OnAccelPositionRequested;
-        _accelCalibrationService.PositionValidated += OnAccelPositionValidated;
-        _accelCalibrationService.CalibrationCompleted += OnAccelCalibrationCompleted;
-    }
-
-    #region Event Handlers
-
-    private void OnStatusTextReceived(object? sender, StatusTextEventArgs e)
-    {
-        // Always log STATUSTEXT during calibration
-        if (_isCalibrating)
+        // Subscribe to AccelerometerCalibrationService events if available
+        if (_accelCalService != null)
         {
-            _currentDiagnostics?.AddStatusText(e.Severity, e.Text);
-            
-            StatusTextReceived?.Invoke(this, new CalibrationStatusTextEventArgs
-            {
-                Severity = e.Severity,
-                Text = e.Text
-            });
-        }
-        
-        HandleStatusText(e.Severity, e.Text);
-    }
-
-    private void OnCommandAckReceived(object? sender, CommandAckEventArgs e)
-    {
-        if (!_isCalibrating)
-            return;
-        
-        _currentDiagnostics?.AddCommandAck(e.Command, e.Result);
-        _logger.LogInformation("COMMAND_ACK: cmd={Command} result={Result}", e.Command, e.Result);
-
-        // MAV_CMD_PREFLIGHT_CALIBRATION = 241
-        if (e.Command == 241)
-        {
-            HandleCalibrationCommandAck(e.Result);
-        }
-        // MAV_CMD_ACCELCAL_VEHICLE_POS = 42429
-        else if (e.Command == 42429)
-        {
-            HandleAccelCalVehiclePosAck(e.Result);
+            _accelCalService.StateChanged += OnAccelStateChanged;
+            _accelCalService.PositionRequested += OnAccelPositionRequested;
+            _accelCalService.PositionValidated += OnAccelPositionValidated;
+            _accelCalService.CalibrationCompleted += OnAccelCalibrationCompleted;
         }
     }
-
-    private void OnAbortTriggered(object? sender, EventArgs e)
-    {
-        if (_isCalibrating)
-        {
-            _logger.LogWarning("Calibration aborted by monitor");
-            FinishCalibration(CalibrationResult.Cancelled, "Calibration aborted by monitor");
-        }
-    }
-
-    private void OnRawImuReceived(object? sender, RawImuEventArgs imuData)
-    {
-        // Convert to internal format for position validation
-        var rawImuData = new RawImuData
-        {
-            TimeUsec = imuData.TimeUsec,
-            // Back-convert from m/s� to raw format (approximate)
-            XAcc = (short)(imuData.AccelX / 0.00981), // Assuming SCALED_IMU format
-            YAcc = (short)(imuData.AccelY / 0.00981),
-            ZAcc = (short)(imuData.AccelZ / 0.00981),
-            XGyro = (short)(imuData.GyroX / 0.001),
-            YGyro = (short)(imuData.GyroY / 0.001),
-            ZGyro = (short)(imuData.GyroZ / 0.001),
-            Temperature = (short)(imuData.Temperature * 100),
-            IsScaled = true
-        };
-        
-        // Store latest IMU data for calibration validation
-        _latestImuData = rawImuData;
-        
-        // During position validation, collect samples
-        if (_isCalibrating && 
-            _currentCalibrationType == CalibrationType.Accelerometer &&
-            _stateMachine == CalibrationStateMachine.ValidatingPosition)
-        {
-            lock (_imuSamples)
-            {
-                _imuSamples.Add(rawImuData);
-            }
-        }
-    }
-
-    private void HandleCalibrationCommandAck(byte result)
-    {
-        var mavResult = (MavResult)result;
-        
-        if (mavResult == MavResult.Accepted || mavResult == MavResult.InProgress)
-        {
-            _logger.LogInformation("Calibration command accepted by FC (result={Result})", mavResult);
-            _currentDiagnostics?.AddDiagnostic(CalibrationDiagnosticSeverity.Info, 
-                $"FC accepted calibration command (result={mavResult})");
-            
-            TransitionState(CalibrationStateMachine.WaitingForInstruction);
-            
-            // For simple calibrations (gyro, baro, level), ACCEPTED means calibration started
-            // These calibrations complete very quickly - we need to wait for STATUSTEXT
-            // but also handle the case where FC completes without explicit success message
-            if (_currentCalibrationType == CalibrationType.Gyroscope ||
-                _currentCalibrationType == CalibrationType.Barometer ||
-                _currentCalibrationType == CalibrationType.LevelHorizon)
-            {
-                // Update UI to show calibration is in progress
-                UpdateState(CalibrationState.InProgress, 50, 
-                    $"{GetCalibrationTypeName(_currentCalibrationType)} calibration in progress... Keep vehicle still.",
-                    canConfirm: false);
-                
-                // Start a completion timer for simple calibrations
-                // These typically complete in 1-3 seconds
-                _ = WaitForSimpleCalibrationCompletion();
-            }
-            else if (_currentCalibrationType == CalibrationType.Accelerometer)
-            {
-                // Accelerometer calibration must wait for FC STATUSTEXT position requests
-                UpdateState(CalibrationState.InProgress, 0,
-                    "Waiting for flight controller position requests...", canConfirm: false);
-            }
-        }
-        else
-        {
-            _logger.LogWarning("Calibration command rejected: {Result}", mavResult);
-            
-            string errorMessage = mavResult switch
-            {
-                MavResult.TemporarilyRejected => "Calibration temporarily denied. Vehicle may be armed or busy.",
-                MavResult.Denied => "Calibration denied. Check vehicle state.",
-                MavResult.Unsupported => "Calibration not supported by this firmware.",
-                MavResult.Failed => "Calibration failed. Check vehicle position and sensor hardware.",
-                _ => $"Calibration rejected by flight controller (code: {result})"
-            };
-            
-            _currentDiagnostics?.AddDiagnostic(CalibrationDiagnosticSeverity.Error, errorMessage);
-            _currentDiagnostics!.LastError = errorMessage;
-            
-            FinishCalibration(CalibrationResult.Rejected, errorMessage);
-        }
-    }
-
-    /// <summary>
-    /// For simple calibrations (gyro, baro, level), wait a short time then check if completed.
-    /// If no failure message received, assume success.
-    /// </summary>
-    private async Task WaitForSimpleCalibrationCompletion()
-    {
-        var calibrationType = _currentCalibrationType;
-        var startTime = DateTime.UtcNow;
-        var maxWaitMs = 10000; // Max 10 seconds for simple calibrations
-        var checkIntervalMs = 500;
-        
-        _logger.LogInformation("Waiting for {Type} calibration to complete...", calibrationType);
-        
-        while (_isCalibrating && 
-               _currentCalibrationType == calibrationType &&
-               (DateTime.UtcNow - startTime).TotalMilliseconds < maxWaitMs)
-        {
-            await Task.Delay(checkIntervalMs);
-            
-            // Update progress
-            var elapsed = (DateTime.UtcNow - startTime).TotalMilliseconds;
-            var progress = Math.Min(95, (int)(elapsed / maxWaitMs * 100));
-            
-            if (_isCalibrating && _stateMachine != CalibrationStateMachine.Completed && 
-                _stateMachine != CalibrationStateMachine.Failed)
-            {
-                UpdateState(CalibrationState.InProgress, progress,
-                    $"{GetCalibrationTypeName(calibrationType)} calibration in progress...",
-                    canConfirm: false);
-            }
-        }
-        
-        // If still calibrating and no failure detected, assume success
-        // (FC may not send explicit success message for simple calibrations)
-        if (_isCalibrating && 
-            _currentCalibrationType == calibrationType &&
-            _stateMachine != CalibrationStateMachine.Failed &&
-            _stateMachine != CalibrationStateMachine.Completed)
-        {
-            _logger.LogInformation("{Type} calibration completed (no failure detected)", calibrationType);
-            FinishCalibration(CalibrationResult.Success, 
-                $"{GetCalibrationTypeName(calibrationType)} calibration completed successfully. Reboot recommended.");
-        }
-    }
-
-    private static string GetCalibrationTypeName(CalibrationType type)
-    {
-        return type switch
-        {
-            CalibrationType.Accelerometer => "Accelerometer",
-            CalibrationType.Compass => "Compass",
-            CalibrationType.Gyroscope => "Gyroscope",
-            CalibrationType.LevelHorizon => "Level Horizon",
-            CalibrationType.Barometer => "Barometer",
-            CalibrationType.Airspeed => "Airspeed",
-            _ => type.ToString()
-        };
-    }
-
-    private void HandleAccelCalVehiclePosAck(byte result)
-    {
-        var mavResult = (MavResult)result;
-        
-        if (mavResult == MavResult.Accepted || mavResult == MavResult.InProgress)
-        {
-            _logger.LogInformation("Position {Position} acknowledged by FC, waiting for sampling", _currentPositionNumber);
-            _currentDiagnostics?.AddDiagnostic(CalibrationDiagnosticSeverity.Info,
-                $"FC acknowledged position {_currentPositionNumber}");
-            
-            TransitionState(CalibrationStateMachine.Sampling);
-            
-            // Record position confirmation
-            var posResult = _currentDiagnostics?.AccelPositionResults
-                .FirstOrDefault(p => p.Position == _currentPositionNumber);
-            if (posResult != null)
-            {
-                posResult.FcAcceptedTime = DateTime.UtcNow;
-            }
-        }
-        else
-        {
-            _logger.LogWarning("Position {Position} rejected by FC: {Result}", _currentPositionNumber, mavResult);
-            
-            var posName = GetPositionName(_currentPositionNumber);
-            var message = $"Position {_currentPositionNumber}/6: {posName} - FC rejected. Adjust position and try again.";
-            
-            _currentDiagnostics?.AddDiagnostic(CalibrationDiagnosticSeverity.Warning, message);
-            
-            // Record rejection
-            var posResult = _currentDiagnostics?.AccelPositionResults
-                .FirstOrDefault(p => p.Position == _currentPositionNumber);
-            if (posResult != null)
-            {
-                posResult.Accepted = false;
-                posResult.FcMessage = $"Rejected: {mavResult}";
-            }
-            
-            TransitionState(CalibrationStateMachine.PositionRejected);
-            UpdateState(CalibrationState.InProgress, _currentState.Progress, message, canConfirm: true);
-        }
-    }
-
+    
+    #region AccelerometerCalibrationService Event Handlers
+    
     private void OnAccelStateChanged(object? sender, AccelCalibrationStateChangedEventArgs e)
     {
-        // No-op: can be used for logging or future enhancements
+        // Map AccelCalibrationState to CalibrationStateMachine
+        var mappedState = e.NewState switch
+        {
+            AccelCalibrationState.Idle => CalibrationStateMachine.Idle,
+            AccelCalibrationState.CommandSent => CalibrationStateMachine.WaitingForAck,
+            AccelCalibrationState.WaitingForFirstPosition => CalibrationStateMachine.WaitingForInstruction,
+            AccelCalibrationState.WaitingForUserConfirmation => CalibrationStateMachine.WaitingForUserPosition,
+            AccelCalibrationState.ValidatingPosition => CalibrationStateMachine.ValidatingPosition,
+            AccelCalibrationState.SendingPositionToFC => CalibrationStateMachine.WaitingForSampling,
+            AccelCalibrationState.FCSampling => CalibrationStateMachine.Sampling,
+            AccelCalibrationState.PositionRejected => CalibrationStateMachine.PositionRejected,
+            AccelCalibrationState.Completed => CalibrationStateMachine.Completed,
+            AccelCalibrationState.Failed => CalibrationStateMachine.Failed,
+            AccelCalibrationState.Cancelled => CalibrationStateMachine.Cancelled,
+            AccelCalibrationState.Rejected => CalibrationStateMachine.Rejected,
+            _ => CalibrationStateMachine.Idle
+        };
+        
+        lock (_lock)
+        {
+            _state = mappedState;
+            _isCalibrating = e.NewState != AccelCalibrationState.Idle &&
+                            e.NewState != AccelCalibrationState.Completed &&
+                            e.NewState != AccelCalibrationState.Failed &&
+                            e.NewState != AccelCalibrationState.Cancelled &&
+                            e.NewState != AccelCalibrationState.Rejected;
+        }
+        
+        _currentState.StateMachine = mappedState;
+        CalibrationStateChanged?.Invoke(this, _currentState);
     }
-
+    
     private void OnAccelPositionRequested(object? sender, AccelPositionRequestedEventArgs e)
     {
         _logger.LogInformation("FC requested position {Position}: {Name}", e.Position, e.PositionName);
         
-        lock (_lock) { _currentPositionNumber = e.Position; }
+        lock (_lock)
+        {
+            _currentPosition = e.Position;
+            _expectedPosition = e.Position;
+            _waitingForFcResponse = false;
+        }
         
-        var step = GetCalibrationStep(e.Position);
-        var instruction = GetPositionInstruction(e.Position);
+        SetState(CalibrationStateMachine.WaitingForUserPosition,
+            $"Position {e.Position}/6: {e.PositionName}",
+            GetProgress());
         
-        RaiseCalibrationStepRequired(step, instruction);
+        RaiseStepRequired(e.Position, true, GetPositionInstruction(e.Position));
     }
-
+    
     private void OnAccelPositionValidated(object? sender, AccelPositionValidationEventArgs e)
     {
         if (!e.IsValid)
         {
-            UpdateState(CalibrationState.InProgress, _currentState.Progress,
-                $"? {e.Message}", canConfirm: true);
+            _logger.LogWarning("Position {Position} validation failed: {Message}", e.Position, e.Message);
+            
+            SetState(CalibrationStateMachine.PositionRejected,
+                $"?? Position {e.Position} ({e.PositionName}): {e.Message}",
+                GetProgress());
+            
+            RaiseStepRequired(e.Position, true, $"?? {e.Message}\nPlease reposition and try again.");
+        }
+        else
+        {
+            _logger.LogInformation("Position {Position} validated successfully", e.Position);
         }
     }
-
+    
     private void OnAccelCalibrationCompleted(object? sender, AccelCalibrationCompletedEventArgs e)
     {
-        _logger.LogInformation("Accelerometer calibration completed: {Result} - {Message} ({Duration})",
-            e.Result, e.Message, e.Duration);
+        _logger.LogInformation("Accelerometer calibration completed: {Result} - {Message} ({Duration:F1}s)",
+            e.Result, e.Message, e.Duration.TotalSeconds);
         
-        var result = e.Result switch
+        var success = e.Result == AccelCalibrationResult.Success;
+        FinishCalibration(success, e.Message);
+    }
+    
+    #endregion
+
+    #region Connection Monitoring
+
+    private void OnConnectionStateChanged(object? sender, bool connected)
+    {
+        if (!connected)
         {
-            AccelCalibrationResult.Success => CalibrationResult.Success,
-            AccelCalibrationResult.Failed => CalibrationResult.Failed,
-            AccelCalibrationResult.Cancelled => CalibrationResult.Cancelled,
-            AccelCalibrationResult.Rejected => CalibrationResult.Rejected,
-            _ => CalibrationResult.Failed
-        };
-        
-        FinishCalibration(result, e.Message);
+            lock (_lock)
+            {
+                if (_isCalibrating)
+                {
+                    _logger.LogWarning("Connection lost during calibration");
+                    AbortCalibration("Connection lost during calibration");
+                }
+            }
+        }
     }
 
     #endregion
 
-    #region STATUSTEXT Handling
+    #region STATUSTEXT Handler - FC drives the calibration flow
 
-    private void HandleStatusText(byte severity, string text)
+    private void OnStatusTextReceived(object? sender, StatusTextEventArgs e)
     {
-        if (!_isCalibrating)
-            return;
-
-        _logger.LogDebug("Calibration STATUSTEXT [{Severity}]: {Text}", severity, text);
-        var lowerText = text.ToLowerInvariant();
-
-        // Check for completion - FIRMWARE IS THE SOURCE OF TRUTH
-        if (IsCompletionMessage(lowerText))
+        lock (_lock)
         {
-            HandleCalibrationComplete(text);
+            if (!_isCalibrating) return;
+        }
+        
+        var text = e.Text;
+        var lower = text.ToLowerInvariant();
+        
+        _logger.LogInformation("FC: {Text}", text);
+        StatusTextReceived?.Invoke(this, new CalibrationStatusTextEventArgs { Severity = e.Severity, Text = text });
+        
+        // Skip non-calibration messages
+        if (lower.Contains("prearm") || lower.Contains("ekf") || lower.Contains("gps") ||
+            lower.Contains("initialising") || lower.Contains("initializing"))
+        {
             return;
         }
-
+        
+        CalibrationType currentType;
+        lock (_lock) { currentType = _currentType; }
+        
+        // Check for success - FC says calibration is done
+        if (IsSuccessMessage(lower))
+        {
+            _logger.LogInformation("FC reported calibration SUCCESS");
+            FinishCalibration(true, text);
+            return;
+        }
+        
         // Check for failure
-        if (IsFailureMessage(lowerText))
+        if (IsFailureMessage(lower))
         {
-            HandleCalibrationFailed(text);
+            _logger.LogWarning("FC reported calibration FAILURE: {Text}", text);
+            FinishCalibration(false, text);
             return;
         }
-
-        // Handle based on calibration type
-        switch (_currentCalibrationType)
+        
+        // Accelerometer specific - FC tells us what position it wants
+        if (currentType == CalibrationType.Accelerometer)
         {
-            case CalibrationType.Accelerometer:
-                HandleAccelStatusText(lowerText, text);
-                break;
-            case CalibrationType.Compass:
-                HandleCompassStatusText(lowerText, text);
-                break;
-            case CalibrationType.Gyroscope:
-            case CalibrationType.Barometer:
-            case CalibrationType.LevelHorizon:
-                HandleSimpleCalStatusText(lowerText, text);
-                break;
+            HandleAccelStatusText(lower, text);
         }
     }
 
-    private bool IsCompletionMessage(string lowerText)
+    private void HandleAccelStatusText(string lower, string originalText)
     {
-        // Accelerometer requires explicit success confirmation
-        if (_currentCalibrationType == CalibrationType.Accelerometer)
-        {
-            return lowerText.Contains("calibration") && lowerText.Contains("successful");
-        }
-
-        // Check for explicit completion keywords
-        if (StatusKeywords.Complete.Any(kw => lowerText.Contains(kw)))
-            return true;
+        // FC tells us which position to put the vehicle in
+        // This is the ONLY way we know to advance - FC drives the flow
         
-        // For simple calibrations, check for type-specific success indicators
-        switch (_currentCalibrationType)
+        int? requestedPosition = null;
+        
+        // Mission Planner / ArduPilot messages:
+        // "Place vehicle level and press any key" -> Position 1
+        // "Place vehicle on its left side and press any key" -> Position 2
+        // etc.
+        
+        if (lower.Contains("place") || lower.Contains("level") || lower.Contains("left") || 
+            lower.Contains("right") || lower.Contains("nose") || lower.Contains("back") ||
+            lower.Contains("upside"))
         {
-            case CalibrationType.LevelHorizon:
-                // ArduPilot sends "Level Calibration" or "AHRS: " messages on completion
-                if (lowerText.Contains("level") && (lowerText.Contains("complete") || lowerText.Contains("done") || lowerText.Contains("saved")))
-                    return true;
-                if (lowerText.Contains("ahrs") && lowerText.Contains("trim"))
-                    return true;
-                break;
-                
-            case CalibrationType.Gyroscope:
-                // ArduPilot sends "Gyro" related messages
-                if (lowerText.Contains("gyro") && (lowerText.Contains("complete") || lowerText.Contains("done") || lowerText.Contains("calibrated")))
-                    return true;
-                break;
-                
-            case CalibrationType.Barometer:
-                // ArduPilot sends "Baro" or "pressure" related messages
-                if ((lowerText.Contains("baro") || lowerText.Contains("pressure")) && 
-                    (lowerText.Contains("complete") || lowerText.Contains("done") || lowerText.Contains("calibrated")))
-                    return true;
-                break;
-                
-            case CalibrationType.Compass:
-                // For compass, need explicit completion or offsets saved
-                if ((lowerText.Contains("compass") || lowerText.Contains("mag")) && 
-                    (lowerText.Contains("complete") || lowerText.Contains("done") || lowerText.Contains("saved")))
-                    return true;
-                break;
+            requestedPosition = DetectPositionFromMessage(lower);
         }
         
-        return false;
-    }
-
-    private bool IsFailureMessage(string lowerText)
-    {
-        // "failed" but not "not failed" 
-        if (StatusKeywords.Failed.Any(kw => lowerText.Contains(kw)))
+        // FC confirms position was good - "got it" or moves to next
+        if (lower.Contains("got it") || lower.Contains("position") && lower.Contains("ok"))
         {
-            return !lowerText.Contains("not failed") && !lowerText.Contains("didn't fail");
+            lock (_lock)
+            {
+                _waitingForFcResponse = false;
+                _logger.LogInformation("FC confirmed position {Position} was correct", _currentPosition);
+            }
+            // FC will send next position request
+            return;
         }
-        return false;
-    }
-
-    private void HandleAccelStatusText(string lowerText, string originalText)
-    {
-        // Check for position request from FC
-        var requestedPosition = DetectRequestedPosition(lowerText);
+        
+        // FC says position was bad
+        if (lower.Contains("bad") || lower.Contains("wrong") || lower.Contains("incorrect") ||
+            lower.Contains("try again") || lower.Contains("retry") || lower.Contains("rotation"))
+        {
+            lock (_lock)
+            {
+                _waitingForFcResponse = false;
+            }
+            
+            _logger.LogWarning("FC rejected position: {Text}", originalText);
+            
+            int pos;
+            lock (_lock) { pos = _currentPosition; }
+            
+            SetState(CalibrationStateMachine.WaitingForUserPosition,
+                $"?? Position {pos} incorrect! Please reposition to {GetPositionName(pos)} and try again.",
+                GetProgress());
+            
+            RaiseStepRequired(pos, true, $"?? {originalText}\nPlease reposition correctly.");
+            return;
+        }
+        
+        // If FC requested a specific position, update our state
         if (requestedPosition.HasValue)
         {
             lock (_lock)
             {
-                _currentPositionNumber = requestedPosition.Value;
+                _expectedPosition = requestedPosition.Value;
+                _currentPosition = requestedPosition.Value;
+                _waitingForFcResponse = false;
             }
-
+            
             _logger.LogInformation("FC requesting position {Position}: {Name}", 
-                _currentPositionNumber, GetPositionName(_currentPositionNumber));
+                requestedPosition.Value, GetPositionName(requestedPosition.Value));
             
-            _currentDiagnostics?.AddDiagnostic(CalibrationDiagnosticSeverity.Info,
-                $"FC requested position {_currentPositionNumber}: {GetPositionName(_currentPositionNumber)}");
+            SetState(CalibrationStateMachine.WaitingForUserPosition,
+                $"Position {requestedPosition.Value}/6: {GetPositionName(requestedPosition.Value)}",
+                GetProgress());
             
-            // Add position result entry
-            _currentDiagnostics?.AccelPositionResults.Add(new AccelPositionResult
-            {
-                Position = _currentPositionNumber,
-                PositionName = GetPositionName(_currentPositionNumber),
-                Attempts = 1
-            });
-
-            TransitionState(CalibrationStateMachine.WaitingForUserPosition);
-            
-            int progress = (int)Math.Round(((_currentPositionNumber - 1) * 100.0) / 6.0);
-            var instruction = GetPositionInstruction(_currentPositionNumber);
-            var step = GetCalibrationStep(_currentPositionNumber);
-            
-            UpdateState(CalibrationState.InProgress, progress, 
-                $"Position {_currentPositionNumber}/6: {GetPositionName(_currentPositionNumber)}", 
-                canConfirm: true);
-            
-            RaiseCalibrationStepRequired(step, instruction);
-            return;
+            RaiseStepRequired(requestedPosition.Value, true, GetPositionInstruction(requestedPosition.Value));
         }
-
-        // Check for sampling message (FC accepted and is reading)
-        if (StatusKeywords.Sampling.Any(kw => lowerText.Contains(kw)))
-        {
-            _logger.LogInformation("FC is sampling position {Position}", _currentPositionNumber);
-            
-            TransitionState(CalibrationStateMachine.Sampling);
-            
-            int progress = (int)Math.Round((_currentPositionNumber * 100.0) / 6.0);
-            UpdateState(CalibrationState.InProgress, progress,
-                $"Position {_currentPositionNumber}/6: {GetPositionName(_currentPositionNumber)} - Sampling... Hold still!",
-                canConfirm: false);
-            
-            // Update position result
-            var posResult = _currentDiagnostics?.AccelPositionResults
-                .FirstOrDefault(p => p.Position == _currentPositionNumber);
-            if (posResult != null)
-            {
-                posResult.Accepted = true;
-                posResult.FcMessage = originalText;
-            }
-            return;
-        }
-
-        // Update message but don't change state
-        _currentState.Message = originalText;
-        CalibrationStateChanged?.Invoke(this, _currentState);
     }
 
-    private void HandleCompassStatusText(string lowerText, string originalText)
+    private int? DetectPositionFromMessage(string lower)
     {
-        // Extract progress percentage
-        if (lowerText.Contains(StatusKeywords.Progress) || lowerText.Contains(StatusKeywords.Percent))
-        {
-            var match = Regex.Match(originalText, @"(\d+)%");
-            if (match.Success && int.TryParse(match.Groups[1].Value, out var percent))
-            {
-                UpdateState(CalibrationState.InProgress, percent, originalText, canConfirm: false);
-                
-                // Update compass coverage
-                if (_currentDiagnostics?.CompassCoverage != null)
-                {
-                    _currentDiagnostics.CompassCoverage.CompletionPercent = percent;
-                }
-                return;
-            }
-        }
-
-        // Extract compass fitness if present
-        var fitnessMatch = Regex.Match(originalText, @"fitness[:\s]+(\d+\.?\d*)", RegexOptions.IgnoreCase);
-        if (fitnessMatch.Success && float.TryParse(fitnessMatch.Groups[1].Value, out var fitness))
-        {
-            if (_currentDiagnostics?.CompassCoverage != null)
-            {
-                _currentDiagnostics.CompassCoverage.Fitness = fitness;
-            }
-        }
-
-        _currentState.Message = originalText;
-        CalibrationStateChanged?.Invoke(this, _currentState);
-    }
-
-    private void HandleSimpleCalStatusText(string lowerText, string originalText)
-    {
-        // For gyro, baro, level - check for progress indicators and update message
-        _logger.LogInformation("Simple cal STATUSTEXT: {Text}", originalText);
-        
-        // Check for "calibrating" type messages
-        if (StatusKeywords.Sampling.Any(kw => lowerText.Contains(kw)))
-        {
-            UpdateState(CalibrationState.InProgress, 50,
-                $"{GetCalibrationTypeName(_currentCalibrationType)}: {originalText}",
-                canConfirm: false);
-            return;
-        }
-        
-        // Update message and state
-        _currentState.Message = originalText;
-        CalibrationStateChanged?.Invoke(this, _currentState);
-    }
-
-    private int? DetectRequestedPosition(string lowerText)
-    {
-        // Must contain "place" to be a position request
-        if (!lowerText.Contains(StatusKeywords.Place))
-            return null;
-
-        // Check positions in order of specificity
-        if (lowerText.Contains(StatusKeywords.Left) && !lowerText.Contains(StatusKeywords.Right))
+        // Order matters - check more specific patterns first
+        if (lower.Contains("left") && !lower.Contains("right"))
             return 2;
-        
-        if (lowerText.Contains(StatusKeywords.Right) && !lowerText.Contains(StatusKeywords.Left))
+        if (lower.Contains("right") && !lower.Contains("left"))
             return 3;
-        
-        if (lowerText.Contains(StatusKeywords.NoseDown) || 
-            (lowerText.Contains("nose") && lowerText.Contains("down")))
+        if (lower.Contains("nose") && lower.Contains("down"))
             return 4;
-        
-        if (lowerText.Contains(StatusKeywords.NoseUp) || 
-            (lowerText.Contains("nose") && lowerText.Contains("up")))
+        if (lower.Contains("nose") && lower.Contains("up"))
             return 5;
-        
-        if (lowerText.Contains(StatusKeywords.Back) || lowerText.Contains(StatusKeywords.Upside))
+        if (lower.Contains("back") || lower.Contains("upside"))
             return 6;
-        
-        if (lowerText.Contains(StatusKeywords.Level))
+        if (lower.Contains("level"))
             return 1;
-
+        
         return null;
     }
 
-    private void HandleCalibrationComplete(string text)
+    private static bool IsSuccessMessage(string lower)
     {
-        _logger.LogInformation("Calibration completed via FC STATUSTEXT: {Text}", text);
-        
-        _currentDiagnostics?.AddDiagnostic(CalibrationDiagnosticSeverity.Info,
-            $"FC reported calibration complete: {text}");
-        
-        if (_currentCalibrationType == CalibrationType.Accelerometer)
-        {
-            lock (_lock) { _currentPositionNumber = Math.Clamp(_currentPositionNumber, 1, 6); }
-        }
-        
-        FinishCalibration(CalibrationResult.Success, 
-            _currentCalibrationType == CalibrationType.Accelerometer 
-                ? "Accelerometer calibration complete! Reboot recommended." 
-                : text);
+        return lower.Contains("calibration successful") ||
+               lower.Contains("calibration complete") ||
+               lower.Contains("calibration done") ||
+               lower.Contains("accel cal complete") ||
+               (lower.Contains("offsets") && lower.Contains("saved"));
     }
 
-    private void HandleCalibrationFailed(string text)
+    private static bool IsFailureMessage(string lower)
     {
-        _logger.LogWarning("Calibration failed via FC STATUSTEXT: {Text}", text);
+        if (lower.Contains("prearm")) return false;
         
-        _currentDiagnostics?.AddDiagnostic(CalibrationDiagnosticSeverity.Error,
-            $"FC reported calibration failed: {text}");
-        _currentDiagnostics!.LastError = text;
+        return (lower.Contains("calibration") && lower.Contains("failed")) ||
+               (lower.Contains("calibration") && lower.Contains("cancelled")) ||
+               (lower.Contains("calibration") && lower.Contains("timeout")) ||
+               lower.Contains("cal failed");
+    }
+
+    #endregion
+
+    #region COMMAND_ACK Handler
+
+    private void OnCommandAckReceived(object? sender, CommandAckEventArgs e)
+    {
+        lock (_lock)
+        {
+            if (!_isCalibrating) return;
+        }
         
-        FinishCalibration(CalibrationResult.Failed, text);
+        var result = (MavResult)e.Result;
+        _logger.LogDebug("COMMAND_ACK: cmd={Command} result={Result}", e.Command, result);
+        
+        if (e.Command == 241) // MAV_CMD_PREFLIGHT_CALIBRATION
+        {
+            HandleCalibrationStartAck(result);
+        }
+        else if (e.Command == 42429) // MAV_CMD_ACCELCAL_VEHICLE_POS
+        {
+            HandlePositionAck(result);
+        }
+    }
+
+    private void HandleCalibrationStartAck(MavResult result)
+    {
+        if (result == MavResult.Accepted || result == MavResult.InProgress)
+        {
+            _logger.LogInformation("FC accepted calibration command");
+            
+            CalibrationType type;
+            lock (_lock) { type = _currentType; }
+            
+            if (type == CalibrationType.Accelerometer)
+            {
+                // Wait for FC to send first position request via STATUSTEXT
+                SetState(CalibrationStateMachine.WaitingForInstruction,
+                    "Waiting for flight controller...", 0);
+                
+                // Start timeout watcher
+                _ = WatchForFcInstructionAsync();
+            }
+            else
+            {
+                SetState(CalibrationStateMachine.Sampling,
+                    $"{GetTypeName(type)} calibration in progress...", 50);
+                _ = WaitForSimpleCalibrationAsync();
+            }
+        }
+        else
+        {
+            string msg = result switch
+            {
+                MavResult.Denied => "Calibration denied - vehicle may be armed",
+                MavResult.TemporarilyRejected => "Temporarily rejected - try again",
+                MavResult.Unsupported => "Not supported by firmware",
+                _ => $"Rejected (code: {(int)result})"
+            };
+            FinishCalibration(false, msg);
+        }
+    }
+
+    private void HandlePositionAck(MavResult result)
+    {
+        int pos;
+        lock (_lock) { pos = _currentPosition; }
+        
+        if (result == MavResult.Accepted || result == MavResult.InProgress)
+        {
+            _logger.LogInformation("FC acknowledged position {Position} command", pos);
+            // Now wait for FC to validate via STATUSTEXT
+            SetState(CalibrationStateMachine.Sampling,
+                $"Position {pos}/6: {GetPositionName(pos)} - FC validating... Hold still!",
+                GetProgress());
+        }
+        else if (result == MavResult.Denied || result == MavResult.Failed)
+        {
+            _logger.LogWarning("FC rejected position command: {Result}", result);
+            
+            lock (_lock) { _waitingForFcResponse = false; }
+            
+            SetState(CalibrationStateMachine.WaitingForUserPosition,
+                $"?? Position {pos} rejected. Please verify {GetPositionName(pos)} orientation.",
+                GetProgress());
+            
+            RaiseStepRequired(pos, true, $"Position rejected. Please verify {GetPositionName(pos)} orientation and try again.");
+        }
     }
 
     #endregion
@@ -693,406 +453,166 @@ public class CalibrationService : ICalibrationService
             CalibrationType.Accelerometer => StartAccelerometerCalibrationAsync(true),
             CalibrationType.Compass => StartCompassCalibrationAsync(false),
             CalibrationType.Gyroscope => StartGyroscopeCalibrationAsync(),
-            CalibrationType.Barometer => StartBarometerCalibrationAsync(),
             CalibrationType.LevelHorizon => StartLevelHorizonCalibrationAsync(),
+            CalibrationType.Barometer => StartBarometerCalibrationAsync(),
+            CalibrationType.Airspeed => StartAirspeedCalibrationAsync(),
             _ => Task.FromResult(false)
         };
     }
 
-    public async Task<bool> StartAccelerometerCalibrationAsync(bool fullSixAxis = true)
+    public Task<bool> StartAccelerometerCalibrationAsync(bool fullSixAxis = true)
     {
-        if (!CanStartCalibration())
-            return false;
-
-        try
-        {
-            InitializeCalibration(CalibrationType.Accelerometer);
-            
-            _currentDiagnostics?.AddDiagnostic(CalibrationDiagnosticSeverity.Info,
-                $"Starting accelerometer calibration (6-axis: {fullSixAxis})");
-
-            UpdateState(CalibrationState.InProgress, 0, "Starting accelerometer calibration...", canConfirm: false);
-            RaiseCalibrationStepRequired(CalibrationStep.Level, AccelPositionInstructions[0]);
-
-            TransitionState(CalibrationStateMachine.WaitingForAck);
-            
-            // Send MAV_CMD_PREFLIGHT_CALIBRATION: param5 = 4 for 6-axis
-            _connectionService.SendPreflightCalibration(
-                gyro: 0, mag: 0, groundPressure: 0, airspeed: 0,
-                accel: fullSixAxis ? 4 : 1);
-
-            _logger.LogInformation("Sent MAV_CMD_PREFLIGHT_CALIBRATION (accel={Accel})", fullSixAxis ? 4 : 1);
-            
-            await Task.Delay(100);
-            return true;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error starting accelerometer calibration");
-            FinishCalibration(CalibrationResult.Failed, $"Failed to start: {ex.Message}");
-            return false;
-        }
+        if (!CanStart()) return Task.FromResult(false);
+        
+        InitializeCalibration(CalibrationType.Accelerometer);
+        
+        _logger.LogInformation("Starting 6-axis accelerometer calibration");
+        SetState(CalibrationStateMachine.WaitingForAck, "Starting accelerometer calibration...", 0);
+        
+        // MAV_CMD_PREFLIGHT_CALIBRATION: param5 = 4 for 6-axis accel
+        _connectionService.SendPreflightCalibration(gyro: 0, mag: 0, groundPressure: 0, airspeed: 0, accel: fullSixAxis ? 4 : 1);
+        
+        return Task.FromResult(true);
     }
 
-    public async Task<bool> StartCompassCalibrationAsync(bool onboardCalibration = false)
+    public Task<bool> StartCompassCalibrationAsync(bool onboardCalibration = false)
     {
-        if (!CanStartCalibration())
-            return false;
-
-        try
-        {
-            InitializeCalibration(CalibrationType.Compass);
-            
-            _currentDiagnostics!.CompassCoverage = new CompassCoverageInfo { CompassIndex = 1 };
-            _currentDiagnostics.AddDiagnostic(CalibrationDiagnosticSeverity.Info,
-                $"Starting compass calibration (onboard: {onboardCalibration})");
-
-            UpdateState(CalibrationState.InProgress, 0, "Starting compass calibration...", canConfirm: false);
-            RaiseCalibrationStepRequired(CalibrationStep.Rotate,
-                "Rotate the vehicle slowly in all directions. Cover all orientations until calibration completes.");
-
-            TransitionState(CalibrationStateMachine.WaitingForAck);
-            
-            // MAV_CMD_PREFLIGHT_CALIBRATION: param2 = 1 (mag) or 76 (onboard)
-            _connectionService.SendPreflightCalibration(
-                gyro: 0, mag: onboardCalibration ? 76 : 1, groundPressure: 0, airspeed: 0, accel: 0);
-
-            _logger.LogInformation("Sent MAV_CMD_PREFLIGHT_CALIBRATION (mag={Mag})", onboardCalibration ? 76 : 1);
-            
-            await Task.Delay(100);
-            return true;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error starting compass calibration");
-            FinishCalibration(CalibrationResult.Failed, $"Failed to start: {ex.Message}");
-            return false;
-        }
+        if (!CanStart()) return Task.FromResult(false);
+        
+        InitializeCalibration(CalibrationType.Compass);
+        SetState(CalibrationStateMachine.WaitingForAck, "Starting compass calibration...", 0);
+        
+        RaiseStepRequired(0, false, "Rotate vehicle slowly in all directions until calibration completes.");
+        
+        _connectionService.SendPreflightCalibration(gyro: 0, mag: onboardCalibration ? 76 : 1, groundPressure: 0, airspeed: 0, accel: 0);
+        
+        return Task.FromResult(true);
     }
 
-    public async Task<bool> StartGyroscopeCalibrationAsync()
+    public Task<bool> StartGyroscopeCalibrationAsync()
     {
-        if (!CanStartCalibration())
-            return false;
-
-        try
-        {
-            InitializeCalibration(CalibrationType.Gyroscope);
-            
-            _currentDiagnostics?.AddDiagnostic(CalibrationDiagnosticSeverity.Info,
-                "Starting gyroscope calibration");
-
-            UpdateState(CalibrationState.InProgress, 0, "Starting gyroscope calibration...", canConfirm: false);
-            RaiseCalibrationStepRequired(CalibrationStep.KeepStill,
-                "Keep the vehicle completely still. Do not move or touch it.");
-
-            TransitionState(CalibrationStateMachine.WaitingForAck);
-            
-            _connectionService.SendPreflightCalibration(
-                gyro: 1, mag: 0, groundPressure: 0, airspeed: 0, accel: 0);
-
-            _logger.LogInformation("Sent MAV_CMD_PREFLIGHT_CALIBRATION (gyro=1)");
-            
-            await Task.Delay(100);
-            return true;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error starting gyroscope calibration");
-            FinishCalibration(CalibrationResult.Failed, $"Failed to start: {ex.Message}");
-            return false;
-        }
+        if (!CanStart()) return Task.FromResult(false);
+        
+        InitializeCalibration(CalibrationType.Gyroscope);
+        SetState(CalibrationStateMachine.WaitingForAck, "Starting gyroscope calibration...", 0);
+        
+        RaiseStepRequired(0, false, "Keep the vehicle completely still. Do not move it.");
+        
+        _connectionService.SendPreflightCalibration(gyro: 1, mag: 0, groundPressure: 0, airspeed: 0, accel: 0);
+        
+        return Task.FromResult(true);
     }
 
-    public async Task<bool> StartLevelHorizonCalibrationAsync()
+    public Task<bool> StartLevelHorizonCalibrationAsync()
     {
-        if (!CanStartCalibration())
-            return false;
-
-        try
-        {
-            InitializeCalibration(CalibrationType.LevelHorizon);
-            
-            _currentDiagnostics?.AddDiagnostic(CalibrationDiagnosticSeverity.Info,
-                "Starting level horizon calibration");
-
-            UpdateState(CalibrationState.InProgress, 0, "Starting level horizon calibration...", canConfirm: false);
-            RaiseCalibrationStepRequired(CalibrationStep.Level,
-                "Place vehicle on a perfectly level surface. Keep it completely still.");
-
-            TransitionState(CalibrationStateMachine.WaitingForAck);
-            
-            // param5 = 2 for level/trim calibration
-            _connectionService.SendPreflightCalibration(
-                gyro: 0, mag: 0, groundPressure: 0, airspeed: 0, accel: 2);
-
-            _logger.LogInformation("Sent MAV_CMD_PREFLIGHT_CALIBRATION (accel=2 for level)");
-            
-            await Task.Delay(100);
-            return true;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error starting level horizon calibration");
-            FinishCalibration(CalibrationResult.Failed, $"Failed to start: {ex.Message}");
-            return false;
-        }
+        if (!CanStart()) return Task.FromResult(false);
+        
+        InitializeCalibration(CalibrationType.LevelHorizon);
+        SetState(CalibrationStateMachine.WaitingForAck, "Starting level horizon calibration...", 0);
+        
+        RaiseStepRequired(0, false, "Place vehicle on a perfectly level surface. Keep it still.");
+        
+        _connectionService.SendPreflightCalibration(gyro: 0, mag: 0, groundPressure: 0, airspeed: 0, accel: 2);
+        
+        return Task.FromResult(true);
     }
 
-    public async Task<bool> StartBarometerCalibrationAsync()
+    public Task<bool> StartBarometerCalibrationAsync()
     {
-        if (!CanStartCalibration())
-            return false;
-
-        try
-        {
-            InitializeCalibration(CalibrationType.Barometer);
-            
-            _currentDiagnostics?.AddDiagnostic(CalibrationDiagnosticSeverity.Info,
-                "Starting barometer calibration");
-
-            UpdateState(CalibrationState.InProgress, 0, "Starting barometer calibration...", canConfirm: false);
-
-            TransitionState(CalibrationStateMachine.WaitingForAck);
-            
-            _connectionService.SendPreflightCalibration(
-                gyro: 0, mag: 0, groundPressure: 1, airspeed: 0, accel: 0);
-
-            _logger.LogInformation("Sent MAV_CMD_PREFLIGHT_CALIBRATION (groundPressure=1)");
-            
-            await Task.Delay(100);
-            return true;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error starting barometer calibration");
-            FinishCalibration(CalibrationResult.Failed, $"Failed to start: {ex.Message}");
-            return false;
-        }
+        if (!CanStart()) return Task.FromResult(false);
+        
+        InitializeCalibration(CalibrationType.Barometer);
+        SetState(CalibrationStateMachine.WaitingForAck, "Starting barometer calibration...", 0);
+        
+        _connectionService.SendPreflightCalibration(gyro: 0, mag: 0, groundPressure: 1, airspeed: 0, accel: 0);
+        
+        return Task.FromResult(true);
     }
 
-    public async Task<bool> StartAirspeedCalibrationAsync()
+    public Task<bool> StartAirspeedCalibrationAsync()
     {
-        if (!CanStartCalibration())
-            return false;
-
-        try
-        {
-            InitializeCalibration(CalibrationType.Airspeed);
-            
-            _currentDiagnostics?.AddDiagnostic(CalibrationDiagnosticSeverity.Info,
-                "Starting airspeed calibration");
-
-            UpdateState(CalibrationState.InProgress, 0, "Starting airspeed calibration...", canConfirm: false);
-
-            TransitionState(CalibrationStateMachine.WaitingForAck);
-            
-            _connectionService.SendPreflightCalibration(
-                gyro: 0, mag: 0, groundPressure: 0, airspeed: 1, accel: 0);
-
-            _logger.LogInformation("Sent MAV_CMD_PREFLIGHT_CALIBRATION (airspeed=1)");
-            
-            await Task.Delay(100);
-            return true;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error starting airspeed calibration");
-            FinishCalibration(CalibrationResult.Failed, $"Failed to start: {ex.Message}");
-            return false;
-        }
+        if (!CanStart()) return Task.FromResult(false);
+        
+        InitializeCalibration(CalibrationType.Airspeed);
+        SetState(CalibrationStateMachine.WaitingForAck, "Starting airspeed calibration...", 0);
+        
+        _connectionService.SendPreflightCalibration(gyro: 0, mag: 0, groundPressure: 0, airspeed: 1, accel: 0);
+        
+        return Task.FromResult(true);
     }
 
     /// <summary>
     /// User confirms vehicle is in position.
-    /// VALIDATES position using actual IMU readings before sending to FC.
-    /// This is CRITICAL for flight safety - prevents bad calibration data.
+    /// Sends MAV_CMD_ACCELCAL_VEHICLE_POS to FC.
+    /// FC will validate using IMU and respond via STATUSTEXT.
+    /// We do NOT auto-advance - we wait for FC confirmation.
     /// </summary>
-    public async Task<bool> AcceptCalibrationStepAsync()
+    public Task<bool> AcceptCalibrationStepAsync()
     {
-        if (!_isCalibrating)
+        int position;
+        CalibrationStateMachine currentState;
+        
+        lock (_lock)
         {
-            _logger.LogWarning("AcceptCalibrationStepAsync called but no calibration in progress");
-            return false;
+            if (!_isCalibrating || _currentType != CalibrationType.Accelerometer)
+            {
+                _logger.LogWarning("AcceptCalibrationStep: not in accel calibration");
+                return Task.FromResult(false);
+            }
+            
+            currentState = _state;
+            position = _currentPosition;
+            
+            if (_waitingForFcResponse)
+            {
+                _logger.LogWarning("Already waiting for FC response");
+                return Task.FromResult(false);
+            }
         }
-
-        if (_stateMachine != CalibrationStateMachine.WaitingForUserPosition &&
-            _stateMachine != CalibrationStateMachine.PositionRejected)
+        
+        if (currentState != CalibrationStateMachine.WaitingForUserPosition)
         {
-            _logger.LogWarning("AcceptCalibrationStepAsync called in invalid state: {State}", _stateMachine);
-            return false;
+            _logger.LogWarning("Not in WaitingForUserPosition state: {State}", currentState);
+            return Task.FromResult(false);
         }
-
-        if (_currentCalibrationType == CalibrationType.Accelerometer)
+        
+        if (!_connectionService.IsConnected)
         {
-            _logger.LogInformation("User confirmed position {Position}, validating with IMU data...", 
-                _currentPositionNumber);
-            
-            _currentDiagnostics?.AddDiagnostic(CalibrationDiagnosticSeverity.Info,
-                $"User confirmed position {_currentPositionNumber}: {GetPositionName(_currentPositionNumber)} - Validating...");
-            
-            // Record user confirmation time
-            var posResult = _currentDiagnostics?.AccelPositionResults
-                .FirstOrDefault(p => p.Position == _currentPositionNumber);
-            if (posResult != null)
-            {
-                posResult.UserConfirmedTime = DateTime.UtcNow;
-                posResult.Attempts++;
-            }
-
-            // Transition to validating state
-            TransitionState(CalibrationStateMachine.ValidatingPosition);
-            
-            var posName = GetPositionName(_currentPositionNumber);
-            UpdateState(CalibrationState.InProgress, _currentState.Progress,
-                $"Position {_currentPositionNumber}/6: {posName} - Reading sensors...",
-                canConfirm: false);
-            
-            // Collect IMU samples for validation
-            lock (_imuSamples)
-            {
-                _imuSamples.Clear();
-            }
-            
-            // Wait for samples (up to 3 seconds)
-            var samplesCollected = await WaitForImuSamples(3000);
-            
-            if (!samplesCollected)
-            {
-                _logger.LogWarning("Failed to collect enough IMU samples for position {Position}", _currentPositionNumber);
-                
-                _currentDiagnostics?.AddDiagnostic(CalibrationDiagnosticSeverity.Warning,
-                    $"Position {_currentPositionNumber}: Not enough IMU data - check sensor connection");
-                
-                TransitionState(CalibrationStateMachine.PositionRejected);
-                UpdateState(CalibrationState.InProgress, _currentState.Progress,
-                    $"Position {_currentPositionNumber}/6: {posName} - Could not read IMU data. Try again.",
-                    canConfirm: true);
-                
-                return false;
-            }
-            
-            // Average the IMU samples
-            var avgImuData = AverageImuSamples(_imuSamples);
-            
-            // Validate position using actual sensor data
-            var accel = avgImuData.GetAcceleration();
-            var imuData = new ImuData
-            {
-                AccelX = accel.X,
-                AccelY = accel.Y,
-                AccelZ = accel.Z,
-                TimeBootMs = (uint)(avgImuData.TimeUsec / 1000)
-            };
-            
-            var validation = _positionValidator.ValidatePosition(_currentPositionNumber, imuData);
-            
-            // Log validation result
-            _currentDiagnostics?.AddDiagnostic(
-                validation.IsValid ? CalibrationDiagnosticSeverity.Info : CalibrationDiagnosticSeverity.Warning,
-                $"Position {_currentPositionNumber} validation: {validation.ErrorMessage}");
-            
-            if (posResult != null)
-            {
-                posResult.Accepted = validation.IsValid;
-                posResult.FcMessage = validation.ErrorMessage;
-                posResult.ActualAccelX = validation.ActualAccelX;
-                posResult.ActualAccelY = validation.ActualAccelY;
-                posResult.ActualAccelZ = validation.ActualAccelZ;
-            }
-            
-            if (!validation.IsValid)
-            {
-                // Position validation FAILED - reject it
-                _logger.LogWarning(
-                    "Position {Position} validation FAILED: {Message}",
-                    _currentPositionNumber, validation.ErrorMessage);
-                
-                TransitionState(CalibrationStateMachine.PositionRejected);
-                UpdateState(CalibrationState.InProgress, _currentState.Progress,
-                    $"? {validation.ErrorMessage}",
-                    canConfirm: true);
-                
-                return false;
-            }
-            
-            // Position validation PASSED - send to FC
-            _logger.LogInformation(
-                "Position {Position} validation PASSED - sending to FC",
-                _currentPositionNumber);
-            
-            TransitionState(CalibrationStateMachine.WaitingForSampling);
-            UpdateState(CalibrationState.InProgress, _currentState.Progress,
-                $"Position {_currentPositionNumber}/6: {posName} - ? Position verified! Sending to FC...",
-                canConfirm: false);
-            
-            // Send MAV_CMD_ACCELCAL_VEHICLE_POS - FC will do final sampling
-            _connectionService.SendAccelCalVehiclePos(_currentPositionNumber);
-            
-            _logger.LogInformation("Sent MAV_CMD_ACCELCAL_VEHICLE_POS({Position})", _currentPositionNumber);
+            AbortCalibration("Connection lost");
+            return Task.FromResult(false);
         }
-
-        return true;
+        
+        _logger.LogInformation("User confirmed position {Position} - sending to FC for validation", position);
+        
+        lock (_lock)
+        {
+            _waitingForFcResponse = true;
+            _positionSentTime = DateTime.UtcNow;
+        }
+        
+        SetState(CalibrationStateMachine.Sampling,
+            $"Position {position}/6: {GetPositionName(position)} - FC validating...",
+            GetProgress());
+        
+        // Send position to FC - FC will validate using its IMU
+        _connectionService.SendAccelCalVehiclePos(position);
+        
+        // Start timeout watcher for FC response
+        _ = WatchForFcPositionResponseAsync(position);
+        
+        return Task.FromResult(true);
     }
-    
-    private async Task<bool> WaitForImuSamples(int timeoutMs)
-    {
-        var startTime = DateTime.UtcNow;
-        
-        while ((DateTime.UtcNow - startTime).TotalMilliseconds < timeoutMs)
-        {
-            lock (_imuSamples)
-            {
-                if (_imuSamples.Count >= IMU_SAMPLES_REQUIRED)
-                    return true;
-            }
-            
-            await Task.Delay(50);
-        }
-        
-        return false;
-    }
-    
-    private RawImuData AverageImuSamples(List<RawImuData> samples)
-    {
-        if (samples.Count == 0)
-            return _latestImuData ?? new RawImuData();
-        
-        var avgXAcc = samples.Average(s => s.XAcc);
-        var avgYAcc = samples.Average(s => s.YAcc);
-        var avgZAcc = samples.Average(s => s.ZAcc);
-        var avgXGyro = samples.Average(s => s.XGyro);
-        var avgYGyro = samples.Average(s => s.YGyro);
-        var avgZGyro = samples.Average(s => s.ZGyro);
-        var avgTemp = samples.Average(s => s.Temperature);
-        
-        return new RawImuData
-        {
-            XAcc = (short)avgXAcc,
-            YAcc = (short)avgYAcc,
-            ZAcc = (short)avgZAcc,
-            XGyro = (short)avgXGyro,
-            YGyro = (short)avgYGyro,
-            ZGyro = (short)avgZGyro,
-            Temperature = (short)avgTemp,
-            TimeUsec = samples.Last().TimeUsec,
-            IsScaled = samples.First().IsScaled
-        };
-    }
-
-    #endregion
-
-    #region Calibration Management
 
     public Task<bool> CancelCalibrationAsync()
     {
-        if (!_isCalibrating)
-            return Task.FromResult(true);
+        lock (_lock)
+        {
+            if (!_isCalibrating)
+                return Task.FromResult(true);
+        }
         
         _logger.LogInformation("Calibration cancelled by user");
-        _currentDiagnostics?.AddDiagnostic(CalibrationDiagnosticSeverity.Info, "Calibration cancelled by user");
-        
-        FinishCalibration(CalibrationResult.Cancelled, "Calibration cancelled by user");
+        AbortCalibration("Calibration cancelled by user");
         
         return Task.FromResult(true);
     }
@@ -1100,21 +620,143 @@ public class CalibrationService : ICalibrationService
     public Task<bool> RebootFlightControllerAsync()
     {
         if (!_connectionService.IsConnected)
-        {
-            _logger.LogWarning("Cannot reboot - not connected");
             return Task.FromResult(false);
-        }
+        
+        _logger.LogInformation("Sending reboot command");
+        _connectionService.SendPreflightReboot(autopilot: 1, companion: 0);
+        
+        return Task.FromResult(true);
+    }
 
+    #endregion
+
+    #region Timeout Watchers
+
+    private async Task WatchForFcInstructionAsync()
+    {
+        CancellationToken ct;
+        lock (_lock) { ct = _calibrationCts?.Token ?? CancellationToken.None; }
+        
         try
         {
-            _logger.LogInformation("Sending reboot command");
-            _connectionService.SendPreflightReboot(autopilot: 1, companion: 0);
-            return Task.FromResult(true);
+            await Task.Delay(COMMAND_ACK_TIMEOUT_MS, ct);
         }
-        catch (Exception ex)
+        catch (OperationCanceledException) { return; }
+        
+        // Check if we're still waiting for first instruction
+        CalibrationStateMachine state;
+        lock (_lock) { state = _state; }
+        
+        if (state == CalibrationStateMachine.WaitingForInstruction || state == CalibrationStateMachine.WaitingForAck)
         {
-            _logger.LogError(ex, "Error sending reboot command");
-            return Task.FromResult(false);
+            // FC didn't send position request - start with position 1 as fallback
+            _logger.LogWarning("No instruction from FC - starting with position 1 (fallback)");
+            
+            lock (_lock)
+            {
+                _currentPosition = 1;
+                _expectedPosition = 1;
+            }
+            
+            SetState(CalibrationStateMachine.WaitingForUserPosition,
+                "Position 1/6: LEVEL - Place vehicle level",
+                0);
+            
+            RaiseStepRequired(1, true, GetPositionInstruction(1));
+        }
+    }
+
+    private async Task WatchForFcPositionResponseAsync(int position)
+    {
+        CancellationToken ct;
+        lock (_lock) { ct = _calibrationCts?.Token ?? CancellationToken.None; }
+        
+        try
+        {
+            await Task.Delay(FC_RESPONSE_TIMEOUT_MS, ct);
+        }
+        catch (OperationCanceledException) { return; }
+        
+        // Check if we're still waiting for FC response for this position
+        bool stillWaiting;
+        int currentPos;
+        lock (_lock)
+        {
+            stillWaiting = _waitingForFcResponse && _currentPosition == position;
+            currentPos = _currentPosition;
+        }
+        
+        if (stillWaiting)
+        {
+            _logger.LogWarning("FC did not respond to position {Position} within timeout", position);
+            
+            lock (_lock) { _waitingForFcResponse = false; }
+            
+            // Show error - user needs to try again
+            SetState(CalibrationStateMachine.WaitingForUserPosition,
+                $"?? No response from FC. Please verify {GetPositionName(currentPos)} and try again.",
+                GetProgress());
+            
+            RaiseStepRequired(currentPos, true, 
+                $"No response from flight controller. Please verify vehicle is in {GetPositionName(currentPos)} position and click again.");
+        }
+    }
+
+    private async Task WaitForSimpleCalibrationAsync()
+    {
+        var startTime = DateTime.UtcNow;
+        const int timeoutMs = 15000;
+        CancellationToken ct;
+        CalibrationType type;
+        
+        lock (_lock)
+        {
+            ct = _calibrationCts?.Token ?? CancellationToken.None;
+            type = _currentType;
+        }
+        
+        while (true)
+        {
+            lock (_lock)
+            {
+                if (!_isCalibrating || _state == CalibrationStateMachine.Completed || _state == CalibrationStateMachine.Failed)
+                    return;
+            }
+            
+            if (!_connectionService.IsConnected)
+            {
+                AbortCalibration("Connection lost");
+                return;
+            }
+            
+            var elapsed = DateTime.UtcNow - startTime;
+            if (elapsed.TotalMilliseconds >= timeoutMs)
+            {
+                // Assume success for simple calibrations (FC may not send explicit message)
+                FinishCalibration(true, $"{GetTypeName(type)} calibration completed. Reboot recommended.");
+                return;
+            }
+            
+            var progress = Math.Min(95, (int)(elapsed.TotalMilliseconds / timeoutMs * 100));
+            
+            lock (_lock)
+            {
+                if (_isCalibrating && _state == CalibrationStateMachine.Sampling)
+                {
+                    _currentState.Progress = progress;
+                }
+            }
+            
+            CalibrationProgressChanged?.Invoke(this, new CalibrationProgressEventArgs
+            {
+                Type = type,
+                ProgressPercent = progress,
+                StatusText = $"{GetTypeName(type)} calibration in progress...",
+                StateMachine = CalibrationStateMachine.Sampling
+            });
+            
+            try { await Task.Delay(500, ct); }
+            catch (OperationCanceledException) { return; }
         }
     }
 
@@ -1122,31 +764,23 @@ public class CalibrationService : ICalibrationService
 
     #region State Management
 
-    private bool CanStartCalibration()
+    private bool CanStart()
     {
-        // Use relaxed pre-condition checker (Mission Planner behavior)
-        // Only requires: connected + heartbeat stable + disarmed
-        // Does NOT require: EKF ready, GPS lock, full params, SYS_STATUS health
-        
         if (!_connectionService.IsConnected)
         {
-            _logger.LogWarning("Cannot start calibration - not connected");
+            _logger.LogWarning("Not connected");
             return false;
         }
-
-        if (_isCalibrating)
+        
+        lock (_lock)
         {
-            _logger.LogWarning("Calibration already in progress");
-            return false;
+            if (_isCalibrating)
+            {
+                _logger.LogWarning("Calibration already in progress");
+                return false;
+            }
         }
-
-        // Quick check via pre-condition checker
-        if (!_preConditionChecker.CanStartCalibration())
-        {
-            _logger.LogWarning("Pre-conditions not met for calibration");
-            return false;
-        }
-
+        
         return true;
     }
 
@@ -1154,137 +788,69 @@ public class CalibrationService : ICalibrationService
     {
         lock (_lock)
         {
+            _calibrationCts?.Cancel();
+            _calibrationCts?.Dispose();
+            _calibrationCts = new CancellationTokenSource();
+            
             _isCalibrating = true;
-            _currentCalibrationType = type;
-            _currentPositionNumber = 1;
-            _stateMachine = CalibrationStateMachine.Idle;
+            _currentType = type;
+            _currentPosition = 1;
+            _expectedPosition = 1;
+            _waitingForFcResponse = false;
+            _state = CalibrationStateMachine.Idle;
+            _calibrationStartTime = DateTime.UtcNow;
         }
-
-        _currentDiagnostics = new CalibrationDiagnostics
-        {
-            CalibrationType = type,
-            StartTime = DateTime.UtcNow
-        };
-
+        
         _currentState = new CalibrationStateModel
         {
             Type = type,
             State = CalibrationState.InProgress,
-            StateMachine = _stateMachine,
-            Diagnostics = _currentDiagnostics
+            StateMachine = CalibrationStateMachine.Idle
         };
-
-        // Start abort monitoring
-        _abortMonitor.StartMonitoring(type);
-
-        _logger.LogInformation("Initialized {Type} calibration session {SessionId}", 
-            type, _currentDiagnostics.SessionId);
     }
 
-    private void TransitionState(CalibrationStateMachine newState)
+    private void SetState(CalibrationStateMachine newState, string message, int progress)
     {
-        var oldState = _stateMachine;
-        _stateMachine = newState;
-        _currentState.StateMachine = newState;
-        _currentDiagnostics!.CurrentState = newState;
-        
-        _logger.LogDebug("State transition: {Old} -> {New}", oldState, newState);
-    }
-
-    private void UpdateState(CalibrationState state, int progress, string message, bool canConfirm)
-    {
-        _currentState.State = state;
-        _currentState.Progress = progress;
-        _currentState.Message = message;
-        var clampedPosition = _currentCalibrationType == CalibrationType.Accelerometer
-            ? Math.Clamp(_currentPositionNumber, 0, 6)
-            : _currentPositionNumber;
-        _currentState.CurrentPosition = clampedPosition;
-        _currentState.CanConfirmPosition = canConfirm;
-
-        CalibrationStateChanged?.Invoke(this, _currentState);
-
-        CalibrationProgressChanged?.Invoke(this, new CalibrationProgressEventArgs
-        {
-            Type = _currentCalibrationType,
-            ProgressPercent = progress,
-            StatusText = message,
-            CurrentStep = _currentPositionNumber,
-            TotalSteps = _currentCalibrationType == CalibrationType.Accelerometer ? 6 : 1,
-            StateMachine = _stateMachine
-        });
-    }
-
-    private void FinishCalibration(CalibrationResult result, string message)
-    {
-        // Stop abort monitoring
-        _abortMonitor.StopMonitoring();
-
-        var finalState = result switch
-        {
-            CalibrationResult.Success => CalibrationStateMachine.Completed,
-            CalibrationResult.Failed => CalibrationStateMachine.Failed,
-            CalibrationResult.Cancelled => CalibrationStateMachine.Cancelled,
-            CalibrationResult.TimedOut => CalibrationStateMachine.TimedOut,
-            CalibrationResult.Rejected => CalibrationStateMachine.Rejected,
-            _ => CalibrationStateMachine.Failed
-        };
-
-        TransitionState(finalState);
-
-        _currentDiagnostics!.EndTime = DateTime.UtcNow;
-        _currentDiagnostics.Result = result;
-        
-        var calState = result == CalibrationResult.Success 
-            ? CalibrationState.Completed 
-            : CalibrationState.Failed;
-        
-        var progress = result == CalibrationResult.Success ? 100 : 0;
-        
-        UpdateState(calState, progress, message, canConfirm: false);
-        
         lock (_lock)
         {
-            _isCalibrating = false;
+            if (!_isCalibrating) return;
+            _state = newState;
         }
-
-        _logger.LogInformation("Calibration finished: {Result} - {Message} (Duration: {Duration})", 
-            result, message, _currentDiagnostics.Duration);
-    }
-
-    private void RaiseCalibrationStepRequired(CalibrationStep step, string instructions)
-    {
-        CalibrationStepRequired?.Invoke(this, new CalibrationStepEventArgs
+        
+        int pos;
+        CalibrationType type;
+        lock (_lock)
         {
-            Type = _currentCalibrationType,
-            Step = step,
-            Instructions = instructions,
-            CanConfirm = _stateMachine == CalibrationStateMachine.WaitingForUserPosition ||
-                         _stateMachine == CalibrationStateMachine.PositionRejected
+            pos = _currentPosition;
+            type = _currentType;
+        }
+        
+        _currentState.StateMachine = newState;
+        _currentState.State = CalibrationState.InProgress;
+        _currentState.Message = message;
+        _currentState.Progress = progress;
+        _currentState.CurrentPosition = pos;
+        _currentState.CanConfirmPosition = newState == CalibrationStateMachine.WaitingForUserPosition;
+        
+        CalibrationStateChanged?.Invoke(this, _currentState);
+        
+        CalibrationProgressChanged?.Invoke(this, new CalibrationProgressEventArgs
+        {
+            Type = type,
+            ProgressPercent = progress,
+            StatusText = message,
+            CurrentStep = pos,
+            TotalSteps = type == CalibrationType.Accelerometer ? 6 : 1,
+            StateMachine = newState
         });
     }
 
-    #endregion
-
-    #region Helpers
-
-    private static string GetPositionName(int position)
+    private void RaiseStepRequired(int position, bool canConfirm, string instructions)
     {
-        return position >= 1 && position <= 6 
-            ? AccelPositionNames[position - 1] 
-            : "UNKNOWN";
-    }
-
-    private static string GetPositionInstruction(int position)
-    {
-        return position >= 1 && position <= 6 
-            ? AccelPositionInstructions[position - 1] 
-            : "Follow FC instructions";
-    }
-
-    private static CalibrationStep GetCalibrationStep(int position)
-    {
-        return position switch
+        CalibrationType type;
+        lock (_lock) { type = _currentType; }
+        
+        var step = position switch
         {
             1 => CalibrationStep.Level,
             2 => CalibrationStep.LeftSide,
@@ -1294,6 +860,169 @@ public class CalibrationService : ICalibrationService
             6 => CalibrationStep.Back,
             _ => CalibrationStep.Level
         };
+        
+        if (type == CalibrationType.Compass) step = CalibrationStep.Rotate;
+        if (type == CalibrationType.Gyroscope || type == CalibrationType.LevelHorizon) step = CalibrationStep.KeepStill;
+        
+        CalibrationStepRequired?.Invoke(this, new CalibrationStepEventArgs
+        {
+            Type = type,
+            Step = step,
+            Instructions = instructions,
+            CanConfirm = canConfirm
+        });
+    }
+
+    private void FinishCalibration(bool success, string message)
+    {
+        lock (_lock)
+        {
+            if (!_isCalibrating) return;
+            
+            _state = success ? CalibrationStateMachine.Completed : CalibrationStateMachine.Failed;
+            _isCalibrating = false;
+            _waitingForFcResponse = false;
+            _calibrationCts?.Cancel();
+        }
+        
+        var duration = DateTime.UtcNow - _calibrationStartTime;
+        _logger.LogInformation("Calibration {Result}: {Message} (Duration: {Duration:F1}s)",
+            success ? "SUCCESS" : "FAILED", message, duration.TotalSeconds);
+        
+        CalibrationType type;
+        int pos;
+        lock (_lock)
+        {
+            type = _currentType;
+            pos = _currentPosition;
+        }
+        
+        _currentState.State = success ? CalibrationState.Completed : CalibrationState.Failed;
+        _currentState.StateMachine = success ? CalibrationStateMachine.Completed : CalibrationStateMachine.Failed;
+        _currentState.Progress = success ? 100 : 0;
+        _currentState.Message = message;
+        _currentState.CanConfirmPosition = false;
+        
+        CalibrationStateChanged?.Invoke(this, _currentState);
+        
+        CalibrationProgressChanged?.Invoke(this, new CalibrationProgressEventArgs
+        {
+            Type = type,
+            ProgressPercent = success ? 100 : 0,
+            StatusText = message,
+            CurrentStep = pos,
+            TotalSteps = type == CalibrationType.Accelerometer ? 6 : 1,
+            StateMachine = success ? CalibrationStateMachine.Completed : CalibrationStateMachine.Failed
+        });
+    }
+
+    private void AbortCalibration(string reason)
+    {
+        _calibrationCts?.Cancel();
+        
+        lock (_lock)
+        {
+            if (!_isCalibrating) return;
+            _state = CalibrationStateMachine.Failed;
+            _isCalibrating = false;
+            _waitingForFcResponse = false;
+        }
+        
+        _logger.LogWarning("Calibration aborted: {Reason}", reason);
+        
+        CalibrationType type;
+        int pos;
+        lock (_lock)
+        {
+            type = _currentType;
+            pos = _currentPosition;
+        }
+        
+        _currentState.State = CalibrationState.Failed;
+        _currentState.StateMachine = CalibrationStateMachine.Failed;
+        _currentState.Progress = 0;
+        _currentState.Message = reason;
+        _currentState.CanConfirmPosition = false;
+        
+        CalibrationStateChanged?.Invoke(this, _currentState);
+        
+        CalibrationProgressChanged?.Invoke(this, new CalibrationProgressEventArgs
+        {
+            Type = type,
+            ProgressPercent = 0,
+            StatusText = reason,
+            CurrentStep = pos,
+            TotalSteps = type == CalibrationType.Accelerometer ? 6 : 1,
+            StateMachine = CalibrationStateMachine.Failed
+        });
+    }
+
+    #endregion
+
+    #region Helpers
+
+    private int GetProgress()
+    {
+        int pos;
+        CalibrationType type;
+        lock (_lock)
+        {
+            pos = _currentPosition;
+            type = _currentType;
+        }
+        
+        if (type != CalibrationType.Accelerometer) return 50;
+        return (int)((pos - 1) * 100.0 / 6.0);
+    }
+
+    private static string GetPositionName(int position)
+    {
+        return position >= 1 && position <= 6 ? PositionNames[position - 1] : "UNKNOWN";
+    }
+
+    private static string GetPositionInstruction(int position)
+    {
+        return position >= 1 && position <= 6 ? PositionInstructions[position - 1] : "Follow FC instructions";
+    }
+
+    private static string GetTypeName(CalibrationType type)
+    {
+        return type switch
+        {
+            CalibrationType.Accelerometer => "Accelerometer",
+            CalibrationType.Compass => "Compass",
+            CalibrationType.Gyroscope => "Gyroscope",
+            CalibrationType.LevelHorizon => "Level Horizon",
+            CalibrationType.Barometer => "Barometer",
+            CalibrationType.Airspeed => "Airspeed",
+            _ => type.ToString()
+        };
+    }
+
+    #endregion
+
+    #region IDisposable
+
+    public void Dispose()
+    {
+        if (_disposed) return;
+        _disposed = true;
+        
+        _calibrationCts?.Cancel();
+        _calibrationCts?.Dispose();
+        
+        _connectionService.StatusTextReceived -= OnStatusTextReceived;
+        _connectionService.CommandAckReceived -= OnCommandAckReceived;
+        _connectionService.ConnectionStateChanged -= OnConnectionStateChanged;
+        
+        // Unsubscribe from AccelerometerCalibrationService events
+        if (_accelCalService != null)
+        {
+            _accelCalService.StateChanged -= OnAccelStateChanged;
+            _accelCalService.PositionRequested -= OnAccelPositionRequested;
+            _accelCalService.PositionValidated -= OnAccelPositionValidated;
+            _accelCalService.CalibrationCompleted -= OnAccelCalibrationCompleted;
+        }
     }
 
     #endregion

@@ -777,6 +777,29 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
         }
 
         /// <summary>
+        /// Send MAV_CMD_FLASH_BOOTLOADER command to update the bootloader
+        /// Magic value 290876 confirms the operation
+        /// </summary>
+        /// <param name="magicValue">Magic confirmation value (290876)</param>
+        public async Task SendFlashBootloaderAsync(int magicValue, CancellationToken ct = default)
+        {
+            _logger.LogInformation("Sending MAV_CMD_FLASH_BOOTLOADER: magic={Magic}", magicValue);
+
+            const ushort MAV_CMD_FLASH_BOOTLOADER = 42650;
+
+            await SendCommandLongAsync(
+                MAV_CMD_FLASH_BOOTLOADER,
+                0,          // param1: unused
+                0,          // param2: unused
+                0,          // param3: unused
+                0,          // param4: unused
+                magicValue, // param5: magic number (290876)
+                0,          // param6: unused
+                0,          // param7: unused
+                ct);
+        }
+
+        /// <summary>
         /// Send COMMAND_LONG message
         /// </summary>
         private async Task SendCommandLongAsync(

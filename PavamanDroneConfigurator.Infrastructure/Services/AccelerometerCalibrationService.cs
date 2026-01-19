@@ -6,9 +6,9 @@ using PavamanDroneConfigurator.Infrastructure.MAVLink;
 namespace PavamanDroneConfigurator.Infrastructure.Services;
 
 /// <summary>
-/// Accelerometer calibration service matching Mission Planner behavior EXACTLY.
+/// Accelerometer calibration service implementing ASV-Mavlink architecture patterns.
 /// 
-/// CRITICAL SAFETY RULES:
+/// CRITICAL SAFETY RULES (Mission Planner behavior):
 /// 1. FC drives the workflow via STATUSTEXT messages
 /// 2. NEVER auto-complete calibration
 /// 3. NEVER use timeouts to finish
@@ -16,9 +16,17 @@ namespace PavamanDroneConfigurator.Infrastructure.Services;
 /// 5. IMU validation MUST pass before sending to FC
 /// 6. Finish ONLY when FC sends success STATUSTEXT
 /// 
-/// This is FLIGHT-CRITICAL CODE.
+/// Flow:
+/// 1. Send MAV_CMD_PREFLIGHT_CALIBRATION (param5=4)
+/// 2. FC sends STATUSTEXT "Place vehicle level" (or similar)
+/// 3. User positions vehicle and clicks button
+/// 4. Service validates IMU data
+/// 5. If valid: Send MAV_CMD_ACCELCAL_VEHICLE_POS (fire-and-forget)
+/// 6. FC samples and sends next position request
+/// 7. Repeat for all 6 positions
+/// 8. FC sends "Calibration successful" STATUSTEXT
 /// </summary>
-public class AccelerometerCalibrationService
+public class AccelerometerCalibrationService : IDisposable
 {
     private readonly ILogger<AccelerometerCalibrationService> _logger;
     private readonly IConnectionService _connectionService;
@@ -29,8 +37,12 @@ public class AccelerometerCalibrationService
     private AccelCalibrationState _state = AccelCalibrationState.Idle;
     private readonly object _stateLock = new();
     
+    // Cancellation support (ASV-Mavlink pattern)
+    private CancellationTokenSource? _calibrationCts;
+    private bool _disposed;
+    
     // Current position being calibrated (1-6)
-    private int _currentPosition = 0;
+    private int _currentPosition;
     
     // IMU sample collection
     private readonly List<RawImuData> _imuSamples = new();
@@ -42,11 +54,14 @@ public class AccelerometerCalibrationService
     private readonly List<string> _statusTextLog = new();
     private readonly Dictionary<int, PositionAttempt> _positionAttempts = new();
     
-    // Events
+    // Events (matching ASV-Mavlink patterns)
     public event EventHandler<AccelCalibrationStateChangedEventArgs>? StateChanged;
     public event EventHandler<AccelPositionRequestedEventArgs>? PositionRequested;
     public event EventHandler<AccelPositionValidationEventArgs>? PositionValidated;
     public event EventHandler<AccelCalibrationCompletedEventArgs>? CalibrationCompleted;
+    
+    // Position names for logging
+    private static readonly string[] PositionNames = { "", "LEVEL", "LEFT", "RIGHT", "NOSE DOWN", "NOSE UP", "BACK" };
     
     public AccelCalibrationState CurrentState
     {
@@ -88,31 +103,36 @@ public class AccelerometerCalibrationService
         _connectionService.CommandAckReceived += OnCommandAckReceived;
         _connectionService.StatusTextReceived += OnStatusTextReceived;
         _connectionService.RawImuReceived += OnRawImuReceived;
+        _connectionService.ConnectionStateChanged += OnConnectionStateChanged;
     }
     
     #region Public API
     
     /// <summary>
-    /// Start accelerometer calibration (6-axis).
+    /// Start full 6-position accelerometer calibration.
     /// Sends MAV_CMD_PREFLIGHT_CALIBRATION with param5=4.
     /// </summary>
     public bool StartCalibration()
     {
         lock (_stateLock)
         {
-            if (_state != AccelCalibrationState.Idle)
+            if (IsCalibrating)
             {
-                _logger.LogWarning("Cannot start accelerometer calibration - already in progress or completed");
+                _logger.LogWarning("Cannot start accelerometer calibration - already in progress");
                 return false;
             }
             
             if (!_connectionService.IsConnected)
             {
-                _logger.LogError("Cannot start accelerometer calibration - not connected to vehicle");
+                _logger.LogError("Cannot start accelerometer calibration - not connected");
                 return false;
             }
             
             // Initialize calibration session
+            _calibrationCts?.Cancel();
+            _calibrationCts?.Dispose();
+            _calibrationCts = new CancellationTokenSource();
+            
             _calibrationStartTime = DateTime.UtcNow;
             _currentPosition = 0;
             _statusTextLog.Clear();
@@ -128,7 +148,7 @@ public class AccelerometerCalibrationService
                 mag: 0,
                 groundPressure: 0,
                 airspeed: 0,
-                accel: 4); // 6-axis accelerometer calibration
+                accel: 4);
             
             _logger.LogInformation("Accelerometer calibration started - MAV_CMD_PREFLIGHT_CALIBRATION sent (param5=4)");
             
@@ -138,17 +158,27 @@ public class AccelerometerCalibrationService
     
     /// <summary>
     /// User confirms vehicle is in the requested position.
-    /// Triggers IMU validation before sending to FC.
+    /// Triggers IMU validation before sending position to FC (fire-and-forget pattern).
     /// </summary>
-    public async Task<bool> ConfirmPositionAsync()
+    public async Task<bool> ConfirmPositionAsync(CancellationToken cancel = default)
     {
         AccelCalibrationState currentState;
         int position;
+        CancellationToken combinedToken;
         
         lock (_stateLock)
         {
             currentState = _state;
             position = _currentPosition;
+            
+            if (_calibrationCts == null)
+            {
+                _logger.LogWarning("ConfirmPosition called without active calibration");
+                return false;
+            }
+            
+            combinedToken = CancellationTokenSource.CreateLinkedTokenSource(
+                cancel, _calibrationCts.Token).Token;
         }
         
         if (currentState != AccelCalibrationState.WaitingForUserConfirmation &&
@@ -164,39 +194,44 @@ public class AccelerometerCalibrationService
             return false;
         }
         
-        _logger.LogInformation("User confirmed position {Position} - starting IMU validation", position);
+        _logger.LogInformation("User confirmed position {Position} ({Name}) - starting IMU validation", 
+            position, GetPositionName(position));
         
         // Transition to ValidatingPosition
         TransitionState(AccelCalibrationState.ValidatingPosition);
         
-        // Collect IMU samples
+        // Clear samples for fresh collection
         lock (_imuSamples)
         {
             _imuSamples.Clear();
         }
         
-        // Wait for samples (up to 3 seconds)
-        var samplesCollected = await WaitForImuSamplesAsync(3000);
+        // Wait for IMU samples (up to 3 seconds)
+        var samplesCollected = await WaitForImuSamplesAsync(3000, combinedToken);
+        
+        if (combinedToken.IsCancellationRequested)
+        {
+            _logger.LogInformation("Position confirmation cancelled");
+            return false;
+        }
         
         if (!samplesCollected)
         {
             _logger.LogWarning("Failed to collect IMU samples for position {Position}", position);
             
             TransitionState(AccelCalibrationState.PositionRejected);
-            
             RaisePositionValidated(position, false, "Could not read IMU data. Check sensor connection.");
             
             // Return to waiting for user
             TransitionState(AccelCalibrationState.WaitingForUserConfirmation);
-            
             return false;
         }
         
-        // Validate position using IMU data
+        // Validate position using averaged IMU data
         var avgImuData = AverageImuSamples();
         var validationResult = _imuValidator.ValidatePosition(position, avgImuData);
         
-        // Record attempt
+        // Record attempt for diagnostics
         RecordPositionAttempt(position, validationResult.IsValid, validationResult.ErrorMessage);
         
         RaisePositionValidated(position, validationResult.IsValid, validationResult.ErrorMessage);
@@ -204,29 +239,117 @@ public class AccelerometerCalibrationService
         if (!validationResult.IsValid)
         {
             // Validation FAILED - reject position
-            _logger.LogWarning("Position {Position} validation FAILED: {Message}", position, validationResult.ErrorMessage);
+            _logger.LogWarning("Position {Position} ({Name}) validation FAILED: {Message}", 
+                position, GetPositionName(position), validationResult.ErrorMessage);
             
             TransitionState(AccelCalibrationState.PositionRejected);
             
             // Return to waiting for user to reposition
             TransitionState(AccelCalibrationState.WaitingForUserConfirmation);
-            
             return false;
         }
         
-        // Validation PASSED - send to FC
-        _logger.LogInformation("Position {Position} validation PASSED - sending MAV_CMD_ACCELCAL_VEHICLE_POS", position);
+        // Validation PASSED - send to FC (fire-and-forget pattern from ASV-Mavlink)
+        _logger.LogInformation("Position {Position} ({Name}) validation PASSED - sending to FC", 
+            position, GetPositionName(position));
         
         TransitionState(AccelCalibrationState.SendingPositionToFC);
         
-        // Send MAV_CMD_ACCELCAL_VEHICLE_POS
+        // Send MAV_CMD_ACCELCAL_VEHICLE_POS - fire and forget (ASV-Mavlink pattern)
+        // FC will acknowledge via COMMAND_ACK and then send next position via STATUSTEXT
         _connectionService.SendAccelCalVehiclePos(position);
         
         return true;
     }
     
     /// <summary>
-    /// Cancel calibration.
+    /// Simple calibration (for large vehicles where 6-axis is impractical).
+    /// Sends MAV_CMD_PREFLIGHT_CALIBRATION with param5=1.
+    /// </summary>
+    public bool StartSimpleCalibration()
+    {
+        lock (_stateLock)
+        {
+            if (IsCalibrating)
+            {
+                _logger.LogWarning("Cannot start simple calibration - already in progress");
+                return false;
+            }
+            
+            if (!_connectionService.IsConnected)
+            {
+                _logger.LogError("Cannot start simple calibration - not connected");
+                return false;
+            }
+            
+            _calibrationCts?.Cancel();
+            _calibrationCts?.Dispose();
+            _calibrationCts = new CancellationTokenSource();
+            
+            _calibrationStartTime = DateTime.UtcNow;
+            _currentPosition = 0;
+            _statusTextLog.Clear();
+            
+            TransitionState(AccelCalibrationState.CommandSent);
+            
+            // param5 = 1 for simple accelerometer calibration
+            _connectionService.SendPreflightCalibration(
+                gyro: 0,
+                mag: 0,
+                groundPressure: 0,
+                airspeed: 0,
+                accel: 1);
+            
+            _logger.LogInformation("Simple accelerometer calibration started (param5=1)");
+            return true;
+        }
+    }
+    
+    /// <summary>
+    /// Level-only calibration (sets AHRS trims).
+    /// Sends MAV_CMD_PREFLIGHT_CALIBRATION with param5=2.
+    /// </summary>
+    public bool StartLevelCalibration()
+    {
+        lock (_stateLock)
+        {
+            if (IsCalibrating)
+            {
+                _logger.LogWarning("Cannot start level calibration - already in progress");
+                return false;
+            }
+            
+            if (!_connectionService.IsConnected)
+            {
+                _logger.LogError("Cannot start level calibration - not connected");
+                return false;
+            }
+            
+            _calibrationCts?.Cancel();
+            _calibrationCts?.Dispose();
+            _calibrationCts = new CancellationTokenSource();
+            
+            _calibrationStartTime = DateTime.UtcNow;
+            _currentPosition = 0;
+            _statusTextLog.Clear();
+            
+            TransitionState(AccelCalibrationState.CommandSent);
+            
+            // param5 = 2 for level-only calibration
+            _connectionService.SendPreflightCalibration(
+                gyro: 0,
+                mag: 0,
+                groundPressure: 0,
+                airspeed: 0,
+                accel: 2);
+            
+            _logger.LogInformation("Level-only calibration started (param5=2)");
+            return true;
+        }
+    }
+    
+    /// <summary>
+    /// Cancel ongoing calibration.
     /// </summary>
     public void CancelCalibration()
     {
@@ -237,6 +360,8 @@ public class AccelerometerCalibrationService
             
             _logger.LogInformation("Accelerometer calibration cancelled by user");
             
+            _calibrationCts?.Cancel();
+            
             TransitionState(AccelCalibrationState.Cancelled);
             
             RaiseCalibrationCompleted(AccelCalibrationResult.Cancelled, "Calibration cancelled by user");
@@ -244,7 +369,7 @@ public class AccelerometerCalibrationService
     }
     
     /// <summary>
-    /// Get diagnostics for current calibration session.
+    /// Get diagnostics for current/last calibration session.
     /// </summary>
     public AccelCalibrationDiagnostics GetDiagnostics()
     {
@@ -266,6 +391,22 @@ public class AccelerometerCalibrationService
     
     #region Event Handlers
     
+    private void OnConnectionStateChanged(object? sender, bool connected)
+    {
+        if (!connected && IsCalibrating)
+        {
+            _logger.LogWarning("Connection lost during accelerometer calibration");
+            
+            lock (_stateLock)
+            {
+                _calibrationCts?.Cancel();
+                TransitionState(AccelCalibrationState.Failed);
+            }
+            
+            RaiseCalibrationCompleted(AccelCalibrationResult.Failed, "Connection lost during calibration");
+        }
+    }
+    
     private void OnCommandAckReceived(object? sender, CommandAckEventArgs e)
     {
         // MAV_CMD_PREFLIGHT_CALIBRATION = 241
@@ -285,20 +426,20 @@ public class AccelerometerCalibrationService
         if (!IsCalibrating)
             return;
         
-        // Log all STATUSTEXT during calibration
+        // Log all STATUSTEXT during calibration for diagnostics
         lock (_stateLock)
         {
             _statusTextLog.Add($"[{DateTime.UtcNow:HH:mm:ss.fff}] [{e.Severity}] {e.Text}");
         }
         
-        _logger.LogInformation("Accel cal STATUSTEXT [{Severity}]: {Text}", e.Severity, e.Text);
+        _logger.LogInformation("Accel cal FC: [{Severity}] {Text}", e.Severity, e.Text);
         
         // Parse STATUSTEXT for position request, completion, or failure
         var parseResult = _statusTextParser.Parse(e.Text);
         
-        if (parseResult.IsPositionRequest)
+        if (parseResult.IsPositionRequest && parseResult.RequestedPosition.HasValue)
         {
-            HandlePositionRequest(parseResult.RequestedPosition!.Value);
+            HandlePositionRequest(parseResult.RequestedPosition.Value);
         }
         else if (parseResult.IsSuccess)
         {
@@ -316,11 +457,11 @@ public class AccelerometerCalibrationService
     
     private void OnRawImuReceived(object? sender, RawImuEventArgs e)
     {
-        // Store latest IMU data
+        // Convert from event args to RawImuData
         _latestImuData = new RawImuData
         {
             TimeUsec = e.TimeUsec,
-            XAcc = (short)(e.AccelX / 0.00981),
+            XAcc = (short)(e.AccelX / 0.00981), // Convert m/s² back to raw (approx)
             YAcc = (short)(e.AccelY / 0.00981),
             ZAcc = (short)(e.AccelZ / 0.00981),
             XGyro = (short)(e.GyroX / 0.001),
@@ -330,7 +471,7 @@ public class AccelerometerCalibrationService
             IsScaled = true
         };
         
-        // Collect samples during validation
+        // Collect samples during validation phase
         if (_state == AccelCalibrationState.ValidatingPosition)
         {
             lock (_imuSamples)
@@ -384,10 +525,10 @@ public class AccelerometerCalibrationService
     {
         lock (_stateLock)
         {
-            // FC is requesting a position
             _currentPosition = position;
             
-            _logger.LogInformation("FC requesting position {Position}: {Name}", position, GetPositionName(position));
+            _logger.LogInformation("FC requesting position {Position}: {Name}", 
+                position, GetPositionName(position));
             
             // Transition to waiting for user confirmation
             TransitionState(AccelCalibrationState.WaitingForUserConfirmation);
@@ -412,7 +553,7 @@ public class AccelerometerCalibrationService
         
         if (mavResult == MavResult.Accepted || mavResult == MavResult.InProgress)
         {
-            _logger.LogInformation("FC accepted position {Position} - sampling in progress", position);
+            _logger.LogInformation("FC acknowledged position {Position} - sampling in progress", position);
             
             TransitionState(AccelCalibrationState.FCSampling);
         }
@@ -445,6 +586,8 @@ public class AccelerometerCalibrationService
         {
             _logger.LogInformation("FC reported accelerometer calibration SUCCESS: {Text}", statusText);
             
+            _calibrationCts?.Cancel();
+            
             TransitionState(AccelCalibrationState.Completed);
             
             RaiseCalibrationCompleted(AccelCalibrationResult.Success, statusText);
@@ -456,6 +599,8 @@ public class AccelerometerCalibrationService
         lock (_stateLock)
         {
             _logger.LogError("FC reported accelerometer calibration FAILURE: {Text}", statusText);
+            
+            _calibrationCts?.Cancel();
             
             TransitionState(AccelCalibrationState.Failed);
             
@@ -478,19 +623,29 @@ public class AccelerometerCalibrationService
     
     #region IMU Sampling
     
-    private async Task<bool> WaitForImuSamplesAsync(int timeoutMs)
+    private async Task<bool> WaitForImuSamplesAsync(int timeoutMs, CancellationToken ct)
     {
         var startTime = DateTime.UtcNow;
         
         while ((DateTime.UtcNow - startTime).TotalMilliseconds < timeoutMs)
         {
+            if (ct.IsCancellationRequested)
+                return false;
+            
             lock (_imuSamples)
             {
                 if (_imuSamples.Count >= IMU_SAMPLES_REQUIRED)
                     return true;
             }
             
-            await Task.Delay(50);
+            try
+            {
+                await Task.Delay(50, ct);
+            }
+            catch (OperationCanceledException)
+            {
+                return false;
+            }
         }
         
         return false;
@@ -550,16 +705,7 @@ public class AccelerometerCalibrationService
     
     private static string GetPositionName(int position)
     {
-        return position switch
-        {
-            1 => "LEVEL",
-            2 => "LEFT",
-            3 => "RIGHT",
-            4 => "NOSE DOWN",
-            5 => "NOSE UP",
-            6 => "BACK",
-            _ => "UNKNOWN"
-        };
+        return position >= 1 && position <= 6 ? PositionNames[position] : "UNKNOWN";
     }
     
     #endregion
@@ -603,6 +749,27 @@ public class AccelerometerCalibrationService
             Message = message,
             Duration = DateTime.UtcNow - _calibrationStartTime
         });
+    }
+    
+    #endregion
+    
+    #region IDisposable
+    
+    public void Dispose()
+    {
+        if (_disposed)
+            return;
+        _disposed = true;
+        
+        CancelCalibration();
+        
+        _calibrationCts?.Cancel();
+        _calibrationCts?.Dispose();
+        
+        _connectionService.CommandAckReceived -= OnCommandAckReceived;
+        _connectionService.StatusTextReceived -= OnStatusTextReceived;
+        _connectionService.RawImuReceived -= OnRawImuReceived;
+        _connectionService.ConnectionStateChanged -= OnConnectionStateChanged;
     }
     
     #endregion

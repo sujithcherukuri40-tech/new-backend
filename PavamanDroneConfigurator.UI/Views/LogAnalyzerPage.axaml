@@ -206,13 +206,13 @@
         <Border Grid.Row="0" Background="White" Padding="8" BorderBrush="#E1E1E1" BorderThickness="0,0,0,1">
             <Grid ColumnDefinitions="Auto,*,Auto">
                 <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="4">
-                    <Button Classes="ToolbarButton" Content="?? Load Log" Command="{Binding BrowseLocalFileCommand}"/>
-                    <Button Classes="ToolbarButton" Content="?? From FC" Command="{Binding OpenDownloadDialogCommand}" 
+                    <Button Classes="ToolbarButton" Content="📂 Load Log" Command="{Binding BrowseLocalFileCommand}"/>
+                    <Button Classes="ToolbarButton" Content="📡 From FC" Command="{Binding OpenDownloadDialogCommand}" 
                             IsEnabled="{Binding IsConnected}"/>
                     <Separator Width="2" Background="#E1E1E1" Margin="12,4"/>
-                    <Button Classes="ToolbarButton" Content="?? Export CSV" Command="{Binding ExportToCsvCommand}"
+                    <Button Classes="ToolbarButton" Content="📄 Export CSV" Command="{Binding ExportToCsvCommand}"
                             IsEnabled="{Binding IsLogLoaded}"/>
-                    <Button Classes="ToolbarButton" Content="??? Export KML" Command="{Binding ExportToKmlCommand}"
+                    <Button Classes="ToolbarButton" Content="🗺 Export KML" Command="{Binding ExportToKmlCommand}"
                             IsEnabled="{Binding HasGpsData}"/>
                 </StackPanel>
                 
@@ -392,7 +392,7 @@
                     <!-- Series Picker -->
                     <Border Grid.Column="1" Background="White" BorderBrush="#E1E1E1" BorderThickness="1,0,0,0">
                         <Grid RowDefinitions="Auto,*">
-                            <TextBox Grid.Row="0" Text="{Binding GraphFieldFilter}" Watermark="?? Search fields..." 
+                            <TextBox Grid.Row="0" Text="{Binding GraphFieldFilter}" Watermark="🔍 Search fields..." 
                                      Background="#FAFAFA" Foreground="#333333" BorderThickness="0,0,0,1" BorderBrush="#E1E1E1" 
                                      Margin="0" Padding="12,10" FontSize="12"/>
                             
@@ -459,16 +459,16 @@
                     <!-- Map Controls Overlay -->
                     <StackPanel VerticalAlignment="Top" HorizontalAlignment="Right" Margin="20" Spacing="8"
                                 IsVisible="{Binding HasGpsData}">
-                        <Button Content="?? Zoom to Track" Classes="ToolbarButton" Click="ZoomToTrack_Click" Padding="8,6"/>
-                        <Button Content="?? Center on Start" Classes="ToolbarButton" Click="CenterOnStart_Click" Padding="8,6"/>
-                        <Button Content="?? Center on End" Classes="ToolbarButton" Click="CenterOnEnd_Click" Padding="8,6"/>
+                        <Button Content="🔍 Zoom to Track" Classes="ToolbarButton" Click="ZoomToTrack_Click" Padding="8,6"/>
+                        <Button Content="📍 Center on Start" Classes="ToolbarButton" Click="CenterOnStart_Click" Padding="8,6"/>
+                        <Button Content="🏁 Center on End" Classes="ToolbarButton" Click="CenterOnEnd_Click" Padding="8,6"/>
                     </StackPanel>
                 </Grid>
             </TabItem>
             
             <!-- ENHANCED EVENTS TAB -->
             <TabItem Header="Events">
-                <Grid RowDefinitions="Auto,Auto,*,Auto" Background="#0F172A">
+                <Grid RowDefinitions="Auto,Auto,3*,1*,Auto" Background="#0F172A">
                     
                     <!-- Filter Bar -->
                     <Border Grid.Row="0" Background="#1E293B" Padding="16,12" BorderBrush="#334155" BorderThickness="0,0,0,1">
@@ -508,7 +508,7 @@
                             
                             <!-- Search Box -->
                             <TextBox Grid.Column="4" Text="{Binding EventSearchText}" 
-                                     Watermark="?? Search events..." 
+                                     Watermark="🔍 Search events..." 
                                      Background="#334155" Foreground="#E2E8F0" 
                                      BorderBrush="#475569" Padding="10,8"
                                      Margin="0,0,16,0" FontSize="12"/>
@@ -529,7 +529,7 @@
                             <!-- Total Events -->
                             <Border Classes="StatCard StatCardTotal">
                                 <StackPanel Orientation="Horizontal" Spacing="10">
-                                    <TextBlock Text="??" FontSize="16" VerticalAlignment="Center"/>
+                                    <TextBlock Text="📊" FontSize="16" VerticalAlignment="Center"/>
                                     <StackPanel>
                                         <TextBlock Text="Total Events" Foreground="#94A3B8" FontSize="11"/>
                                         <TextBlock Text="{Binding EventDisplaySummary.TotalEventsDisplay, FallbackValue=0}" 
@@ -541,7 +541,7 @@
                             <!-- Errors -->
                             <Border Classes="StatCard StatCardError">
                                 <StackPanel Orientation="Horizontal" Spacing="10">
-                                    <TextBlock Text="?" FontSize="16" Foreground="#FCA5A5" VerticalAlignment="Center"/>
+                                    <TextBlock Text="❌" FontSize="16" Foreground="#FCA5A5" VerticalAlignment="Center"/>
                                     <StackPanel>
                                         <TextBlock Text="Errors" Foreground="#FCA5A5" FontSize="11"/>
                                         <TextBlock Text="{Binding EventDisplaySummary.ErrorCountDisplay, FallbackValue=0}" 
@@ -553,7 +553,7 @@
                             <!-- Warnings -->
                             <Border Classes="StatCard StatCardWarning">
                                 <StackPanel Orientation="Horizontal" Spacing="10">
-                                    <TextBlock Text="?" FontSize="16" Foreground="#FCD34D" VerticalAlignment="Center"/>
+                                    <TextBlock Text="⚠" FontSize="16" Foreground="#FCD34D" VerticalAlignment="Center"/>
                                     <StackPanel>
                                         <TextBlock Text="Warnings" Foreground="#FCD34D" FontSize="11"/>
                                         <TextBlock Text="{Binding EventDisplaySummary.WarningCountDisplay, FallbackValue=0}" 
@@ -565,7 +565,7 @@
                             <!-- Info Events -->
                             <Border Classes="StatCard StatCardInfo">
                                 <StackPanel Orientation="Horizontal" Spacing="10">
-                                    <TextBlock Text="?" FontSize="16" Foreground="#93C5FD" VerticalAlignment="Center"/>
+                                    <TextBlock Text="ℹ" FontSize="16" Foreground="#93C5FD" VerticalAlignment="Center"/>
                                     <StackPanel>
                                         <TextBlock Text="Info Events" Foreground="#93C5FD" FontSize="11"/>
                                         <TextBlock Text="{Binding EventDisplaySummary.InfoCountDisplay, FallbackValue=0}" 
@@ -579,11 +579,11 @@
                             
                             <!-- Export Buttons -->
                             <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center" Margin="16,0,0,0">
-                                <Button Classes="EventsButtonSecondary" Content="?? CSV" 
+                                <Button Classes="EventsButtonSecondary" Content="📄 CSV" 
                                         Command="{Binding ExportEventsToCsvCommand}"
                                         IsEnabled="{Binding IsLogLoaded}"
                                         ToolTip.Tip="Export events to CSV"/>
-                                <Button Classes="EventsButtonSecondary" Content="?? JSON" 
+                                <Button Classes="EventsButtonSecondary" Content="📋 JSON" 
                                         Command="{Binding ExportEventsToJsonCommand}"
                                         IsEnabled="{Binding IsLogLoaded}"
                                         ToolTip.Tip="Export events to JSON"/>
@@ -624,7 +624,7 @@
                                             <Border Background="#DC2626" Padding="8,4" CornerRadius="4" HorizontalAlignment="Center"
                                                     IsVisible="{Binding Severity, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static interfaces:LogEventSeverity.Error}}">
                                                 <StackPanel Orientation="Horizontal" Spacing="4">
-                                                    <TextBlock Text="?" Foreground="White" FontSize="10"/>
+                                                    <TextBlock Text="✗" Foreground="White" FontSize="10"/>
                                                     <TextBlock Text="Error" Foreground="White" FontSize="11" FontWeight="SemiBold"/>
                                                 </StackPanel>
                                             </Border>
@@ -633,7 +633,7 @@
                                             <Border Background="#F59E0B" Padding="8,4" CornerRadius="4" HorizontalAlignment="Center"
                                                     IsVisible="{Binding Severity, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static interfaces:LogEventSeverity.Warning}}">
                                                 <StackPanel Orientation="Horizontal" Spacing="4">
-                                                    <TextBlock Text="?" Foreground="White" FontSize="10"/>
+                                                    <TextBlock Text="⚠" Foreground="White" FontSize="10"/>
                                                     <TextBlock Text="Warning" Foreground="White" FontSize="11" FontWeight="SemiBold"/>
                                                 </StackPanel>
                                             </Border>
@@ -642,7 +642,7 @@
                                             <Border Background="#3B82F6" Padding="8,4" CornerRadius="4" HorizontalAlignment="Center"
                                                     IsVisible="{Binding Severity, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static interfaces:LogEventSeverity.Info}}">
                                                 <StackPanel Orientation="Horizontal" Spacing="4">
-                                                    <TextBlock Text="?" Foreground="White" FontSize="10"/>
+                                                    <TextBlock Text="ℹ" Foreground="White" FontSize="10"/>
                                                     <TextBlock Text="Info" Foreground="White" FontSize="11" FontWeight="SemiBold"/>
                                                 </StackPanel>
                                             </Border>
@@ -651,7 +651,7 @@
                                             <Border Background="#991B1B" Padding="8,4" CornerRadius="4" HorizontalAlignment="Center"
                                                     IsVisible="{Binding Severity, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static interfaces:LogEventSeverity.Critical}}">
                                                 <StackPanel Orientation="Horizontal" Spacing="4">
-                                                    <TextBlock Text="??" Foreground="White" FontSize="10"/>
+                                                    <TextBlock Text="🔥" Foreground="White" FontSize="10"/>
                                                     <TextBlock Text="Critical" Foreground="White" FontSize="11" FontWeight="SemiBold"/>
                                                 </StackPanel>
                                             </Border>
@@ -684,7 +684,7 @@
                             <DataGridTemplateColumn Header="" Width="50">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate x:DataType="interfaces:LogEvent">
-                                        <Button Content="?" Background="Transparent" Foreground="#64748B"
+                                        <Button Content="→" Background="Transparent" Foreground="#64748B"
                                                 Command="{Binding $parent[DataGrid].((vm:LogAnalyzerPageViewModel)DataContext).JumpToEventCommand}"
                                                 CommandParameter="{Binding}"
                                                 Padding="8,4" FontSize="10"
@@ -695,8 +695,37 @@
                         </DataGrid.Columns>
                     </DataGrid>
                     
+                    <!-- Raw Log Data Preview Section -->
+                    <Border Grid.Row="3" Background="#1E293B" BorderBrush="#334155" BorderThickness="0,1,0,0"
+                            IsVisible="{Binding HasRawLogData}">
+                        <Grid RowDefinitions="Auto,*">
+                            <Border Grid.Row="0" Background="#0F172A" Padding="12,8">
+                                <Grid ColumnDefinitions="*,Auto">
+                                    <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8">
+                                        <TextBlock Text="Raw Log Data Preview" Foreground="#E2E8F0" FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                        <TextBlock Text="{Binding RawDataRowCount}" Foreground="#64748B" FontSize="11" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+                            <DataGrid Grid.Row="1" Classes="EventsDataGrid"
+                                      ItemsSource="{Binding RawLogMessages}"
+                                      AutoGenerateColumns="False"
+                                      IsReadOnly="True"
+                                      CanUserResizeColumns="True"
+                                      HeadersVisibility="Column"
+                                      MaxHeight="200">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="Index" Binding="{Binding Index}" Width="60"/>
+                                    <DataGridTextColumn Header="Type" Binding="{Binding TypeName}" Width="100"/>
+                                    <DataGridTextColumn Header="Timestamp" Binding="{Binding Timestamp}" Width="140"/>
+                                    <DataGridTextColumn Header="Data" Binding="{Binding FieldsDisplay}" Width="*"/>
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </Grid>
+                    </Border>
+                    
                     <!-- Pagination Footer -->
-                    <Border Grid.Row="3" Background="#1E293B" Padding="16,12" BorderBrush="#334155" BorderThickness="0,1,0,0">
+                    <Border Grid.Row="4" Background="#1E293B" Padding="16,12" BorderBrush="#334155" BorderThickness="0,1,0,0">
                         <Grid ColumnDefinitions="*,Auto">
                             <!-- Showing X to Y of Z -->
                             <TextBlock Grid.Column="0" 
@@ -726,7 +755,7 @@
                                         Content="{Binding EventPagination.TotalPages, FallbackValue=1}"
                                         IsVisible="{Binding EventPagination.TotalPages, Converter={x:Static ObjectConverters.IsNotNull}}"/>
                                 
-                                <Button Classes="PaginationButton" Content="�" 
+                                <Button Classes="PaginationButton" Content="Next" 
                                         Command="{Binding GoToNextEventPageCommand}"
                                         IsEnabled="{Binding EventPagination.CanGoToNextPage}"
                                         FontSize="14"/>
@@ -737,12 +766,12 @@
                     <!-- No Events Placeholder -->
                     <Border Grid.Row="2" Background="#0F172A" IsVisible="{Binding !IsLogLoaded}">
                         <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
-                            <TextBlock Text="??" FontSize="48" HorizontalAlignment="Center" Margin="0,0,0,16"/>
+                            <TextBlock Text="📋" FontSize="48" HorizontalAlignment="Center" Margin="0,0,0,16"/>
                             <TextBlock Text="No log file loaded" Foreground="#64748B" FontSize="18" 
                                        HorizontalAlignment="Center" FontWeight="SemiBold"/>
                             <TextBlock Text="Load a log file to view events" Foreground="#475569" FontSize="13" 
                                        HorizontalAlignment="Center" Margin="0,8,0,0"/>
-                            <Button Content="?? Load Log" Classes="EventsButton" 
+                            <Button Content="📂 Load Log" Classes="EventsButton" 
                                     Command="{Binding BrowseLocalFileCommand}"
                                     Margin="0,24,0,0" HorizontalAlignment="Center"/>
                         </StackPanel>
@@ -756,7 +785,7 @@
                     <!-- Search Header -->
                     <Border Grid.Row="0" Background="#F8F8F8" Padding="12" BorderBrush="#E1E1E1" BorderThickness="0,0,0,1">
                         <Grid ColumnDefinitions="Auto,*">
-                            <TextBox Grid.Column="0" Text="{Binding ParameterSearchText}" Watermark="?? Search parameters..." 
+                            <TextBox Grid.Column="0" Text="{Binding ParameterSearchText}" Watermark="🔍 Search parameters..." 
                                      Width="300" Background="White" Foreground="#333333" BorderThickness="1" 
                                      BorderBrush="#DDDDDD" Padding="8,6" FontSize="12"/>
                             <TextBlock Grid.Column="1" Text="{Binding LogParameters.Count, StringFormat={}{0} parameters from log}" 

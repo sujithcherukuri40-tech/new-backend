@@ -96,6 +96,16 @@ public interface IFirmwareService
         CancellationToken ct = default);
     
     /// <summary>
+    /// Gets available platform variants for a board (e.g., CubeOrangePlus, CubeOrangePlus-bdshot).
+    /// Used to show a selection dialog when multiple variants exist.
+    /// </summary>
+    Task<IReadOnlyList<string>> GetAvailablePlatformVariantsAsync(
+        string vehicleType,
+        string baseBoardId,
+        string? releaseType = null,
+        CancellationToken ct = default);
+    
+    /// <summary>
     /// Downloads firmware from the ArduPilot firmware server
     /// </summary>
     Task<string?> DownloadFirmwareAsync(

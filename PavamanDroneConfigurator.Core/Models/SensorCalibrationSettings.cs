@@ -29,6 +29,11 @@ public class CompassInfo
     public CompassBusType BusType { get; set; } = CompassBusType.Unknown;
 
     /// <summary>
+    /// Whether this compass is external (COMPASS_EXTERNALx)
+    /// </summary>
+    public bool IsExternal { get; set; }
+
+    /// <summary>
     /// Bus type display name
     /// </summary>
     public string BusTypeName => BusType.ToString();
@@ -39,9 +44,34 @@ public class CompassInfo
     public bool IsEnabled { get; set; } = true;
 
     /// <summary>
-    /// Whether this compass is external (COMPASS_EXTERNALx)
+    /// Whether this compass is marked as missing/disabled
     /// </summary>
-    public bool IsExternal { get; set; }
+    public bool IsMissing => !IsEnabled;
+
+    /// <summary>
+    /// Extracted bus number from ArduPilot device ID (bits 16-23)
+    /// </summary>
+    public int BusNumber => (DeviceId >> 16) & 0xFF;
+
+    /// <summary>
+    /// Extracted device address from ArduPilot device ID (bits 8-15)
+    /// </summary>
+    public int Address => (DeviceId >> 8) & 0xFF;
+
+    /// <summary>
+    /// Extracted device type from ArduPilot device ID (bits 0-7)
+    /// </summary>
+    public int DeviceTypeCode => DeviceId & 0xFF;
+
+    /// <summary>
+    /// Device type code formatted as hex for display (e.g., 0x1A)
+    /// </summary>
+    public string DeviceTypeHex => $"0x{DeviceTypeCode:X2}";
+
+    /// <summary>
+    /// Orientation text placeholder (ArduPilot exposes this via parameters; default to None)
+    /// </summary>
+    public string Orientation { get; set; } = "None";
 
     /// <summary>
     /// Calibration status

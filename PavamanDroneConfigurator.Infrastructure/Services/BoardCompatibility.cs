@@ -1,0 +1,303 @@
+using System;
+using System.Collections.Generic;
+
+namespace PavamanDroneConfigurator.Infrastructure.Services;
+
+/// <summary>
+/// Board compatibility mapping for firmware flashing.
+/// Matches Mission Planner's board ID compatibility logic.
+/// </summary>
+public static class BoardCompatibility
+{
+    /// <summary>
+    /// Known board IDs from ArduPilot - matches Mission Planner's BoardDetect.boards enum
+    /// Note: In the actual bootloader protocol, FMUv2 and FMUv3 both report board_id=9.
+    /// We use separate constants here for clarity but handle them as compatible in AreCompatible().
+    /// </summary>
+    public static class BoardIds
+    {
+        // Legacy Arduino
+        public const int APM1_2560 = 0;
+        public const int APM2 = 3;
+
+        // PX4/Pixhawk family
+        public const int PX4_FMUv1 = 5;
+        public const int PX4_FMUv2 = 9;        // Pixhawk 1, Cube Black (bootloader reports 9)
+        // Note: FMUv3 boards also report board_id=9 in bootloader, but use fmuv3 firmware
+        // We use a logical constant for code clarity, but actual detection uses 9
+        public const int PX4_FMUv3_LOGICAL = 10; // Logical ID for FMUv3 (Cube/2MB flash variant)
+        public const int PX4_FMUv4 = 11;       // Pixracer
+        public const int PX4_FMUv4_PRO = 13;   // Pixhawk 3 Pro
+        public const int PX4_FMUv5 = 50;       // Pixhawk 4
+        public const int PX4_FMUv5X = 51;      // Pixhawk 5X
+        public const int PX4_FMUv6 = 52;       // Pixhawk 6
+        public const int PX4_FMUv6X = 53;      // Pixhawk 6X
+        public const int PX4_FMUv6C = 55;      // Pixhawk 6C
+
+        // Cube variants
+        public const int CubeBlack = 9;        // Same as FMUv2 (bootloader reports 9)
+        public const int CubeYellow = 120;
+        public const int CubeOrange = 140;
+        public const int CubeOrangePlus = 141;
+        public const int CubePurple = 142;
+
+        // Holybro
+        public const int Durandal = 36;
+        public const int Pix32v5 = 78;
+
+        // AUAV
+        public const int AUAV_X2 = 33;
+
+        // mRo
+        public const int mRo_X21 = 71;
+        public const int mRo_Control_Zero_OEM_H7 = 139;
+
+        // Intel
+        public const int Intel_Aero = 98;
+
+        // Omnibus
+        public const int OmnibusF4SD = 42;
+
+        // Matek
+        public const int MatekF405 = 1002;
+        public const int MatekF405_Wing = 1003;
+        public const int MatekF405_STD = 1004;
+        public const int MatekF765 = 1008;
+        public const int MatekH743 = 1013;
+        public const int MatekH743_Mini = 1066;
+
+        // Kakute
+        public const int KakuteF4 = 1010;
+        public const int KakuteF4_Mini = 1011;
+        public const int KakuteF7 = 1025;
+        public const int KakuteF7_Mini = 1041;
+        public const int KakuteH7 = 1044;
+        public const int KakuteH7_Mini = 1062;
+
+        // SpeedyBee
+        public const int SpeedyBeeF4 = 1015;
+        public const int SpeedyBeeF4V3 = 1077;
+        public const int SpeedyBeeF405V3 = 1093;
+        public const int SpeedyBeeF405V4 = 1110;
+
+        // FlywooF4
+        public const int FlywooF405S_AIO = 1080;
+        public const int FlywooF745 = 1061;
+        public const int FlywooF745_AIO = 1064;
+
+        // JHEMCU
+        public const int JHEMCU_GF16F405 = 1082;
+        public const int JHEMCU_GF30H7_AIO = 1112;
+        public const int JHEMCU_H743HD = 1113;
+
+        // Other F4/F7/H7 boards
+        public const int BeastH7 = 1040;
+        public const int BeastF7 = 1021;
+        public const int iFlight_BeastF7_V2 = 1089;
+
+        // More boards can be added as needed
+    }
+
+    /// <summary>
+    /// Compatibility groups - boards that can use the same firmware
+    /// </summary>
+    private static readonly Dictionary<int, int[]> CompatibilityGroups = new()
+    {
+        // FMUv2/v3 compatibility group (Pixhawk 1, Cube Black, etc.)
+        // Both report board_id=9 in bootloader
+        {
+            BoardIds.PX4_FMUv2, new[]
+            {
+                BoardIds.PX4_FMUv2,
+                BoardIds.PX4_FMUv3_LOGICAL,
+                BoardIds.CubeBlack
+            }
+        },
+
+        // Cube Orange family
+        {
+            BoardIds.CubeOrange, new[]
+            {
+                BoardIds.CubeOrange,
+                BoardIds.CubeOrangePlus  // Orange+ can use Orange firmware
+            }
+        },
+
+        // Matek H743 family
+        {
+            BoardIds.MatekH743, new[]
+            {
+                BoardIds.MatekH743,
+                BoardIds.MatekH743_Mini
+            }
+        },
+
+        // Kakute H7 family
+        {
+            BoardIds.KakuteH7, new[]
+            {
+                BoardIds.KakuteH7,
+                BoardIds.KakuteH7_Mini
+            }
+        },
+
+        // Kakute F7 family
+        {
+            BoardIds.KakuteF7, new[]
+            {
+                BoardIds.KakuteF7,
+                BoardIds.KakuteF7_Mini
+            }
+        }
+    };
+
+    /// <summary>
+    /// Checks if two board IDs are compatible for firmware flashing.
+    /// </summary>
+    /// <param name="detectedBoardId">The board ID detected from bootloader</param>
+    /// <param name="firmwareBoardId">The board ID specified in the firmware file</param>
+    /// <returns>True if the firmware can be flashed to the detected board</returns>
+    public static bool AreCompatible(int detectedBoardId, int firmwareBoardId)
+    {
+        // Exact match is always compatible
+        if (detectedBoardId == firmwareBoardId)
+        {
+            return true;
+        }
+
+        // Check if firmware board ID is 0 (universal firmware)
+        if (firmwareBoardId == 0)
+        {
+            return true;
+        }
+
+        // Check compatibility groups
+        foreach (var group in CompatibilityGroups)
+        {
+            var groupBoards = group.Value;
+
+            // If both boards are in the same compatibility group
+            if (Array.IndexOf(groupBoards, detectedBoardId) >= 0 &&
+                Array.IndexOf(groupBoards, firmwareBoardId) >= 0)
+            {
+                return true;
+            }
+        }
+
+        // Special cases for common compatibility patterns
+
+        // CubeOrangePlus can use CubeOrange firmware
+        if (detectedBoardId == BoardIds.CubeOrangePlus && firmwareBoardId == BoardIds.CubeOrange)
+        {
+            return true;
+        }
+
+        // FMUv3 (logical) can use FMUv2 firmware (same bootloader ID, different flash size)
+        if (detectedBoardId == BoardIds.PX4_FMUv3_LOGICAL && firmwareBoardId == BoardIds.PX4_FMUv2)
+        {
+            return true;
+        }
+
+        // Board ID 9 (detected) is compatible with both fmuv2 and fmuv3 firmware
+        // This handles the case where bootloader reports 9 for both variants
+        if (detectedBoardId == 9 && (firmwareBoardId == 9 || firmwareBoardId == BoardIds.PX4_FMUv3_LOGICAL))
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Gets the firmware platform name for a board ID.
+    /// Used to select the correct firmware from the manifest.
+    /// </summary>
+    public static string GetPlatformName(int boardId)
+    {
+        return boardId switch
+        {
+            BoardIds.PX4_FMUv2 or BoardIds.CubeBlack => "fmuv2", // Both report ID 9
+            BoardIds.PX4_FMUv3_LOGICAL => "fmuv3",
+            BoardIds.PX4_FMUv4 => "fmuv4",
+            BoardIds.PX4_FMUv4_PRO => "fmuv4-pro",
+            BoardIds.PX4_FMUv5 => "fmuv5",
+            BoardIds.PX4_FMUv5X => "Pixhawk5X",
+            BoardIds.PX4_FMUv6 => "Pixhawk6",
+            BoardIds.PX4_FMUv6X => "Pixhawk6X",
+            BoardIds.PX4_FMUv6C => "Pixhawk6C",
+            BoardIds.CubeYellow => "CubeYellow",
+            BoardIds.CubeOrange => "CubeOrange",
+            BoardIds.CubeOrangePlus => "CubeOrangePlus",
+            BoardIds.CubePurple => "CubePurple",
+            BoardIds.Durandal => "Durandal",
+            BoardIds.Pix32v5 => "Pix32v5",
+            BoardIds.MatekF405 => "MatekF405",
+            BoardIds.MatekF765 => "MatekF765-Wing",
+            BoardIds.MatekH743 => "MatekH743",
+            BoardIds.MatekH743_Mini => "MatekH743-mini",
+            BoardIds.KakuteF4 => "KakuteF4",
+            BoardIds.KakuteF7 => "KakuteF7",
+            BoardIds.KakuteH7 => "KakuteH7",
+            BoardIds.KakuteH7_Mini => "KakuteH7Mini",
+            BoardIds.SpeedyBeeF4 => "speedybeef4",
+            BoardIds.FlywooF745 => "FlywooF745",
+            _ => $"board_{boardId}"
+        };
+    }
+
+    /// <summary>
+    /// Gets the board ID for a given platform name.
+    /// </summary>
+    public static int GetBoardId(string platformName)
+    {
+        var lower = platformName.ToLowerInvariant();
+
+        return lower switch
+        {
+            "fmuv2" or "pixhawk1" => BoardIds.PX4_FMUv2,
+            "fmuv3" => BoardIds.PX4_FMUv3_LOGICAL,
+            "fmuv4" or "pixracer" => BoardIds.PX4_FMUv4,
+            "fmuv4-pro" => BoardIds.PX4_FMUv4_PRO,
+            "fmuv5" or "pixhawk4" => BoardIds.PX4_FMUv5,
+            "pixhawk5x" or "fmuv5x" => BoardIds.PX4_FMUv5X,
+            "pixhawk6" or "fmuv6" => BoardIds.PX4_FMUv6,
+            "pixhawk6x" or "fmuv6x" => BoardIds.PX4_FMUv6X,
+            "pixhawk6c" or "fmuv6c" => BoardIds.PX4_FMUv6C,
+            "cubeyellow" => BoardIds.CubeYellow,
+            "cubeorange" => BoardIds.CubeOrange,
+            "cubeorangeplus" or "cubeorange+" => BoardIds.CubeOrangePlus,
+            "cubepurple" => BoardIds.CubePurple,
+            "durandal" => BoardIds.Durandal,
+            "pix32v5" => BoardIds.Pix32v5,
+            "matekf405" => BoardIds.MatekF405,
+            "matekf765" or "matekf765-wing" => BoardIds.MatekF765,
+            "matekh743" => BoardIds.MatekH743,
+            "matekh743-mini" => BoardIds.MatekH743_Mini,
+            "kakutef4" => BoardIds.KakuteF4,
+            "kakutef7" => BoardIds.KakuteF7,
+            "kakuteh7" => BoardIds.KakuteH7,
+            "kakuteh7mini" => BoardIds.KakuteH7_Mini,
+            "speedybeef4" => BoardIds.SpeedyBeeF4,
+            "flywooh745" or "flywoof745" => BoardIds.FlywooF745,
+            _ => 0
+        };
+    }
+
+    /// <summary>
+    /// Gets compatible platform names for firmware search.
+    /// Returns the primary platform and any compatible alternatives.
+    /// </summary>
+    public static string[] GetCompatiblePlatforms(int boardId)
+    {
+        return boardId switch
+        {
+            BoardIds.CubeOrangePlus => new[] { "CubeOrangePlus", "CubeOrange" },
+            BoardIds.CubeOrange => new[] { "CubeOrange" },
+            BoardIds.PX4_FMUv3_LOGICAL => new[] { "fmuv3", "fmuv2" },
+            BoardIds.PX4_FMUv2 or BoardIds.CubeBlack => new[] { "fmuv2" },
+            BoardIds.MatekH743_Mini => new[] { "MatekH743-mini", "MatekH743" },
+            BoardIds.KakuteH7_Mini => new[] { "KakuteH7Mini", "KakuteH7" },
+            _ => new[] { GetPlatformName(boardId) }
+        };
+    }
+}
