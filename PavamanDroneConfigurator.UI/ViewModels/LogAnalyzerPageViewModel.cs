@@ -238,6 +238,12 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
     /// </summary>
     public bool HasFilteredEvents => FilteredEvents.Count > 0;
     
+    /// <summary>
+    /// Indicates whether to show the "No events present in this log" message.
+    /// Shows when log is loaded but no events were detected.
+    /// </summary>
+    public bool ShowNoEventsMessage => IsLogLoaded && DetectedEvents.Count == 0;
+    
     // Enhanced Events Tab Properties
     [ObservableProperty]
     private EventDisplaySummary _eventDisplaySummary = new();
@@ -1304,6 +1310,8 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
         // Notify UI of property changes
         OnPropertyChanged(nameof(EventDisplaySummary));
         OnPropertyChanged(nameof(EventPagination));
+        OnPropertyChanged(nameof(ShowNoEventsMessage));
+        OnPropertyChanged(nameof(HasFilteredEvents));
     }
     
     [RelayCommand]

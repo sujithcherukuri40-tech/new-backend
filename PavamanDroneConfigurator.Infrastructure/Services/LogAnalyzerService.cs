@@ -384,7 +384,14 @@ public sealed class LogAnalyzerService : ILogAnalyzerService, IDisposable
 
             result.FileSize = new FileInfo(logFilePath).Length;
 
-            // Create parser and parse the file
+            // Detect log file type automatically
+            var typeDetector = new LogFileTypeDetector();
+            var detectionResult = typeDetector.DetectFileType(logFilePath);
+            
+            _logger.LogInformation("Detected log format: {Format} (confidence: {Confidence}%)", 
+                detectionResult.Format, detectionResult.Confidence);
+
+            // Create parser and parse the file based on detected format
             _parser = new DataFlashLogParser();
             _currentLog = await _parser.ParseAsync(logFilePath, cancellationToken);
 

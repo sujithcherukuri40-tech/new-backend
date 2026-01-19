@@ -612,7 +612,8 @@
                               CanUserResizeColumns="True" 
                               CanUserSortColumns="True"
                               HeadersVisibility="Column"
-                              SelectionMode="Single">
+                              SelectionMode="Single"
+                              IsVisible="{Binding HasFilteredEvents}">
                         <DataGrid.Columns>
                             <!-- Timestamp Column -->
                             <DataGridTextColumn Header="Timestamp" 
@@ -767,7 +768,21 @@
                         </Grid>
                     </Border>
                     
-                    <!-- No Events Placeholder -->
+                    <!-- No Events Placeholder - when log is loaded but no events found -->
+                    <Border Grid.Row="2" Background="#0F172A" IsVisible="{Binding ShowNoEventsMessage}">
+                        <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                            <TextBlock Text="✓" FontSize="48" Foreground="#22C55E" HorizontalAlignment="Center" Margin="0,0,0,16"/>
+                            <TextBlock Text="No events present in this log" Foreground="#64748B" FontSize="18" 
+                                       HorizontalAlignment="Center" FontWeight="SemiBold"/>
+                            <TextBlock Text="The log file was analyzed but no events, warnings, or errors were detected." 
+                                       Foreground="#475569" FontSize="13" 
+                                       HorizontalAlignment="Center" Margin="0,8,0,0" TextWrapping="Wrap" MaxWidth="400"/>
+                            <TextBlock Text="This may indicate a normal flight with no issues." Foreground="#475569" FontSize="12" 
+                                       HorizontalAlignment="Center" Margin="0,4,0,0"/>
+                        </StackPanel>
+                    </Border>
+                    
+                    <!-- No Log Loaded Placeholder -->
                     <Border Grid.Row="2" Background="#0F172A" IsVisible="{Binding !IsLogLoaded}">
                         <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
                             <TextBlock Text="📋" FontSize="48" HorizontalAlignment="Center" Margin="0,0,0,16"/>

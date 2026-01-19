@@ -7,10 +7,12 @@ namespace PavamanDroneConfigurator.Infrastructure.Services;
 /// <summary>
 /// Detects flight events from log data.
 /// Analyzes logs for arming, failsafes, EKF issues, GPS problems, vibration warnings, etc.
+/// Uses a universal event extractor to scan ALL message types for any event-like content.
 /// </summary>
 public class LogEventDetector : ILogEventDetector
 {
     private readonly ILogger<LogEventDetector> _logger;
+    private readonly UniversalEventExtractor? _universalExtractor;
     private DataFlashLogParser? _parser;
     private ParsedLog? _parsedLog;
     private List<LogEvent>? _cachedEvents;
@@ -19,8 +21,8 @@ public class LogEventDetector : ILogEventDetector
     private List<(double Timestamp, double Lat, double Lng, double Alt)>? _gpsCache;
 
     // Thresholds for event detection
-    private const double VIBRATION_WARNING_THRESHOLD = 30.0;  // m/s²
-    private const double VIBRATION_ERROR_THRESHOLD = 60.0;    // m/s²
+    private const double VIBRATION_WARNING_THRESHOLD = 30.0;  // m/sÂ²
+    private const double VIBRATION_ERROR_THRESHOLD = 60.0;    // m/sÂ²
     private const double CLIPPING_THRESHOLD = 100;            // clip count
     private const double BATTERY_LOW_VOLTAGE = 3.5;           // V per cell
     private const double BATTERY_CRITICAL_VOLTAGE = 3.3;      // V per cell
@@ -30,9 +32,15 @@ public class LogEventDetector : ILogEventDetector
     private const double EKF_VARIANCE_WARNING = 0.5;
     private const double EKF_VARIANCE_ERROR = 0.8;
 
+    /// <summary>
+    /// Whether to use the universal event extractor for comprehensive event detection.
+    /// </summary>
+    public bool UseUniversalExtractor { get; set; } = true;
+
     public LogEventDetector(ILogger<LogEventDetector> logger)
     {
         _logger = logger;
+        _universalExtractor = new UniversalEventExtractor(null);
     }
 
     /// <summary>
@@ -116,65 +124,89 @@ public class LogEventDetector : ILogEventDetector
                 BuildGpsCache();
                 progress?.Report(5);
 
-                // Detect mode changes
-                var modeEvents = DetectModeChanges(ref eventId);
-                events.AddRange(modeEvents);
-                progress?.Report(15);
+                // Use universal extractor for comprehensive event detection
+                if (UseUniversalExtractor && _universalExtractor != null)
+                {
+                    _logger.LogInformation("Using universal event extractor for comprehensive detection");
+                    var universalProgress = new Progress<int>(p => progress?.Report(5 + (int)(p * 0.85)));
+                    var normalizedEvents = _universalExtractor.ExtractAllEvents(_parser, _parsedLog, universalProgress, cancellationToken);
+                    
+                    // Convert normalized events to LogEvent
+                    foreach (var ne in normalizedEvents)
+                    {
+                        var logEvent = ne.ToLogEvent();
+                        logEvent.Id = eventId++;
+                        events.Add(logEvent);
+                    }
+                    
+                    _logger.LogInformation("Universal extractor found {Count} events", events.Count);
+                }
+                else
+                {
+                    // Fallback to original detection methods
+                    _logger.LogInformation("Using legacy event detection methods");
 
-                if (cancellationToken.IsCancellationRequested) return events;
+                    // Detect mode changes
+                    var modeEvents = DetectModeChanges(ref eventId);
+                    events.AddRange(modeEvents);
+                    progress?.Report(15);
 
-                // Detect arming/disarming
-                var armingEvents = DetectArmingEvents(ref eventId);
-                events.AddRange(armingEvents);
-                progress?.Report(25);
+                    if (cancellationToken.IsCancellationRequested) return events;
 
-                if (cancellationToken.IsCancellationRequested) return events;
+                    // Detect arming/disarming
+                    var armingEvents = DetectArmingEvents(ref eventId);
+                    events.AddRange(armingEvents);
+                    progress?.Report(25);
 
-                // Detect failsafes
-                var failsafeEvents = DetectFailsafeEvents(ref eventId);
-                events.AddRange(failsafeEvents);
-                progress?.Report(35);
+                    if (cancellationToken.IsCancellationRequested) return events;
 
-                if (cancellationToken.IsCancellationRequested) return events;
+                    // Detect failsafes
+                    var failsafeEvents = DetectFailsafeEvents(ref eventId);
+                    events.AddRange(failsafeEvents);
+                    progress?.Report(35);
 
-                // Detect EKF issues
-                var ekfEvents = DetectEkfEvents(ref eventId);
-                events.AddRange(ekfEvents);
-                progress?.Report(45);
+                    if (cancellationToken.IsCancellationRequested) return events;
 
-                if (cancellationToken.IsCancellationRequested) return events;
+                    // Detect EKF issues
+                    var ekfEvents = DetectEkfEvents(ref eventId);
+                    events.AddRange(ekfEvents);
+                    progress?.Report(45);
 
-                // Detect GPS issues
-                var gpsEvents = DetectGpsEvents(ref eventId);
-                events.AddRange(gpsEvents);
-                progress?.Report(55);
+                    if (cancellationToken.IsCancellationRequested) return events;
 
-                if (cancellationToken.IsCancellationRequested) return events;
+                    // Detect GPS issues
+                    var gpsEvents = DetectGpsEvents(ref eventId);
+                    events.AddRange(gpsEvents);
+                    progress?.Report(55);
 
-                // Detect vibration issues
-                var vibeEvents = DetectVibrationEvents(ref eventId);
-                events.AddRange(vibeEvents);
-                progress?.Report(65);
+                    if (cancellationToken.IsCancellationRequested) return events;
 
-                if (cancellationToken.IsCancellationRequested) return events;
+                    // Detect vibration issues
+                    var vibeEvents = DetectVibrationEvents(ref eventId);
+                    events.AddRange(vibeEvents);
+                    progress?.Report(65);
 
-                // Detect battery issues
-                var batteryEvents = DetectBatteryEvents(ref eventId);
-                events.AddRange(batteryEvents);
-                progress?.Report(75);
+                    if (cancellationToken.IsCancellationRequested) return events;
 
-                if (cancellationToken.IsCancellationRequested) return events;
+                    // Detect battery issues
+                    var batteryEvents = DetectBatteryEvents(ref eventId);
+                    events.AddRange(batteryEvents);
+                    progress?.Report(75);
 
-                // Detect RC issues
-                var rcEvents = DetectRcEvents(ref eventId);
-                events.AddRange(rcEvents);
-                progress?.Report(85);
+                    if (cancellationToken.IsCancellationRequested) return events;
 
-                if (cancellationToken.IsCancellationRequested) return events;
+                    // Detect RC issues
+                    var rcEvents = DetectRcEvents(ref eventId);
+                    events.AddRange(rcEvents);
+                    progress?.Report(85);
 
-                // Detect crash/impact
-                var crashEvents = DetectCrashEvents(ref eventId);
-                events.AddRange(crashEvents);
+                    if (cancellationToken.IsCancellationRequested) return events;
+
+                    // Detect crash/impact
+                    var crashEvents = DetectCrashEvents(ref eventId);
+                    events.AddRange(crashEvents);
+                }
+
                 progress?.Report(95);
 
                 // Sort by timestamp
@@ -602,7 +634,7 @@ public class LogEventDetector : ILogEventDetector
                     Type = LogEventType.Vibration,
                     Severity = LogEventSeverity.Error,
                     Title = "High Vibration",
-                    Description = $"Excessive vibration detected: X={vibeX:F1}, Y={vibeY:F1}, Z={vibeZ:F1} m/s²",
+                    Description = $"Excessive vibration detected: X={vibeX:F1}, Y={vibeY:F1}, Z={vibeZ:F1} m/sï¿½",
                     Source = "IMU",
                     Subsystem = "Vibration",
                     ComponentId = 1,
@@ -620,7 +652,7 @@ public class LogEventDetector : ILogEventDetector
                     Type = LogEventType.Vibration,
                     Severity = LogEventSeverity.Warning,
                     Title = "Elevated Vibration",
-                    Description = $"Vibration elevated: X={vibeX:F1}, Y={vibeY:F1}, Z={vibeZ:F1} m/s²",
+                    Description = $"Vibration elevated: X={vibeX:F1}, Y={vibeY:F1}, Z={vibeZ:F1} m/sï¿½",
                     Source = "IMU",
                     Subsystem = "Vibration",
                     ComponentId = 1,
