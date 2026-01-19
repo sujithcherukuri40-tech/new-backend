@@ -22,6 +22,7 @@ namespace PavamanDroneConfigurator.UI.ViewModels;
 public partial class FirmwarePageViewModel : ViewModelBase
 {
     private readonly IFirmwareService _firmwareService;
+    private readonly IConnectionService? _connectionService;
     private readonly ILogger<FirmwarePageViewModel> _logger;
     private CancellationTokenSource? _operationCts;
 
@@ -75,10 +76,32 @@ public partial class FirmwarePageViewModel : ViewModelBase
     public ObservableCollection<string> LogMessages { get; } = new();
     #endregion
 
-    public FirmwarePageViewModel(IFirmwareService firmwareService, ILogger<FirmwarePageViewModel> logger)
+    #region Confirmation Dialog
+    [ObservableProperty] private bool _showConfirmationDialog;
+    [ObservableProperty] private string _confirmationMessage = string.Empty;
+    [ObservableProperty] private VehicleTypeItem? _pendingVehicleType;
+    #endregion
+    
+    #region Platform Selection Dialog
+    [ObservableProperty] private bool _showPlatformSelectionDialog;
+    [ObservableProperty] private string _platformSelectionMessage = string.Empty;
+    public ObservableCollection<string> AvailablePlatformVariants { get; } = new();
+    [ObservableProperty] private string? _selectedPlatformVariant;
+    #endregion
+    
+    #region Reconnect Prompt Dialog
+    [ObservableProperty] private bool _showReconnectPromptDialog;
+    [ObservableProperty] private string _reconnectPromptMessage = string.Empty;
+    #endregion
+
+    public FirmwarePageViewModel(
+        IFirmwareService firmwareService, 
+        ILogger<FirmwarePageViewModel> logger,
+        IConnectionService? connectionService = null)
     {
         _firmwareService = firmwareService;
         _logger = logger;
+        _connectionService = connectionService;
 
         _firmwareService.ProgressChanged += OnProgressChanged;
         _firmwareService.BoardDetected += OnBoardDetected;
@@ -237,25 +260,257 @@ public partial class FirmwarePageViewModel : ViewModelBase
     #endregion
 
     #region Vehicle Type Selection
+
+    /// <summary>
+    /// Handles vehicle type selection - shows confirmation dialog like Mission Planner
+    /// </summary>
     [RelayCommand]
     private async Task SelectVehicleTypeAsync(VehicleTypeItem? vehicleType)
     {
         if (vehicleType == null) return;
+        
         SelectedVehicleType = vehicleType;
-        AddLog($"Selected: {vehicleType.Name}");
-        StatusMessage = $"Ready to install {vehicleType.Name} firmware";
+        AddLog($"Selected: {vehicleType.Description}");
+
+        // In Automatic mode, show confirmation dialog before flashing
         if (IsAutomaticMode)
+        {
+            // Check if connected via MAVLink - warn user
+            if (_connectionService?.IsConnected == true)
+            {
+                ConfirmationMessage = $"You are about to install {vehicleType.ArduPilotId} firmware ({vehicleType.Description}).\n\n" +
+                                      "The current MAVLink connection will be closed.\n" +
+                                      "Continue with firmware installation?";
+            }
+            else
+            {
+                ConfirmationMessage = $"You are about to install {vehicleType.ArduPilotId} firmware ({vehicleType.Description}).\n\n" +
+                                      "Please ensure your flight controller is connected.\n" +
+                                      "Continue with firmware installation?";
+            }
+            
+            PendingVehicleType = vehicleType;
+            ShowConfirmationDialog = true;
+        }
+        else
+        {
+            StatusMessage = $"Ready to install {vehicleType.Description} firmware";
+        }
+    }
+
+    /// <summary>
+    /// User confirmed the firmware installation
+    /// </summary>
+    [RelayCommand]
+    private async Task ConfirmInstallationAsync()
+    {
+        ShowConfirmationDialog = false;
+        
+        if (PendingVehicleType != null)
         {
             await FlashSelectedFirmwareAsync();
         }
+        
+        PendingVehicleType = null;
     }
+
+    /// <summary>
+    /// User cancelled the confirmation dialog
+    /// </summary>
+    [RelayCommand]
+    private void CancelConfirmation()
+    {
+        ShowConfirmationDialog = false;
+        PendingVehicleType = null;
+        StatusMessage = "Installation cancelled";
+    }
+
+    /// <summary>
+    /// User confirmed platform selection
+    /// </summary>
+    [RelayCommand]
+    private async Task ConfirmPlatformSelectionAsync()
+    {
+        ShowPlatformSelectionDialog = false;
+        
+        if (PendingVehicleType != null && !string.IsNullOrEmpty(SelectedPlatformVariant))
+        {
+            await FlashSelectedFirmwareWithPlatformAsync(SelectedPlatformVariant);
+        }
+        
+        SelectedPlatformVariant = null;
+        AvailablePlatformVariants.Clear();
+    }
+
+    /// <summary>
+    /// User cancelled platform selection dialog
+    /// </summary>
+    [RelayCommand]
+    private void CancelPlatformSelection()
+    {
+        ShowPlatformSelectionDialog = false;
+        PendingVehicleType = null;
+        SelectedPlatformVariant = null;
+        AvailablePlatformVariants.Clear();
+        StatusMessage = "Installation cancelled";
+    }
+
+    /// <summary>
+    /// User acknowledged reconnect prompt
+    /// </summary>
+    [RelayCommand]
+    private void AcknowledgeReconnectPrompt()
+    {
+        ShowReconnectPromptDialog = false;
+    }
+
     #endregion
 
     #region Firmware Flashing Commands
+
     [RelayCommand]
     private async Task FlashSelectedFirmwareAsync()
     {
-        if (SelectedVehicleType == null)
+        var vehicleType = PendingVehicleType ?? SelectedVehicleType;
+        
+        if (vehicleType == null)
+        {
+            StatusMessage = "Please select a vehicle type first";
+            return;
+        }
+
+        var source = SelectedFirmwareSource?.Source ?? FirmwareSource.InApp;
+        
+        // For web sources, detect board and check for platform variants
+        if (source == FirmwareSource.WebLatest || source == FirmwareSource.WebBeta)
+        {
+            _operationCts = new CancellationTokenSource();
+            
+            try
+            {
+                IsOperationInProgress = true;
+                IsError = false;
+                IsSuccess = false;
+                ProgressPercent = 0;
+                
+                // Close existing MAVLink connection first (like Mission Planner)
+                if (_connectionService?.IsConnected == true)
+                {
+                    AddLog("Closing existing MAVLink connection...");
+                    StatusMessage = "Closing connection...";
+                    await _connectionService.DisconnectAsync();
+                    await Task.Delay(500);
+                }
+                
+                StatusMessage = "Scanning for board...";
+                AddLog("Scanning for connected flight controllers...");
+                
+                // Quick board detection with short timeout
+                using var detectCts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+                var board = await _firmwareService.DetectBoardAsync(detectCts.Token);
+                
+                if (board == null)
+                {
+                    // Wait for bootloader with user feedback
+                    StatusMessage = "No running board found. Waiting for bootloader...";
+                    AddLog("Put your board in bootloader mode (hold BOOT button while connecting)");
+                    
+                    board = await _firmwareService.WaitForBootloaderAsync(
+                        TimeSpan.FromSeconds(30), _operationCts.Token);
+                }
+                
+                if (board == null)
+                {
+                    IsOperationInProgress = false;
+                    IsError = true;
+                    StatusMessage = "No board detected. Please connect your flight controller.";
+                    AddLog("Board detection timed out");
+                    return;
+                }
+                
+                var basePlatform = board.BoardId ?? "fmuv2";
+                AddLog($"Board detected: {board.BoardName} ({basePlatform}) on {board.SerialPort}");
+                StatusMessage = $"Detected: {board.BoardName}";
+                
+                // Update UI with detected board
+                await Dispatcher.UIThread.InvokeAsync(() =>
+                {
+                    IsBoardDetected = true;
+                    DetectedBoardName = board.BoardName;
+                    DetectedBoardPort = board.SerialPort;
+                    IsInBootloader = board.IsInBootloader;
+                });
+                
+                // Check for multiple platform variants
+                StatusMessage = "Checking firmware variants...";
+                AddLog($"Checking platform variants for {basePlatform}...");
+                
+                var releaseType = source == FirmwareSource.WebBeta ? "BETA" : null;
+                var variants = await _firmwareService.GetAvailablePlatformVariantsAsync(
+                    vehicleType.ArduPilotId, basePlatform, releaseType, _operationCts.Token);
+                
+                AddLog($"Found {variants.Count} firmware variant(s)");
+                
+                if (variants.Count > 1)
+                {
+                    // Show platform selection dialog on UI thread
+                    IsOperationInProgress = false;
+                    
+                    await Dispatcher.UIThread.InvokeAsync(() =>
+                    {
+                        AvailablePlatformVariants.Clear();
+                        foreach (var variant in variants)
+                        {
+                            AvailablePlatformVariants.Add(variant);
+                        }
+                        SelectedPlatformVariant = variants.FirstOrDefault(); // Default to first (base variant)
+                        PlatformSelectionMessage = $"Multiple firmware variants are available for {board.BoardName}.\n\n" +
+                                                   "Select the variant to install:";
+                        AddLog("Showing platform selection dialog...");
+                        ShowPlatformSelectionDialog = true;
+                    });
+                    return;
+                }
+                else if (variants.Count == 1)
+                {
+                    // Single variant - proceed directly
+                    AddLog($"Using platform: {variants[0]}");
+                    await FlashSelectedFirmwareWithPlatformAsync(variants[0]);
+                    return;
+                }
+                else
+                {
+                    // No specific variants found - use base platform
+                    AddLog($"No specific variants found, using base platform: {basePlatform}");
+                    await FlashSelectedFirmwareWithPlatformAsync(basePlatform);
+                    return;
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                StatusMessage = "Operation cancelled";
+                AddLog("Operation cancelled by user");
+                IsOperationInProgress = false;
+                return;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error during board detection");
+                AddLog($"Error: {ex.Message}");
+                // Continue with default behavior
+                IsOperationInProgress = false;
+            }
+        }
+
+        // Default path (InApp source or fallback)
+        await FlashSelectedFirmwareWithPlatformAsync(null);
+    }
+    
+    private async Task FlashSelectedFirmwareWithPlatformAsync(string? selectedPlatform)
+    {
+        var vehicleType = PendingVehicleType ?? SelectedVehicleType;
+        
+        if (vehicleType == null)
         {
             StatusMessage = "Please select a vehicle type first";
             return;
@@ -271,13 +526,27 @@ public partial class FirmwarePageViewModel : ViewModelBase
             ProgressPercent = 0;
             _operationCts = new CancellationTokenSource();
 
-            AddLog($"Starting firmware installation for {SelectedVehicleType.Name} via {source}...");
+            AddLog($"Starting firmware installation for {vehicleType.Description}...");
+            if (!string.IsNullOrEmpty(selectedPlatform))
+            {
+                AddLog($"Selected platform: {selectedPlatform}");
+            }
+
+            // Close existing MAVLink connection first (like Mission Planner)
+            if (_connectionService?.IsConnected == true)
+            {
+                AddLog("Closing existing MAVLink connection...");
+                StatusMessage = "Closing connection...";
+                await _connectionService.DisconnectAsync();
+                await Task.Delay(500); // Allow port to release
+            }
+
             StatusMessage = "Detecting board...";
 
             switch (source)
             {
                 case FirmwareSource.InApp:
-                    var localPath = await _firmwareService.GetLocalFirmwarePathAsync(SelectedVehicleType.Id, _operationCts.Token);
+                    var localPath = await _firmwareService.GetLocalFirmwarePathAsync(vehicleType.ArduPilotId, _operationCts.Token);
                     if (string.IsNullOrEmpty(localPath))
                     {
                         IsError = true;
@@ -289,11 +558,11 @@ public partial class FirmwarePageViewModel : ViewModelBase
                     break;
 
                 case FirmwareSource.WebLatest:
-                    await FlashFromWebAsync(null);
+                    await FlashFromWebWithPlatformAsync(vehicleType, selectedPlatform, null);
                     break;
 
                 case FirmwareSource.WebBeta:
-                    await FlashFromWebAsync("BETA");
+                    await FlashFromWebWithPlatformAsync(vehicleType, selectedPlatform, "BETA");
                     break;
             }
         }
@@ -312,28 +581,35 @@ public partial class FirmwarePageViewModel : ViewModelBase
         finally
         {
             IsOperationInProgress = false;
+            PendingVehicleType = null;
             _operationCts?.Dispose();
             _operationCts = null;
         }
     }
 
-    private async Task FlashFromWebAsync(string? releaseType)
+    private async Task FlashFromWebWithPlatformAsync(VehicleTypeItem vehicleType, string? selectedPlatform, string? releaseType)
     {
-        if (SelectedVehicleType == null || _operationCts == null) return;
+        if (_operationCts == null) return;
 
         var firmwareType = new FirmwareType
         {
-            Id = SelectedVehicleType.Id,
-            Name = SelectedVehicleType.Name,
-            ArduPilotId = SelectedVehicleType.ArduPilotId
+            Id = vehicleType.Id,
+            Name = vehicleType.Name,
+            Description = vehicleType.Description,
+            ArduPilotId = vehicleType.ArduPilotId
         };
 
-        var result = await _firmwareService.FlashFirmwareAsync(firmwareType, null, releaseType, _operationCts.Token);
+        // Pass selected platform to firmware service
+        var result = await _firmwareService.FlashFirmwareAsync(firmwareType, selectedPlatform, releaseType, _operationCts.Token);
+        
         if (result.Success)
         {
             IsSuccess = true;
             StatusMessage = $"Firmware installed successfully! {result.FirmwareVersion}";
             AddLog($"Installation completed in {result.Duration.TotalSeconds:F1}s");
+            
+            // Show reconnect prompt like Mission Planner
+            ShowReconnectPrompt();
         }
         else
         {
@@ -341,6 +617,19 @@ public partial class FirmwarePageViewModel : ViewModelBase
             StatusMessage = result.Message;
             AddLog($"Installation failed: {result.Message}");
         }
+    }
+    
+    private void ShowReconnectPrompt()
+    {
+        ReconnectPromptMessage = "Firmware installation complete!\n\n" +
+                                 "Please disconnect and reconnect your flight controller to use the new firmware.\n\n" +
+                                 "The board will reboot automatically. Wait a few seconds, then reconnect.";
+        ShowReconnectPromptDialog = true;
+    }
+
+    private async Task FlashFromWebAsync(VehicleTypeItem vehicleType, string? releaseType)
+    {
+        await FlashFromWebWithPlatformAsync(vehicleType, null, releaseType);
     }
 
     private async Task FlashFromFileAsync(string path)
@@ -602,12 +891,14 @@ public partial class FirmwarePageViewModel : ViewModelBase
             {
                 IsSuccess = true;
                 ProgressPercent = 100;
-                StatusMessage = "Done! - Press the Disconnect button";
+                StatusMessage = "Done! - Reconnect to your flight controller";
+                AddLog($"Firmware {e.FirmwareVersion} installed successfully in {e.Duration.TotalSeconds:F1}s");
             }
             else
             {
                 IsError = true;
                 StatusMessage = e.Message;
+                AddLog($"Flash failed: {e.Message}");
             }
         });
     }

@@ -153,6 +153,11 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
     private int _totalMessagePages;
 
     private const int MessagesPerPage = 100;
+    
+    // Raw data preview constants
+    private const int MaxRawDataRowsPerType = 50;
+    private const int MaxRawDataTotalRows = 200;
+    private const int MaxMessageTypesForRawData = 10;
 
     #endregion
 
@@ -277,6 +282,16 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
         "10 seconds",
         "30 seconds"
     };
+    
+    // Raw data display for Events tab
+    [ObservableProperty]
+    private ObservableCollection<LogMessageView> _rawLogMessages = new();
+    
+    [ObservableProperty]
+    private bool _hasRawLogData;
+    
+    [ObservableProperty]
+    private string _rawDataRowCount = "0 rows";
 
     #endregion
 
@@ -526,6 +541,9 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
                 
                 // Load log parameters with metadata
                 await LoadLogParametersAsync();
+                
+                // Load raw log messages for display
+                LoadRawLogMessages();
 
                 StatusMessage = $"Log loaded: {result.MessageCount:N0} messages";
             }
@@ -718,6 +736,47 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
         foreach (var p in filtered)
         {
             FilteredLogParameters.Add(p);
+        }
+    }
+    
+    /// <summary>
+    /// Loads raw log messages for display in the Events tab data preview.
+    /// This loads a limited sample of messages to avoid performance issues with large log files.
+    /// The sample is taken from the first few message types to give a representative preview.
+    /// </summary>
+    private void LoadRawLogMessages()
+    {
+        RawLogMessages.Clear();
+        
+        try
+        {
+            // Get a sample of messages from multiple types to show raw data
+            var messageTypes = _logAnalyzerService.GetMessageTypes();
+            int totalLoaded = 0;
+            
+            foreach (var msgType in messageTypes.Take(MaxMessageTypesForRawData))
+            {
+                if (totalLoaded >= MaxRawDataTotalRows) break;
+                
+                var messages = _logAnalyzerService.GetMessages(msgType.Name, 0, MaxRawDataRowsPerType);
+                foreach (var msg in messages)
+                {
+                    if (totalLoaded >= MaxRawDataTotalRows) break;
+                    RawLogMessages.Add(msg);
+                    totalLoaded++;
+                }
+            }
+            
+            HasRawLogData = RawLogMessages.Count > 0;
+            RawDataRowCount = $"{RawLogMessages.Count:N0} rows (sample)";
+            
+            _logger.LogInformation("Loaded {Count} raw log messages for display", RawLogMessages.Count);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading raw log messages");
+            HasRawLogData = false;
+            RawDataRowCount = "Error loading data";
         }
     }
 
@@ -1141,6 +1200,10 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
                 CriticalCount = DetectedEvents.Count(e => e.Severity == LogEventSeverity.Critical || e.Severity == LogEventSeverity.Emergency)
             };
             
+            // Update the overview counts for display in other tabs
+            ErrorCount = EventSummary.ErrorCount + EventSummary.CriticalCount;
+            WarningCount = EventSummary.WarningCount;
+            
             // Populate filter dropdowns
             PopulateEventFilterDropdowns();
             
@@ -1219,11 +1282,15 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
             TotalEvents = FilteredEvents.Count,
             ErrorCount = FilteredEvents.Count(e => e.Severity == LogEventSeverity.Error),
             WarningCount = FilteredEvents.Count(e => e.Severity == LogEventSeverity.Warning),
-            InfoCount = FilteredEvents.Count(e => e.Severity == LogEventSeverity.Info),
-            CriticalCount = FilteredEvents.Count(e => e.Severity == LogEventSeverity.Critical)
+            InfoCount = FilteredEvents.Count(e => e.Severity == LogEventSeverity.Info || e.Severity == LogEventSeverity.Notice || e.Severity == LogEventSeverity.Debug),
+            CriticalCount = FilteredEvents.Count(e => e.Severity == LogEventSeverity.Critical || e.Severity == LogEventSeverity.Emergency)
         };
         
         EventPagination.TotalItems = FilteredEvents.Count;
+        
+        // Notify UI of property changes
+        OnPropertyChanged(nameof(EventDisplaySummary));
+        OnPropertyChanged(nameof(EventPagination));
     }
     
     [RelayCommand]
@@ -1273,7 +1340,16 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
                 IsBusy = true;
                 StatusMessage = "Exporting events to CSV...";
                 
-                await using var writer = new StreamWriter(file.Path.LocalPath);
+                var filePath = file.Path.LocalPath;
+                
+                // Ensure directory exists
+                var directory = Path.GetDirectoryName(filePath);
+                if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
+                {
+                    Directory.CreateDirectory(directory);
+                }
+                
+                await using var writer = new StreamWriter(filePath, false, System.Text.Encoding.UTF8);
                 
                 // Write header
                 await writer.WriteLineAsync("Timestamp,Severity,Event Type,Source,Message,Details");
@@ -1285,6 +1361,7 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
                     await writer.WriteLineAsync(line);
                 }
                 
+                await writer.FlushAsync();
                 StatusMessage = $"Exported {FilteredEvents.Count} events to CSV";
             }
         }
@@ -1326,6 +1403,15 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
                 IsBusy = true;
                 StatusMessage = "Exporting events to JSON...";
                 
+                var filePath = file.Path.LocalPath;
+                
+                // Ensure directory exists
+                var directory = Path.GetDirectoryName(filePath);
+                if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
+                {
+                    Directory.CreateDirectory(directory);
+                }
+                
                 var exportData = FilteredEvents.Select(e => new
                 {
                     e.Id,
@@ -1343,7 +1429,7 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
                     WriteIndented = true 
                 });
                 
-                await File.WriteAllTextAsync(file.Path.LocalPath, json);
+                await File.WriteAllTextAsync(filePath, json, System.Text.Encoding.UTF8);
                 
                 StatusMessage = $"Exported {FilteredEvents.Count} events to JSON";
             }
@@ -1500,7 +1586,14 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
     {
         try
         {
-            using var writer = new System.IO.StreamWriter(filePath);
+            // Ensure directory exists
+            var directory = Path.GetDirectoryName(filePath);
+            if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+            
+            await using var writer = new System.IO.StreamWriter(filePath, false, System.Text.Encoding.UTF8);
             
             // Write header
             var fields = SelectedGraphFields.Count > 0 
@@ -1557,6 +1650,7 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
                 }
             }
             
+            await writer.FlushAsync();
             StatusMessage = $"Exported to {Path.GetFileName(filePath)}";
         }
         catch (Exception ex)
@@ -1635,7 +1729,14 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
                 throw new Exception("No GPS data to export");
             }
             
-            using var writer = new System.IO.StreamWriter(filePath);
+            // Ensure directory exists
+            var directory = Path.GetDirectoryName(filePath);
+            if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+            
+            await using var writer = new System.IO.StreamWriter(filePath, false, System.Text.Encoding.UTF8);
             
             // Write KML header
             await writer.WriteLineAsync("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
@@ -1680,6 +1781,7 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
             await writer.WriteLineAsync("  </Document>");
             await writer.WriteLineAsync("</kml>");
             
+            await writer.FlushAsync();
             StatusMessage = $"Exported {GpsTrack.Count} GPS points to {Path.GetFileName(filePath)}";
         }
         catch (Exception ex)

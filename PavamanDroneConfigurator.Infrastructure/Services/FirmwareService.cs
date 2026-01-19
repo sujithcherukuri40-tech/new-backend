@@ -8,29 +8,49 @@ using System.IO;
 using System.IO.Ports;
 using System.Linq;
 using System.Net.Http;
+using System.Net.Http.Headers;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Xml.Linq;
 
 namespace PavamanDroneConfigurator.Infrastructure.Services;
 
 /// <summary>
 /// Production-ready firmware flashing and bootloader management service.
 /// Implements Mission Planner-equivalent functionality for ArduPilot firmware.
+/// Uses PX4Uploader for PX4/ChibiOS bootloader protocol (CubeOrangePlus and similar boards).
 /// </summary>
 public sealed class FirmwareService : IFirmwareService, IDisposable
 {
     private readonly ILogger<FirmwareService> _logger;
     private readonly HttpClient _httpClient;
-    private readonly Stm32Bootloader _bootloader;
+    private readonly IConnectionService? _connectionService;
     
     private CancellationTokenSource? _operationCts;
     private readonly object _stateLock = new();
     
-    // ArduPilot firmware server URLs
-    private const string FIRMWARE_MANIFEST_URL = "https://firmware.ardupilot.org/manifest.json";
+    // ArduPilot firmware server URLs - Mission Planner compatible
+    // Primary: JSON manifest (compressed)
     private const string FIRMWARE_MANIFEST_URL_GZ = "https://firmware.ardupilot.org/manifest.json.gz";
+    private const string FIRMWARE_MANIFEST_URL = "https://firmware.ardupilot.org/manifest.json";
+    
+    // Fallback: XML firmware list (Mission Planner's original format)
+    private static readonly string[] FIRMWARE_XML_URLS = new[]
+    {
+        "https://firmware.ardupilot.org/Tools/MissionPlanner/Firmware/firmware2.xml",
+        "https://github.com/ArduPilot/binary/raw/master/Firmware/firmware2.xml"
+    };
+    
     private const string FIRMWARE_BASE_URL = "https://firmware.ardupilot.org";
+    
+    // Bootloader detection timeout
+    private const int BOOTLOADER_DETECT_TIMEOUT_SECONDS = 30;
+    
+    // Manifest cache
+    private FirmwareManifest? _cachedManifest;
+    private DateTime _manifestCacheTime = DateTime.MinValue;
+    private readonly TimeSpan _manifestCacheDuration = TimeSpan.FromMinutes(30);
     
     // Temp directory for firmware downloads
     private readonly string _firmwareCacheDir;
@@ -47,13 +67,21 @@ public sealed class FirmwareService : IFirmwareService, IDisposable
     
     public string LocalFirmwareDirectory => _localFirmwareDirectory;
 
-    public FirmwareService(ILogger<FirmwareService> logger)
+    public FirmwareService(ILogger<FirmwareService> logger, IConnectionService? connectionService = null)
     {
         _logger = logger;
-        _httpClient = new HttpClient();
-        _httpClient.Timeout = TimeSpan.FromMinutes(10);
-        _httpClient.DefaultRequestHeaders.Add("User-Agent", "PavamanDroneConfigurator/1.0");
-        _bootloader = new Stm32Bootloader(logger);
+        _connectionService = connectionService;
+        
+        // Configure HttpClient with proper headers for firmware server
+        var handler = new HttpClientHandler
+        {
+            AutomaticDecompression = System.Net.DecompressionMethods.GZip | System.Net.DecompressionMethods.Deflate
+        };
+        _httpClient = new HttpClient(handler);
+        _httpClient.Timeout = TimeSpan.FromMinutes(5);
+        _httpClient.DefaultRequestHeaders.Add("User-Agent", "MissionPlanner/1.3.80"); // Use Mission Planner user agent for compatibility
+        _httpClient.DefaultRequestHeaders.AcceptEncoding.Add(new StringWithQualityHeaderValue("gzip"));
+        _httpClient.DefaultRequestHeaders.AcceptEncoding.Add(new StringWithQualityHeaderValue("deflate"));
 
         _firmwareCacheDir = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -77,27 +105,107 @@ public sealed class FirmwareService : IFirmwareService, IDisposable
         
         try
         {
+            // Get device list with USB info
+            var devices = BoardDetect.GetConnectedDevices();
             var ports = SerialPort.GetPortNames();
+            
             Log($"Found {ports.Length} serial ports: {string.Join(", ", ports)}");
             
-            foreach (var portName in ports)
+            // Use parallel detection with short timeouts for speed
+            var detectionTasks = new List<Task<DetectedBoard?>>();
+            
+            // First pass: try to find boards in bootloader mode using Px4Uploader (fast check)
+            foreach (var device in devices)
+            {
+                if (ct.IsCancellationRequested) break;
+                
+                // Use short timeout for each port detection
+                detectionTasks.Add(Task.Run(async () =>
+                {
+                    try
+                    {
+                        using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+                        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(ct, timeoutCts.Token);
+                        
+                        return TryDetectPx4BootloaderSync(device.PortName);
+                    }
+                    catch
+                    {
+                        return null;
+                    }
+                }, ct));
+            }
+            
+            // Wait for first successful bootloader detection or all to complete
+            while (detectionTasks.Count > 0)
+            {
+                var completedTask = await Task.WhenAny(detectionTasks);
+                detectionTasks.Remove(completedTask);
+                
+                var result = await completedTask;
+                if (result != null)
+                {
+                    CurrentBoard = result;
+                    BoardDetected?.Invoke(this, result);
+                    Log($"Detected board in bootloader: {result.BoardName} on {result.SerialPort}");
+                    return result;
+                }
+            }
+            
+            // Second pass: Try USB VID/PID detection (fast, no serial communication)
+            foreach (var device in devices)
+            {
+                if (ct.IsCancellationRequested) break;
+                
+                var boardType = BoardDetect.DetectBoardFromDevice(device);
+                if (boardType != BoardDetect.Boards.none)
+                {
+                    var board = new DetectedBoard
+                    {
+                        BoardId = BoardDetect.GetPlatformName(boardType),
+                        BoardName = BoardDetect.GetBoardName(boardType),
+                        BoardIdNumeric = BoardDetect.GetBoardId(boardType),
+                        SerialPort = device.PortName,
+                        IsInBootloader = device.IsBootloader,
+                        DetectedAt = DateTime.Now
+                    };
+                    
+                    CurrentBoard = board;
+                    BoardDetected?.Invoke(this, board);
+                    Log($"Detected board from USB: {board.BoardName} on {device.PortName}");
+                    return board;
+                }
+            }
+            
+            // Third pass: Quick MAVLink check (look for any data on port)
+            foreach (var device in devices)
             {
                 if (ct.IsCancellationRequested) break;
                 
                 try
                 {
-                    var board = await TryDetectBoardOnPortAsync(portName, ct);
-                    if (board != null)
+                    var mavlinkBoard = await TryQuickMavlinkCheckAsync(device.PortName, ct);
+                    if (mavlinkBoard != null)
                     {
-                        CurrentBoard = board;
-                        BoardDetected?.Invoke(this, board);
-                        Log($"Detected board: {board.BoardName} on {portName}");
-                        return board;
+                        // Use USB detection for board type
+                        var boardType = BoardDetect.DetectBoard(device.PortName, devices);
+                        if (boardType != BoardDetect.Boards.none)
+                        {
+                            mavlinkBoard.BoardId = BoardDetect.GetPlatformName(boardType);
+                            mavlinkBoard.BoardName = BoardDetect.GetBoardName(boardType);
+                            mavlinkBoard.BoardIdNumeric = BoardDetect.GetBoardId(boardType);
+                        }
+                        
+                        mavlinkBoard.SerialPort = device.PortName;
+                        CurrentBoard = mavlinkBoard;
+                        BoardDetected?.Invoke(this, mavlinkBoard);
+                        Log($"Detected running board: {mavlinkBoard.BoardName} on {device.PortName}");
+                        return mavlinkBoard;
                     }
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogDebug(ex, "Failed to detect board on {Port}", portName);
+                    _logger.LogDebug(ex, "Failed to detect MAVLink on {Port}", device.PortName);
                 }
             }
             
@@ -113,68 +221,122 @@ public sealed class FirmwareService : IFirmwareService, IDisposable
         }
     }
     
-    private async Task<DetectedBoard?> TryDetectBoardOnPortAsync(string portName, CancellationToken ct)
+    /// <summary>
+    /// Quick MAVLink check - just look for any incoming data with very short timeout
+    /// </summary>
+    private async Task<DetectedBoard?> TryQuickMavlinkCheckAsync(string portName, CancellationToken ct)
     {
-        using var port = new SerialPort(portName)
-        {
-            BaudRate = 115200,
-            DataBits = 8,
-            Parity = Parity.None,
-            StopBits = StopBits.One,
-            ReadTimeout = 2000,
-            WriteTimeout = 2000
-        };
-        
         try
         {
-            port.Open();
-            
-            // Try to sync with bootloader
-            if (await _bootloader.TrySyncAsync(port, ct))
+            using var port = new SerialPort(portName)
             {
-                var boardInfo = await _bootloader.GetBoardInfoAsync(port, ct);
-                if (boardInfo != null)
+                BaudRate = 115200,
+                DataBits = 8,
+                Parity = Parity.None,
+                StopBits = StopBits.One,
+                ReadTimeout = 500,  // Short timeout
+                WriteTimeout = 500
+            };
+            
+            port.Open();
+            port.DiscardInBuffer();
+            
+            // Quick delay to collect any incoming data
+            await Task.Delay(200, ct);
+            
+            if (port.BytesToRead > 0)
+            {
+                var buffer = new byte[Math.Min(port.BytesToRead, 256)];
+                port.Read(buffer, 0, buffer.Length);
+                
+                // Check for MAVLink start bytes (0xFE for v1, 0xFD for v2)
+                if (buffer.Any(b => b == 0xFE || b == 0xFD))
                 {
+                    port.Close();
                     return new DetectedBoard
                     {
-                        BoardId = boardInfo.Id,
-                        BoardName = boardInfo.Name,
-                        BootloaderVersion = await _bootloader.GetVersionAsync(port, ct) ?? "Unknown",
-                        FlashSize = boardInfo.FlashSize,
-                        SerialPort = portName,
-                        IsInBootloader = true,
+                        BoardName = "ArduPilot Flight Controller",
+                        IsInBootloader = false,
+                        CurrentFirmware = "Running",
                         DetectedAt = DateTime.Now
                     };
                 }
             }
             
-            // If not in bootloader, try MAVLink identification
-            var mavlinkBoard = await TryMavlinkIdentificationAsync(port, ct);
-            if (mavlinkBoard != null)
-            {
-                mavlinkBoard.SerialPort = portName;
-                return mavlinkBoard;
-            }
+            port.Close();
         }
         catch (Exception ex)
         {
-            _logger.LogDebug(ex, "Error probing port {Port}", portName);
-        }
-        finally
-        {
-            if (port.IsOpen) port.Close();
+            _logger.LogDebug(ex, "Quick MAVLink check failed on {Port}", portName);
         }
         
         return null;
     }
     
-    private async Task<DetectedBoard?> TryMavlinkIdentificationAsync(SerialPort port, CancellationToken ct)
+    /// <summary>
+    /// Attempts to detect a board in bootloader mode using PX4 protocol
+    /// </summary>
+    private async Task<DetectedBoard?> TryDetectPx4BootloaderAsync(string portName, CancellationToken ct)
     {
-        // Send MAVLink heartbeat request and wait for response
-        // This is a simplified check - the real implementation would parse full MAVLink
+        // Delegate to sync version on background thread
+        return await Task.Run(() => TryDetectPx4BootloaderSync(portName), ct);
+    }
+    
+    /// <summary>
+    /// Synchronous bootloader detection for use in Task.Run
+    /// </summary>
+    private DetectedBoard? TryDetectPx4BootloaderSync(string portName)
+    {
+        using var uploader = new Px4Uploader(_logger);
+        
         try
         {
-            // Clear buffers
+            uploader.Open(portName);
+            uploader.Identify();
+            
+            // Map board type to known boards
+            var boardId = uploader.BoardType;
+            var platformName = BoardCompatibility.GetPlatformName(boardId);
+            var knownBoard = CommonBoards.SupportedBoards
+                .FirstOrDefault(b => b.BoardId == boardId);
+            
+            return new DetectedBoard
+            {
+                BoardId = platformName,
+                BoardIdNumeric = boardId,
+                BoardName = knownBoard?.Name ?? $"Board {boardId}",
+                BootloaderVersion = $"Rev {uploader.BootloaderRevision}",
+                FlashSize = uploader.FlashSize / 1024, // Convert to KB
+                SerialPort = portName,
+                IsInBootloader = true,
+                DetectedAt = DateTime.Now
+            };
+        }
+        catch
+        {
+            return null;
+        }
+        finally
+        {
+            uploader.Close();
+        }
+    }
+    
+    private async Task<DetectedBoard?> TryMavlinkIdentificationAsync(string portName, CancellationToken ct)
+    {
+        try
+        {
+            using var port = new SerialPort(portName)
+            {
+                BaudRate = 115200,
+                DataBits = 8,
+                Parity = Parity.None,
+                StopBits = StopBits.One,
+                ReadTimeout = 2000,
+                WriteTimeout = 2000
+            };
+            
+            port.Open();
             port.DiscardInBuffer();
             port.DiscardOutBuffer();
             
@@ -198,10 +360,12 @@ public sealed class FirmwareService : IFirmwareService, IDisposable
                     };
                 }
             }
+            
+            port.Close();
         }
         catch (Exception ex)
         {
-            _logger.LogDebug(ex, "MAVLink identification failed");
+            _logger.LogDebug(ex, "MAVLink identification failed on {Port}", portName);
         }
         
         return null;
@@ -212,31 +376,103 @@ public sealed class FirmwareService : IFirmwareService, IDisposable
         return CommonBoards.SupportedBoards.ToList().AsReadOnly();
     }
     
+    /// <summary>
+    /// Waits for a board to appear in bootloader mode.
+    /// Mission Planner compatible: handles USB port re-enumeration after reboot.
+    /// Uses 30-second deadline loop matching Mission Planner's UploadPX4() method.
+    /// </summary>
     public async Task<DetectedBoard?> WaitForBootloaderAsync(TimeSpan timeout, CancellationToken ct = default)
     {
         Log($"Waiting for bootloader (timeout: {timeout.TotalSeconds}s)...");
         UpdateState(FirmwareFlashState.WaitingForBootloader, 0, "Waiting for board in bootloader mode...");
         
+        // Remember which ports existed before - used to detect USB re-enumeration
+        var existingPorts = new HashSet<string>(SerialPort.GetPortNames());
+        Log($"Existing ports: {string.Join(", ", existingPorts)}");
+        
         var stopwatch = Stopwatch.StartNew();
+        int scanCount = 0;
         
         while (stopwatch.Elapsed < timeout && !ct.IsCancellationRequested)
         {
-            var board = await DetectBoardAsync(ct);
-            if (board?.IsInBootloader == true)
+            scanCount++;
+            
+            try
             {
-                Log($"Bootloader detected on {board.SerialPort}");
-                return board;
+                // Check for new ports (USB re-enumeration after reboot)
+                var currentPorts = SerialPort.GetPortNames();
+                var newPorts = currentPorts.Except(existingPorts).ToList();
+                
+                if (newPorts.Count > 0)
+                {
+                    Log($"New ports detected: {string.Join(", ", newPorts)}");
+                    
+                    // Small delay to let port stabilize after USB re-enumeration
+                    // Mission Planner uses Thread.Sleep(20) before trying new ports
+                    await Task.Delay(50, ct);
+                }
+                
+                // Try new ports first (likely the bootloader), then all current ports
+                var portsToTry = newPorts.Concat(currentPorts).Distinct().ToList();
+                
+                foreach (var port in portsToTry)
+                {
+                    if (ct.IsCancellationRequested) break;
+                    
+                    try
+                    {
+                        _logger.LogDebug("Trying port {Port} (scan {Scan})", port, scanCount);
+                        
+                        // Run bootloader detection on a background thread to avoid blocking UI
+                        var board = await Task.Run(() => TryDetectPx4BootloaderSync(port), ct);
+                        if (board != null)
+                        {
+                            CurrentBoard = board;
+                            Log($"Bootloader detected on {board.SerialPort} (board type: {board.BoardIdNumeric})");
+                            
+                            // Mission Planner compatible: stabilization delay after detection
+                            // "test if pausing here stops - System.TimeoutException: The write timed out."
+                            await Task.Delay(500, ct);
+                            
+                            UpdateState(FirmwareFlashState.WaitingForBootloader, 100, $"Bootloader detected: {board.BoardName}");
+                            return board;
+                        }
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        throw;
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogDebug(ex, "Failed to detect bootloader on {Port}", port);
+                        // Ignore - port may not be ready or may not be a bootloader
+                    }
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "Error during bootloader detection loop");
             }
             
-            await Task.Delay(500, ct);
+            // Shorter delay for faster detection
+            await Task.Delay(300, ct);
             
             var remaining = timeout - stopwatch.Elapsed;
-            UpdateState(FirmwareFlashState.WaitingForBootloader, 
-                (stopwatch.Elapsed.TotalSeconds / timeout.TotalSeconds) * 100,
-                $"Waiting for bootloader... ({remaining.TotalSeconds:F0}s remaining)");
+            if (remaining.TotalSeconds > 0)
+            {
+                var progressPercent = (stopwatch.Elapsed.TotalSeconds / timeout.TotalSeconds) * 100;
+                UpdateState(FirmwareFlashState.WaitingForBootloader, 
+                    progressPercent,
+                    $"Scanning for bootloader... ({remaining.TotalSeconds:F0}s remaining)");
+            }
         }
         
-        Log("Timeout waiting for bootloader");
+        Log($"Timeout waiting for bootloader after {scanCount} scans");
+        UpdateState(FirmwareFlashState.Idle, 0, "Timeout waiting for bootloader");
         return null;
     }
     
@@ -255,7 +491,7 @@ public sealed class FirmwareService : IFirmwareService, IDisposable
         string? releaseType = null,
         CancellationToken ct = default)
     {
-        Log($"Fetching firmware versions for {vehicleType} on {boardId}... (release={releaseType ?? "official"})");
+        Log($"Fetching firmware versions for {vehicleType} on {boardId}... (release={releaseType ?? "OFFICIAL"})");
         
         try
         {
@@ -266,30 +502,64 @@ public sealed class FirmwareService : IFirmwareService, IDisposable
                 return Array.Empty<FirmwareVersion>();
             }
             
-            // Base filter by vehicle type
+            Log($"Manifest has {manifest.Firmware.Count} entries");
+            
+            // Normalize vehicle type for matching
+            // ArduPilot manifest uses "Copter", "Plane", "Rover", "Sub", "AntennaTracker"
+            var normalizedVehicleType = NormalizeVehicleType(vehicleType);
+            Log($"Normalized vehicle type: '{vehicleType}' -> '{normalizedVehicleType}'");
+            
+            // Debug: Check what unique vehicle types exist in manifest
+            var uniqueVehicleTypes = manifest.Firmware
+                .Select(f => f.VehicleType)
+                .Where(v => !string.IsNullOrEmpty(v))
+                .Distinct()
+                .Take(10)
+                .ToList();
+            Log($"Sample vehicletypes in manifest: {string.Join(", ", uniqueVehicleTypes)}");
+            
+            // Base filter on vehicle type - check multiple fields for better matching
             IEnumerable<FirmwareEntry> baseQuery = manifest.Firmware
-                .Where(f => f.VehicleType.Equals(vehicleType, StringComparison.OrdinalIgnoreCase) ||
-                           f.MavType.Equals(vehicleType, StringComparison.OrdinalIgnoreCase));
+                .Where(f => 
+                    // Match on vehicletype field (case-insensitive)
+                    (!string.IsNullOrEmpty(f.VehicleType) && f.VehicleType.Equals(normalizedVehicleType, StringComparison.OrdinalIgnoreCase)) ||
+                    // Also check URL path for vehicle type (e.g., /Copter/, /Plane/)
+                    (!string.IsNullOrEmpty(f.Url) && f.Url.Contains($"/{normalizedVehicleType}/", StringComparison.OrdinalIgnoreCase)));
+            
+            var vehicleMatchCount = baseQuery.Count();
+            Log($"Found {vehicleMatchCount} entries matching vehicle type '{normalizedVehicleType}'");
 
             // Apply release/format filters
             IEnumerable<FirmwareEntry> ApplyCommonFilters(IEnumerable<FirmwareEntry> query)
             {
                 var filtered = query;
 
+                // Filter by release type
+                // Mission Planner convention: OFFICIAL = stable, BETA, DEV = latest/dev
                 if (!string.IsNullOrWhiteSpace(releaseType))
                 {
-                    filtered = filtered.Where(f => string.Equals(f.MavFirmwareVersionType, releaseType, StringComparison.OrdinalIgnoreCase));
+                    // Map common aliases
+                    var normalizedRelease = releaseType.ToUpperInvariant() switch
+                    {
+                        "STABLE" => "OFFICIAL",  // Map STABLE to OFFICIAL
+                        _ => releaseType.ToUpperInvariant()
+                    };
+                    
+                    filtered = filtered.Where(f => 
+                        f.ReleaseCategory.Equals(normalizedRelease, StringComparison.OrdinalIgnoreCase));
                 }
                 else
                 {
+                    // Default to OFFICIAL (stable) releases
                     filtered = filtered.Where(f =>
-                        f.MavFirmwareVersionType.Equals("OFFICIAL", StringComparison.OrdinalIgnoreCase) ||
-                        f.MavFirmwareVersionType.Equals("STABLE", StringComparison.OrdinalIgnoreCase));
+                        f.ReleaseCategory.Equals("OFFICIAL", StringComparison.OrdinalIgnoreCase));
                 }
 
+                // Only APJ and PX4 formats are flashable
                 filtered = filtered.Where(f =>
-                    f.Format.Equals("apj", StringComparison.OrdinalIgnoreCase) || 
-                    f.Format.Equals("px4", StringComparison.OrdinalIgnoreCase));
+                    !string.IsNullOrEmpty(f.Format) &&
+                    (f.Format.Equals("apj", StringComparison.OrdinalIgnoreCase) || 
+                     f.Format.Equals("px4", StringComparison.OrdinalIgnoreCase)));
 
                 return filtered;
             }
@@ -298,32 +568,74 @@ public sealed class FirmwareService : IFirmwareService, IDisposable
             IEnumerable<FirmwareEntry> boardScoped = baseQuery;
             if (!string.IsNullOrWhiteSpace(boardId))
             {
-                boardScoped = baseQuery.Where(f =>
-                    f.BoardId.Equals(boardId, StringComparison.OrdinalIgnoreCase) ||
+                // Debug: show sample platforms for this vehicle type
+                var samplePlatforms = baseQuery
+                    .Where(f => !string.IsNullOrEmpty(f.Format) && f.Format.Equals("apj", StringComparison.OrdinalIgnoreCase))
+                    .Select(f => f.Platform)
+                    .Where(p => !string.IsNullOrEmpty(p))
+                    .Distinct()
+                    .Take(15)
+                    .ToList();
+                Log($"Sample platforms for {normalizedVehicleType}: {string.Join(", ", samplePlatforms)}");
+                
+                // PRIORITY 1: Try exact platform match first (case-insensitive)
+                var exactMatch = baseQuery.Where(f =>
+                    !string.IsNullOrEmpty(f.Platform) &&
                     f.Platform.Equals(boardId, StringComparison.OrdinalIgnoreCase));
+                
+                var exactMatchCount = exactMatch.Count();
+                Log($"Found {exactMatchCount} exact matches for platform '{boardId}'");
+                
+                if (exactMatchCount > 0)
+                {
+                    // Use exact matches only
+                    boardScoped = exactMatch;
+                }
+                else
+                {
+                    // PRIORITY 2: Try variant matches (e.g., "CubeOrange" matches "CubeOrange-bdshot")
+                    // Only if no exact match exists
+                    boardScoped = baseQuery.Where(f =>
+                        !string.IsNullOrEmpty(f.Platform) &&
+                        f.Platform.StartsWith(boardId, StringComparison.OrdinalIgnoreCase));
+                        
+                    var variantMatchCount = boardScoped.Count();
+                    Log($"Found {variantMatchCount} variant matches for board '{boardId}'");
+                }
             }
 
             var query = ApplyCommonFilters(boardScoped);
+            var filteredCount = query.Count();
+            Log($"After release/format filters: {filteredCount} entries");
 
-            // Fallback: any board for this vehicle type
+            // Fallback: try without board filter if no results
             if (!query.Any() && !string.IsNullOrWhiteSpace(boardId))
             {
-                _logger.LogWarning("No firmware found for {Vehicle}/{Board}. Falling back to any board.", vehicleType, boardId);
+                _logger.LogWarning("No firmware found for {Vehicle}/{Board}. Trying all boards.", vehicleType, boardId);
                 query = ApplyCommonFilters(baseQuery);
+                
+                // Take only the first few unique platforms as suggestions
+                var uniquePlatforms = query.Select(f => f.Platform).Where(p => !string.IsNullOrEmpty(p)).Distinct().Take(5).ToList();
+                if (uniquePlatforms.Any())
+                {
+                    Log($"Available platforms: {string.Join(", ", uniquePlatforms)}");
+                }
             }
 
             var versions = query
                 .Select(f => new FirmwareVersion
                 {
-                    Version = f.MavFirmwareVersion,
-                    ReleaseType = f.MavFirmwareVersionType ?? "stable",
-                    BoardType = f.BoardId,
-                    DownloadUrl = f.Url,
-                    GitHash = f.GitHash,
+                    Version = f.MavFirmwareVersion ?? f.MavFirmwareVersionStr ?? "unknown",
+                    ReleaseType = f.ReleaseCategory,
+                    BoardType = f.Platform ?? "",
+                    BoardId = f.BoardIdNumeric ?? 0,
+                    DownloadUrl = f.Url ?? "",
+                    GitHash = f.GitHash ?? "",
                     IsLatest = f.Latest,
-                    Platform = f.Platform,
-                    Format = f.Format
+                    Platform = f.Platform ?? "",
+                    Format = f.Format ?? ""
                 })
+                .Where(v => !string.IsNullOrEmpty(v.DownloadUrl)) // Must have a download URL
                 .OrderByDescending(v => v.IsLatest)
                 .ThenByDescending(v => v.Version)
                 .ToList();
@@ -338,6 +650,56 @@ public sealed class FirmwareService : IFirmwareService, IDisposable
         }
     }
     
+    /// <summary>
+    /// Normalizes vehicle type string to match ArduPilot manifest naming convention.
+    /// </summary>
+    private string NormalizeVehicleType(string vehicleType)
+    {
+        // Handle common variants and aliases
+        var lower = vehicleType.ToLowerInvariant();
+        
+        // All copter variants use "Copter" firmware
+        if (lower.Contains("copter") || lower == "quad" || lower == "hexa" || 
+            lower == "octa" || lower == "tri" || lower == "y6" || lower == "deca" ||
+            lower == "single" || lower == "coax")
+        {
+            return "Copter";
+        }
+        
+        // Helicopter uses Copter-heli
+        if (lower == "heli" || lower.Contains("helicopter"))
+        {
+            return "Copter-heli";
+        }
+        
+        // Plane variants
+        if (lower.Contains("plane") || lower.Contains("wing") || lower == "quadplane")
+        {
+            return "Plane";
+        }
+        
+        // Rover/ground vehicles
+        if (lower.Contains("rover") || lower.Contains("ground") || lower.Contains("boat"))
+        {
+            return "Rover";
+        }
+        
+        // Submarine
+        if (lower == "sub" || lower.Contains("submarine") || lower.Contains("rov"))
+        {
+            return "Sub";
+        }
+        
+        // Antenna tracker
+        if (lower.Contains("tracker") || lower.Contains("antenna"))
+        {
+            return "AntennaTracker";
+        }
+        
+        // Return as-is for already normalized values
+        return vehicleType;
+    }
+    
     public async Task<string?> GetLocalFirmwarePathAsync(string vehicleTypeId, CancellationToken ct = default)
     {
         try
@@ -347,7 +709,7 @@ public sealed class FirmwareService : IFirmwareService, IDisposable
                 Directory.CreateDirectory(_localFirmwareDirectory);
             }
 
-            var patterns = new[] { "*.apj", "*.px4", "*.bin", "*.hex" };
+            var patterns = new[] { "*.apj", "*.px4", "*.bin", ".hex" };
             var files = patterns.SelectMany(p => Directory.GetFiles(_localFirmwareDirectory, p)).ToList();
             var match = files.FirstOrDefault(f =>
                 Path.GetFileName(f).Contains(vehicleTypeId, StringComparison.OrdinalIgnoreCase));
@@ -385,64 +747,82 @@ public sealed class FirmwareService : IFirmwareService, IDisposable
             
             Log($"Starting firmware flash for {vehicleType.Name}...");
             
-            // Step 1: Detect board
-            var board = CurrentBoard ?? await DetectBoardAsync(token);
-            if (board == null)
+            // Step 1: Close any existing MAVLink connection
+            if (_connectionService?.IsConnected == true)
             {
-                return CreateFailResult("No board detected. Please connect your flight controller.", sw.Elapsed);
+                Log("Closing existing MAVLink connection...");
+                await _connectionService.DisconnectAsync();
+                await Task.Delay(500, token);
             }
             
-            boardId ??= board.BoardId;
+            // Step 2: Detect board
+            Log("Detecting board...");
+            var board = CurrentBoard ?? await DetectBoardAsync(token);
+            var platformName = boardId ?? board?.BoardId ?? "fmuv2";
             
-            // Step 2: Get firmware list with release filter
-            var versions = await GetAvailableFirmwareVersionsAsync(vehicleType.ArduPilotId, boardId, releaseType, token);
+            // Step 3: Get firmware
+            var versions = await GetAvailableFirmwareVersionsAsync(vehicleType.ArduPilotId, platformName, releaseType, token);
             var latestVersion = versions.FirstOrDefault(v => v.IsLatest) ?? versions.FirstOrDefault();
             
             if (latestVersion == null)
             {
-                return CreateFailResult($"No firmware found for {vehicleType.Name} on {boardId}", sw.Elapsed);
+                return CreateFailResult($"No firmware found for {vehicleType.Name} on {platformName}", sw.Elapsed);
             }
             
-            // Step 3: Download firmware
+            Log($"Selected firmware: {latestVersion.Version}");
+            
+            // Step 4: Download firmware
             var firmwarePath = await DownloadFirmwareAsync(latestVersion.DownloadUrl, null, token);
             if (string.IsNullOrEmpty(firmwarePath))
             {
                 return CreateFailResult("Failed to download firmware", sw.Elapsed);
             }
             
-            // Step 4: Enter bootloader if not already
-            if (!board.IsInBootloader)
+            // Step 5: Enter bootloader if needed
+            if (board == null || !board.IsInBootloader)
             {
                 Log("Rebooting to bootloader...");
-                await RebootToBootloaderAsync(board.SerialPort, token);
+                UpdateState(FirmwareFlashState.WaitingForBootloader, 0, "Rebooting to bootloader...");
                 
+                var existingPorts = new HashSet<string>(SerialPort.GetPortNames());
+                var rebootSuccess = await AttemptRebootToBootloaderAsync(token);
+                
+                if (rebootSuccess)
+                {
+                    await Task.Delay(1500, token); // Wait for USB re-enumeration
+                }
+                
+                // Wait for bootloader
                 board = await WaitForBootloaderAsync(TimeSpan.FromSeconds(30), token);
+                
                 if (board == null)
                 {
-                    return CreateFailResult("Failed to enter bootloader mode. Please manually reset the board while holding the bootloader button.", sw.Elapsed);
+                    return CreateFailResult("Failed to enter bootloader. Hold BOOT button while connecting.", sw.Elapsed);
                 }
             }
             
-            // Step 5: Flash firmware
-            var flashResult = await FlashFirmwareToBootloaderAsync(board.SerialPort, firmwarePath, token);
+            // Stabilization delay (Mission Planner uses 500ms)
+            Log("Stabilizing connection...");
+            await Task.Delay(500, token);
+            
+            // Step 6: Flash
+            var flashResult = await UploadPx4FirmwareAsync(board.SerialPort, firmwarePath, token);
             
             sw.Stop();
             flashResult.Duration = sw.Elapsed;
             flashResult.FirmwareVersion = latestVersion.Version;
-            flashResult.BoardType = boardId;
+            flashResult.BoardType = platformName;
             
             FlashCompleted?.Invoke(this, flashResult);
             return flashResult;
         }
         catch (OperationCanceledException)
         {
-            UpdateState(FirmwareFlashState.Cancelled, 0, "Operation cancelled");
-            return CreateFailResult("Operation cancelled by user", sw.Elapsed);
+            return CreateFailResult("Operation cancelled", sw.Elapsed);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Firmware flash failed");
-            UpdateState(FirmwareFlashState.Failed, 0, $"Flash failed: {ex.Message}");
             return CreateFailResult($"Flash failed: {ex.Message}", sw.Elapsed);
         }
         finally
@@ -450,6 +830,186 @@ public sealed class FirmwareService : IFirmwareService, IDisposable
             IsOperationInProgress = false;
             _operationCts?.Dispose();
             _operationCts = null;
+        }
+    }
+    
+    /// <summary>
+    /// Uploads firmware using PX4/ChibiOS bootloader protocol.
+    /// Matches Mission Planner's UploadPX4() method flow.
+    /// Includes proper error handling for "lost communication" and timeout scenarios.
+    /// </summary>
+    private async Task<FirmwareFlashResult> UploadPx4FirmwareAsync(
+        string portName, 
+        string firmwarePath, 
+        CancellationToken ct)
+    {
+        Log($"Opening PX4 bootloader on {portName}...");
+        
+        using var uploader = new Px4Uploader(_logger);
+        
+        try
+        {
+            // Parse firmware file
+            var firmware = Px4Firmware.FromFile(firmwarePath);
+            Log($"Firmware: board_id={firmware.BoardId}, size={firmware.ImageSize / 1024}KB");
+            
+            if (firmware.ExtFlashImageSize > 0)
+            {
+                Log($"External flash image: {firmware.ExtFlashImageSize / 1024}KB");
+            }
+            
+            // Connect and identify - includes stabilization delay
+            uploader.Open(portName);
+            uploader.Identify();
+            
+            Log($"Bootloader: rev={uploader.BootloaderRevision}, board={uploader.BoardType}, flash={uploader.FlashSize / 1024}KB");
+            
+            // Validate board compatibility
+            if (!BoardCompatibility.AreCompatible(uploader.BoardType, firmware.BoardId))
+            {
+                return CreateFailResult(
+                    $"Firmware not suitable for this board. Board ID: {uploader.BoardType}, Firmware expects: {firmware.BoardId}", 
+                    TimeSpan.Zero);
+            }
+            
+            // Check if same firmware is already installed
+            // Mission Planner compatible: handles IOException and TimeoutException
+            try
+            {
+                if (uploader.IsSameFirmware(firmware.Image, uploader.FlashSize))
+                {
+                    Log("Same firmware already installed - skipping upload");
+                    UpdateState(FirmwareFlashState.Completed, 100, "Same firmware already installed");
+                    return new FirmwareFlashResult
+                    {
+                        Success = true,
+                        Message = "Same firmware already installed - no changes made"
+                    };
+                }
+            }
+            catch (IOException ex)
+            {
+                _logger.LogError(ex, "Lost communication during CRC check");
+                return CreateFailResult("Lost communication with the board during firmware check. Check USB connection.", TimeSpan.Zero);
+            }
+            catch (TimeoutException ex)
+            {
+                _logger.LogError(ex, "Timeout during CRC check");
+                return CreateFailResult("Communication timeout during firmware check. Try reconnecting the board.", TimeSpan.Zero);
+            }
+            catch (Exception ex)
+            {
+                // Non-fatal error during CRC check, continue with flash
+                _logger.LogDebug(ex, "CRC check failed, proceeding with flash");
+            }
+            
+            // Wire up progress events
+            uploader.ProgressEvent += (progress) =>
+            {
+                UpdateState(FirmwareFlashState.Programming, progress,
+                    $"Programming... {progress:F0}%");
+            };
+            
+            uploader.LogEvent += (msg) => Log(msg);
+            
+            // Erase flash
+            UpdateState(FirmwareFlashState.ErasingFlash, 0, "Erasing flash memory...");
+            Log("Erasing flash...");
+            uploader.Erase();
+            Log("Flash erased successfully");
+            
+            // Program external flash if present
+            if (firmware.ExtFlashImageSize > 0 && uploader.ExtFlashSize > 0)
+            {
+                Log("Erasing external flash...");
+                uploader.EraseExternalFlash();
+                
+                Log($"Programming external flash ({firmware.ExtFlashImageSize / 1024}KB)...");
+                uploader.ProgramExternalFlash(firmware.ExtFlashImage);
+                
+                Log("Verifying external flash CRC...");
+                if (!uploader.VerifyExternalFlashCrc(firmware.ExtFlashImage))
+                {
+                    return CreateFailResult("External flash verification failed", TimeSpan.Zero);
+                }
+            }
+            
+            // Program internal flash
+            UpdateState(FirmwareFlashState.Programming, 0, "Programming firmware...");
+            Log($"Programming firmware ({firmware.ImageSize / 1024}KB)...");
+            uploader.Program(firmware.Image);
+            
+            // Verify CRC
+            UpdateState(FirmwareFlashState.Verifying, 90, "Verifying firmware...");
+            Log("Verifying firmware CRC...");
+            if (!uploader.VerifyCrc(firmware.Image, uploader.FlashSize))
+            {
+                return CreateFailResult("Firmware verification failed - CRC mismatch", TimeSpan.Zero);
+            }
+            Log("Firmware verification passed");
+            
+            // Reboot
+            UpdateState(FirmwareFlashState.Rebooting, 95, "Rebooting to firmware...");
+            Log("Rebooting board...");
+            uploader.Reboot();
+            
+            UpdateState(FirmwareFlashState.Completed, 100, "Firmware flashed successfully!");
+            Log("Firmware flash completed successfully!");
+            
+            return new FirmwareFlashResult
+            {
+                Success = true,
+                Message = "Firmware flashed successfully"
+            };
+        }
+        catch (IOException ex)
+        {
+            // Mission Planner compatible: specific handling for "lost communication"
+            _logger.LogError(ex, "Lost communication during PX4 upload");
+            UpdateState(FirmwareFlashState.Failed, 0, "Lost communication with the board");
+            return CreateFailResult(
+                "Lost communication with the board. This often occurs during flash programming. " +
+                "Check USB cable and connection, then try again.", 
+                TimeSpan.Zero);
+        }
+        catch (TimeoutException ex)
+        {
+            _logger.LogError(ex, "Timeout during PX4 upload");
+            UpdateState(FirmwareFlashState.Failed, 0, "Communication timeout");
+            return CreateFailResult(
+                "Communication timeout during flash operation. " +
+                "The board may have disconnected. Try reconnecting and flashing again.", 
+                TimeSpan.Zero);
+        }
+        catch (Exception ex) when (ex.Message.Contains("Same firmware"))
+        {
+            // Not really an error - same firmware already installed
+            Log("Same firmware already installed");
+            UpdateState(FirmwareFlashState.Completed, 100, "Same firmware already installed");
+            return new FirmwareFlashResult
+            {
+                Success = true,
+                Message = "Same firmware already installed - no changes made"
+            };
+        }
+        catch (Exception ex) when (ex.Message.Contains("CRC verification failed"))
+        {
+            _logger.LogError(ex, "CRC verification failed");
+            UpdateState(FirmwareFlashState.Failed, 0, "Program CRC verification failed");
+            return CreateFailResult(
+                "Program CRC verification failed. The firmware may not have been programmed correctly. " +
+                "Try flashing again. If problem persists, check USB cable and try a different USB port.",
+                TimeSpan.Zero);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "PX4 upload failed");
+            UpdateState(FirmwareFlashState.Failed, 0, $"Flash failed: {ex.Message}");
+            return CreateFailResult($"Flash failed: {ex.Message}", TimeSpan.Zero);
+        }
+        finally
+        {
+            uploader.Close();
         }
     }
     
@@ -474,6 +1034,12 @@ public sealed class FirmwareService : IFirmwareService, IDisposable
                 return CreateFailResult($"Invalid firmware file: {message}", sw.Elapsed);
             }
             
+            // Close any existing connection
+            if (_connectionService?.IsConnected == true)
+            {
+                await _connectionService.DisconnectAsync();
+            }
+            
             // Detect or wait for board in bootloader
             var board = CurrentBoard;
             if (board == null || !board.IsInBootloader)
@@ -490,7 +1056,7 @@ public sealed class FirmwareService : IFirmwareService, IDisposable
             }
             
             // Flash the firmware
-            var flashResult = await FlashFirmwareToBootloaderAsync(board.SerialPort, firmwareFilePath, token);
+            var flashResult = await UploadPx4FirmwareAsync(board.SerialPort, firmwareFilePath, token);
             
             sw.Stop();
             flashResult.Duration = sw.Elapsed;
@@ -548,8 +1114,8 @@ public sealed class FirmwareService : IFirmwareService, IDisposable
                 }
             }
             
-            // Flash
-            var result = await FlashFirmwareToBootloaderAsync(board.SerialPort, firmwarePath, token);
+            // Flash using PX4 uploader
+            var result = await UploadPx4FirmwareAsync(board.SerialPort, firmwarePath, token);
             result.FirmwareVersion = version.Version;
             result.BoardType = version.BoardType;
             result.Duration = sw.Elapsed;
@@ -627,135 +1193,15 @@ public sealed class FirmwareService : IFirmwareService, IDisposable
         }
     }
     
-    private async Task<FirmwareFlashResult> FlashFirmwareToBootloaderAsync(
-        string portName, 
-        string firmwarePath, 
-        CancellationToken ct)
-    {
-        Log($"Opening bootloader on {portName}...");
-        
-        using var port = new SerialPort(portName)
-        {
-            BaudRate = 115200,
-            DataBits = 8,
-            Parity = Parity.None,
-            StopBits = StopBits.One,
-            ReadTimeout = 5000,
-            WriteTimeout = 5000
-        };
-        
-        try
-        {
-            port.Open();
-            
-            // Sync with bootloader
-            if (!await _bootloader.TrySyncAsync(port, ct))
-            {
-                return CreateFailResult("Failed to sync with bootloader", TimeSpan.Zero);
-            }
-            
-            Log("Bootloader sync successful");
-            
-            // Read firmware file
-            var firmwareData = await File.ReadAllBytesAsync(firmwarePath, ct);
-            Log($"Firmware size: {firmwareData.Length / 1024}KB");
-            
-            // Parse APJ if needed
-            if (firmwarePath.EndsWith(".apj", StringComparison.OrdinalIgnoreCase))
-            {
-                firmwareData = ParseApjFile(firmwareData);
-            }
-            
-            // Erase flash
-            UpdateState(FirmwareFlashState.ErasingFlash, 0, "Erasing flash memory...");
-            Log("Erasing flash...");
-            
-            if (!await _bootloader.EraseFlashAsync(port, ct))
-            {
-                return CreateFailResult("Failed to erase flash", TimeSpan.Zero);
-            }
-            
-            Log("Flash erased successfully");
-            
-            // Program flash
-            UpdateState(FirmwareFlashState.Programming, 0, "Programming firmware...");
-            Log("Programming firmware...");
-            
-            var programResult = await _bootloader.ProgramFlashAsync(port, firmwareData, 
-                (percent, bytesWritten, totalBytes) =>
-                {
-                    UpdateState(FirmwareFlashState.Programming, percent,
-                        $"Programming... {bytesWritten / 1024}KB / {totalBytes / 1024}KB");
-                }, ct);
-            
-            if (!programResult)
-            {
-                return CreateFailResult("Failed to program firmware", TimeSpan.Zero);
-            }
-            
-            Log("Programming complete");
-            
-            // Verify (optional but recommended)
-            UpdateState(FirmwareFlashState.Verifying, 0, "Verifying firmware...");
-            Log("Verifying firmware...");
-            
-            // For now, skip detailed verification and just reboot
-            
-            // Reboot
-            UpdateState(FirmwareFlashState.Rebooting, 0, "Rebooting to firmware...");
-            Log("Rebooting board...");
-            
-            await _bootloader.RebootAsync(port, ct);
-            
-            UpdateState(FirmwareFlashState.Completed, 100, "Firmware flashed successfully!");
-            Log("Firmware flash completed successfully!");
-            
-            return new FirmwareFlashResult
-            {
-                Success = true,
-                Message = "Firmware flashed successfully"
-            };
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Flash operation failed");
-            UpdateState(FirmwareFlashState.Failed, 0, $"Flash failed: {ex.Message}");
-            return CreateFailResult($"Flash failed: {ex.Message}", TimeSpan.Zero);
-        }
-        finally
-        {
-            if (port.IsOpen) port.Close();
-        }
-    }
-    
-    private byte[] ParseApjFile(byte[] apjData)
-    {
-        try
-        {
-            var json = System.Text.Encoding.UTF8.GetString(apjData);
-            using var doc = JsonDocument.Parse(json);
-            
-            if (doc.RootElement.TryGetProperty("image", out var imageElement))
-            {
-                var base64 = imageElement.GetString();
-                if (!string.IsNullOrEmpty(base64))
-                {
-                    return Convert.FromBase64String(base64);
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Failed to parse APJ file, using raw data");
-        }
-        
-        return apjData;
-    }
-    
     #endregion
     
     #region Bootloader Operations
     
+    /// <summary>
+    /// Updates the bootloader on the connected board.
+    /// Note: Bootloader update is a specialized operation that requires specific bootloader firmware.
+    /// This sends the MAV_CMD_FLASH_BOOTLOADER command via MAVLink when connected.
+    /// </summary>
     public async Task<FirmwareFlashResult> UpdateBootloaderAsync(CancellationToken ct = default)
     {
         var sw = Stopwatch.StartNew();
@@ -767,39 +1213,54 @@ public sealed class FirmwareService : IFirmwareService, IDisposable
             var token = _operationCts.Token;
             
             Log("Starting bootloader update...");
+            UpdateState(FirmwareFlashState.Programming, 0, "Updating bootloader...");
             
-            // Detect board
-            var board = CurrentBoard ?? await DetectBoardAsync(token);
-            if (board == null)
+            // Bootloader update requires an active MAVLink connection
+            if (_connectionService?.IsConnected != true)
             {
-                return CreateFailResult("No board detected", sw.Elapsed);
+                return CreateFailResult(
+                    "Bootloader update requires an active MAVLink connection to the flight controller.", 
+                    sw.Elapsed);
             }
             
-            // Download appropriate bootloader
-            var boardInfo = CommonBoards.SupportedBoards
-                .FirstOrDefault(b => b.Id.Equals(board.BoardId, StringComparison.OrdinalIgnoreCase));
+            // Send MAV_CMD_FLASH_BOOTLOADER command
+            // Magic value 290876 confirms the operation (matches Mission Planner)
+            Log("Sending bootloader update command...");
+            _connectionService.SendFlashBootloaderCommand(290876);
             
-            if (boardInfo == null || !boardInfo.SupportsBootloaderUpdate)
+            // Wait for the operation to complete
+            // Bootloader update can take several seconds
+            await Task.Delay(5000, token);
+            
+            Log("Bootloader update command sent. Board will reboot automatically.");
+            UpdateState(FirmwareFlashState.Completed, 100, "Bootloader update initiated");
+            
+            sw.Stop();
+            
+            var result = new FirmwareFlashResult
             {
-                return CreateFailResult($"Bootloader update not supported for {board.BoardName}", sw.Elapsed);
-            }
-            
-            // For now, return a message that this feature requires the bootloader binary
-            // In production, you would download from firmware.ardupilot.org/Tools/Bootloaders/
-            
-            Log("Bootloader update requires manual bootloader file selection");
-            
-            return new FirmwareFlashResult
-            {
-                Success = false,
-                Message = "Bootloader update requires selecting a bootloader file. Please use the manual update option.",
+                Success = true,
+                Message = "Bootloader update command sent successfully. Board will update and reboot.",
                 Duration = sw.Elapsed
             };
+            
+            FlashCompleted?.Invoke(this, result);
+            return result;
+        }
+        catch (NotSupportedException)
+        {
+            return CreateFailResult(
+                "Bootloader update is not supported via the current connection type.", 
+                sw.Elapsed);
+        }
+        catch (OperationCanceledException)
+        {
+            return CreateFailResult("Operation cancelled", sw.Elapsed);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Bootloader update failed");
-            return CreateFailResult($"Update failed: {ex.Message}", sw.Elapsed);
+            return CreateFailResult($"Bootloader update failed: {ex.Message}", sw.Elapsed);
         }
         finally
         {
@@ -809,100 +1270,321 @@ public sealed class FirmwareService : IFirmwareService, IDisposable
         }
     }
     
-    public async Task<bool> RebootToBootloaderAsync(string serialPort, CancellationToken ct = default)
+    /// <summary>
+    /// Attempts to reboot the FC into bootloader mode - Mission Planner equivalent.
+    /// This follows Mission Planner's AttemptRebootToBootloader() flow:
+    /// 1. Check if any port is already in bootloader mode
+    /// 2. Try MAVLink reboot command on all ports with ArduPilot firmware
+    /// 3. Wait for USB re-enumeration
+    /// </summary>
+    public async Task<bool> AttemptRebootToBootloaderAsync(CancellationToken ct = default)
     {
-        Log($"Attempting to reboot {serialPort} to bootloader...");
+        Log("Attempting to reboot flight controller to bootloader...");
         
+        var allPorts = SerialPort.GetPortNames();
+        Log($"Found {allPorts.Length} serial ports: {string.Join(", ", allPorts)}");
+        
+        // Step 1: Check if already in bootloader mode on any port
+        foreach (var port in allPorts)
+        {
+            if (ct.IsCancellationRequested) break;
+            
+            try
+            {
+                Log($"Checking if {port} is already in bootloader mode...");
+                var board = TryDetectPx4BootloaderSync(port);
+                if (board != null)
+                {
+                    Log($"Board already in bootloader mode on {port}");
+                    CurrentBoard = board;
+                    return true;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "Port {Port} is not in bootloader", port);
+            }
+        }
+        
+        // Step 2: Try to use connection service to reboot if connected
+        if (_connectionService?.IsConnected == true)
+        {
+            try
+            {
+                Log("Sending MAVLink reboot-to-bootloader command via connection service...");
+                _connectionService.SendPreflightReboot(3, 0); // param1=3 for bootloader
+                await Task.Delay(500, ct);
+                
+                // Disconnect to release the port
+                await _connectionService.DisconnectAsync();
+                Log("MAVLink reboot command sent, connection closed");
+                return true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to send reboot via connection service");
+            }
+        }
+        
+        // Step 3: Try MAVLink reboot command directly on each port
+        foreach (var port in allPorts)
+        {
+            if (ct.IsCancellationRequested) break;
+            
+            try
+            {
+                Log($"Trying MAVLink reboot to bootloader on {port}...");
+                var success = await TrySendMavlinkRebootToBootloaderAsync(port, ct);
+                if (success)
+                {
+                    Log($"Reboot command sent successfully on {port}");
+                    return true;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "Failed to send reboot on {Port}", port);
+            }
+        }
+        
+        Log("Could not send reboot command to any port");
+        return false;
+    }
+    
+    /// <summary>
+    /// Tries to send MAVLink reboot-to-bootloader command on a specific port.
+    /// Opens the port, checks for MAVLink heartbeat, sends reboot command.
+    /// </summary>
+    private async Task<bool> TrySendMavlinkRebootToBootloaderAsync(string portName, CancellationToken ct)
+    {
+        SerialPort? port = null;
         try
         {
-            using var port = new SerialPort(serialPort)
+            port = new SerialPort(portName)
             {
                 BaudRate = 115200,
+                DataBits = 8,
+                Parity = Parity.None,
+                StopBits = StopBits.One,
+                ReadTimeout = 1000,
+                WriteTimeout = 1000,
                 DtrEnable = true,
                 RtsEnable = true
             };
             
             port.Open();
+            port.DiscardInBuffer();
             
-            // Method 1: Send MAVLink reboot command to bootloader
-            // MAV_CMD_PREFLIGHT_REBOOT_SHUTDOWN with param1 = 3 (bootloader)
-            var rebootCmd = BuildMavlinkRebootToBootloaderCommand();
-            port.Write(rebootCmd, 0, rebootCmd.Length);
+            // Wait for any incoming data (heartbeat)
+            await Task.Delay(300, ct);
             
-            await Task.Delay(100, ct);
-            
-            // Toggle DTR/RTS to trigger hardware reset
-            port.DtrEnable = false;
-            port.RtsEnable = false;
-            await Task.Delay(100, ct);
-            port.DtrEnable = true;
-            port.RtsEnable = true;
+            // Check if we see MAVLink data
+            if (port.BytesToRead > 0)
+            {
+                var buffer = new byte[Math.Min(port.BytesToRead, 512)];
+                port.Read(buffer, 0, buffer.Length);
+                
+                // Look for MAVLink start bytes
+                bool hasMavlink = buffer.Any(b => b == 0xFE || b == 0xFD);
+                
+                if (hasMavlink)
+                {
+                    Log($"MAVLink detected on {portName}, sending reboot command...");
+                    
+                    // Send the reboot command
+                    var rebootCmd = BuildMavlinkRebootToBootloaderCommandV2();
+                    port.Write(rebootCmd, 0, rebootCmd.Length);
+                    
+                    // Also try v1 format for compatibility
+                    await Task.Delay(50, ct);
+                    var rebootCmdV1 = BuildMavlinkRebootToBootloaderCommandV1();
+                    port.Write(rebootCmdV1, 0, rebootCmdV1.Length);
+                    
+                    // Give time for command to be processed
+                    await Task.Delay(200, ct);
+                    
+                    // Toggle DTR/RTS as backup hardware reset
+                    port.DtrEnable = false;
+                    port.RtsEnable = false;
+                    await Task.Delay(100, ct);
+                    port.DtrEnable = true;
+                    port.RtsEnable = true;
+                    
+                    port.Close();
+                    return true;
+                }
+            }
             
             port.Close();
-            
-            Log("Reboot command sent");
-            return true;
+            return false;
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to send reboot command");
+            _logger.LogDebug(ex, "Error on port {Port}", portName);
+            try { port?.Close(); } catch { }
             return false;
         }
     }
     
-    private byte[] BuildMavlinkRebootToBootloaderCommand()
+    public async Task<bool> RebootToBootloaderAsync(string serialPort, CancellationToken ct = default)
     {
-        // Build MAV_CMD_PREFLIGHT_REBOOT_SHUTDOWN (246) with param1 = 3 (bootloader)
-        // This is a simplified MAVLink v1 COMMAND_LONG message
+        Log($"Attempting to reboot {serialPort} to bootloader...");
         
-        var payload = new byte[33];
-        // param1 = 3 (reboot to bootloader)
-        BitConverter.GetBytes(3.0f).CopyTo(payload, 0);
-        // params 2-7 = 0
-        // command = 246
-        BitConverter.GetBytes((ushort)246).CopyTo(payload, 28);
-        // target system = 1, component = 1
-        payload[30] = 1;
-        payload[31] = 1;
-        payload[32] = 0; // confirmation
-        
-        // Build frame
-        var frame = new byte[8 + 33];
-        frame[0] = 0xFE; // MAVLink v1
-        frame[1] = 33;   // payload length
-        frame[2] = 0;    // sequence
-        frame[3] = 255;  // GCS system ID
-        frame[4] = 190;  // GCS component ID
-        frame[5] = 76;   // COMMAND_LONG message ID
-        
-        Array.Copy(payload, 0, frame, 6, 33);
-        
-        // Calculate CRC (simplified - proper implementation should use X.25 CRC)
-        ushort crc = CalculateMavlinkCrc(frame, 1, 38, 152); // CRC_EXTRA for COMMAND_LONG
-        frame[39] = (byte)(crc & 0xFF);
-        frame[40] = (byte)((crc >> 8) & 0xFF);
-        
-        return frame;
+        // Use the comprehensive approach
+        return await AttemptRebootToBootloaderAsync(ct);
     }
     
-    private ushort CalculateMavlinkCrc(byte[] buffer, int offset, int length, byte crcExtra)
+    /// <summary>
+    /// Builds MAVLink v1 COMMAND_LONG message for reboot to bootloader.
+    /// MAV_CMD_PREFLIGHT_REBOOT_SHUTDOWN (246) with param1=3 (stay in bootloader)
+    /// </summary>
+    private byte[] BuildMavlinkRebootToBootloaderCommandV1()
+    {
+        // MAVLink v1 COMMAND_LONG message structure:
+        // Header: STX(1) + LEN(1) + SEQ(1) + SYSID(1) + COMPID(1) + MSGID(1) = 6 bytes
+        // Payload: 33 bytes for COMMAND_LONG
+        // Checksum: 2 bytes
+        // Total: 41 bytes
+        
+        var payload = new byte[33];
+        
+        // param1 = 3.0f (reboot to bootloader) - bytes 0-3
+        BitConverter.GetBytes(3.0f).CopyTo(payload, 0);
+        // param2 = 0.0f - bytes 4-7
+        BitConverter.GetBytes(0.0f).CopyTo(payload, 4);
+        // param3 = 0.0f - bytes 8-11
+        BitConverter.GetBytes(0.0f).CopyTo(payload, 8);
+        // param4 = 0.0f - bytes 12-15
+        BitConverter.GetBytes(0.0f).CopyTo(payload, 12);
+        // param5 = 0.0f - bytes 16-19
+        BitConverter.GetBytes(0.0f).CopyTo(payload, 16);
+        // param6 = 0.0f - bytes 20-23
+        BitConverter.GetBytes(0.0f).CopyTo(payload, 20);
+        // param7 = 0.0f - bytes 24-27
+        BitConverter.GetBytes(0.0f).CopyTo(payload, 24);
+        // command = 246 (MAV_CMD_PREFLIGHT_REBOOT_SHUTDOWN) - bytes 28-29
+        BitConverter.GetBytes((ushort)246).CopyTo(payload, 28);
+        // target_system = 1 - byte 30
+        payload[30] = 1;
+        // target_component = 1 - byte 31
+        payload[31] = 1;
+        // confirmation = 0 - byte 32
+        payload[32] = 0;
+        
+        // Build the full message
+        var message = new byte[41];
+        message[0] = 0xFE;  // MAVLink v1 start
+        message[1] = 33;    // Payload length
+        message[2] = 0;     // Sequence
+        message[3] = 255;   // System ID (GCS)
+        message[4] = 190;   // Component ID (GCS)
+        message[5] = 76;    // Message ID (COMMAND_LONG)
+        
+        Array.Copy(payload, 0, message, 6, 33);
+        
+        // Calculate CRC (X.25)
+        ushort crc = CalculateX25Crc(message, 1, 38); // length + payload
+        // Add CRC_EXTRA for COMMAND_LONG (152)
+        crc = CrcAccumulate(152, crc);
+        
+        message[39] = (byte)(crc & 0xFF);
+        message[40] = (byte)((crc >> 8) & 0xFF);
+        
+        return message;
+    }
+    
+    /// <summary>
+    /// Builds MAVLink v2 COMMAND_LONG message for reboot to bootloader.
+    /// </summary>
+    private byte[] BuildMavlinkRebootToBootloaderCommandV2()
+    {
+        // MAVLink v2 COMMAND_LONG message structure:
+        // Header: STX(1) + LEN(1) + INCOMPAT(1) + COMPAT(1) + SEQ(1) + SYSID(1) + COMPID(1) + MSGID(3) = 10 bytes
+        // Payload: 33 bytes for COMMAND_LONG
+        // Checksum: 2 bytes
+        // Total: 45 bytes
+        
+        var payload = new byte[33];
+        
+        // param1 = 3.0f (reboot to bootloader)
+        BitConverter.GetBytes(3.0f).CopyTo(payload, 0);
+        // param2-7 = 0.0f
+        BitConverter.GetBytes(0.0f).CopyTo(payload, 4);
+        BitConverter.GetBytes(0.0f).CopyTo(payload, 8);
+        BitConverter.GetBytes(0.0f).CopyTo(payload, 12);
+        BitConverter.GetBytes(0.0f).CopyTo(payload, 16);
+        BitConverter.GetBytes(0.0f).CopyTo(payload, 20);
+        BitConverter.GetBytes(0.0f).CopyTo(payload, 24);
+        // command = 246
+        BitConverter.GetBytes((ushort)246).CopyTo(payload, 28);
+        // target_system = 1
+        payload[30] = 1;
+        // target_component = 1
+        payload[31] = 1;
+        // confirmation = 0
+        payload[32] = 0;
+        
+        // Build the full message
+        var message = new byte[45];
+        message[0] = 0xFD;  // MAVLink v2 start
+        message[1] = 33;    // Payload length
+        message[2] = 0;     // Incompatibility flags
+        message[3] = 0;     // Compatibility flags
+        message[4] = 0;     // Sequence
+        message[5] = 255;   // System ID (GCS)
+        message[6] = 190;   // Component ID (GCS)
+        message[7] = 76;    // Message ID low byte (COMMAND_LONG)
+        message[8] = 0;     // Message ID mid byte
+        message[9] = 0;     // Message ID high byte
+        
+        Array.Copy(payload, 0, message, 10, 33);
+        
+        // Calculate CRC
+        ushort crc = CalculateX25Crc(message, 1, 42); // from length to end of payload
+        // Add CRC_EXTRA for COMMAND_LONG (152)
+        crc = CrcAccumulate(152, crc);
+        
+        message[43] = (byte)(crc & 0xFF);
+        message[44] = (byte)((crc >> 8) & 0xFF);
+        
+        return message;
+    }
+    
+    /// <summary>
+    /// X.25 CRC calculation used by MAVLink
+    /// </summary>
+    private ushort CalculateX25Crc(byte[] buffer, int offset, int length)
     {
         ushort crc = 0xFFFF;
         
         for (int i = 0; i < length; i++)
         {
-            byte b = buffer[offset + i];
-            b ^= (byte)(crc & 0xFF);
-            b ^= (byte)(b << 4);
-            crc = (ushort)((crc >> 8) ^ (b << 8) ^ (b << 3) ^ (b >> 4));
+            crc = CrcAccumulate(buffer[offset + i], crc);
         }
         
-        // Add CRC extra
-        byte extra = crcExtra;
-        extra ^= (byte)(crc & 0xFF);
-        extra ^= (byte)(extra << 4);
-        crc = (ushort)((crc >> 8) ^ (extra << 8) ^ (extra << 3) ^ (extra >> 4));
-        
+        return crc;
+    }
+    
+    /// <summary>
+    /// Accumulate one byte into CRC
+    /// </summary>
+    private ushort CrcAccumulate(byte b, ushort crc)
+    {
+        byte ch = (byte)(b ^ (byte)(crc & 0x00FF));
+        ch = (byte)(ch ^ (ch << 4));
+        return (ushort)((crc >> 8) ^ (ch << 8) ^ (ch << 3) ^ (ch >> 4));
+    }
+    
+    private byte[] BuildMavlinkRebootToBootloaderCommand()
+    {
+        // Use v1 for broader compatibility
+        return BuildMavlinkRebootToBootloaderCommandV1();
+    }
+    
+    private ushort CalculateMavlinkCrc(byte[] buffer, int offset, int length, byte crcExtra)
+    {
+        ushort crc = CalculateX25Crc(buffer, offset, length);
+        crc = CrcAccumulate(crcExtra, crc);
         return crc;
     }
     
@@ -916,16 +1598,11 @@ public sealed class FirmwareService : IFirmwareService, IDisposable
         
         try
         {
-            using var port = new SerialPort(CurrentBoard.SerialPort)
-            {
-                BaudRate = 115200,
-                ReadTimeout = 2000,
-                WriteTimeout = 2000
-            };
-            
-            port.Open();
-            await _bootloader.RebootAsync(port, ct);
-            port.Close();
+            // Use Px4Uploader to send reboot command to bootloader
+            using var uploader = new Px4Uploader(_logger);
+            uploader.Open(CurrentBoard.SerialPort);
+            uploader.Reboot();
+            uploader.Close();
             
             Log("Board rebooted to firmware");
             return true;
@@ -1004,20 +1681,36 @@ public sealed class FirmwareService : IFirmwareService, IDisposable
     {
         try
         {
+            // Check cache first
+            if (_cachedManifest != null && DateTime.Now - _manifestCacheTime < _manifestCacheDuration)
+            {
+                Log($"Using cached manifest ({_cachedManifest.Firmware.Count} entries)");
+                return _cachedManifest;
+            }
+            
             Log("Fetching firmware manifest...");
 
-            var manifestJson = await FetchManifestWithRetryAsync(ct);
-            if (string.IsNullOrWhiteSpace(manifestJson))
+            // Try JSON manifest first (preferred)
+            var manifest = await FetchJsonManifestAsync(ct);
+            
+            // Fallback to XML firmware list if JSON fails
+            if (manifest == null || manifest.Firmware.Count == 0)
             {
-                return null;
+                Log("JSON manifest failed, trying XML firmware list...");
+                manifest = await FetchXmlFirmwareListAsync(ct);
             }
-
-            var manifest = JsonSerializer.Deserialize<FirmwareManifest>(manifestJson, new JsonSerializerOptions
+            
+            if (manifest != null && manifest.Firmware.Count > 0)
             {
-                PropertyNameCaseInsensitive = true
-            });
-
-            Log($"Manifest loaded: {manifest?.Firmware.Count ?? 0} entries");
+                _cachedManifest = manifest;
+                _manifestCacheTime = DateTime.Now;
+                Log($"Manifest loaded: {manifest.Firmware.Count} entries");
+            }
+            else
+            {
+                Log("Failed to fetch firmware manifest from all sources");
+            }
+            
             return manifest;
         }
         catch (Exception ex)
@@ -1027,7 +1720,7 @@ public sealed class FirmwareService : IFirmwareService, IDisposable
         }
     }
 
-    private async Task<string?> FetchManifestWithRetryAsync(CancellationToken ct)
+    private async Task<FirmwareManifest?> FetchJsonManifestAsync(CancellationToken ct)
     {
         var endpoints = new[] { FIRMWARE_MANIFEST_URL_GZ, FIRMWARE_MANIFEST_URL };
         const int maxAttemptsPerEndpoint = 2;
@@ -1038,33 +1731,234 @@ public sealed class FirmwareService : IFirmwareService, IDisposable
             {
                 try
                 {
+                    Log($"Trying {endpoint} (attempt {attempt})...");
+                    
+                    string json;
+                    
                     if (endpoint.EndsWith(".gz", StringComparison.OrdinalIgnoreCase))
                     {
-                        using var response = await _httpClient.GetAsync(endpoint, ct);
-                        response.EnsureSuccessStatusCode();
-                        await using var stream = await response.Content.ReadAsStreamAsync(ct);
-                        await using var gzipStream = new System.IO.Compression.GZipStream(stream, System.IO.Compression.CompressionMode.Decompress);
-                        using var reader = new StreamReader(gzipStream);
-                        return await reader.ReadToEndAsync(ct);
+                        // For .gz files, download as bytes and decompress manually
+                        // This is more reliable than relying on AutomaticDecompression
+                        var compressedData = await _httpClient.GetByteArrayAsync(endpoint, ct);
+                        Log($"Downloaded {compressedData.Length} bytes of compressed data");
+                        
+                        using var compressedStream = new MemoryStream(compressedData);
+                        using var decompressedStream = new MemoryStream();
+                        await using (var gzipStream = new System.IO.Compression.GZipStream(
+                            compressedStream, System.IO.Compression.CompressionMode.Decompress))
+                        {
+                            await gzipStream.CopyToAsync(decompressedStream, ct);
+                        }
+                        
+                        decompressedStream.Position = 0;
+                        using var reader = new StreamReader(decompressedStream);
+                        json = await reader.ReadToEndAsync(ct);
+                        
+                        Log($"Decompressed to {json.Length} characters");
                     }
                     else
                     {
-                        return await _httpClient.GetStringAsync(endpoint, ct);
+                        // For non-gzip, just get as string
+                        json = await _httpClient.GetStringAsync(endpoint, ct);
                     }
+                    
+                    if (string.IsNullOrWhiteSpace(json))
+                    {
+                        _logger.LogWarning("Empty response from {Endpoint}", endpoint);
+                        continue;
+                    }
+                    
+                    // Debug: Log first 300 chars of JSON to verify format
+                    var preview = json.Length > 300 ? json.Substring(0, 300) : json;
+                    Log($"JSON preview: {preview}...");
+                    
+                    var options = new JsonSerializerOptions
+                    {
+                        PropertyNameCaseInsensitive = false, // Use exact property name matching
+                        AllowTrailingCommas = true,
+                        ReadCommentHandling = JsonCommentHandling.Skip,
+                        NumberHandling = System.Text.Json.Serialization.JsonNumberHandling.AllowReadingFromString
+                    };
+                    
+                    var manifest = JsonSerializer.Deserialize<FirmwareManifest>(json, options);
+
+                    if (manifest?.Firmware != null && manifest.Firmware.Count > 0)
+                    {
+                        Log($"Successfully loaded JSON manifest: {manifest.Firmware.Count} firmware entries");
+                        
+                        // Debug: Log sample entries to verify parsing
+                        var sample = manifest.Firmware.Take(3).ToList();
+                        foreach (var entry in sample)
+                        {
+                            Log($"Sample: vehicletype={entry.VehicleType}, platform={entry.Platform}, " +
+                                $"format={entry.Format}, release={entry.MavFirmwareVersionType}, " +
+                                $"version={entry.MavFirmwareVersion}, latest={entry.Latest}");
+                        }
+                        
+                        // Verify we have usable data
+                        var copterCount = manifest.Firmware.Count(f => 
+                            f.VehicleType?.Equals("Copter", StringComparison.OrdinalIgnoreCase) == true);
+                        var officialCount = manifest.Firmware.Count(f => 
+                            f.ReleaseCategory == "OFFICIAL");
+                        Log($"Stats: {copterCount} Copter entries, {officialCount} OFFICIAL releases");
+                        
+                        return manifest;
+                    }
+                    else
+                    {
+                        _logger.LogWarning("Manifest deserialized but Firmware list is null or empty");
+                    }
+                }
+                catch (TaskCanceledException) when (ct.IsCancellationRequested)
+                {
+                    throw;
+                }
+                catch (JsonException jsonEx)
+                {
+                    _logger.LogError(jsonEx, "JSON deserialization failed for {Endpoint}: {Message}", endpoint, jsonEx.Message);
+                    Log($"JSON error: {jsonEx.Message}");
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogWarning(ex, "Manifest fetch failed from {Endpoint} (attempt {Attempt}/{Max})", endpoint, attempt, maxAttemptsPerEndpoint);
-                    if (attempt == maxAttemptsPerEndpoint)
+                    _logger.LogWarning(ex, "Manifest fetch failed from {Endpoint} (attempt {Attempt}/{Max}): {Message}", 
+                        endpoint, attempt, maxAttemptsPerEndpoint, ex.Message);
+                    Log($"Fetch error: {ex.Message}");
+                    if (attempt < maxAttemptsPerEndpoint)
                     {
-                        break;
+                        await Task.Delay(TimeSpan.FromSeconds(1), ct);
                     }
-                    await Task.Delay(TimeSpan.FromSeconds(1), ct);
                 }
             }
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// Fallback: Fetch firmware list from Mission Planner's XML format (firmware2.xml)
+    /// This provides a simpler list of firmware URLs organized by vehicle type.
+    /// </summary>
+    private async Task<FirmwareManifest?> FetchXmlFirmwareListAsync(CancellationToken ct)
+    {
+        foreach (var url in FIRMWARE_XML_URLS)
+        {
+            try
+            {
+                Log($"Trying XML firmware list: {url}");
+                
+                var xml = await _httpClient.GetStringAsync(url, ct);
+                if (string.IsNullOrWhiteSpace(xml))
+                    continue;
+                
+                var doc = XDocument.Parse(xml);
+                var firmware = doc.Descendants("Firmware").FirstOrDefault();
+                if (firmware == null)
+                    continue;
+                
+                var entries = new List<FirmwareEntry>();
+                
+                // Parse XML format into our FirmwareEntry structure
+                foreach (var item in firmware.Elements())
+                {
+                    var name = item.Element("name")?.Value ?? "";
+                    var desc = item.Element("desc")?.Value ?? "";
+                    
+                    // Extract URLs for different board types
+                    var urlMappings = new Dictionary<string, string>
+                    {
+                        { "url", "apm1" },
+                        { "url2560", "apm2" },
+                        { "url2560-2", "apm2-2" },
+                        { "urlpx4v2", "fmuv2" },
+                        { "urlpx4v3", "fmuv3" },
+                        { "urlpx4v4", "fmuv4" },
+                        { "urlpx4v4pro", "fmuv4pro" },
+                        { "urlfmuv5", "fmuv5" },
+                        { "urlCubeOrange", "CubeOrange" },
+                        { "urlCubeOrangePlus", "CubeOrangePlus" },
+                        { "urlCubeYellow", "CubeYellow" },
+                        { "urlPixhawk6X", "Pixhawk6X" },
+                        { "urlPixhawk6C", "Pixhawk6C" },
+                        { "urlMatekH743", "MatekH743" },
+                        { "urlKakuteH7", "KakuteH7" }
+                    };
+                    
+                    // Determine vehicle type from name
+                    var vehicleType = DetermineVehicleTypeFromName(name);
+                    
+                    foreach (var mapping in urlMappings)
+                    {
+                        var firmwareUrl = item.Element(mapping.Key)?.Value;
+                        if (!string.IsNullOrEmpty(firmwareUrl))
+                        {
+                            entries.Add(new FirmwareEntry
+                            {
+                                VehicleType = vehicleType,
+                                Platform = mapping.Value,
+                                Url = firmwareUrl,
+                                Format = firmwareUrl.EndsWith(".apj") ? "apj" : "px4",
+                                MavFirmwareVersionType = "OFFICIAL", // XML list contains stable releases
+                                MavFirmwareVersion = ExtractVersionFromUrl(firmwareUrl),
+                                LatestLong = 1 // Assume all from XML are latest stable
+                            });
+                        }
+                    }
+                }
+                
+                if (entries.Count > 0)
+                {
+                    Log($"Loaded {entries.Count} entries from XML firmware list");
+                    return new FirmwareManifest { Firmware = entries };
+                }
+            }
+            catch (TaskCanceledException) when (ct.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to fetch XML firmware list from {Url}", url);
+            }
+        }
+        
+        return null;
+    }
+    
+    private string DetermineVehicleTypeFromName(string name)
+    {
+        var lower = name.ToLowerInvariant();
+        if (lower.Contains("copter") || lower.Contains("quad") || lower.Contains("hexa") || lower.Contains("octa"))
+            return "Copter";
+        if (lower.Contains("heli"))
+            return "Copter-heli";
+        if (lower.Contains("plane"))
+            return "Plane";
+        if (lower.Contains("rover"))
+            return "Rover";
+        if (lower.Contains("sub"))
+            return "Sub";
+        if (lower.Contains("tracker"))
+            return "AntennaTracker";
+        return "Copter"; // Default
+    }
+    
+    private string ExtractVersionFromUrl(string url)
+    {
+        // Try to extract version from URL like ".../Copter/stable-4.5.7/..."
+        try
+        {
+            var parts = url.Split('/');
+            foreach (var part in parts)
+            {
+                if (part.StartsWith("stable-", StringComparison.OrdinalIgnoreCase) ||
+                    part.StartsWith("beta-", StringComparison.OrdinalIgnoreCase))
+                {
+                    return part.Split('-').LastOrDefault() ?? "unknown";
+                }
+            }
+        }
+        catch { }
+        return "stable";
     }
     
     #endregion
@@ -1111,4 +2005,56 @@ public sealed class FirmwareService : IFirmwareService, IDisposable
     }
     
     #endregion
+
+    /// <summary>
+    /// Gets available platform variants for a board (e.g., CubeOrangePlus, CubeOrangePlus-bdshot, CubeOrangePlus-periph, etc.)
+    /// Used to show a selection dialog when multiple variants exist.
+    /// </summary>
+    public async Task<IReadOnlyList<string>> GetAvailablePlatformVariantsAsync(
+        string vehicleType,
+        string baseBoardId,
+        string? releaseType = null,
+        CancellationToken ct = default)
+    {
+        Log($"Checking platform variants for {baseBoardId}...");
+        
+        try
+        {
+            var manifest = await GetFirmwareManifestAsync(ct);
+            if (manifest == null) return Array.Empty<string>();
+            
+            var normalizedVehicleType = NormalizeVehicleType(vehicleType);
+            
+            // Get all platforms that match or start with the base board ID
+            var matchingPlatforms = manifest.Firmware
+                .Where(f => 
+                    // Match vehicle type
+                    (!string.IsNullOrEmpty(f.VehicleType) && f.VehicleType.Equals(normalizedVehicleType, StringComparison.OrdinalIgnoreCase)) &&
+                    // Match flashable formats
+                    !string.IsNullOrEmpty(f.Format) &&
+                    (f.Format.Equals("apj", StringComparison.OrdinalIgnoreCase) || f.Format.Equals("px4", StringComparison.OrdinalIgnoreCase)) &&
+                    // Match release type
+                    (string.IsNullOrWhiteSpace(releaseType) 
+                        ? f.ReleaseCategory.Equals("OFFICIAL", StringComparison.OrdinalIgnoreCase)
+                        : f.ReleaseCategory.Equals(releaseType, StringComparison.OrdinalIgnoreCase)) &&
+                    // Match platform (exact or starts with)
+                    !string.IsNullOrEmpty(f.Platform) &&
+                    (f.Platform.Equals(baseBoardId, StringComparison.OrdinalIgnoreCase) ||
+                     f.Platform.StartsWith(baseBoardId + "-", StringComparison.OrdinalIgnoreCase)))
+                .Select(f => f.Platform!)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(p => p.Length) // Shorter names first (base variant first)
+                .ThenBy(p => p)
+                .ToList();
+            
+            Log($"Found {matchingPlatforms.Count} platform variants for {baseBoardId}: {string.Join(", ", matchingPlatforms.Take(5))}");
+            
+            return matchingPlatforms.AsReadOnly();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting platform variants");
+            return Array.Empty<string>();
+        }
+    }
 }

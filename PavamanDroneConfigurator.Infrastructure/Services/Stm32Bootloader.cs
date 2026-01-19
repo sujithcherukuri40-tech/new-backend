@@ -44,9 +44,15 @@ public sealed class Stm32Bootloader
     private const byte PX4_PROTO_INVALID = 0x13;
     private const byte PX4_PROTO_BAD_SILICON_REV = 0x14;
     
-    // Flash programming settings
-    private const int PROG_BLOCK_SIZE = 256;
+    // Flash programming settings - Mission Planner compatible
+    private const int PROG_BLOCK_SIZE = 252; // PROG_MULTI_MAX from PX4 protocol
     private const int MAX_RETRIES = 3;
+    private const int STABILIZATION_DELAY = 500; // USB stabilization delay
+    private const int PROGRAM_TIMEOUT = 2000; // Timeout for program operations
+    
+    // Consecutive failure thresholds - consistent with Px4Uploader
+    private const int MAX_CONSECUTIVE_TIMEOUTS = 5;  // Timeout failures before abort
+    private const int MAX_CONSECUTIVE_IO_ERRORS = 3; // IO errors (USB disconnect) before abort
     
     private bool _usePx4Protocol = false;
     
@@ -56,7 +62,8 @@ public sealed class Stm32Bootloader
     }
     
     /// <summary>
-    /// Attempts to synchronize with the bootloader
+    /// Attempts to synchronize with the bootloader.
+    /// Mission Planner compatible: multiple sync attempts with delays.
     /// </summary>
     public async Task<bool> TrySyncAsync(SerialPort port, CancellationToken ct = default)
     {
@@ -488,6 +495,10 @@ public sealed class Stm32Bootloader
         }
     }
     
+    /// <summary>
+    /// Programs firmware using PX4 protocol with retry logic.
+    /// Mission Planner compatible: handles timeout and retry for each chunk.
+    /// </summary>
     private async Task<bool> ProgramPx4FlashAsync(
         SerialPort port, 
         byte[] data, 
@@ -496,58 +507,119 @@ public sealed class Stm32Bootloader
     {
         int offset = 0;
         int totalBytes = data.Length;
+        int consecutiveFailures = 0;
         
-        while (offset < totalBytes && !ct.IsCancellationRequested)
+        // Set extended timeout for programming
+        var originalTimeout = port.ReadTimeout;
+        port.ReadTimeout = PROGRAM_TIMEOUT;
+        
+        try
         {
-            int chunkSize = Math.Min(PROG_BLOCK_SIZE, totalBytes - offset);
-            
-            // Build PROG_MULTI command
-            var cmd = new byte[chunkSize + 3];
-            cmd[0] = PX4_PROTO_PROG_MULTI;
-            cmd[1] = (byte)chunkSize;
-            Array.Copy(data, offset, cmd, 2, chunkSize);
-            cmd[chunkSize + 2] = PX4_PROTO_EOC;
-            
-            // Send command
-            port.Write(cmd, 0, cmd.Length);
-            
-            // Wait for ACK with retries
-            bool acked = false;
-            for (int retry = 0; retry < MAX_RETRIES && !acked; retry++)
+            while (offset < totalBytes && !ct.IsCancellationRequested)
             {
-                await Task.Delay(20, ct);
+                int chunkSize = Math.Min(PROG_BLOCK_SIZE, totalBytes - offset);
+                bool chunkProgrammed = false;
                 
-                if (port.BytesToRead >= 2)
+                // Retry logic for each chunk - addresses the ~60% failure zone
+                for (int chunkRetry = 0; chunkRetry < MAX_RETRIES && !chunkProgrammed; chunkRetry++)
                 {
-                    var response = new byte[2];
-                    port.Read(response, 0, 2);
-                    
-                    if (response[0] == PX4_PROTO_INSYNC && response[1] == PX4_PROTO_OK)
+                    try
                     {
-                        acked = true;
+                        if (chunkRetry > 0)
+                        {
+                            _logger.LogDebug("Retrying chunk at offset {Offset} (attempt {Retry})", offset, chunkRetry + 1);
+                            await Task.Delay(100, ct);
+                            port.DiscardInBuffer();
+                        }
+                        
+                        // Build PROG_MULTI command
+                        var cmd = new byte[chunkSize + 3];
+                        cmd[0] = PX4_PROTO_PROG_MULTI;
+                        cmd[1] = (byte)chunkSize;
+                        Array.Copy(data, offset, cmd, 2, chunkSize);
+                        cmd[chunkSize + 2] = PX4_PROTO_EOC;
+                        
+                        // Send command
+                        port.Write(cmd, 0, cmd.Length);
+                        port.BaseStream.Flush();
+                        
+                        // Wait for ACK with timeout polling
+                        var sw = System.Diagnostics.Stopwatch.StartNew();
+                        bool acked = false;
+                        
+                        while (sw.ElapsedMilliseconds < PROGRAM_TIMEOUT && !acked)
+                        {
+                            if (port.BytesToRead >= 2)
+                            {
+                                var response = new byte[2];
+                                port.Read(response, 0, 2);
+                                
+                                if (response[0] == PX4_PROTO_INSYNC && response[1] == PX4_PROTO_OK)
+                                {
+                                    acked = true;
+                                    chunkProgrammed = true;
+                                    consecutiveFailures = 0;
+                                }
+                                else if (response[1] == PX4_PROTO_INVALID)
+                                {
+                                    _logger.LogWarning("Invalid response during programming at offset {Offset}", offset);
+                                    // Don't return false immediately - retry
+                                    break;
+                                }
+                            }
+                            else
+                            {
+                                await Task.Delay(5, ct);
+                            }
+                        }
+                        
+                        if (!acked && !chunkProgrammed)
+                        {
+                            consecutiveFailures++;
+                            _logger.LogWarning("No ACK at offset {Offset} after {Elapsed}ms", offset, sw.ElapsedMilliseconds);
+                        }
                     }
-                    else if (response[1] == PX4_PROTO_INVALID)
+                    catch (IOException ex)
                     {
-                        _logger.LogWarning("Invalid response during programming at offset {Offset}", offset);
-                        return false;
+                        consecutiveFailures++;
+                        _logger.LogWarning(ex, "IO error programming chunk at offset {Offset}", offset);
+                        
+                        if (consecutiveFailures > MAX_CONSECUTIVE_IO_ERRORS)
+                        {
+                            throw new IOException($"Lost communication during programming at {(offset * 100.0 / totalBytes):F0}%", ex);
+                        }
+                    }
+                    catch (TimeoutException ex)
+                    {
+                        consecutiveFailures++;
+                        _logger.LogWarning(ex, "Timeout programming chunk at offset {Offset}", offset);
+                        
+                        if (consecutiveFailures > MAX_CONSECUTIVE_TIMEOUTS)
+                        {
+                            throw new TimeoutException($"Repeated timeouts during programming at {(offset * 100.0 / totalBytes):F0}%", ex);
+                        }
                     }
                 }
+                
+                if (!chunkProgrammed)
+                {
+                    _logger.LogError("Failed to program chunk at offset {Offset} after {Retries} retries", offset, MAX_RETRIES);
+                    return false;
+                }
+                
+                offset += chunkSize;
+                
+                double percent = (double)offset / totalBytes * 100;
+                progressCallback?.Invoke(percent, offset, totalBytes);
             }
             
-            if (!acked)
-            {
-                _logger.LogWarning("No ACK received at offset {Offset}", offset);
-                return false;
-            }
-            
-            offset += chunkSize;
-            
-            double percent = (double)offset / totalBytes * 100;
-            progressCallback?.Invoke(percent, offset, totalBytes);
+            _logger.LogDebug("Flash programming complete");
+            return true;
         }
-        
-        _logger.LogDebug("Flash programming complete");
-        return true;
+        finally
+        {
+            port.ReadTimeout = originalTimeout;
+        }
     }
     
     private async Task<bool> ProgramStm32FlashAsync(

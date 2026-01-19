@@ -49,6 +49,10 @@ public interface IConnectionService
     // Reboot command (MAV_CMD_PREFLIGHT_REBOOT_SHUTDOWN = 246)
     void SendPreflightReboot(int autopilot, int companion);
     
+    // Flash bootloader command (MAV_CMD_FLASH_BOOTLOADER = 42650)
+    // Magic value 290876 confirms the operation
+    void SendFlashBootloaderCommand(int magicValue);
+    
     // Arm/Disarm command (MAV_CMD_COMPONENT_ARM_DISARM = 400)
     void SendArmDisarm(bool arm, bool force = false);
     

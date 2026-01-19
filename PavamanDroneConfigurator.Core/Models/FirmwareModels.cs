@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace PavamanDroneConfigurator.Core.Models;
 
@@ -61,6 +63,7 @@ public class FirmwareVersion
     public string Version { get; set; } = string.Empty;
     public string ReleaseType { get; set; } = "stable"; // stable, beta, dev
     public string BoardType { get; set; } = string.Empty;
+    public int BoardId { get; set; }
     public string DownloadUrl { get; set; } = string.Empty;
     public long FileSize { get; set; }
     public DateTime ReleaseDate { get; set; }
@@ -193,32 +196,128 @@ public class DetectedBoard
 
 /// <summary>
 /// Firmware manifest from ArduPilot firmware server
+/// The manifest.json has structure: { "format-version": "1.0.0", "firmware": [...] }
 /// </summary>
 public class FirmwareManifest
 {
+    [JsonPropertyName("format-version")]
+    public string FormatVersion { get; set; } = string.Empty;
+    
+    [JsonPropertyName("format")]
     public string Format { get; set; } = string.Empty;
-    public DateTime Timestamp { get; set; }
+    
+    [JsonPropertyName("firmware")]
     public List<FirmwareEntry> Firmware { get; set; } = new();
 }
 
 /// <summary>
-/// Individual firmware entry in the manifest
+/// Individual firmware entry in the manifest.
+/// Uses JsonPropertyName to match ArduPilot's JSON field names exactly.
+/// Based on Mission Planner's APFirmware.FirmwareInfo class.
 /// </summary>
 public class FirmwareEntry
 {
+    [JsonPropertyName("mav-type")]
     public string MavType { get; set; } = string.Empty;
-    public string BoardId { get; set; } = string.Empty;
+    
+    /// <summary>
+    /// Board ID - ArduPilot manifest uses a number, not string
+    /// </summary>
+    [JsonPropertyName("board_id")]
+    public long BoardIdLong { get; set; }
+    
+    [JsonPropertyName("platform")]
     public string Platform { get; set; } = string.Empty;
+    
+    [JsonPropertyName("vehicletype")]
     public string VehicleType { get; set; } = string.Empty;
+    
+    [JsonPropertyName("format")]
     public string Format { get; set; } = string.Empty;
+    
+    [JsonPropertyName("url")]
     public string Url { get; set; } = string.Empty;
+    
+    [JsonPropertyName("git-sha")]
     public string GitHash { get; set; } = string.Empty;
-    public string LatestVersion { get; set; } = string.Empty;
-    public bool Latest { get; set; }
+    
+    /// <summary>
+    /// The "latest" field in manifest - is a long/int (0 or 1)
+    /// </summary>
+    [JsonPropertyName("latest")]
+    public long LatestLong { get; set; }
+    
+    /// <summary>
+    /// Computed property to convert to bool
+    /// </summary>
+    [JsonIgnore]
+    public bool Latest => LatestLong == 1;
+    
+    /// <summary>
+    /// Firmware version string like "4.5.7" or "4.6.0-beta1"
+    /// </summary>
+    [JsonPropertyName("mav-firmware-version")]
     public string MavFirmwareVersion { get; set; } = string.Empty;
+    
+    /// <summary>
+    /// Release type - OFFICIAL, BETA, DEV, etc.
+    /// Mission Planner calls stable releases "OFFICIAL"
+    /// </summary>
+    [JsonPropertyName("mav-firmware-version-type")]
     public string MavFirmwareVersionType { get; set; } = string.Empty;
-    public int MavFirmwareVersionInt { get; set; }
+    
+    [JsonPropertyName("mav-firmware-version-str")]
+    public string MavFirmwareVersionStr { get; set; } = string.Empty;
+    
+    [JsonPropertyName("frame-type")]
     public string FrameType { get; set; } = string.Empty;
+    
+    [JsonPropertyName("image-size")]
+    public long ImageSize { get; set; }
+    
+    [JsonPropertyName("brand_name")]
+    public string BrandName { get; set; } = string.Empty;
+    
+    [JsonPropertyName("manufacturer")]
+    public string Manufacturer { get; set; } = string.Empty;
+    
+    /// <summary>
+    /// Board ID string for compatibility with existing code
+    /// </summary>
+    [JsonIgnore]
+    public string BoardId => BoardIdLong.ToString();
+    
+    /// <summary>
+    /// Numeric board ID for board validation
+    /// </summary>
+    [JsonIgnore]
+    public int? BoardIdNumeric => (int)BoardIdLong;
+    
+    /// <summary>
+    /// Returns the release type category normalized for filtering.
+    /// Mission Planner uses: OFFICIAL (stable), BETA, DEV (latest)
+    /// </summary>
+    [JsonIgnore]
+    public string ReleaseCategory
+    {
+        get
+        {
+            if (string.IsNullOrEmpty(MavFirmwareVersionType))
+                return "UNKNOWN";
+                
+            var upper = MavFirmwareVersionType.ToUpperInvariant();
+            
+            // Mission Planner convention: OFFICIAL = stable releases
+            if (upper.StartsWith("OFFICIAL") || upper.StartsWith("STABLE"))
+                return "OFFICIAL";
+            if (upper.StartsWith("BETA") || upper.StartsWith("RC"))
+                return "BETA";
+            if (upper.StartsWith("DEV") || upper.StartsWith("LATEST"))
+                return "DEV";
+                
+            return upper;
+        }
+    }
 }
 
 /// <summary>
@@ -305,7 +404,35 @@ public static class CommonBoards
             BootloaderProtocol = "px4",
             FlashSize = 2048,
             SupportsBootloaderUpdate = true,
-            BoardId = 140
+            BoardId = 140,
+            VendorId = 0x2DAE,
+            ProductId = 0x1058
+        },
+        new BoardInfo
+        {
+            Id = "CubeOrangePlus",
+            Name = "CubeOrange+",
+            Manufacturer = "Hex/ProfiCNC",
+            Description = "Cube Orange+ H7 (enhanced sensors)",
+            BootloaderProtocol = "px4",
+            FlashSize = 2048,
+            SupportsBootloaderUpdate = true,
+            BoardId = 141,
+            VendorId = 0x2DAE,
+            ProductId = 0x1059
+        },
+        new BoardInfo
+        {
+            Id = "CubeYellow",
+            Name = "CubeYellow",
+            Manufacturer = "Hex/ProfiCNC",
+            Description = "Cube Yellow F7",
+            BootloaderProtocol = "px4",
+            FlashSize = 2048,
+            SupportsBootloaderUpdate = true,
+            BoardId = 120,
+            VendorId = 0x2DAE,
+            ProductId = 0x1016
         },
         new BoardInfo
         {
@@ -320,19 +447,54 @@ public static class CommonBoards
         },
         new BoardInfo
         {
+            Id = "Pixhawk6C",
+            Name = "Pixhawk6C",
+            Manufacturer = "Holybro",
+            Description = "Pixhawk 6C",
+            BootloaderProtocol = "px4",
+            FlashSize = 2048,
+            SupportsBootloaderUpdate = true,
+            BoardId = 55
+        },
+        new BoardInfo
+        {
             Id = "MatekH743",
             Name = "MatekH743",
             Manufacturer = "Matek",
             Description = "Matek H743",
-            BootloaderProtocol = "stm32",
+            BootloaderProtocol = "px4",
             FlashSize = 2048,
             SupportsBootloaderUpdate = true,
             BoardId = 1013
+        },
+        new BoardInfo
+        {
+            Id = "KakuteH7",
+            Name = "KakuteH7",
+            Manufacturer = "Holybro",
+            Description = "Holybro Kakute H7",
+            BootloaderProtocol = "px4",
+            FlashSize = 2048,
+            SupportsBootloaderUpdate = true,
+            BoardId = 1044
+        },
+        new BoardInfo
+        {
+            Id = "SpeedyBeeF4",
+            Name = "SpeedyBeeF4",
+            Manufacturer = "SpeedyBee",
+            Description = "SpeedyBee F4",
+            BootloaderProtocol = "px4",
+            FlashSize = 1024,
+            SupportsBootloaderUpdate = true,
+            BoardId = 1015
         }
     };
     
     /// <summary>
     /// All vehicle types matching Mission Planner's firmware.cs display
+    /// Note: All copter frame types (Quad, Hexa, Octa, etc.) use the same "Copter" firmware.
+    /// Frame type is configured via FRAME_CLASS parameter after flashing.
     /// </summary>
     public static readonly FirmwareType[] AvailableVehicleTypes = new[]
     {
@@ -361,9 +523,9 @@ public static class CommonBoards
         },
         new FirmwareType
         {
-            Id = "copter-quad",
-            Name = "CopterQuad",
-            Description = "Quadcopter",
+            Id = "copter",
+            Name = "Copter",
+            Description = "Quadcopter (X frame)",
             ImagePath = "avares://PavamanDroneConfigurator.UI/Assets/Images/Vehicle/Quad.png",
             VehicleClass = VehicleClass.Copter,
             ArduPilotId = "Copter",
@@ -372,8 +534,8 @@ public static class CommonBoards
         },
         new FirmwareType
         {
-            Id = "copter-hexa",
-            Name = "CopterHexa",
+            Id = "hexa",
+            Name = "Copter",
             Description = "Hexacopter",
             ImagePath = "avares://PavamanDroneConfigurator.UI/Assets/Images/Vehicle/Hexa.png",
             VehicleClass = VehicleClass.Copter,
@@ -383,10 +545,10 @@ public static class CommonBoards
         },
         new FirmwareType
         {
-            Id = "copter-octa",
-            Name = "CopterOcta",
+            Id = "octa",
+            Name = "Copter",
             Description = "Octocopter",
-            ImagePath = "avares://PavamanDroneConfigurator.UI/Assets/Images/Vehicle/Hexa.png",
+            ImagePath = "avares://PavamanDroneConfigurator.UI/Assets/Images/Vehicle/Octa.png",
             VehicleClass = VehicleClass.Copter,
             ArduPilotId = "Copter",
             MavType = 14,
@@ -394,10 +556,10 @@ public static class CommonBoards
         },
         new FirmwareType
         {
-            Id = "copter-y6",
-            Name = "CopterY6",
+            Id = "y6",
+            Name = "Copter",
             Description = "Y6 configuration",
-            ImagePath = "avares://PavamanDroneConfigurator.UI/Assets/Images/Vehicle/Hexa.png",
+            ImagePath = "avares://PavamanDroneConfigurator.UI/Assets/Images/Vehicle/Y6.png",
             VehicleClass = VehicleClass.Copter,
             ArduPilotId = "Copter",
             MavType = 2,
@@ -407,8 +569,8 @@ public static class CommonBoards
         {
             Id = "sub",
             Name = "Sub",
-            Description = "Underwater vehicle",
-            ImagePath = "avares://PavamanDroneConfigurator.UI/Assets/Images/Vehicle/Rover.png",
+            Description = "Underwater vehicle (ROV)",
+            ImagePath = "avares://PavamanDroneConfigurator.UI/Assets/Images/Vehicle/Sub.png",
             VehicleClass = VehicleClass.Sub,
             ArduPilotId = "Sub",
             MavType = 12,
@@ -420,7 +582,7 @@ public static class CommonBoards
             Id = "antennatracker",
             Name = "AntennaTracker",
             Description = "Antenna Tracker",
-            ImagePath = "avares://PavamanDroneConfigurator.UI/Assets/Images/Vehicle/Rover.png",
+            ImagePath = "avares://PavamanDroneConfigurator.UI/Assets/Images/Vehicle/AntennaTracker.png",
             VehicleClass = VehicleClass.AntennaTracker,
             ArduPilotId = "AntennaTracker",
             MavType = 5,
@@ -430,7 +592,7 @@ public static class CommonBoards
         {
             Id = "heli",
             Name = "Heli",
-            Description = "Helicopter",
+            Description = "Traditional Helicopter",
             ImagePath = "avares://PavamanDroneConfigurator.UI/Assets/Images/Vehicle/Heli.png",
             VehicleClass = VehicleClass.Copter,
             ArduPilotId = "Copter-heli",
@@ -439,10 +601,10 @@ public static class CommonBoards
         },
         new FirmwareType
         {
-            Id = "copter-tri",
-            Name = "CopterTri",
+            Id = "tri",
+            Name = "Copter",
             Description = "Tricopter",
-            ImagePath = "avares://PavamanDroneConfigurator.UI/Assets/Images/Vehicle/Quad.png",
+            ImagePath = "avares://PavamanDroneConfigurator.UI/Assets/Images/Vehicle/Tri.png",
             VehicleClass = VehicleClass.Copter,
             ArduPilotId = "Copter",
             MavType = 15,
@@ -450,10 +612,10 @@ public static class CommonBoards
         },
         new FirmwareType
         {
-            Id = "copter-octa-quad",
-            Name = "CopterOctaQuad",
-            Description = "OctaQuad",
-            ImagePath = "avares://PavamanDroneConfigurator.UI/Assets/Images/Vehicle/Hexa.png",
+            Id = "octaquad",
+            Name = "Copter",
+            Description = "OctaQuad (X8)",
+            ImagePath = "avares://PavamanDroneConfigurator.UI/Assets/Images/Vehicle/OctaQuad.png",
             VehicleClass = VehicleClass.Copter,
             ArduPilotId = "Copter",
             MavType = 14,
@@ -461,10 +623,10 @@ public static class CommonBoards
         },
         new FirmwareType
         {
-            Id = "copter-single",
-            Name = "CopterSingle",
+            Id = "single",
+            Name = "Copter",
             Description = "SingleCopter",
-            ImagePath = "avares://PavamanDroneConfigurator.UI/Assets/Images/Vehicle/Heli.png",
+            ImagePath = "avares://PavamanDroneConfigurator.UI/Assets/Images/Vehicle/Single.png",
             VehicleClass = VehicleClass.Copter,
             ArduPilotId = "Copter",
             MavType = 2,
@@ -472,10 +634,10 @@ public static class CommonBoards
         },
         new FirmwareType
         {
-            Id = "copter-coax",
-            Name = "CopterCoax",
+            Id = "coax",
+            Name = "Copter",
             Description = "CoaxCopter",
-            ImagePath = "avares://PavamanDroneConfigurator.UI/Assets/Images/Vehicle/Heli.png",
+            ImagePath = "avares://PavamanDroneConfigurator.UI/Assets/Images/Vehicle/Coax.png",
             VehicleClass = VehicleClass.Copter,
             ArduPilotId = "Copter",
             MavType = 2,
@@ -483,10 +645,10 @@ public static class CommonBoards
         },
         new FirmwareType
         {
-            Id = "copter-deca",
-            Name = "CopterDeca",
-            Description = "DecaCopter",
-            ImagePath = "avares://PavamanDroneConfigurator.UI/Assets/Images/Vehicle/Hexa.png",
+            Id = "deca",
+            Name = "Copter",
+            Description = "DecaCopter (10 motors)",
+            ImagePath = "avares://PavamanDroneConfigurator.UI/Assets/Images/Vehicle/Deca.png",
             VehicleClass = VehicleClass.Copter,
             ArduPilotId = "Copter",
             MavType = 2,

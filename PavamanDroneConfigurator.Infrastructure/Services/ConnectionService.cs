@@ -708,6 +708,23 @@ public sealed class ConnectionService : IConnectionService, IDisposable
         _ = _mavlink.SendPreflightRebootAsync(autopilot, companion);
     }
 
+    public void SendFlashBootloaderCommand(int magicValue)
+    {
+        if (_currentConnectionType == ConnectionType.Bluetooth && _bluetoothConnection != null)
+        {
+            _logger.LogWarning("Flash bootloader command not supported via Bluetooth");
+            throw new NotSupportedException("Flash bootloader command is not supported via Bluetooth connection");
+        }
+
+        if (_mavlink == null)
+        {
+            _logger.LogWarning("Cannot send MAV_CMD_FLASH_BOOTLOADER - not connected");
+            throw new InvalidOperationException("Not connected to flight controller");
+        }
+
+        _ = _mavlink.SendFlashBootloaderAsync(magicValue);
+    }
+
     public void SendArmDisarm(bool arm, bool force = false)
     {
         if (_currentConnectionType == ConnectionType.Bluetooth && _bluetoothConnection != null)
