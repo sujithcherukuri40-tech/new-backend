@@ -18,7 +18,7 @@ public class UniversalEventExtractor
         "error", "err", "fail", "fault", "warning", "warn", "critical", "emergency",
         "notice", "info", "alert", "alarm", "status", "state", "change", "switch",
         "arm", "disarm", "mode", "failsafe", "safe", "unsafe", "limit", "exceeded",
-        "lost", "loss", "recovery", "recover", "timeout", "timeout", "glitch",
+        "lost", "loss", "recovery", "recover", "timeout", "glitch",
         "calibrat", "init", "start", "stop", "begin", "end", "complete", "abort",
         "crash", "impact", "land", "takeoff", "waypoint", "mission", "fence", "rally",
         "gps", "ekf", "imu", "compass", "baro", "motor", "battery", "low", "high",
@@ -49,6 +49,9 @@ public class UniversalEventExtractor
     private const double GPS_HDOP_WARNING = 2.0;
     private const double BATTERY_LOW_VOLTAGE_PER_CELL = 3.5;
     private const double BATTERY_CRITICAL_VOLTAGE_PER_CELL = 3.3;
+    
+    // Message length limits
+    private const int MAX_MESSAGE_LENGTH = 200;
 
     public UniversalEventExtractor(ILogger<UniversalEventExtractor>? logger = null)
     {
@@ -568,7 +571,7 @@ public class UniversalEventExtractor
                         Severity = severity,
                         EventType = eventType,
                         Source = messageType,
-                        Message = valueStr.Length > 200 ? valueStr.Substring(0, 200) + "..." : valueStr,
+                        Message = valueStr.Length > MAX_MESSAGE_LENGTH ? valueStr.Substring(0, MAX_MESSAGE_LENGTH) + "..." : valueStr,
                         Details = $"Field: {field.Key}"
                     });
                     break; // Only one event per message

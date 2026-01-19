@@ -140,7 +140,7 @@ public class ULogParser
                 return false;
         }
 
-        // Check version (bytes 4-5 should be 0x01, 0x12)
+        // Check version (byte 4 should be 0x01 for ULog version 1)
         if (data[4] != 0x01)
             return false;
 

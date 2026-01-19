@@ -15,8 +15,8 @@ public class LogFileTypeDetector
     private const byte DATAFLASH_HEAD1 = 0xA3;
     private const byte DATAFLASH_HEAD2 = 0x95;
 
-    // ULog magic bytes "ULog"
-    private static readonly byte[] ULOG_MAGIC = { 0x55, 0x4C, 0x6F, 0x67, 0x01, 0x12, 0x35 };
+    // ULog magic bytes "ULog" (first 4 bytes only, remaining bytes are version-specific)
+    private static readonly byte[] ULOG_MAGIC = { 0x55, 0x4C, 0x6F, 0x67 };
 
     // MAVLink packet start bytes (version 1.0 and 2.0)
     private const byte MAVLINK_V1_STX = 0xFE;

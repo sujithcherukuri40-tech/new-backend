@@ -398,7 +398,8 @@ public class TlogParser
             var nullIndex = Array.IndexOf(textBytes, (byte)0);
             if (nullIndex >= 0) textLen = nullIndex;
             
-            var text = System.Text.Encoding.ASCII.GetString(textBytes, 0, textLen).Trim();
+            // Use UTF-8 encoding to handle international characters
+            var text = System.Text.Encoding.UTF8.GetString(textBytes, 0, textLen).Trim();
             msg.Fields["Text"] = text;
         }
     }
