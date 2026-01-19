@@ -581,11 +581,15 @@
                             <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center" Margin="16,0,0,0">
                                 <Button Classes="EventsButtonSecondary" Content="📄 CSV" 
                                         Command="{Binding ExportEventsToCsvCommand}"
-                                        IsEnabled="{Binding IsLogLoaded}"
+                                        IsEnabled="{Binding HasFilteredEvents}"
                                         ToolTip.Tip="Export events to CSV"/>
+                                <Button Classes="EventsButtonSecondary" Content="🗺 KML" 
+                                        Command="{Binding ExportToKmlCommand}"
+                                        IsEnabled="{Binding HasGpsData}"
+                                        ToolTip.Tip="Export GPS track to KML"/>
                                 <Button Classes="EventsButtonSecondary" Content="📋 JSON" 
                                         Command="{Binding ExportEventsToJsonCommand}"
-                                        IsEnabled="{Binding IsLogLoaded}"
+                                        IsEnabled="{Binding HasFilteredEvents}"
                                         ToolTip.Tip="Export events to JSON"/>
                             </StackPanel>
                             
