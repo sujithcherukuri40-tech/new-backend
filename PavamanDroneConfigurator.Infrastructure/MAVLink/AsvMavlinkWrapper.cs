@@ -385,8 +385,8 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
 
             _logger.LogDebug("Heartbeat from FC: sysid={SysId} compid={CompId}", sysId, compId);
             
-            // Log to MAVLink logger
-            _mavLinkLogger?.LogIncoming("HEARTBEAT", $"sysid={sysId}, compid={compId}");
+            // Don't log HEARTBEAT to MAVLink logger - too noisy (every 1 second)
+            // _mavLinkLogger?.LogIncoming("HEARTBEAT", $"sysid={sysId}, compid={compId}");
             
             HeartbeatReceived?.Invoke(this, (sysId, compId));
 

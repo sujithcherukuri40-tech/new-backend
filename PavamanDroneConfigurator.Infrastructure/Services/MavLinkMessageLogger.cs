@@ -162,6 +162,10 @@ public class MavLinkMessageLogger : IMavLinkMessageLogger
         if (!IsLoggingEnabled)
             return;
 
+        // Skip HEARTBEAT messages - too noisy (every 1 second)
+        if (messageType == "HEARTBEAT")
+            return;
+
         var entry = new MavLinkLogEntry
         {
             Timestamp = DateTime.Now,
