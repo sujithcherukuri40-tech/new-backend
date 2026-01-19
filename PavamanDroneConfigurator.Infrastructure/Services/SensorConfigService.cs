@@ -40,6 +40,8 @@ public class SensorConfigService : ISensorConfigService
         public const string COMPASS_OFS3_Y = "COMPASS_OFS3_Y";
         public const string COMPASS_OFS3_Z = "COMPASS_OFS3_Z";
         public const string COMPASS_PRIO1_ID = "COMPASS_PRIO1_ID";
+        public const string COMPASS_PRIO2_ID = "COMPASS_PRIO2_ID";
+        public const string COMPASS_PRIO3_ID = "COMPASS_PRIO3_ID";
 
         // Accelerometer/INS parameters
         public const string INS_ACCOFFS_X = "INS_ACCOFFS_X";
@@ -151,6 +153,33 @@ public class SensorConfigService : ISensorConfigService
                 if (compass != null) compasses.Add(compass);
             }
 
+            // Apply priority from parameters when available
+            var prio1 = await GetParameterValueAsync(Parameters.COMPASS_PRIO1_ID) ?? 0;
+            var prio2 = await GetParameterValueAsync(Parameters.COMPASS_PRIO2_ID) ?? 0;
+            var prio3 = await GetParameterValueAsync(Parameters.COMPASS_PRIO3_ID) ?? 0;
+
+            foreach (var c in compasses)
+            {
+                c.Priority = 99; // default low priority
+                if (c.DeviceId == (int)prio1) c.Priority = 1;
+                else if (c.DeviceId == (int)prio2) c.Priority = 2;
+                else if (c.DeviceId == (int)prio3) c.Priority = 3;
+            }
+
+            // If no explicit priority, keep detection order
+            int fallback = 4;
+            foreach (var c in compasses.Where(c => c.Priority == 99))
+            {
+                c.Priority = fallback++;
+            }
+
+            // Order by priority and reassign sequential values for UI
+            compasses = compasses.OrderBy(c => c.Priority).ToList();
+            for (int i = 0; i < compasses.Count; i++)
+            {
+                compasses[i].Priority = i + 1;
+            }
+
             _logger.LogInformation("Found {Count} compass sensor(s)", compasses.Count);
         }
         catch (Exception ex)
@@ -248,9 +277,59 @@ public class SensorConfigService : ISensorConfigService
 
     public async Task<bool> SetCompassPriorityAsync(int compassIndex, int newPriority)
     {
-        // For now, just log - full priority reordering would require moving COMPASS_PRIO parameters
-        _logger.LogInformation("Compass {Index} priority set to {Priority}", compassIndex, newPriority);
-        return await Task.FromResult(true);
+        try
+        {
+            var compass = await GetCompassAsync(compassIndex);
+            if (compass == null)
+            {
+                _logger.LogWarning("Compass {Index} not found for priority set", compassIndex);
+                return false;
+            }
+
+            // Map priority slot (0-based from UI) to parameter
+            var prioParams = new[]
+            {
+                Parameters.COMPASS_PRIO1_ID,
+                Parameters.COMPASS_PRIO2_ID,
+                Parameters.COMPASS_PRIO3_ID
+            };
+
+            if (newPriority < 0 || newPriority >= prioParams.Length)
+            {
+                _logger.LogInformation("Priority {Priority} outside supported slots, skipping parameter write", newPriority);
+                return true;
+            }
+
+            // Read existing priority IDs
+            var prioValues = new int[3];
+            prioValues[0] = (int)(await GetParameterValueAsync(Parameters.COMPASS_PRIO1_ID) ?? 0);
+            prioValues[1] = (int)(await GetParameterValueAsync(Parameters.COMPASS_PRIO2_ID) ?? 0);
+            prioValues[2] = (int)(await GetParameterValueAsync(Parameters.COMPASS_PRIO3_ID) ?? 0);
+
+            // Remove this device ID from any slot first
+            for (int i = 0; i < prioValues.Length; i++)
+            {
+                if (prioValues[i] == compass.DeviceId)
+                    prioValues[i] = 0;
+            }
+
+            // Set desired slot
+            prioValues[newPriority] = compass.DeviceId;
+
+            // Write back parameters
+            bool success = true;
+            success &= await SetParameterValueAsync(Parameters.COMPASS_PRIO1_ID, prioValues[0]);
+            success &= await SetParameterValueAsync(Parameters.COMPASS_PRIO2_ID, prioValues[1]);
+            success &= await SetParameterValueAsync(Parameters.COMPASS_PRIO3_ID, prioValues[2]);
+
+            _logger.LogInformation("Compass {Index} priority updated: slot={Priority} deviceId={DeviceId}", compassIndex, newPriority + 1, compass.DeviceId);
+            return success;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error setting compass priority for {Index}", compassIndex);
+            return false;
+        }
     }
 
     public async Task<bool> IsCompassCalibrationRequiredAsync(int index)

@@ -13,20 +13,20 @@
         <Style Selector="TextBlock.PageTitle">
             <Setter Property="FontSize" Value="24"/>
             <Setter Property="FontWeight" Value="Bold"/>
-            <Setter Property="Foreground" Value="#0B5ED7"/>
+            <Setter Property="Foreground" Value="#0EA5E9"/>
             <Setter Property="Margin" Value="0,0,0,16"/>
         </Style>
         
         <Style Selector="TextBlock.SectionTitle">
             <Setter Property="FontSize" Value="18"/>
             <Setter Property="FontWeight" Value="Bold"/>
-            <Setter Property="Foreground" Value="#22D3EE"/>
+            <Setter Property="Foreground" Value="#0EA5E9"/>
             <Setter Property="Margin" Value="0,0,0,8"/>
         </Style>
         
         <Style Selector="TextBlock.StatusText">
             <Setter Property="FontSize" Value="16"/>
-            <Setter Property="Foreground" Value="#22D3EE"/>
+            <Setter Property="Foreground" Value="#0EA5E9"/>
             <Setter Property="Margin" Value="0,16,0,8"/>
         </Style>
         
@@ -56,83 +56,79 @@
         </Style>
         
         <Style Selector="Border.SectionCard">
-            <Setter Property="Background" Value="White"/>
+            <Setter Property="Background" Value="#FFFFFF"/>
             <Setter Property="BorderBrush" Value="#E2E8F0"/>
             <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="CornerRadius" Value="12"/>
+            <Setter Property="CornerRadius" Value="14"/>
             <Setter Property="Padding" Value="24"/>
             <Setter Property="Margin" Value="0,0,0,20"/>
         </Style>
         
         <Style Selector="Border.TabBar">
-            <Setter Property="Background" Value="#F1F5F9"/>
-            <Setter Property="CornerRadius" Value="25"/>
-            <Setter Property="Padding" Value="4"/>
+            <Setter Property="Background" Value="#F8FAFC"/>
+            <Setter Property="CornerRadius" Value="28"/>
+            <Setter Property="Padding" Value="6"/>
             <Setter Property="Margin" Value="0,0,0,24"/>
         </Style>
         
         <Style Selector="Button.TabButton">
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="Foreground" Value="#64748B"/>
-            <Setter Property="FontWeight" Value="Medium"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
             <Setter Property="FontSize" Value="13"/>
             <Setter Property="Padding" Value="20,12"/>
-            <Setter Property="CornerRadius" Value="20"/>
+            <Setter Property="CornerRadius" Value="22"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="MinWidth" Value="120"/>
         </Style>
         
         <Style Selector="Button.TabButton:pointerover">
-            <Setter Property="Background" Value="#E2E8F0"/>
+            <Setter Property="Background" Value="#E2F3FF"/>
         </Style>
         
         <Style Selector="Button.TabButtonActive">
-            <Setter Property="Background" Value="#22D3EE"/>
+            <Setter Property="Background" Value="#0EA5E9"/>
             <Setter Property="Foreground" Value="White"/>
             <Setter Property="FontWeight" Value="Bold"/>
             <Setter Property="FontSize" Value="13"/>
             <Setter Property="Padding" Value="20,12"/>
-            <Setter Property="CornerRadius" Value="20"/>
+            <Setter Property="CornerRadius" Value="22"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="MinWidth" Value="120"/>
         </Style>
         
         <Style Selector="Button.Primary">
-            <Setter Property="Background" Value="#22D3EE"/>
+            <Setter Property="Background" Value="#0EA5E9"/>
             <Setter Property="Foreground" Value="White"/>
             <Setter Property="FontWeight" Value="Bold"/>
-            <Setter Property="Padding" Value="24,12"/>
-            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Padding" Value="22,12"/>
+            <Setter Property="CornerRadius" Value="10"/>
             <Setter Property="BorderThickness" Value="0"/>
         </Style>
         
         <Style Selector="Button.Primary:pointerover">
-            <Setter Property="Background" Value="#06B6D4"/>
-        </Style>
-        
-        <Style Selector="Button.Primary:disabled">
-            <Setter Property="Background" Value="#94A3B8"/>
+            <Setter Property="Background" Value="#0284C7"/>
         </Style>
         
         <Style Selector="Button.Secondary">
-            <Setter Property="Background" Value="#0B5ED7"/>
+            <Setter Property="Background" Value="#0B63E5"/>
             <Setter Property="Foreground" Value="White"/>
             <Setter Property="FontWeight" Value="Bold"/>
-            <Setter Property="Padding" Value="24,12"/>
-            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Padding" Value="22,12"/>
+            <Setter Property="CornerRadius" Value="10"/>
             <Setter Property="BorderThickness" Value="0"/>
         </Style>
         
         <Style Selector="Button.Secondary:pointerover">
-            <Setter Property="Background" Value="#084298"/>
+            <Setter Property="Background" Value="#0A4FC2"/>
         </Style>
         
         <Style Selector="Button.Danger">
             <Setter Property="Background" Value="#EF4444"/>
             <Setter Property="Foreground" Value="White"/>
             <Setter Property="FontWeight" Value="Bold"/>
-            <Setter Property="Padding" Value="24,12"/>
-            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Padding" Value="22,12"/>
+            <Setter Property="CornerRadius" Value="10"/>
             <Setter Property="BorderThickness" Value="0"/>
         </Style>
         
@@ -153,7 +149,7 @@
         <Style Selector="Border.CompassRow">
             <Setter Property="BorderBrush" Value="#E2E8F0"/>
             <Setter Property="BorderThickness" Value="0,0,0,1"/>
-            <Setter Property="Padding" Value="0,16"/>
+            <Setter Property="Padding" Value="6,14"/>
         </Style>
     </UserControl.Styles>
 
@@ -412,89 +408,138 @@
 
                 <!-- COMPASS TAB -->
                 <Border Classes="SectionCard" IsVisible="{Binding IsCompassTabSelected}">
-                    <StackPanel>
-                        <!-- Sensor Not Available Warning -->
-                        <Border Background="#FEF2F2" CornerRadius="8" Padding="12" Margin="0,0,0,16" 
-                                IsVisible="{Binding !IsCompassAvailable}">
-                            <StackPanel Orientation="Horizontal" Spacing="8">
-                                <TextBlock Text="?" FontSize="16" Foreground="#DC2626"/>
-                                <TextBlock Text="No compass sensor detected. Check hardware connections." 
-                                           Foreground="#DC2626" VerticalAlignment="Center"/>
+                    <StackPanel Spacing="14">
+                        <TextBlock Classes="SectionTitle" Text="Compass Priority"/>
+                        <TextBlock Text="Set the Compass Priority by reordering the compasses in the table below (Highest at the top)" 
+                                   FontSize="12" Foreground="#475569"/>
+
+                        <!-- Compass table -->
+                        <Border Background="#F8FBFF" CornerRadius="14" Padding="14" BorderBrush="#E2E8F0" BorderThickness="1">
+                            <Grid RowDefinitions="Auto,*" RowSpacing="8">
+                                <Border Background="#EEF6FF" CornerRadius="10" Padding="10,6">
+                                    <Grid ColumnDefinitions="60,110,80,70,80,90,70,80,120,50,50" >
+                                        <TextBlock Grid.Column="0" Text="Priority" FontWeight="Bold" FontSize="12"/>
+                                        <TextBlock Grid.Column="1" Text="DevID" FontWeight="Bold" FontSize="12"/>
+                                        <TextBlock Grid.Column="2" Text="BusType" FontWeight="Bold" FontSize="12"/>
+                                        <TextBlock Grid.Column="3" Text="Bus" FontWeight="Bold" FontSize="12"/>
+                                        <TextBlock Grid.Column="4" Text="Address" FontWeight="Bold" FontSize="12"/>
+                                        <TextBlock Grid.Column="5" Text="DevType" FontWeight="Bold" FontSize="12"/>
+                                        <TextBlock Grid.Column="6" Text="Missing" FontWeight="Bold" FontSize="12"/>
+                                        <TextBlock Grid.Column="7" Text="External" FontWeight="Bold" FontSize="12"/>
+                                        <TextBlock Grid.Column="8" Text="Orientation" FontWeight="Bold" FontSize="12"/>
+                                        <TextBlock Grid.Column="9" Text="Up" FontWeight="Bold" FontSize="12"/>
+                                        <TextBlock Grid.Column="10" Text="Down" FontWeight="Bold" FontSize="12"/>
+                                    </Grid>
+                                </Border>
+
+                                <ScrollViewer Grid.Row="1" MaxHeight="240" VerticalScrollBarVisibility="Auto">
+                                    <ItemsControl ItemsSource="{Binding Compasses}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Border Classes="CompassRow">
+                                                    <Grid ColumnDefinitions="60,110,80,70,80,90,70,80,120,50,50" VerticalAlignment="Center">
+                                                        <TextBlock Grid.Column="0" Text="{Binding Priority}" HorizontalAlignment="Center"/>
+                                                        <StackPanel Grid.Column="1" Orientation="Vertical" Spacing="2">
+                                                            <TextBlock Text="{Binding DeviceId}" FontWeight="Medium"/>
+                                                            <CheckBox Content="Use" IsChecked="{Binding IsEnabled}" 
+                                                                      Command="{Binding $parent[ItemsControl].((vm:SensorsCalibrationPageViewModel)DataContext).SetCompassEnabledCommand}"
+                                                                      CommandParameter="{Binding}" FontSize="11"/>
+                                                        </StackPanel>
+                                                        <TextBlock Grid.Column="2" Text="{Binding BusTypeName}" HorizontalAlignment="Center"/>
+                                                        <TextBlock Grid.Column="3" Text="{Binding BusNumber}" HorizontalAlignment="Center"/>
+                                                        <TextBlock Grid.Column="4" Text="{Binding Address}" HorizontalAlignment="Center"/>
+                                                        <TextBlock Grid.Column="5" Text="{Binding DeviceTypeHex}" HorizontalAlignment="Center"/>
+                                                        <CheckBox Grid.Column="6" IsChecked="{Binding IsMissing}" IsEnabled="False" HorizontalAlignment="Center"/>
+                                                        <CheckBox Grid.Column="7" IsChecked="{Binding IsExternal}" IsEnabled="False" HorizontalAlignment="Center"/>
+                                                        <ComboBox Grid.Column="8" SelectedItem="{Binding Orientation}" Width="110" HorizontalAlignment="Stretch">
+                                                            <ComboBox.Items>
+                                                                <x:String>None</x:String>
+                                                                <x:String>Roll 90</x:String>
+                                                                <x:String>Roll 180</x:String>
+                                                                <x:String>Roll 270</x:String>
+                                                                <x:String>Pitch 90</x:String>
+                                                                <x:String>Pitch 270</x:String>
+                                                            </ComboBox.Items>
+                                                        </ComboBox>
+                                                        <Button Grid.Column="9" Content="?" FontSize="12" Padding="8,4" Background="#E5F3FF" 
+                                                                Command="{Binding $parent[ItemsControl].((vm:SensorsCalibrationPageViewModel)DataContext).MoveCompassUpCommand}"
+                                                                CommandParameter="{Binding}"/>
+                                                        <Button Grid.Column="10" Content="?" FontSize="12" Padding="8,4" Background="#E5F3FF" 
+                                                                Command="{Binding $parent[ItemsControl].((vm:SensorsCalibrationPageViewModel)DataContext).MoveCompassDownCommand}"
+                                                                CommandParameter="{Binding}"/>
+                                                    </Grid>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </ScrollViewer>
+                            </Grid>
+                        </Border>
+
+                        <!-- Enable/disable quick toggles -->
+                        <Border Background="#F8FAFC" CornerRadius="10" Padding="12" BorderBrush="#E2E8F0" BorderThickness="1">
+                            <StackPanel Orientation="Horizontal" Spacing="14" VerticalAlignment="Center">
+                                <TextBlock Text="Disable any of the first 3 compasses?" VerticalAlignment="Center" FontSize="12"/>
+                                <ItemsControl ItemsSource="{Binding Compasses}" Margin="8,0">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <StackPanel Orientation="Horizontal" Spacing="10"/>
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <CheckBox Content="{Binding DisplayName}" IsChecked="{Binding IsEnabled}" 
+                                                      Command="{Binding $parent[ItemsControl].((vm:SensorsCalibrationPageViewModel)DataContext).SetCompassEnabledCommand}"
+                                                      CommandParameter="{Binding}" FontSize="12"/>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                <Button Content="Remove Missing" Padding="12,8" Background="#CBEA7B" Foreground="#365314" 
+                                        Command="{Binding RefreshCommand}"/>
+                                <CheckBox Content="Automatically learn offsets" IsChecked="True" IsEnabled="False"/>
                             </StackPanel>
                         </Border>
-                        
-                        <TextBlock Classes="SectionTitle" Text="Available Compass"/>
-                        
-                        <ScrollViewer MaxHeight="300" VerticalScrollBarVisibility="Auto">
-                            <ItemsControl ItemsSource="{Binding Compasses}" Margin="0,16,0,0">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <Border Classes="CompassRow">
-                                            <Grid ColumnDefinitions="Auto,80,80,120,140,Auto,Auto,Auto">
-                                                <TextBlock Grid.Column="0" Classes="CompassTitle" Text="{Binding DisplayName}" VerticalAlignment="Center" Width="120"/>
-                                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                                    <TextBlock Text="ID" FontSize="11" Foreground="#94A3B8"/>
-                                                    <TextBlock Text="{Binding DeviceId}" FontSize="13"/>
-                                                </StackPanel>
-                                                <StackPanel Grid.Column="2" VerticalAlignment="Center">
-                                                    <TextBlock Text="BUS" FontSize="11" Foreground="#94A3B8"/>
-                                                    <TextBlock Text="{Binding BusTypeName}" FontSize="13"/>
-                                                </StackPanel>
-                                                <StackPanel Grid.Column="3" VerticalAlignment="Center">
-                                                    <TextBlock Text="Status" FontSize="11" Foreground="#94A3B8"/>
-                                                    <TextBlock Text="{Binding StatusText}" FontSize="13"/>
-                                                </StackPanel>
-                                                <StackPanel Grid.Column="4" Orientation="Horizontal" VerticalAlignment="Center" Spacing="8">
-                                                    <TextBlock Text="Use compass" FontSize="13" VerticalAlignment="Center"/>
-                                                    <CheckBox IsChecked="{Binding IsEnabled}"/>
-                                                </StackPanel>
-                                                <TextBlock Grid.Column="5" Text="Set Priority" FontSize="13" VerticalAlignment="Center" Margin="16,0"/>
-                                                <Button Grid.Column="6" Content="^" FontSize="14" Padding="8,4" Background="Transparent"
-                                                        Command="{Binding $parent[ItemsControl].((vm:SensorsCalibrationPageViewModel)DataContext).MoveCompassUpCommand}"
-                                                        CommandParameter="{Binding}"/>
-                                                <Button Grid.Column="7" Content="v" FontSize="14" Padding="8,4" Background="Transparent"
-                                                        Command="{Binding $parent[ItemsControl].((vm:SensorsCalibrationPageViewModel)DataContext).MoveCompassDownCommand}"
-                                                        CommandParameter="{Binding}"/>
-                                            </Grid>
-                                        </Border>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                        </ScrollViewer>
-                        
-                        <TextBlock Text="No compass sensors detected" FontSize="14" Foreground="#64748B" Margin="0,16,0,0"
-                                   IsVisible="{Binding !IsCompassAvailable}"/>
-                        
-                        <!-- Compass calibration progress -->
-                        <Border Background="#FEF3C7" CornerRadius="8" Padding="16" Margin="0,16,0,0" IsVisible="{Binding IsCompassCalibrationActive}">
-                            <StackPanel Spacing="8">
-                                <Grid ColumnDefinitions="*,Auto">
-                                    <TextBlock Grid.Column="0" 
-                                               Text="{Binding CompassInstructions}" 
-                                               FontWeight="Bold" 
-                                               Foreground="#92400E"
-                                               TextWrapping="Wrap"/>
-                                    <TextBlock Grid.Column="1" 
-                                               Text="{Binding CompassCalibrationProgress, StringFormat='{}{0}%'}" 
-                                               FontWeight="Bold" 
-                                               FontSize="16"
-                                               Foreground="#92400E"
-                                               Margin="8,0,0,0"/>
-                                </Grid>
-                                <ProgressBar Value="{Binding CompassCalibrationProgress}" 
-                                             Maximum="100" 
-                                             Height="8" 
-                                             Foreground="#F59E0B"
-                                             Background="#FDE68A"/>
-                            </StackPanel>
-                        </Border>
-                        
-                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="12" Margin="0,24,0,0">
-                            <Button Classes="Danger" Content="Cancel" Command="{Binding CancelCalibrationCommand}" IsVisible="{Binding IsCompassCalibrationActive}"/>
+
+                        <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+                            <TextBlock Text="A mag calibration is required to remap the above changes." FontSize="12" Foreground="#475569" VerticalAlignment="Center"/>
                             <Button Classes="Secondary" Content="Reboot" Command="{Binding RebootCommand}" IsEnabled="{Binding IsConnected}"/>
-                            <Button Classes="Primary" Content="Calibrate" Command="{Binding CalibrateCompassCommand}" 
-                                    IsVisible="{Binding CanCalibrateCompass}"/>
                         </StackPanel>
+
+                        <!-- Calibration controls -->
+                        <Border Background="#F8FAFC" CornerRadius="12" Padding="14" BorderBrush="#E2E8F0" BorderThickness="1">
+                            <StackPanel Spacing="12">
+                                <TextBlock FontWeight="Bold" Text="Onboard Mag Calibration" FontSize="14" Foreground="#1E293B"/>
+                                <StackPanel Orientation="Horizontal" Spacing="12">
+                                    <Button Classes="Primary" Content="Start" Command="{Binding CalibrateCompassCommand}" 
+                                            IsVisible="{Binding CanCalibrateCompass}"/>
+                                    <Button Content="Accept" Padding="16,8" Background="#22C55E" Foreground="White"
+                                            Command="{Binding CancelCalibrationCommand}" IsVisible="{Binding IsCompassCalibrationActive}"/>
+                                    <Button Content="Cancel" Padding="16,8" Background="#FECACA" Foreground="#991B1B"
+                                            Command="{Binding CancelCalibrationCommand}" IsVisible="{Binding IsCompassCalibrationActive}"/>
+                                </StackPanel>
+
+                                <Border Background="#FFF7ED" CornerRadius="8" Padding="10" IsVisible="{Binding IsCompassCalibrationActive}">
+                                    <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" RowSpacing="6">
+                                        <TextBlock Grid.Column="0" Grid.Row="0" Text="{Binding CompassInstructions}" FontWeight="Medium" TextWrapping="Wrap"/>
+                                        <TextBlock Grid.Column="1" Grid.Row="0" Text="{Binding CompassCalibrationProgress, StringFormat='{}{0}%'}" FontWeight="Bold"/>
+                                        <ProgressBar Grid.Column="0" Grid.Row="1" Grid.ColumnSpan="2" Height="6" Maximum="100" 
+                                                     Value="{Binding CompassCalibrationProgress}" Foreground="#F59E0B" Background="#FDE68A"/>
+                                    </Grid>
+                                </Border>
+
+                                <!-- Quick status fields per compass -->
+                                <ItemsControl ItemsSource="{Binding Compasses}" Margin="0,4,0,0">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Grid ColumnDefinitions="80,*" Margin="0,2">
+                                                <TextBlock Grid.Column="0" Text="{Binding DisplayName}" FontWeight="SemiBold"/>
+                                                <TextBox Grid.Column="1" Text="{Binding StatusText}" IsReadOnly="True" Padding="10" Background="#F8FAFC" BorderBrush="#E2E8F0"/>
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </Border>
                     </StackPanel>
                 </Border>
 
@@ -597,7 +642,7 @@
                                 </Grid>
                                 <ProgressBar Value="{Binding PressureCalibrationProgress}" 
                                              Maximum="100" 
-                                             Height="8"
+                                             Height="8" 
                                              Foreground="#3B82F6" 
                                              Background="#CBD5E1"/>
                                 <TextBlock Text="Please keep the vehicle still during calibration" 
