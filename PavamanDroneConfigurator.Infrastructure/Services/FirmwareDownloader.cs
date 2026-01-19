@@ -395,7 +395,7 @@ public class MissionPlannerFirmwareEntry
     /// Board ID string for backward compatibility
     /// </summary>
     [JsonIgnore]
-    public string? BoardId => BoardIdLong > 0 ? BoardIdLong.ToString() : null;
+    public string? BoardId => BoardIdLong.ToString();
     
     [JsonPropertyName("platform")]
     public string? Platform { get; set; }
