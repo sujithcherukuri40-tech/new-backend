@@ -38,6 +38,17 @@ public sealed class Px4Uploader : IDisposable
     private const int DEFAULT_READ_TIMEOUT = 5000;
     private const int ERASE_TIMEOUT = 30000; // Erase can take up to 30 seconds
     private const int SYNC_ATTEMPTS = 3;
+    
+    // Mission Planner compatible timeouts and delays
+    private const int PROGRAM_TIMEOUT = 2000;  // Timeout for program operations (was 1000ms)
+    private const int STABILIZATION_DELAY = 500; // USB stabilization delay after connect
+    private const int PROGRAM_CHUNK_DELAY = 5;   // Small delay between chunks to avoid USB overruns
+    private const int MAX_PROGRAM_RETRIES = 3;   // Retry failed program chunks
+    
+    // Consecutive failure thresholds before giving up
+    // These are tuned based on Mission Planner's behavior for the ~60% failure zone
+    private const int MAX_CONSECUTIVE_TIMEOUTS = 5;  // Timeout failures before abort
+    private const int MAX_CONSECUTIVE_IO_ERRORS = 3; // IO errors (USB disconnect) before abort
 
     // Detected board info
     public int BoardType { get; private set; }
@@ -59,6 +70,7 @@ public sealed class Px4Uploader : IDisposable
 
     /// <summary>
     /// Opens connection to the bootloader on specified port
+    /// Implements Mission Planner's connection sequence with stabilization delay.
     /// </summary>
     public void Open(string portName, int baudRate = 115200)
     {
@@ -69,8 +81,8 @@ public sealed class Px4Uploader : IDisposable
             DataBits = 8,
             Parity = Parity.None,
             StopBits = StopBits.One,
-            ReadTimeout = 1000,   // Reduced from 5000 for faster detection
-            WriteTimeout = 1000,  // Reduced for faster detection
+            ReadTimeout = PROGRAM_TIMEOUT,   // Increased from 1000 for program reliability
+            WriteTimeout = PROGRAM_TIMEOUT,  // Increased from 1000 for program reliability
             DtrEnable = false,
             RtsEnable = false
         };
@@ -78,6 +90,10 @@ public sealed class Px4Uploader : IDisposable
         _port.Open();
         _port.DiscardInBuffer();
         _port.DiscardOutBuffer();
+        
+        // Mission Planner compatible: stabilization delay after opening port
+        // This prevents "System.TimeoutException: The write timed out" errors
+        Thread.Sleep(STABILIZATION_DELAY);
         
         Log($"Port {portName} opened");
     }
@@ -347,18 +363,87 @@ public sealed class Px4Uploader : IDisposable
     /// <summary>
     /// Programs firmware to internal flash.
     /// Sends 252-byte chunks with PROG_MULTI command.
+    /// Implements Mission Planner compatible retry logic for the ~60% failure zone.
     /// </summary>
     public void Program(byte[] image)
     {
         Log($"Programming {image.Length} bytes ({image.Length / 1024} KB) to flash...");
         
+        // Sync before programming to ensure clean state
+        try
+        {
+            Sync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Pre-program sync failed, continuing anyway");
+            _port?.DiscardInBuffer();
+        }
+        
         var groups = SplitIntoChunks(image, PROG_MULTI_MAX);
         int count = 0;
         int total = groups.Length;
+        int consecutiveFailures = 0;
 
         foreach (var chunk in groups)
         {
-            ProgramMulti(chunk);
+            bool chunkProgrammed = false;
+            
+            // Retry logic for each chunk - addresses the ~60% failure zone
+            for (int retry = 0; retry < MAX_PROGRAM_RETRIES && !chunkProgrammed; retry++)
+            {
+                try
+                {
+                    if (retry > 0)
+                    {
+                        _logger.LogDebug("Retrying chunk {Count} (attempt {Retry})", count + 1, retry + 1);
+                        Thread.Sleep(100); // Brief delay before retry
+                        _port?.DiscardInBuffer();
+                        
+                        // Re-sync after failure
+                        try { Sync(); } catch { _port?.DiscardInBuffer(); }
+                    }
+                    
+                    ProgramMulti(chunk);
+                    chunkProgrammed = true;
+                    consecutiveFailures = 0;
+                    
+                    // Small delay between chunks to prevent USB overruns
+                    if (PROGRAM_CHUNK_DELAY > 0 && count < total - 1)
+                    {
+                        Thread.Sleep(PROGRAM_CHUNK_DELAY);
+                    }
+                }
+                catch (TimeoutException ex)
+                {
+                    consecutiveFailures++;
+                    _logger.LogWarning(ex, "Timeout programming chunk {Count}/{Total} (attempt {Retry})", 
+                        count + 1, total, retry + 1);
+                    
+                    if (consecutiveFailures > MAX_CONSECUTIVE_TIMEOUTS)
+                    {
+                        throw new Exception($"Lost communication with the board after {consecutiveFailures} consecutive failures at {(count * 100.0 / total):F0}%");
+                    }
+                }
+                catch (IOException ex)
+                {
+                    consecutiveFailures++;
+                    _logger.LogWarning(ex, "IO error programming chunk {Count}/{Total} (attempt {Retry})", 
+                        count + 1, total, retry + 1);
+                    
+                    // IOException often means USB disconnect - this is the ~60% failure zone
+                    if (consecutiveFailures > MAX_CONSECUTIVE_IO_ERRORS)
+                    {
+                        throw new IOException($"Lost communication with the board at {(count * 100.0 / total):F0}%. Check USB cable and connection.", ex);
+                    }
+                }
+            }
+            
+            if (!chunkProgrammed)
+            {
+                throw new Exception($"Failed to program chunk {count + 1}/{total} after {MAX_PROGRAM_RETRIES} retries");
+            }
+            
             count++;
             
             double progress = (double)count / total * 100.0;
@@ -369,7 +454,8 @@ public sealed class Px4Uploader : IDisposable
     }
 
     /// <summary>
-    /// Programs firmware to external flash
+    /// Programs firmware to external flash.
+    /// Implements same retry logic as internal flash programming.
     /// </summary>
     public void ProgramExternalFlash(byte[] image)
     {
@@ -381,13 +467,74 @@ public sealed class Px4Uploader : IDisposable
 
         Log($"Programming {image.Length} bytes to external flash...");
         
+        // Sync before programming
+        try
+        {
+            Sync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Pre-program sync failed, continuing anyway");
+            _port?.DiscardInBuffer();
+        }
+        
         var groups = SplitIntoChunks(image, PROG_MULTI_MAX);
         int count = 0;
         int total = groups.Length;
+        int consecutiveFailures = 0;
 
         foreach (var chunk in groups)
         {
-            ProgramMultiExternal(chunk);
+            bool chunkProgrammed = false;
+            
+            for (int retry = 0; retry < MAX_PROGRAM_RETRIES && !chunkProgrammed; retry++)
+            {
+                try
+                {
+                    if (retry > 0)
+                    {
+                        _logger.LogDebug("Retrying external flash chunk {Count} (attempt {Retry})", count + 1, retry + 1);
+                        Thread.Sleep(100);
+                        _port?.DiscardInBuffer();
+                        try { Sync(); } catch { _port?.DiscardInBuffer(); }
+                    }
+                    
+                    ProgramMultiExternal(chunk);
+                    chunkProgrammed = true;
+                    consecutiveFailures = 0;
+                    
+                    if (PROGRAM_CHUNK_DELAY > 0 && count < total - 1)
+                    {
+                        Thread.Sleep(PROGRAM_CHUNK_DELAY);
+                    }
+                }
+                catch (TimeoutException ex)
+                {
+                    consecutiveFailures++;
+                    _logger.LogWarning(ex, "Timeout programming external flash chunk {Count}/{Total}", count + 1, total);
+                    
+                    if (consecutiveFailures > MAX_CONSECUTIVE_TIMEOUTS)
+                    {
+                        throw new Exception($"Lost communication during external flash programming at {(count * 100.0 / total):F0}%");
+                    }
+                }
+                catch (IOException ex)
+                {
+                    consecutiveFailures++;
+                    _logger.LogWarning(ex, "IO error programming external flash chunk {Count}/{Total}", count + 1, total);
+                    
+                    if (consecutiveFailures > MAX_CONSECUTIVE_IO_ERRORS)
+                    {
+                        throw new IOException($"Lost communication during external flash programming at {(count * 100.0 / total):F0}%", ex);
+                    }
+                }
+            }
+            
+            if (!chunkProgrammed)
+            {
+                throw new Exception($"Failed to program external flash chunk {count + 1}/{total} after {MAX_PROGRAM_RETRIES} retries");
+            }
+            
             count++;
             
             double progress = (double)count / total * 100.0;
@@ -457,6 +604,7 @@ public sealed class Px4Uploader : IDisposable
     /// <summary>
     /// Checks if firmware already matches what's on the board.
     /// Uses CRC comparison to avoid unnecessary re-flashing.
+    /// Mission Planner compatible: handles IOException as "lost communication" case.
     /// </summary>
     public bool IsSameFirmware(byte[] firmware, int maxSize)
     {
@@ -482,8 +630,19 @@ public sealed class Px4Uploader : IDisposable
             }
             return same;
         }
-        catch
+        catch (IOException ex)
         {
+            _logger.LogWarning(ex, "Lost communication during CRC check");
+            throw; // Re-throw IOException so caller can handle "lost communication" case
+        }
+        catch (TimeoutException ex)
+        {
+            _logger.LogWarning(ex, "Timeout during CRC check");
+            throw; // Re-throw TimeoutException so caller can handle timeout case
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "CRC check failed, assuming different firmware");
             return false;
         }
     }
@@ -525,6 +684,8 @@ public sealed class Px4Uploader : IDisposable
 
     /// <summary>
     /// Full upload workflow - erase, program, verify, reboot.
+    /// Mission Planner compatible implementation with proper error handling
+    /// for "lost communication" and "same firmware" scenarios.
     /// </summary>
     public void Upload(Px4Firmware firmware)
     {
@@ -551,10 +712,38 @@ public sealed class Px4Uploader : IDisposable
         }
 
         // Check if same firmware is already loaded
-        if (firmware.ImageSize > 0 && IsSameFirmware(firmware.Image, FlashSize))
+        // Mission Planner compatible: handles IOException and TimeoutException
+        if (firmware.ImageSize > 0)
         {
-            Log("Same firmware already installed. Skipping upload.");
-            throw new Exception("Same firmware already installed");
+            try
+            {
+                if (IsSameFirmware(firmware.Image, FlashSize))
+                {
+                    Log("Same firmware already installed. Skipping upload.");
+                    // Don't reboot here - let the caller handle it
+                    // This prevents losing the exception if reboot causes disconnect
+                    throw new Exception("Same firmware already installed");
+                }
+            }
+            catch (IOException ex)
+            {
+                _logger.LogError(ex, "Lost communication during CRC check");
+                throw new IOException("Lost communication with the board during firmware check.", ex);
+            }
+            catch (TimeoutException ex)
+            {
+                _logger.LogError(ex, "Timeout during CRC check");
+                throw new TimeoutException("Communication timeout during firmware check.", ex);
+            }
+            catch (Exception ex) when (ex.Message.Contains("Same firmware"))
+            {
+                throw; // Re-throw "same firmware" exception
+            }
+            catch (Exception ex)
+            {
+                // Other exceptions during CRC check are non-fatal, continue with upload
+                _logger.LogDebug(ex, "CRC check failed, proceeding with upload");
+            }
         }
 
         // Erase and program internal flash
@@ -569,7 +758,7 @@ public sealed class Px4Uploader : IDisposable
             Log("Verifying internal flash...");
             if (!VerifyCrc(firmware.Image, FlashSize))
             {
-                throw new Exception("CRC verification failed");
+                throw new Exception("CRC verification failed - Program CRC mismatch");
             }
         }
 
@@ -679,6 +868,10 @@ public sealed class Px4Uploader : IDisposable
         return sn;
     }
 
+    /// <summary>
+    /// Programs a single chunk using PROG_MULTI command.
+    /// Mission Planner compatible: flushes buffer after send to ensure data is transmitted.
+    /// </summary>
     private void ProgramMulti(byte[] data)
     {
         if (data.Length > PROG_MULTI_MAX)
@@ -693,9 +886,16 @@ public sealed class Px4Uploader : IDisposable
         cmd[cmd.Length - 1] = (byte)ProtocolCode.EOC;
 
         Send(cmd);
+        
+        // Flush to ensure data is actually transmitted before waiting for response
+        _port?.BaseStream.Flush();
+        
         GetSync();
     }
 
+    /// <summary>
+    /// Programs a single chunk to external flash.
+    /// </summary>
     private void ProgramMultiExternal(byte[] data)
     {
         if (data.Length > PROG_MULTI_MAX)
@@ -710,6 +910,10 @@ public sealed class Px4Uploader : IDisposable
         cmd[cmd.Length - 1] = (byte)ProtocolCode.EOC;
 
         Send(cmd);
+        
+        // Flush to ensure data is actually transmitted before waiting for response
+        _port?.BaseStream.Flush();
+        
         GetSync();
     }
 
@@ -722,6 +926,11 @@ public sealed class Px4Uploader : IDisposable
         _port.Write(data, 0, data.Length);
     }
 
+    /// <summary>
+    /// Receives specified number of bytes from the bootloader.
+    /// Uses busy-wait loop with small delays for responsiveness.
+    /// Mission Planner compatible timeout handling.
+    /// </summary>
     private byte[] Recv(int count)
     {
         if (_port == null || !_port.IsOpen)
@@ -732,22 +941,33 @@ public sealed class Px4Uploader : IDisposable
         var buffer = new byte[count];
         int offset = 0;
         var sw = Stopwatch.StartNew();
+        var timeout = _port.ReadTimeout;
         
         while (offset < count)
         {
-            if (sw.ElapsedMilliseconds > _port.ReadTimeout)
+            if (sw.ElapsedMilliseconds > timeout)
             {
-                throw new TimeoutException($"Timeout waiting for {count} bytes (got {offset})");
+                throw new TimeoutException($"Timeout waiting for {count} bytes (got {offset} after {sw.ElapsedMilliseconds}ms)");
             }
 
-            if (_port.BytesToRead > 0)
+            try
             {
-                int read = _port.Read(buffer, offset, count - offset);
-                offset += read;
+                if (_port.BytesToRead > 0)
+                {
+                    int toRead = Math.Min(_port.BytesToRead, count - offset);
+                    int read = _port.Read(buffer, offset, toRead);
+                    offset += read;
+                }
+                else
+                {
+                    // Yield to allow USB data to arrive
+                    Thread.Sleep(1);
+                }
             }
-            else
+            catch (IOException ex)
             {
-                Thread.Sleep(1);
+                // USB disconnect during read
+                throw new IOException($"Lost communication with board during receive (got {offset}/{count} bytes)", ex);
             }
         }
 
