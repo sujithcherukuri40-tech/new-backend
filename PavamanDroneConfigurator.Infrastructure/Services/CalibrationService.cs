@@ -135,18 +135,25 @@ public class CalibrationService : ICalibrationService, IDisposable
         
         if (requestedPosition.HasValue)
         {
+            int previousPosition;
             lock (_lock)
             {
+                previousPosition = _currentPosition;
                 _currentPosition = requestedPosition.Value;
                 _waitingForUserClick = true;
             }
             
             _logger.LogInformation("FC requests position {Pos}: {Name}", requestedPosition.Value, GetPositionName(requestedPosition.Value));
             
+            // Calculate progress based on positions completed
+            // When FC requests position N, it means position N-1 was completed (except for position 1)
+            int progress = CalculateProgressFromPosition(requestedPosition.Value);
+            _logger.LogInformation("Progress from STATUSTEXT: {Progress}% (FC requesting position {Pos})", progress, requestedPosition.Value);
+            
             // Show position to user
             SetState(CalibrationStateMachine.WaitingForUserPosition,
                 originalText, // Show FC's exact message
-                GetProgress());
+                progress);
             
             // Tell UI to show position image and enable button
             RaiseStepRequired(requestedPosition.Value, true, originalText);
@@ -325,21 +332,17 @@ public class CalibrationService : ICalibrationService, IDisposable
         
         if (result == MavResult.Accepted || result == MavResult.InProgress)
         {
-            _logger.LogInformation("FC accepted position {Pos} command - entering internal sampling mode", pos);
+            _logger.LogInformation("FC accepted position {Pos} command - waiting for FC validation via STATUSTEXT", pos);
             
             lock (_lock) { _waitingForUserClick = false; }
             
-            // CRITICAL: FC only needs position 1 confirmed!
-            // After accepting position 1, the FC enters INTERNAL SAMPLING mode
-            // It will automatically detect all 6 positions using IMU data
-            // We DO NOT send more commands - just wait for FC to complete
-            
             SetState(CalibrationStateMachine.Sampling,
-                "FC is now sampling internally. Slowly move the drone through all 6 orientations (LEVEL, LEFT, RIGHT, NOSE DOWN, NOSE UP, BACK). The FC will detect each position automatically.",
-                16); // Start at 16% after position 1 accepted
+                $"Position {pos} sent to FC - waiting for FC validation...",
+                GetProgress());
             
-            // Start monitoring - FC will send "Calibration successful" when done
-            _ = MonitorInternalSamplingAsync();
+            // NO TIMER! Just wait for FC to send STATUSTEXT
+            // FC will tell us via STATUSTEXT when it needs the next position
+            _logger.LogInformation("Position {Position} sent to FC - waiting for FC validation via STATUSTEXT", pos);
         }
         else if (result == MavResult.Denied || result == MavResult.Failed)
         {
@@ -357,6 +360,17 @@ public class CalibrationService : ICalibrationService, IDisposable
     
     private async Task MonitorInternalSamplingAsync()
     {
+        // GUARD: This method should NEVER be called for Accelerometer calibration!
+        // Accelerometer progress must ONLY come from FC STATUSTEXT messages
+        CalibrationType type;
+        lock (_lock) { type = _currentType; }
+        
+        if (type == CalibrationType.Accelerometer)
+        {
+            _logger.LogError("MonitorInternalSamplingAsync called for Accelerometer - this is a BUG! This method creates fake progress.");
+            return;
+        }
+        
         // Monitor for up to 120 seconds for FC to complete internal sampling
         const int timeoutMs = 120000; // 2 minutes
         const int updateIntervalMs = 500;
@@ -365,7 +379,7 @@ public class CalibrationService : ICalibrationService, IDisposable
         CancellationToken ct;
         lock (_lock) { ct = _calibrationCts?.Token ?? CancellationToken.None; }
         
-        _logger.LogInformation("FC is now in internal sampling mode. User should move drone through all 6 orientations.");
+        _logger.LogInformation("Monitoring internal sampling for {Type}", type);
         
         while (true)
         {
@@ -387,12 +401,12 @@ public class CalibrationService : ICalibrationService, IDisposable
             if (elapsed.TotalMilliseconds >= timeoutMs)
             {
                 _logger.LogWarning("Calibration timeout after 120 seconds");
-                FinishCalibration(false, "Calibration timeout - FC did not complete within 2 minutes. Ensure you moved the drone through all 6 orientations.");
+                FinishCalibration(false, "Calibration timeout - FC did not complete within 2 minutes.");
                 return;
             }
             
             // Update progress smoothly while FC is sampling
-            // Progress goes from 16% (position 1 done) to 95% (waiting for completion)
+            // This is ONLY for non-accelerometer calibrations that don't have position-based progress
             if (currentState == CalibrationStateMachine.Sampling)
             {
                 var progress = Math.Min(95, 16 + (int)(elapsed.TotalMilliseconds / timeoutMs * 79));
@@ -407,9 +421,9 @@ public class CalibrationService : ICalibrationService, IDisposable
                 
                 CalibrationProgressChanged?.Invoke(this, new CalibrationProgressEventArgs
                 {
-                    Type = CalibrationType.Accelerometer,
+                    Type = type,
                     ProgressPercent = progress,
-                    StatusText = "FC is sampling - move drone through all positions slowly",
+                    StatusText = "Calibration in progress...",
                     StateMachine = CalibrationStateMachine.Sampling
                 });
             }
@@ -622,16 +636,30 @@ public class CalibrationService : ICalibrationService, IDisposable
 
     private async Task WaitForSimpleCalibrationAsync()
     {
+        CalibrationType type;
+        lock (_lock)
+        {
+            type = _currentType;
+        }
+        
+        // GUARD: This method should ONLY run for simple calibrations
+        // Accelerometer and Compass require user interaction and FC position validation
+        if (type == CalibrationType.Accelerometer || type == CalibrationType.Compass)
+        {
+            _logger.LogWarning("WaitForSimpleCalibrationAsync called for {Type} - this should NOT happen! This creates fake progress.", type);
+            return;
+        }
+        
         var startTime = DateTime.UtcNow;
         const int timeoutMs = 15000;
         CancellationToken ct;
-        CalibrationType type;
         
         lock (_lock)
         {
             ct = _calibrationCts?.Token ?? CancellationToken.None;
-            type = _currentType;
         }
+        
+        _logger.LogInformation("Starting simple calibration timer for {Type}", type);
         
         while (true)
         {
@@ -886,6 +914,22 @@ public class CalibrationService : ICalibrationService, IDisposable
         
         if (type != CalibrationType.Accelerometer) return 50;
         return (int)((pos - 1) * 100.0 / 6.0);
+    }
+
+    /// <summary>
+    /// Calculate progress based on which position FC is requesting.
+    /// When FC requests position N, it means positions 1 to N-1 are complete.
+    /// </summary>
+    private static int CalculateProgressFromPosition(int requestedPosition)
+    {
+        // Position 1 (LEVEL) = 0% (just starting)
+        // Position 2 (LEFT) = 16.67% (position 1 complete)
+        // Position 3 (RIGHT) = 33.33% (positions 1-2 complete)
+        // Position 4 (NOSE DOWN) = 50% (positions 1-3 complete)
+        // Position 5 (NOSE UP) = 66.67% (positions 1-4 complete)
+        // Position 6 (BACK) = 83.33% (positions 1-5 complete)
+        int positionsComplete = requestedPosition - 1;
+        return (int)((positionsComplete * 100.0) / 6.0);
     }
 
     private static string GetPositionName(int position)
