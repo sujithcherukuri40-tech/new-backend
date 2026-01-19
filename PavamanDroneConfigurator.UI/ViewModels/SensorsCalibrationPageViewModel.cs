@@ -61,7 +61,7 @@ public partial class SensorsCalibrationPageViewModel : ViewModelBase
     private ObservableCollection<string> _debugLogs = new();
     
     [ObservableProperty]
-    private bool _showMavLinkLog;
+    private bool _showMavLinkLog = true; // Default: visible
 
     [ObservableProperty]
     private ObservableCollection<MavLinkLogEntry> _mavLinkMessages = new();

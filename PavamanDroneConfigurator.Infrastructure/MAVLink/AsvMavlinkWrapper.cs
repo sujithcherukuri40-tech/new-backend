@@ -469,7 +469,7 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
 
             _logger.LogDebug("COMMAND_ACK: cmd={Command} result={Result}", command, result);
             
-            // Log to MAVLink logger with command name if available
+            // Log to MAVLink logger with command name and number
             string cmdName = command switch
             {
                 MAV_CMD_PREFLIGHT_CALIBRATION => "MAV_CMD_PREFLIGHT_CALIBRATION",
@@ -488,7 +488,7 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
                 5 => "IN_PROGRESS",
                 _ => result.ToString()
             };
-            _mavLinkLogger?.LogIncoming("COMMAND_ACK", $"cmd={cmdName}, result={resultName}");
+            _mavLinkLogger?.LogIncoming("COMMAND_ACK", $"cmd={command} ({cmdName}), result={resultName}");
             
             CommandAckReceived?.Invoke(this, (command, result));
         }
