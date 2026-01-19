@@ -44,6 +44,12 @@ public sealed class Px4Uploader : IDisposable
     private const int STABILIZATION_DELAY = 500; // USB stabilization delay after connect
     private const int PROGRAM_CHUNK_DELAY = 5;   // Small delay between chunks to avoid USB overruns
     private const int MAX_PROGRAM_RETRIES = 3;   // Retry failed program chunks
+    private const int CRC_VERIFICATION_TIMEOUT = 30000; // CRC calculation can take up to 30 seconds
+    private const double CRC_PROGRESS_DURATION_MS = 10000.0; // Duration for progress bar during CRC verification
+    
+    // INVALID response detection constants
+    private const int MIN_BYTES_FOR_INVALID_CHECK = 4; // Minimum bytes before checking for INVALID
+    private const int INVALID_HEADER_SIZE = 2; // INSYNC + INVALID bytes
     
     // Consecutive failure thresholds before giving up
     // These are tuned based on Mission Planner's behavior for the ~60% failure zone
@@ -341,9 +347,10 @@ public sealed class Px4Uploader : IDisposable
     }
 
     /// <summary>
-    /// Erases external flash memory (if present)
+    /// Erases external flash memory (if present).
+    /// Mission Planner compatible: sends image size as part of erase command.
     /// </summary>
-    public void EraseExternalFlash()
+    public void EraseExternalFlash(int imageSize = 0)
     {
         if (ExtFlashSize <= 0)
         {
@@ -353,11 +360,79 @@ public sealed class Px4Uploader : IDisposable
 
         Log("Erasing external flash memory...");
         
-        Send(new byte[] { (byte)ProtocolCode.EXTF_ERASE, (byte)ProtocolCode.EOC });
-        WaitForBytes(1, ERASE_TIMEOUT);
-        GetSync();
+        // Sync before external flash erase
+        try
+        {
+            Sync();
+        }
+        catch
+        {
+            _port?.DiscardInBuffer();
+        }
         
-        Log("External flash erased");
+        // Get BL_REV as workaround for bootloader bug (same as internal erase)
+        try
+        {
+            GetInfo(InfoType.BL_REV);
+        }
+        catch
+        {
+            _port?.DiscardInBuffer();
+        }
+        
+        // Mission Planner sends the image size as part of the erase command
+        byte[] sizeBytes = BitConverter.GetBytes(imageSize);
+        Send(new byte[] { 
+            (byte)ProtocolCode.EXTF_ERASE,
+            sizeBytes[0], sizeBytes[1], sizeBytes[2], sizeBytes[3],
+            (byte)ProtocolCode.EOC 
+        });
+        
+        // External flash erase can take a while - poll for response with progress reporting
+        var sw = Stopwatch.StartNew();
+        int lastProgress = 0;
+        
+        while (sw.ElapsedMilliseconds < ERASE_TIMEOUT)
+        {
+            if (_port != null && _port.BytesToRead > 0)
+            {
+                // Check if we got a progress byte or the final sync
+                byte[] buffer = new byte[1];
+                _port.Read(buffer, 0, 1);
+                
+                if (buffer[0] == (byte)ProtocolCode.INSYNC)
+                {
+                    // Got INSYNC, now get OK
+                    byte ok = Recv(1)[0];
+                    if (ok == (byte)ProtocolCode.OK)
+                    {
+                        ProgressEvent?.Invoke(100);
+                        Log("External flash erased successfully");
+                        return;
+                    }
+                    else if (ok == (byte)ProtocolCode.INVALID)
+                    {
+                        throw new Exception("Bootloader reports INVALID operation during external flash erase");
+                    }
+                    else if (ok == (byte)ProtocolCode.FAILED)
+                    {
+                        throw new Exception("Bootloader reports FAILED during external flash erase");
+                    }
+                }
+                else if (buffer[0] < 100)
+                {
+                    // Progress percentage
+                    if (buffer[0] != lastProgress)
+                    {
+                        lastProgress = buffer[0];
+                        ProgressEvent?.Invoke(lastProgress);
+                    }
+                }
+            }
+            Thread.Sleep(100);
+        }
+        
+        throw new TimeoutException("Timeout waiting for external flash erase to complete");
     }
 
     /// <summary>
@@ -578,7 +653,8 @@ public sealed class Px4Uploader : IDisposable
     }
 
     /// <summary>
-    /// Verifies external flash CRC
+    /// Verifies external flash CRC.
+    /// Mission Planner compatible: sends image size as part of the CRC command.
     /// </summary>
     public bool VerifyExternalFlashCrc(byte[] firmware)
     {
@@ -591,7 +667,40 @@ public sealed class Px4Uploader : IDisposable
 
         uint expectedCrc = CalculatePx4Crc(firmware, firmware.Length);
         
-        Send(new byte[] { (byte)ProtocolCode.EXTF_GET_CRC, (byte)ProtocolCode.EOC });
+        // Mission Planner sends the image size as part of the CRC command
+        byte[] sizeBytes = BitConverter.GetBytes(firmware.Length);
+        Send(new byte[] { 
+            (byte)ProtocolCode.EXTF_GET_CRC,
+            sizeBytes[0], sizeBytes[1], sizeBytes[2], sizeBytes[3],
+            (byte)ProtocolCode.EOC 
+        });
+        
+        // CRC calculation can be slow, give it extra time with progress reporting
+        var sw = Stopwatch.StartNew();
+        
+        while (sw.ElapsedMilliseconds < CRC_VERIFICATION_TIMEOUT)
+        {
+            if (_port != null && _port.BytesToRead >= 4)
+            {
+                ProgressEvent?.Invoke(100);
+                break;
+            }
+            
+            // Report progress during CRC calculation
+            double progress = (sw.ElapsedMilliseconds / CRC_PROGRESS_DURATION_MS) * 100.0;
+            if (progress < 100)
+            {
+                ProgressEvent?.Invoke(progress);
+            }
+            
+            Thread.Sleep(50);
+        }
+        
+        if (_port == null || _port.BytesToRead < 4)
+        {
+            throw new TimeoutException("Timeout waiting for external flash CRC");
+        }
+        
         uint reportedCrc = RecvUInt32();
         GetSync();
 
@@ -746,27 +855,29 @@ public sealed class Px4Uploader : IDisposable
             }
         }
 
-        // Erase and program internal flash
+        // Mission Planner compatible upload order:
+        // 1. Erase internal flash FIRST - this invalidates the firmware to prevent
+        //    a case where an unplug during external flashing causes bootloader mode
+        //    on reboot because there's no valid internal flash, even if external was valid.
+        // 2. Erase external flash (if present)
+        // 3. Program external flash (if present)
+        // 4. Verify external flash (if present)
+        // 5. Program internal flash
+        // 6. Verify internal flash
+        // 7. Reboot
+        
+        // Step 1: Erase internal flash first
         if (firmware.ImageSize > 0)
         {
             Log("Erasing internal flash...");
             Erase();
-
-            Log("Programming internal flash...");
-            Program(firmware.Image);
-
-            Log("Verifying internal flash...");
-            if (!VerifyCrc(firmware.Image, FlashSize))
-            {
-                throw new Exception("CRC verification failed - Program CRC mismatch");
-            }
         }
-
-        // Handle external flash if present
+        
+        // Step 2-4: Handle external flash if present (BEFORE internal programming)
         if (firmware.ExtFlashImageSize > 0 && ExtFlashSize > 0)
         {
             Log("Erasing external flash...");
-            EraseExternalFlash();
+            EraseExternalFlash(firmware.ExtFlashImageSize);
 
             Log("Programming external flash...");
             ProgramExternalFlash(firmware.ExtFlashImage);
@@ -775,6 +886,19 @@ public sealed class Px4Uploader : IDisposable
             if (!VerifyExternalFlashCrc(firmware.ExtFlashImage))
             {
                 throw new Exception("External flash CRC verification failed");
+            }
+        }
+        
+        // Step 5-6: Program and verify internal flash
+        if (firmware.ImageSize > 0)
+        {
+            Log("Programming internal flash...");
+            Program(firmware.Image);
+
+            Log("Verifying internal flash...");
+            if (!VerifyCrc(firmware.Image, FlashSize))
+            {
+                throw new Exception("CRC verification failed - Program CRC mismatch");
             }
         }
 
@@ -786,10 +910,22 @@ public sealed class Px4Uploader : IDisposable
 
     /// <summary>
     /// Waits for and validates INSYNC + OK response from bootloader.
+    /// Mission Planner compatible: flush, wait for bytes, then read.
     /// </summary>
     private void GetSync()
     {
         _port?.BaseStream.Flush();
+        
+        // Wait for response to arrive (Mission Planner compatible)
+        var deadline = DateTime.Now.AddMilliseconds(_port?.ReadTimeout ?? 2000);
+        while (_port != null && _port.BytesToRead == 0)
+        {
+            if (DateTime.Now > deadline)
+            {
+                throw new TimeoutException("Timeout waiting for response from bootloader");
+            }
+            Thread.Yield();
+        }
         
         byte c = Recv(1)[0];
         if (c != (byte)ProtocolCode.INSYNC)
@@ -929,7 +1065,7 @@ public sealed class Px4Uploader : IDisposable
     /// <summary>
     /// Receives specified number of bytes from the bootloader.
     /// Uses busy-wait loop with small delays for responsiveness.
-    /// Mission Planner compatible timeout handling.
+    /// Mission Planner compatible timeout handling and early INVALID detection.
     /// </summary>
     private byte[] Recv(int count)
     {
@@ -957,6 +1093,15 @@ public sealed class Px4Uploader : IDisposable
                     int toRead = Math.Min(_port.BytesToRead, count - offset);
                     int read = _port.Read(buffer, offset, toRead);
                     offset += read;
+                    
+                    // Mission Planner compatible: early INVALID detection
+                    // If we get INSYNC + INVALID at the start of a multi-byte read, fail fast
+                    if (count >= MIN_BYTES_FOR_INVALID_CHECK && offset >= INVALID_HEADER_SIZE && 
+                        buffer[0] == (byte)ProtocolCode.INSYNC && 
+                        buffer[1] == (byte)ProtocolCode.INVALID)
+                    {
+                        throw new Exception("Bootloader reports INVALID operation (Bad Request)");
+                    }
                 }
                 else
                 {

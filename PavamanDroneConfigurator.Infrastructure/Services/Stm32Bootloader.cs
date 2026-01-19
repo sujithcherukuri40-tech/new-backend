@@ -380,6 +380,31 @@ public sealed class Stm32Bootloader
     
     private async Task<bool> ErasePx4FlashAsync(SerialPort port, CancellationToken ct)
     {
+        // Mission Planner compatible: sync before erase
+        port.DiscardInBuffer();
+        
+        // Try sync before erase
+        try
+        {
+            port.Write(new byte[] { PX4_PROTO_GET_SYNC, PX4_PROTO_EOC }, 0, 2);
+            await Task.Delay(50, ct);
+            if (port.BytesToRead >= 2)
+            {
+                var syncResponse = new byte[2];
+                port.Read(syncResponse, 0, 2);
+                if (syncResponse[0] != PX4_PROTO_INSYNC || syncResponse[1] != PX4_PROTO_OK)
+                {
+                    _logger.LogDebug("Pre-erase sync failed, continuing anyway");
+                    port.DiscardInBuffer();
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Pre-erase sync exception, continuing anyway");
+            port.DiscardInBuffer();
+        }
+        
         // PX4 chip erase command
         port.Write(new byte[] { PX4_PROTO_CHIP_ERASE, PX4_PROTO_EOC }, 0, 2);
         
@@ -397,6 +422,11 @@ public sealed class Stm32Bootloader
                 {
                     _logger.LogDebug("Flash erase complete");
                     return true;
+                }
+                else if (response[1] == PX4_PROTO_INVALID)
+                {
+                    _logger.LogWarning("Bootloader reports INVALID operation during erase (0x{0:X2} 0x{1:X2})", response[0], response[1]);
+                    return false;
                 }
                 else
                 {
