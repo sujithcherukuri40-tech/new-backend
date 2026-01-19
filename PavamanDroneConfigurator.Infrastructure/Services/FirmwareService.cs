@@ -376,23 +376,41 @@ public sealed class FirmwareService : IFirmwareService, IDisposable
         return CommonBoards.SupportedBoards.ToList().AsReadOnly();
     }
     
+    /// <summary>
+    /// Waits for a board to appear in bootloader mode.
+    /// Mission Planner compatible: handles USB port re-enumeration after reboot.
+    /// Uses 30-second deadline loop matching Mission Planner's UploadPX4() method.
+    /// </summary>
     public async Task<DetectedBoard?> WaitForBootloaderAsync(TimeSpan timeout, CancellationToken ct = default)
     {
         Log($"Waiting for bootloader (timeout: {timeout.TotalSeconds}s)...");
         UpdateState(FirmwareFlashState.WaitingForBootloader, 0, "Waiting for board in bootloader mode...");
         
-        // Remember which ports existed before
+        // Remember which ports existed before - used to detect USB re-enumeration
         var existingPorts = new HashSet<string>(SerialPort.GetPortNames());
+        Log($"Existing ports: {string.Join(", ", existingPorts)}");
         
         var stopwatch = Stopwatch.StartNew();
+        int scanCount = 0;
         
         while (stopwatch.Elapsed < timeout && !ct.IsCancellationRequested)
         {
+            scanCount++;
+            
             try
             {
                 // Check for new ports (USB re-enumeration after reboot)
                 var currentPorts = SerialPort.GetPortNames();
                 var newPorts = currentPorts.Except(existingPorts).ToList();
+                
+                if (newPorts.Count > 0)
+                {
+                    Log($"New ports detected: {string.Join(", ", newPorts)}");
+                    
+                    // Small delay to let port stabilize after USB re-enumeration
+                    // Mission Planner uses Thread.Sleep(20) before trying new ports
+                    await Task.Delay(50, ct);
+                }
                 
                 // Try new ports first (likely the bootloader), then all current ports
                 var portsToTry = newPorts.Concat(currentPorts).Distinct().ToList();
@@ -403,12 +421,19 @@ public sealed class FirmwareService : IFirmwareService, IDisposable
                     
                     try
                     {
+                        _logger.LogDebug("Trying port {Port} (scan {Scan})", port, scanCount);
+                        
                         // Run bootloader detection on a background thread to avoid blocking UI
                         var board = await Task.Run(() => TryDetectPx4BootloaderSync(port), ct);
                         if (board != null)
                         {
                             CurrentBoard = board;
-                            Log($"Bootloader detected on {board.SerialPort}");
+                            Log($"Bootloader detected on {board.SerialPort} (board type: {board.BoardIdNumeric})");
+                            
+                            // Mission Planner compatible: stabilization delay after detection
+                            // "test if pausing here stops - System.TimeoutException: The write timed out."
+                            await Task.Delay(500, ct);
+                            
                             UpdateState(FirmwareFlashState.WaitingForBootloader, 100, $"Bootloader detected: {board.BoardName}");
                             return board;
                         }
@@ -433,8 +458,8 @@ public sealed class FirmwareService : IFirmwareService, IDisposable
                 _logger.LogDebug(ex, "Error during bootloader detection loop");
             }
             
-            // Use async delay instead of blocking
-            await Task.Delay(500, ct);
+            // Shorter delay for faster detection
+            await Task.Delay(300, ct);
             
             var remaining = timeout - stopwatch.Elapsed;
             if (remaining.TotalSeconds > 0)
@@ -442,11 +467,11 @@ public sealed class FirmwareService : IFirmwareService, IDisposable
                 var progressPercent = (stopwatch.Elapsed.TotalSeconds / timeout.TotalSeconds) * 100;
                 UpdateState(FirmwareFlashState.WaitingForBootloader, 
                     progressPercent,
-                    $"Waiting for bootloader... ({remaining.TotalSeconds:F0}s remaining)");
+                    $"Scanning for bootloader... ({remaining.TotalSeconds:F0}s remaining)");
             }
         }
         
-        Log("Timeout waiting for bootloader");
+        Log($"Timeout waiting for bootloader after {scanCount} scans");
         UpdateState(FirmwareFlashState.Idle, 0, "Timeout waiting for bootloader");
         return null;
     }
@@ -811,6 +836,7 @@ public sealed class FirmwareService : IFirmwareService, IDisposable
     /// <summary>
     /// Uploads firmware using PX4/ChibiOS bootloader protocol.
     /// Matches Mission Planner's UploadPX4() method flow.
+    /// Includes proper error handling for "lost communication" and timeout scenarios.
     /// </summary>
     private async Task<FirmwareFlashResult> UploadPx4FirmwareAsync(
         string portName, 
@@ -832,7 +858,7 @@ public sealed class FirmwareService : IFirmwareService, IDisposable
                 Log($"External flash image: {firmware.ExtFlashImageSize / 1024}KB");
             }
             
-            // Connect and identify
+            // Connect and identify - includes stabilization delay
             uploader.Open(portName);
             uploader.Identify();
             
@@ -847,15 +873,34 @@ public sealed class FirmwareService : IFirmwareService, IDisposable
             }
             
             // Check if same firmware is already installed
-            if (uploader.IsSameFirmware(firmware.Image, uploader.FlashSize))
+            // Mission Planner compatible: handles IOException and TimeoutException
+            try
             {
-                Log("Same firmware already installed - skipping upload");
-                UpdateState(FirmwareFlashState.Completed, 100, "Same firmware already installed");
-                return new FirmwareFlashResult
+                if (uploader.IsSameFirmware(firmware.Image, uploader.FlashSize))
                 {
-                    Success = true,
-                    Message = "Same firmware already installed - no changes made"
-                };
+                    Log("Same firmware already installed - skipping upload");
+                    UpdateState(FirmwareFlashState.Completed, 100, "Same firmware already installed");
+                    return new FirmwareFlashResult
+                    {
+                        Success = true,
+                        Message = "Same firmware already installed - no changes made"
+                    };
+                }
+            }
+            catch (IOException ex)
+            {
+                _logger.LogError(ex, "Lost communication during CRC check");
+                return CreateFailResult("Lost communication with the board during firmware check. Check USB connection.", TimeSpan.Zero);
+            }
+            catch (TimeoutException ex)
+            {
+                _logger.LogError(ex, "Timeout during CRC check");
+                return CreateFailResult("Communication timeout during firmware check. Try reconnecting the board.", TimeSpan.Zero);
+            }
+            catch (Exception ex)
+            {
+                // Non-fatal error during CRC check, continue with flash
+                _logger.LogDebug(ex, "CRC check failed, proceeding with flash");
             }
             
             // Wire up progress events
@@ -916,6 +961,45 @@ public sealed class FirmwareService : IFirmwareService, IDisposable
                 Success = true,
                 Message = "Firmware flashed successfully"
             };
+        }
+        catch (IOException ex)
+        {
+            // Mission Planner compatible: specific handling for "lost communication"
+            _logger.LogError(ex, "Lost communication during PX4 upload");
+            UpdateState(FirmwareFlashState.Failed, 0, "Lost communication with the board");
+            return CreateFailResult(
+                "Lost communication with the board. This often occurs during flash programming. " +
+                "Check USB cable and connection, then try again.", 
+                TimeSpan.Zero);
+        }
+        catch (TimeoutException ex)
+        {
+            _logger.LogError(ex, "Timeout during PX4 upload");
+            UpdateState(FirmwareFlashState.Failed, 0, "Communication timeout");
+            return CreateFailResult(
+                "Communication timeout during flash operation. " +
+                "The board may have disconnected. Try reconnecting and flashing again.", 
+                TimeSpan.Zero);
+        }
+        catch (Exception ex) when (ex.Message.Contains("Same firmware"))
+        {
+            // Not really an error - same firmware already installed
+            Log("Same firmware already installed");
+            UpdateState(FirmwareFlashState.Completed, 100, "Same firmware already installed");
+            return new FirmwareFlashResult
+            {
+                Success = true,
+                Message = "Same firmware already installed - no changes made"
+            };
+        }
+        catch (Exception ex) when (ex.Message.Contains("CRC verification failed"))
+        {
+            _logger.LogError(ex, "CRC verification failed");
+            UpdateState(FirmwareFlashState.Failed, 0, "Program CRC verification failed");
+            return CreateFailResult(
+                "Program CRC verification failed. The firmware may not have been programmed correctly. " +
+                "Try flashing again. If problem persists, check USB cable and try a different USB port.",
+                TimeSpan.Zero);
         }
         catch (Exception ex)
         {
