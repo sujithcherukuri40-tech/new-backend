@@ -1,9 +1,14 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:PavamanDroneConfigurator.UI.ViewModels"
+             xmlns:converters="using:PavamanDroneConfigurator.UI.Converters"
              x:Class="PavamanDroneConfigurator.UI.Views.FirmwarePage"
              x:DataType="vm:FirmwarePageViewModel">
 
+    <UserControl.Resources>
+        <converters:BoolToStringConverter x:Key="BoolToStringConverter"/>
+    </UserControl.Resources>
+    
     <UserControl.Styles>
         <!-- Dark theme for firmware page (Mission Planner style) -->
         <Style Selector="Border.mp-background">
@@ -145,6 +150,131 @@
                     </StackPanel>
                 </Border>
                 
+                <!-- Confirmation Dialog Overlay -->
+                <Border Background="#80000000"
+                        IsVisible="{Binding ShowConfirmationDialog}"
+                        HorizontalAlignment="Stretch"
+                        VerticalAlignment="Stretch">
+                    <Border Background="#3E3E42"
+                            CornerRadius="8"
+                            Padding="24"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            MinWidth="400"
+                            MaxWidth="500">
+                        <StackPanel Spacing="16">
+                            <TextBlock Text="Confirm Firmware Installation"
+                                       Foreground="#FFFFFF"
+                                       FontSize="16"
+                                       FontWeight="SemiBold"
+                                       HorizontalAlignment="Center"/>
+                            <TextBlock Text="{Binding ConfirmationMessage}"
+                                       Foreground="#CCCCCC"
+                                       FontSize="13"
+                                       TextWrapping="Wrap"
+                                       TextAlignment="Center"/>
+                            <StackPanel Orientation="Horizontal" 
+                                        HorizontalAlignment="Center" 
+                                        Spacing="16"
+                                        Margin="0,8,0,0">
+                                <Button Content="Yes"
+                                        Width="100"
+                                        Background="#0E639C"
+                                        Foreground="White"
+                                        Command="{Binding ConfirmInstallationCommand}"/>
+                                <Button Content="No"
+                                        Width="100"
+                                        Classes="status-btn"
+                                        Command="{Binding CancelConfirmationCommand}"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+                </Border>
+                
+                <!-- Platform Selection Dialog Overlay -->
+                <Border Background="#80000000"
+                        IsVisible="{Binding ShowPlatformSelectionDialog}"
+                        HorizontalAlignment="Stretch"
+                        VerticalAlignment="Stretch">
+                    <Border Background="#3E3E42"
+                            CornerRadius="8"
+                            Padding="24"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            MinWidth="450"
+                            MaxWidth="550">
+                        <StackPanel Spacing="16">
+                            <TextBlock Text="Select Firmware Variant"
+                                       Foreground="#FFFFFF"
+                                       FontSize="16"
+                                       FontWeight="SemiBold"
+                                       HorizontalAlignment="Center"/>
+                            <TextBlock Text="{Binding PlatformSelectionMessage}"
+                                       Foreground="#CCCCCC"
+                                       FontSize="13"
+                                       TextWrapping="Wrap"
+                                       TextAlignment="Center"/>
+                            <ComboBox ItemsSource="{Binding AvailablePlatformVariants}"
+                                      SelectedItem="{Binding SelectedPlatformVariant}"
+                                      HorizontalAlignment="Stretch"
+                                      Margin="0,8,0,0"
+                                      Background="#252526"
+                                      Foreground="#CCCCCC"/>
+                            <StackPanel Orientation="Horizontal" 
+                                        HorizontalAlignment="Center" 
+                                        Spacing="16"
+                                        Margin="0,8,0,0">
+                                <Button Content="Install"
+                                        Width="100"
+                                        Background="#0E639C"
+                                        Foreground="White"
+                                        Command="{Binding ConfirmPlatformSelectionCommand}"/>
+                                <Button Content="Cancel"
+                                        Width="100"
+                                        Classes="status-btn"
+                                        Command="{Binding CancelPlatformSelectionCommand}"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+                </Border>
+                
+                <!-- Reconnect Prompt Dialog Overlay -->
+                <Border Background="#80000000"
+                        IsVisible="{Binding ShowReconnectPromptDialog}"
+                        HorizontalAlignment="Stretch"
+                        VerticalAlignment="Stretch">
+                    <Border Background="#3E3E42"
+                            CornerRadius="8"
+                            Padding="24"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            MinWidth="400"
+                            MaxWidth="500">
+                        <StackPanel Spacing="16">
+                            <PathIcon Data="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"
+                                      Foreground="#4CAF50" Width="48" Height="48"
+                                      HorizontalAlignment="Center"/>
+                            <TextBlock Text="Installation Complete"
+                                       Foreground="#FFFFFF"
+                                       FontSize="16"
+                                       FontWeight="SemiBold"
+                                       HorizontalAlignment="Center"/>
+                            <TextBlock Text="{Binding ReconnectPromptMessage}"
+                                       Foreground="#CCCCCC"
+                                       FontSize="13"
+                                       TextWrapping="Wrap"
+                                       TextAlignment="Center"/>
+                            <Button Content="OK"
+                                    Width="120"
+                                    Background="#0E639C"
+                                    Foreground="White"
+                                    HorizontalAlignment="Center"
+                                    Margin="0,8,0,0"
+                                    Command="{Binding AcknowledgeReconnectPromptCommand}"/>
+                        </StackPanel>
+                    </Border>
+                </Border>
+                
                 <!-- Vehicle Type Grid (Mission Planner Style) -->
                 <ItemsControl ItemsSource="{Binding VehicleTypes}">
                     <ItemsControl.ItemsPanel>
@@ -160,7 +290,7 @@
                                     Command="{Binding $parent[ItemsControl].((vm:FirmwarePageViewModel)DataContext).SelectVehicleTypeCommand}"
                                     CommandParameter="{Binding}"
                                     ToolTip.Tip="{Binding Description}">
-                                <StackPanel Spacing="6" HorizontalAlignment="Center">
+                                <StackPanel Spacing="4" HorizontalAlignment="Center">
                                     <!-- Vehicle Image -->
                                     <Border Background="#252526" 
                                             CornerRadius="4"
@@ -173,16 +303,18 @@
                                                HorizontalAlignment="Center"
                                                VerticalAlignment="Center"/>
                                     </Border>
-                                    <!-- Vehicle Name -->
-                                    <TextBlock Text="{Binding Name}"
+                                    <!-- Vehicle Description (e.g., "Quadcopter (X frame)") -->
+                                    <TextBlock Text="{Binding Description}"
                                                Foreground="#CCCCCC"
-                                               FontSize="11"
+                                               FontSize="10"
                                                FontWeight="Medium"
                                                HorizontalAlignment="Center"
-                                               TextAlignment="Center"/>
-                                    <!-- Version Text -->
+                                               TextAlignment="Center"
+                                               TextTrimming="CharacterEllipsis"
+                                               MaxWidth="130"/>
+                                    <!-- Version Text (e.g., "V4.6.3 OFFICIAL") -->
                                     <TextBlock Text="{Binding VersionText}"
-                                               Foreground="#888888"
+                                               Foreground="#80CBC4"
                                                FontSize="9"
                                                HorizontalAlignment="Center"
                                                TextAlignment="Center"
@@ -263,7 +395,7 @@
                     </StackPanel>
                 </Border>
                 
-                <!-- Console Log (collapsible) -->
+                <!-- Console Log (collapsible) - Increased height for debugging -->
                 <Expander Header="Status" 
                           IsExpanded="True"
                           Margin="8,16,8,0">
@@ -275,7 +407,7 @@
                     <Border Background="#1E1E1E" 
                             CornerRadius="4" 
                             Padding="8"
-                            Height="120">
+                            Height="200">
                         <ScrollViewer>
                             <ItemsControl ItemsSource="{Binding LogMessages}">
                                 <ItemsControl.ItemTemplate>
