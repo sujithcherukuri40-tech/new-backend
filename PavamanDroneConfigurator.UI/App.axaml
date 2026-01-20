@@ -14,6 +14,7 @@
         <converters:BoolToStringConverter x:Key="BoolToStringConverter"/>
         <converters:DirectionToColorConverter x:Key="DirectionToColorConverter"/>
         <converters:DirectionToPrefixConverter x:Key="DirectionToPrefixConverter"/>
+        <converters:BitmaskSelectionConverter x:Key="BitmaskSelectionConverter"/>
     </Application.Resources>
 
     <Application.DataTemplates>

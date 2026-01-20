@@ -43,4 +43,15 @@
     <ProjectReference Include="..\PavamanDroneConfigurator.Core\PavamanDroneConfigurator.Core.csproj" />
     <ProjectReference Include="..\PavamanDroneConfigurator.Infrastructure\PavamanDroneConfigurator.Infrastructure.csproj" />
   </ItemGroup>
+
+
+	<Target Name="ForceCopyAssets" AfterTargets="Build">
+		<Message Text="Copying XML metadata file..." Importance="high" />
+		<MakeDir Directories="$(OutDir)Assets" />
+		<Copy
+			SourceFiles="Assets\ParameterMetadata.xml"
+			DestinationFolder="$(OutDir)Assets"
+			SkipUnchangedFiles="false" />
+	</Target>
+
 </Project>

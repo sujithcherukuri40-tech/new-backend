@@ -107,6 +107,18 @@
             <Setter Property="VerticalAlignment" Value="Center"/>
         </Style>
 
+        <!-- Group ComboBox Style -->
+        <Style Selector="ComboBox.group-combo">
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="BorderBrush" Value="#D1D5DB"/>
+            <Setter Property="Background" Value="White"/>
+            <Setter Property="CornerRadius" Value="6"/>
+            <Setter Property="Padding" Value="8,6"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="MinWidth" Value="180"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+
         <!-- Loading Spinner -->
         <Style Selector="ProgressBar.spinner">
             <Setter Property="IsIndeterminate" Value="True"/>
@@ -129,7 +141,7 @@
         <!-- Header Section -->
         <StackPanel Grid.Row="0" Margin="20,16,20,0" Spacing="12">
             <!-- Title and Search Row -->
-            <Grid ColumnDefinitions="Auto,*,Auto">
+            <Grid ColumnDefinitions="Auto,Auto,*,Auto">
                 <!-- Title -->
                 <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8">
                     
@@ -140,8 +152,20 @@
                                VerticalAlignment="Center"/>
                 </StackPanel>
 
+                <!-- Group Filter ComboBox (Mission Planner style) -->
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" Margin="20,0,0,0">
+                    <TextBlock Text="Group:" 
+                               FontSize="12" 
+                               Foreground="#6B7280"
+                               VerticalAlignment="Center"/>
+                    <ComboBox Classes="group-combo"
+                              ItemsSource="{Binding GroupList}"
+                              SelectedItem="{Binding SelectedGroup}"
+                              ToolTip.Tip="Filter parameters by group"/>
+                </StackPanel>
+
                 <!-- Search Box -->
-                <Border Grid.Column="2" 
+                <Border Grid.Column="3" 
                         Background="White" 
                         BorderBrush="#D1D5DB" 
                         BorderThickness="1" 
@@ -150,7 +174,7 @@
                         MinWidth="260">
                     <Grid ColumnDefinitions="Auto,*">
                         <TextBox Grid.Column="1"
-                                 Text="{Binding SearchText, Mode=TwoWay}"
+                                 Text="{Binding SearchQuery, Mode=TwoWay}"
                                  Watermark="Search parameters..."
                                  BorderThickness="0"
                                  Background="Transparent"
@@ -247,12 +271,37 @@
                                            TextTrimming="CharacterEllipsis"
                                            ToolTip.Tip="{Binding Name}"/>
 
-                                <!-- Value (Editable) -->
-                                <TextBox Grid.Column="1"
-                                         Text="{Binding Value, Mode=TwoWay}"
-                                         Classes="value-input"
-                                         Margin="4,4"
-                                         ToolTip.Tip="Edit value and press Enter to save"/>
+                                <!-- Value (Bitmask checkboxes OR ComboBox OR TextBox) -->
+                                <StackPanel Grid.Column="1" Margin="4" IsVisible="{Binding IsBitmask}">
+                                    <ItemsControl ItemsSource="{Binding Options}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="models:ParameterOption">
+                                                <CheckBox Content="{Binding Label}"
+                                                          FontSize="10"
+                                                          Margin="0,2"
+                                                          IsChecked="{Binding $parent[UserControl].((vm:ParametersPageViewModel)DataContext).SelectedParameter.SelectedBitmaskOptions, 
+                                                                      Converter={StaticResource BitmaskSelectionConverter},
+                                                                      ConverterParameter={Binding},
+                                                                      Mode=TwoWay}"
+                                                          Checked="OnBitmaskOptionChanged"
+                                                          Unchecked="OnBitmaskOptionChanged"/>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+                                
+                                <Panel Grid.Column="1" Margin="4" IsVisible="{Binding !IsBitmask}">
+                                    <ComboBox Classes="options-combo"
+                                              ItemsSource="{Binding Options}"
+                                              SelectedItem="{Binding SelectedOption, Mode=TwoWay}"
+                                              IsVisible="{Binding HasOptions}"
+                                              DisplayMemberBinding="{Binding Display}"/>
+                                    
+                                    <TextBox Text="{Binding Value, Mode=TwoWay}"
+                                             Classes="value-input"
+                                             IsVisible="{Binding !HasOptions}"
+                                             ToolTip.Tip="Edit value and press Enter to save"/>
+                                </Panel>
 
                                 <!-- Default -->
                                 <TextBlock Grid.Column="2" 

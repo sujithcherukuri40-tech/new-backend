@@ -2,18 +2,19 @@ using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Data.Core;
 using Avalonia.Data.Core.Plugins;
-using System.Linq;
-using System.Threading.Tasks;
 using Avalonia.Markup.Xaml;
+using Avalonia.Threading;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using PavamanDroneConfigurator.Core.Interfaces;
-using PavamanDroneConfigurator.Infrastructure.Services;
 using PavamanDroneConfigurator.Infrastructure.Repositories;
+using PavamanDroneConfigurator.Infrastructure.Services;
 using PavamanDroneConfigurator.UI.ViewModels;
 using PavamanDroneConfigurator.UI.Views;
-using Avalonia.Threading;
 using System;
+using System.IO;
+using System.Linq;
+using System.Threading.Tasks;
 
 namespace PavamanDroneConfigurator.UI;
 
@@ -118,6 +119,10 @@ public partial class App : Application
 
     public override void OnFrameworkInitializationCompleted()
     {
+        string xmlPath = Path.Combine(AppContext.BaseDirectory, "Assets", "ParameterMetadata.xml");
+        System.Diagnostics.Debug.WriteLine("OUTPUT PATH => " + AppContext.BaseDirectory);
+        System.Diagnostics.Debug.WriteLine("XML PATH => " + xmlPath);
+        System.Diagnostics.Debug.WriteLine("Exists? " + File.Exists(xmlPath));
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             DisableAvaloniaDataAnnotationValidation();
@@ -171,4 +176,5 @@ public partial class App : Application
             BindingPlugins.DataValidators.Remove(plugin);
         }
     }
+    
 }
