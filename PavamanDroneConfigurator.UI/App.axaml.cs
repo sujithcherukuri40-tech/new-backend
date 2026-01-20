@@ -53,7 +53,6 @@ public partial class App : Application
         services.AddSingleton<CalibrationPreConditionChecker>();
         services.AddSingleton<CalibrationAbortMonitor>();
         services.AddSingleton<CalibrationValidationHelper>();
-        services.AddSingleton<AccelPositionValidator>();
         services.AddSingleton<AccelStatusTextParser>();
         services.AddSingleton<AccelImuValidator>();
         services.AddSingleton<AccelerometerCalibrationService>();
