@@ -13,6 +13,27 @@ using System.Threading.Tasks;
 
 namespace PavamanDroneConfigurator.UI.ViewModels;
 
+/// <summary>
+/// Represents a baud rate option for the connection ComboBox.
+/// Provides strongly-typed binding to avoid InvalidCastException.
+/// </summary>
+public class BaudRateOption
+{
+    public int Value { get; set; }
+    public string Display => Value.ToString();
+    
+    public override string ToString() => Display;
+    
+    public override bool Equals(object? obj)
+    {
+        if (obj is BaudRateOption other)
+            return Value == other.Value;
+        return false;
+    }
+    
+    public override int GetHashCode() => Value.GetHashCode();
+}
+
 public partial class ConnectionPageViewModel : ViewModelBase
 {
     private readonly IConnectionService _connectionService;
@@ -31,8 +52,27 @@ public partial class ConnectionPageViewModel : ViewModelBase
     [ObservableProperty]
     private BluetoothDeviceInfo? _selectedBluetoothDevice;
 
+    /// <summary>
+    /// Available baud rate options for the ComboBox.
+    /// Using strongly-typed objects avoids InvalidCastException from ComboBoxItem.
+    /// </summary>
+    public ObservableCollection<BaudRateOption> AvailableBaudRates { get; } = new()
+    {
+        new BaudRateOption { Value = 9600 },
+        new BaudRateOption { Value = 57600 },
+        new BaudRateOption { Value = 115200 },
+        new BaudRateOption { Value = 230400 },
+        new BaudRateOption { Value = 460800 },
+        new BaudRateOption { Value = 921600 }
+    };
+
     [ObservableProperty]
-    private int _baudRate = 115200;
+    private BaudRateOption? _selectedBaudRate;
+
+    /// <summary>
+    /// Gets the actual baud rate value for connection settings.
+    /// </summary>
+    public int BaudRate => SelectedBaudRate?.Value ?? 115200;
 
     [ObservableProperty]
     private string _ipAddress = "127.0.0.1";
@@ -110,6 +150,9 @@ public partial class ConnectionPageViewModel : ViewModelBase
         {
             SelectedSerialPort = ports.First();
         }
+        
+        // Set default baud rate (115200)
+        SelectedBaudRate = AvailableBaudRates.FirstOrDefault(b => b.Value == 115200);
     }
 
     private void OnAvailableSerialPortsChanged(object? sender, IEnumerable<SerialPortInfo> ports)

@@ -3,6 +3,8 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using PavamanDroneConfigurator.Core.Interfaces;
 using PavamanDroneConfigurator.Core.Models;
+using System;
+using System.Threading;
 
 namespace PavamanDroneConfigurator.UI.ViewModels;
 
@@ -10,6 +12,15 @@ public partial class DroneDetailsPageViewModel : ViewModelBase
 {
     private readonly IDroneInfoService _droneInfoService;
     private readonly IConnectionService _connectionService;
+    
+    /// <summary>
+    /// Timer for throttling UI updates to prevent flickering.
+    /// Only allows updates every 500ms to reduce UI refresh rate.
+    /// </summary>
+    private Timer? _updateThrottleTimer;
+    private DroneInfo? _pendingUpdate;
+    private readonly object _updateLock = new();
+    private const int UPDATE_THROTTLE_MS = 500;
 
     [ObservableProperty]
     private string _droneId = "Not Connected";
@@ -89,30 +100,109 @@ public partial class DroneDetailsPageViewModel : ViewModelBase
             {
                 ClearDroneInfo();
                 StatusMessage = "Connect to a drone to view details";
+                
+                // Stop throttle timer on disconnect
+                lock (_updateLock)
+                {
+                    _updateThrottleTimer?.Dispose();
+                    _updateThrottleTimer = null;
+                    _pendingUpdate = null;
+                }
             }
         });
     }
 
     private void OnDroneInfoUpdated(object? sender, DroneInfo info)
     {
-        Dispatcher.UIThread.Post(() => UpdateFromDroneInfo(info));
+        // Throttle updates to prevent flickering from frequent heartbeat updates
+        lock (_updateLock)
+        {
+            _pendingUpdate = info;
+            
+            // If timer is not running, start it and update immediately
+            if (_updateThrottleTimer == null)
+            {
+                // Apply update immediately for first update
+                Dispatcher.UIThread.Post(() => ApplyPendingUpdate());
+                
+                // Start throttle timer for subsequent updates
+                _updateThrottleTimer = new Timer(
+                    OnThrottleTimerTick,
+                    null,
+                    UPDATE_THROTTLE_MS,
+                    UPDATE_THROTTLE_MS);
+            }
+        }
     }
-
-    private void UpdateFromDroneInfo(DroneInfo info)
+    
+    private void OnThrottleTimerTick(object? state)
     {
-        DroneId = info.DroneId;
-        FcId = info.FcId;
-        FirmwareVersion = info.FirmwareVersion;
-        CodeChecksum = info.CodeChecksum;
-        DataChecksum = info.DataChecksum;
-        VehicleType = info.VehicleType;
-        AutopilotType = info.AutopilotType;
-        BoardType = info.BoardType;
-        FlightMode = info.FlightMode;
-        IsArmed = info.IsArmed;
-        SystemId = info.SystemId;
-        ComponentId = info.ComponentId;
-        StatusMessage = "Drone information loaded";
+        DroneInfo? updateToApply = null;
+        
+        lock (_updateLock)
+        {
+            if (_pendingUpdate != null)
+            {
+                updateToApply = _pendingUpdate;
+                _pendingUpdate = null;
+            }
+        }
+        
+        if (updateToApply != null)
+        {
+            Dispatcher.UIThread.Post(() => ApplyUpdate(updateToApply));
+        }
+    }
+    
+    private void ApplyPendingUpdate()
+    {
+        DroneInfo? updateToApply;
+        lock (_updateLock)
+        {
+            updateToApply = _pendingUpdate;
+            _pendingUpdate = null;
+        }
+        
+        if (updateToApply != null)
+        {
+            ApplyUpdate(updateToApply);
+        }
+    }
+    
+    /// <summary>
+    /// Applies drone info update to UI properties only if values have changed.
+    /// This prevents unnecessary property change notifications that cause flickering.
+    /// </summary>
+    private void ApplyUpdate(DroneInfo info)
+    {
+        // Only update properties that have actually changed to minimize UI refreshes
+        if (DroneId != info.DroneId)
+            DroneId = info.DroneId;
+        if (FcId != info.FcId)
+            FcId = info.FcId;
+        if (FirmwareVersion != info.FirmwareVersion)
+            FirmwareVersion = info.FirmwareVersion;
+        if (CodeChecksum != info.CodeChecksum)
+            CodeChecksum = info.CodeChecksum;
+        if (DataChecksum != info.DataChecksum)
+            DataChecksum = info.DataChecksum;
+        if (VehicleType != info.VehicleType)
+            VehicleType = info.VehicleType;
+        if (AutopilotType != info.AutopilotType)
+            AutopilotType = info.AutopilotType;
+        if (BoardType != info.BoardType)
+            BoardType = info.BoardType;
+        if (FlightMode != info.FlightMode)
+            FlightMode = info.FlightMode;
+        if (IsArmed != info.IsArmed)
+            IsArmed = info.IsArmed;
+        if (SystemId != info.SystemId)
+            SystemId = info.SystemId;
+        if (ComponentId != info.ComponentId)
+            ComponentId = info.ComponentId;
+        
+        if (StatusMessage != "Drone information loaded")
+            StatusMessage = "Drone information loaded";
     }
 
     private void ClearDroneInfo()
@@ -150,7 +240,7 @@ public partial class DroneDetailsPageViewModel : ViewModelBase
             
             if (info != null)
             {
-                UpdateFromDroneInfo(info);
+                ApplyUpdate(info);
             }
             else
             {
@@ -173,6 +263,12 @@ public partial class DroneDetailsPageViewModel : ViewModelBase
         {
             _droneInfoService.DroneInfoUpdated -= OnDroneInfoUpdated;
             _connectionService.ConnectionStateChanged -= OnConnectionStateChanged;
+            
+            lock (_updateLock)
+            {
+                _updateThrottleTimer?.Dispose();
+                _updateThrottleTimer = null;
+            }
         }
         base.Dispose(disposing);
     }
