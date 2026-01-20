@@ -177,13 +177,15 @@
 
                         <StackPanel>
                             <TextBlock Text="Baud Rate" Classes="label"/>
-                            <ComboBox SelectedItem="{Binding BaudRate}" IsEnabled="{Binding !IsConnected}" HorizontalAlignment="Stretch">
-                                <ComboBoxItem Content="9600"/>
-                                <ComboBoxItem Content="57600"/>
-                                <ComboBoxItem Content="115200" IsSelected="True"/>
-                                <ComboBoxItem Content="230400"/>
-                                <ComboBoxItem Content="460800"/>
-                                <ComboBoxItem Content="921600"/>
+                            <ComboBox ItemsSource="{Binding AvailableBaudRates}"
+                                      SelectedItem="{Binding SelectedBaudRate}"
+                                      IsEnabled="{Binding !IsConnected}" 
+                                      HorizontalAlignment="Stretch">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Display}"/>
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
                             </ComboBox>
                         </StackPanel>
                     </StackPanel>

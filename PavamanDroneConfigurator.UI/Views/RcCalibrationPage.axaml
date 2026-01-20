@@ -10,391 +10,416 @@
     </UserControl.Resources>
 
     <UserControl.Styles>
-        <!-- Aviation-Grade Color System -->
-        <Style Selector="TextBlock.PageTitle">
-            <Setter Property="FontSize" Value="28"/>
-            <Setter Property="FontWeight" Value="Bold"/>
-            <Setter Property="Foreground" Value="#0B5ED7"/>
-        </Style>
-        
-        <Style Selector="TextBlock.SectionTitle">
-            <Setter Property="FontSize" Value="18"/>
-            <Setter Property="FontWeight" Value="Bold"/>
-            <Setter Property="Foreground" Value="#0B5ED7"/>
-            <Setter Property="Margin" Value="0,0,0,4"/>
-        </Style>
-        
-        <Style Selector="TextBlock.SectionSubtitle">
-            <Setter Property="FontSize" Value="14"/>
-            <Setter Property="Foreground" Value="#64748B"/>
-            <Setter Property="Margin" Value="0,0,0,16"/>
-        </Style>
-        
-        <Style Selector="TextBlock.FieldLabel">
-            <Setter Property="FontSize" Value="13"/>
-            <Setter Property="FontWeight" Value="Medium"/>
-            <Setter Property="Foreground" Value="#64748B"/>
-            <Setter Property="Margin" Value="0,0,0,6"/>
-        </Style>
-        
-        <Style Selector="TextBlock.ChannelLabel">
-            <Setter Property="FontSize" Value="14"/>
-            <Setter Property="FontWeight" Value="Medium"/>
-            <Setter Property="Foreground" Value="#1E293B"/>
-            <Setter Property="Width" Value="80"/>
-            <Setter Property="VerticalAlignment" Value="Center"/>
-        </Style>
-        
-        <Style Selector="TextBlock.ChannelValue">
-            <Setter Property="FontSize" Value="13"/>
-            <Setter Property="Foreground" Value="#64748B"/>
-            <Setter Property="Width" Value="40"/>
-            <Setter Property="TextAlignment" Value="Right"/>
-            <Setter Property="VerticalAlignment" Value="Center"/>
-        </Style>
-        
-        <Style Selector="TextBlock.WarningText">
-            <Setter Property="FontSize" Value="14"/>
-            <Setter Property="Foreground" Value="#DC2626"/>
-            <Setter Property="Margin" Value="0,8,0,16"/>
-        </Style>
-        
-        <Style Selector="Border.SectionCard">
-            <Setter Property="Background" Value="White"/>
-            <Setter Property="BorderBrush" Value="#E2E8F0"/>
+        <!-- Card Style -->
+        <Style Selector="Border.card">
+            <Setter Property="Background" Value="#FFFFFF"/>
+            <Setter Property="BorderBrush" Value="#E5E7EB"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="CornerRadius" Value="12"/>
             <Setter Property="Padding" Value="24"/>
-            <Setter Property="Margin" Value="0,0,0,20"/>
+            <Setter Property="BoxShadow" Value="0 1 3 0 #10000000"/>
         </Style>
-        
-        <Style Selector="Button.Primary">
-            <Setter Property="Background" Value="#22D3EE"/>
-            <Setter Property="Foreground" Value="White"/>
-            <Setter Property="FontWeight" Value="Bold"/>
-            <Setter Property="Padding" Value="24,12"/>
-            <Setter Property="CornerRadius" Value="8"/>
-            <Setter Property="BorderThickness" Value="0"/>
+
+        <!-- Section Title -->
+        <Style Selector="TextBlock.section-title">
+            <Setter Property="FontSize" Value="16"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Foreground" Value="#111827"/>
+            <Setter Property="Margin" Value="0,0,0,4"/>
         </Style>
-        
-        <Style Selector="Button.Primary:pointerover">
-            <Setter Property="Background" Value="#06B6D4"/>
+
+        <!-- Section Subtitle -->
+        <Style Selector="TextBlock.section-subtitle">
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Foreground" Value="#6B7280"/>
+            <Setter Property="Margin" Value="0,0,0,16"/>
         </Style>
-        
-        <Style Selector="Button.Secondary">
-            <Setter Property="Background" Value="#6C757D"/>
-            <Setter Property="Foreground" Value="White"/>
-            <Setter Property="Padding" Value="16,10"/>
-            <Setter Property="CornerRadius" Value="8"/>
-            <Setter Property="BorderThickness" Value="0"/>
+
+        <!-- Field Label -->
+        <Style Selector="TextBlock.field-label">
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="FontWeight" Value="Medium"/>
+            <Setter Property="Foreground" Value="#374151"/>
+            <Setter Property="Width" Value="90"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
         </Style>
-        
-        <Style Selector="ProgressBar.ChannelBar">
-            <Setter Property="Height" Value="8"/>
+
+        <!-- PWM Value -->
+        <Style Selector="TextBlock.pwm-value">
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Foreground" Value="#111827"/>
+            <Setter Property="Width" Value="50"/>
+            <Setter Property="TextAlignment" Value="Right"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+
+        <!-- Channel Progress Bar -->
+        <Style Selector="ProgressBar.channel-bar">
+            <Setter Property="Height" Value="12"/>
             <Setter Property="Minimum" Value="800"/>
             <Setter Property="Maximum" Value="2200"/>
-            <Setter Property="Background" Value="#1E293B"/>
+            <Setter Property="Background" Value="#E5E7EB"/>
+            <Setter Property="Foreground" Value="#3B82F6"/>
+            <Setter Property="CornerRadius" Value="6"/>
+        </Style>
+
+        <!-- Thin Channel Bar for Monitor -->
+        <Style Selector="ProgressBar.channel-bar-thin">
+            <Setter Property="Height" Value="6"/>
+            <Setter Property="Minimum" Value="800"/>
+            <Setter Property="Maximum" Value="2200"/>
+            <Setter Property="Background" Value="#E5E7EB"/>
             <Setter Property="Foreground" Value="#64748B"/>
-            <Setter Property="CornerRadius" Value="4"/>
+            <Setter Property="CornerRadius" Value="3"/>
         </Style>
-        
-        <Style Selector="ComboBox">
+
+        <!-- Primary Button -->
+        <Style Selector="Button.primary">
+            <Setter Property="Background" Value="#3B82F6"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Padding" Value="24,12"/>
             <Setter Property="CornerRadius" Value="8"/>
-            <Setter Property="MinWidth" Value="140"/>
-            <Setter Property="HorizontalAlignment" Value="Stretch"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
         </Style>
-        
-        <Style Selector="Border.Separator">
-            <Setter Property="Height" Value="1"/>
-            <Setter Property="Background" Value="#E2E8F0"/>
-            <Setter Property="Margin" Value="0,24,0,24"/>
+
+        <Style Selector="Button.primary:pointerover">
+            <Setter Property="Background" Value="#2563EB"/>
+        </Style>
+
+        <Style Selector="Button.primary:disabled">
+            <Setter Property="Background" Value="#9CA3AF"/>
+            <Setter Property="Opacity" Value="0.6"/>
+        </Style>
+
+        <!-- Secondary Button -->
+        <Style Selector="Button.secondary">
+            <Setter Property="Background" Value="White"/>
+            <Setter Property="Foreground" Value="#374151"/>
+            <Setter Property="BorderBrush" Value="#D1D5DB"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="20,10"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="FontWeight" Value="Medium"/>
+            <Setter Property="Cursor" Value="Hand"/>
+        </Style>
+
+        <Style Selector="Button.secondary:pointerover">
+            <Setter Property="Background" Value="#F9FAFB"/>
+        </Style>
+
+        <!-- Status Banner -->
+        <Style Selector="Border.status-required">
+            <Setter Property="Background" Value="#FEF3C7"/>
+            <Setter Property="BorderBrush" Value="#F59E0B"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Padding" Value="16,12"/>
+        </Style>
+
+        <Style Selector="Border.status-progress">
+            <Setter Property="Background" Value="#DBEAFE"/>
+            <Setter Property="BorderBrush" Value="#3B82F6"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Padding" Value="16,12"/>
+        </Style>
+
+        <Style Selector="Border.status-complete">
+            <Setter Property="Background" Value="#D1FAE5"/>
+            <Setter Property="BorderBrush" Value="#10B981"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Padding" Value="16,12"/>
+        </Style>
+
+        <!-- ComboBox -->
+        <Style Selector="ComboBox">
+            <Setter Property="MinHeight" Value="40"/>
+            <Setter Property="Padding" Value="12,8"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="BorderBrush" Value="#D1D5DB"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Background" Value="White"/>
         </Style>
     </UserControl.Styles>
 
     <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
-        <StackPanel Margin="24" MaxWidth="1200">
-            
-            <!-- HEADER SECTION -->
-            <Grid ColumnDefinitions="*,Auto,Auto" Margin="0,0,0,16">
-                <StackPanel Grid.Column="0">
-                    <TextBlock Classes="PageTitle" Text="RC Calibration"/>
+        <StackPanel Margin="32,24" Spacing="24" MaxWidth="1000">
+
+            <!-- Header -->
+            <Grid ColumnDefinitions="*,Auto">
+                <StackPanel Spacing="8">
+                    <TextBlock Text="RC Calibration" FontSize="28" FontWeight="Bold" Foreground="#111827"/>
+                    <TextBlock Text="Calibrate radio control channels and configure attitude mapping" 
+                               FontSize="14" Foreground="#6B7280"/>
                 </StackPanel>
                 
-                <Button Grid.Column="1" Classes="Secondary" Command="{Binding RefreshCommand}" Margin="0,0,8,0">
-                    <StackPanel Orientation="Horizontal" Spacing="6">
-                        <TextBlock Text="?" FontSize="16"/>
-                        <TextBlock Text="Refresh"/>
-                    </StackPanel>
+                <Button Grid.Column="1" 
+                        Classes="secondary" 
+                        Command="{Binding RefreshCommand}"
+                        VerticalAlignment="Center">
+                    <TextBlock Text="Refresh"/>
                 </Button>
             </Grid>
 
-            <!-- RC CALIBRATION SECTION -->
-            <Border Classes="SectionCard">
-                <StackPanel>
-                    <TextBlock Classes="SectionTitle" Text="RC CALIBRATION"/>
-                    
-                    <!-- Warning/Status Text -->
-                    <TextBlock Classes="WarningText" 
-                               Text="{Binding CalibrationStatusText}"
-                               IsVisible="{Binding CalibrationRequired}"/>
-                    <TextBlock Classes="SectionSubtitle" 
-                               Text="{Binding CalibrationStatusText}"
-                               IsVisible="{Binding !CalibrationRequired}"/>
-                    
+            <!-- Loading Indicator -->
+            <Border Classes="card" IsVisible="{Binding IsBusy}">
+                <StackPanel Orientation="Horizontal" Spacing="12" HorizontalAlignment="Center">
+                    <ProgressBar IsIndeterminate="True" Width="200" Height="4" Foreground="#3B82F6"/>
+                    <TextBlock Text="{Binding StatusMessage}" Foreground="#6B7280"/>
+                </StackPanel>
+            </Border>
+
+            <!-- Not Connected Warning -->
+            <Border Classes="status-required" IsVisible="{Binding !IsConnected}">
+                <StackPanel Orientation="Horizontal" Spacing="12">
+                    <TextBlock Text="Not Connected" FontWeight="SemiBold" Foreground="#92400E" VerticalAlignment="Center"/>
+                    <TextBlock Text="Connect to flight controller to calibrate radio" FontSize="13" Foreground="#A16207" VerticalAlignment="Center"/>
+                </StackPanel>
+            </Border>
+
+            <!-- RC Calibration Section -->
+            <Border Classes="card" IsVisible="{Binding IsConnected}">
+                <StackPanel Spacing="16">
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="Radio Calibration" Classes="section-title"/>
+                        <TextBlock Text="Move all sticks to their extreme positions during calibration" Classes="section-subtitle"/>
+                    </StackPanel>
+
+                    <!-- Status Banner -->
+                    <Border Classes.status-required="{Binding CalibrationRequired}"
+                            Classes.status-progress="{Binding IsCalibrating}"
+                            Classes.status-complete="{Binding !CalibrationRequired}"
+                            IsVisible="{Binding !IsCalibrating}">
+                        <TextBlock Text="{Binding CalibrationStatusText}" 
+                                   FontWeight="SemiBold" 
+                                   Foreground="{Binding CalibrationRequired, Converter={x:Static conv:BoolToColorConverter.Instance}, ConverterParameter=#92400E|#047857}"/>
+                    </Border>
+
+                    <Border Classes="status-progress" IsVisible="{Binding IsCalibrating}">
+                        <StackPanel Orientation="Horizontal" Spacing="12">
+                            <ProgressBar IsIndeterminate="True" Width="24" Height="24"/>
+                            <TextBlock Text="Calibration in progress - Move all sticks to extremes" 
+                                       FontWeight="SemiBold" Foreground="#1E40AF" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Border>
+
                     <!-- Main Attitude Channels -->
-                    <StackPanel Spacing="16" Margin="0,8,0,24">
+                    <StackPanel Spacing="12" Margin="0,8,0,0">
                         
                         <!-- Roll -->
-                        <Grid ColumnDefinitions="80,*,50">
-                            <TextBlock Grid.Column="0" Classes="ChannelLabel" Text="Roll"/>
-                            <ProgressBar Grid.Column="1" Classes="ChannelBar" 
-                                         Value="{Binding RollValue}"/>
-                            <TextBlock Grid.Column="2" Classes="ChannelValue" 
-                                       Text="{Binding RollValue}"/>
+                        <Grid ColumnDefinitions="90,*,50">
+                            <TextBlock Grid.Column="0" Text="Roll" Classes="field-label"/>
+                            <ProgressBar Grid.Column="1" Classes="channel-bar" Value="{Binding RollValue}" Margin="0,0,12,0"/>
+                            <TextBlock Grid.Column="2" Text="{Binding RollValue}" Classes="pwm-value"/>
                         </Grid>
-                        
+
                         <!-- Pitch -->
-                        <Grid ColumnDefinitions="80,*,50">
-                            <TextBlock Grid.Column="0" Classes="ChannelLabel" Text="Pitch"/>
-                            <ProgressBar Grid.Column="1" Classes="ChannelBar" 
-                                         Value="{Binding PitchValue}"/>
-                            <TextBlock Grid.Column="2" Classes="ChannelValue" 
-                                       Text="{Binding PitchValue}"/>
+                        <Grid ColumnDefinitions="90,*,50">
+                            <TextBlock Grid.Column="0" Text="Pitch" Classes="field-label"/>
+                            <ProgressBar Grid.Column="1" Classes="channel-bar" Value="{Binding PitchValue}" Margin="0,0,12,0"/>
+                            <TextBlock Grid.Column="2" Text="{Binding PitchValue}" Classes="pwm-value"/>
                         </Grid>
-                        
+
                         <!-- Yaw -->
-                        <Grid ColumnDefinitions="80,*,50">
-                            <TextBlock Grid.Column="0" Classes="ChannelLabel" Text="Yaw"/>
-                            <ProgressBar Grid.Column="1" Classes="ChannelBar" 
-                                         Value="{Binding YawValue}"/>
-                            <TextBlock Grid.Column="2" Classes="ChannelValue" 
-                                       Text="{Binding YawValue}"/>
+                        <Grid ColumnDefinitions="90,*,50">
+                            <TextBlock Grid.Column="0" Text="Yaw" Classes="field-label"/>
+                            <ProgressBar Grid.Column="1" Classes="channel-bar" Value="{Binding YawValue}" Margin="0,0,12,0"/>
+                            <TextBlock Grid.Column="2" Text="{Binding YawValue}" Classes="pwm-value"/>
                         </Grid>
-                        
+
                         <!-- Throttle -->
-                        <Grid ColumnDefinitions="80,*,50">
-                            <TextBlock Grid.Column="0" Classes="ChannelLabel" Text="Throttle"/>
-                            <ProgressBar Grid.Column="1" Classes="ChannelBar" 
-                                         Value="{Binding ThrottleValue}"/>
-                            <TextBlock Grid.Column="2" Classes="ChannelValue" 
-                                       Text="{Binding ThrottleValue}"/>
+                        <Grid ColumnDefinitions="90,*,50">
+                            <TextBlock Grid.Column="0" Text="Throttle" Classes="field-label"/>
+                            <ProgressBar Grid.Column="1" Classes="channel-bar" Value="{Binding ThrottleValue}" Margin="0,0,12,0"/>
+                            <TextBlock Grid.Column="2" Text="{Binding ThrottleValue}" Classes="pwm-value"/>
                         </Grid>
                     </StackPanel>
-                    
+
                     <!-- Calibrate Button -->
-                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                        <Button Classes="Primary" Command="{Binding CalibrateCommand}">
-                            <TextBlock Text="{Binding IsCalibrating, Converter={StaticResource CalibrationButtonTextConverter}, ConverterParameter='Complete|Calibrate'}"/>
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,8,0,0">
+                        <Button Classes="primary" 
+                                Command="{Binding CalibrateCommand}"
+                                IsEnabled="{Binding IsConnected}">
+                            <TextBlock Text="{Binding IsCalibrating, Converter={StaticResource CalibrationButtonTextConverter}, ConverterParameter='Complete Calibration|Start Calibration'}"/>
                         </Button>
                     </StackPanel>
                 </StackPanel>
             </Border>
 
-            <!-- SEPARATOR -->
-            <Border Classes="Separator"/>
+            <!-- Attitude Channel Mapping -->
+            <Border Classes="card" IsVisible="{Binding IsConnected}">
+                <StackPanel Spacing="16">
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="Attitude Channel Mapping" Classes="section-title"/>
+                        <TextBlock Text="Assign control functions to RC channels" Classes="section-subtitle"/>
+                    </StackPanel>
 
-            <!-- ATTITUDE CHANNEL SETTING SECTION -->
-            <Border Classes="SectionCard">
-                <StackPanel>
-                    <TextBlock Classes="SectionTitle" Text="Attitude Channel Setting"/>
-                    <TextBlock Classes="SectionSubtitle" Text="Map control functions to RC channels"/>
-                    
-                    <Grid ColumnDefinitions="*,24,*" RowDefinitions="Auto,24,Auto" Margin="0,8,0,0">
+                    <Grid ColumnDefinitions="*,24,*" RowDefinitions="Auto,16,Auto">
                         
                         <!-- Throttle -->
-                        <StackPanel Grid.Column="0" Grid.Row="0">
-                            <TextBlock Classes="FieldLabel" Text="Throttle"/>
+                        <StackPanel Grid.Column="0" Grid.Row="0" Spacing="6">
+                            <TextBlock Text="Throttle" FontSize="13" FontWeight="Medium" Foreground="#374151"/>
                             <ComboBox ItemsSource="{Binding ChannelOptions}"
                                       SelectedItem="{Binding SelectedThrottleChannel}"
-                                      DisplayMemberBinding="{Binding Label}"/>
+                                      DisplayMemberBinding="{Binding Label}"
+                                      HorizontalAlignment="Stretch"/>
                         </StackPanel>
-                        
+
                         <!-- Roll -->
-                        <StackPanel Grid.Column="2" Grid.Row="0">
-                            <TextBlock Classes="FieldLabel" Text="Roll"/>
+                        <StackPanel Grid.Column="2" Grid.Row="0" Spacing="6">
+                            <TextBlock Text="Roll" FontSize="13" FontWeight="Medium" Foreground="#374151"/>
                             <ComboBox ItemsSource="{Binding ChannelOptions}"
                                       SelectedItem="{Binding SelectedRollChannel}"
-                                      DisplayMemberBinding="{Binding Label}"/>
+                                      DisplayMemberBinding="{Binding Label}"
+                                      HorizontalAlignment="Stretch"/>
                         </StackPanel>
-                        
+
                         <!-- Pitch -->
-                        <StackPanel Grid.Column="0" Grid.Row="2">
-                            <TextBlock Classes="FieldLabel" Text="Pitch"/>
+                        <StackPanel Grid.Column="0" Grid.Row="2" Spacing="6">
+                            <TextBlock Text="Pitch" FontSize="13" FontWeight="Medium" Foreground="#374151"/>
                             <ComboBox ItemsSource="{Binding ChannelOptions}"
                                       SelectedItem="{Binding SelectedPitchChannel}"
-                                      DisplayMemberBinding="{Binding Label}"/>
+                                      DisplayMemberBinding="{Binding Label}"
+                                      HorizontalAlignment="Stretch"/>
                         </StackPanel>
-                        
+
                         <!-- Yaw -->
-                        <StackPanel Grid.Column="2" Grid.Row="2">
-                            <TextBlock Classes="FieldLabel" Text="Yaw"/>
+                        <StackPanel Grid.Column="2" Grid.Row="2" Spacing="6">
+                            <TextBlock Text="Yaw" FontSize="13" FontWeight="Medium" Foreground="#374151"/>
                             <ComboBox ItemsSource="{Binding ChannelOptions}"
                                       SelectedItem="{Binding SelectedYawChannel}"
-                                      DisplayMemberBinding="{Binding Label}"/>
+                                      DisplayMemberBinding="{Binding Label}"
+                                      HorizontalAlignment="Stretch"/>
                         </StackPanel>
                     </Grid>
-                    
+
                     <!-- Update Button -->
-                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,24,0,0">
-                        <Button Classes="Primary" Command="{Binding UpdateMappingCommand}">
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,8,0,0">
+                        <Button Classes="primary" 
+                                Command="{Binding UpdateMappingCommand}"
+                                IsEnabled="{Binding IsConnected}">
                             <TextBlock Text="Update Mapping"/>
                         </Button>
                     </StackPanel>
                 </StackPanel>
             </Border>
 
-            <!-- SEPARATOR -->
-            <Border Classes="Separator"/>
+            <!-- Channel Monitor -->
+            <Border Classes="card" IsVisible="{Binding IsConnected}">
+                <StackPanel Spacing="16">
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="Channel Monitor" Classes="section-title"/>
+                        <TextBlock Text="Live RC input values" Classes="section-subtitle"/>
+                    </StackPanel>
 
-            <!-- CHANNEL MONITOR SECTION -->
-            <Border Classes="SectionCard">
-                <StackPanel>
-                    <TextBlock Classes="SectionTitle" Text="CHANNEL MONITOR"/>
-                    <TextBlock Classes="SectionSubtitle" Text="Live RC input values for all 16 channels"/>
-                    
-                    <Grid ColumnDefinitions="*,48,*" Margin="0,8,0,0">
+                    <Grid ColumnDefinitions="*,32,*">
                         
                         <!-- Left Column: Channels 1-8 -->
-                        <StackPanel Grid.Column="0" Spacing="12">
-                            
-                            <!-- Channel 1 -->
+                        <StackPanel Grid.Column="0" Spacing="8">
                             <Grid ColumnDefinitions="80,*,40">
-                                <TextBlock Grid.Column="0" Classes="ChannelLabel" Text="Channel 1"/>
-                                <ProgressBar Grid.Column="1" Classes="ChannelBar" Value="{Binding Channel1Value}"/>
-                                <TextBlock Grid.Column="2" Classes="ChannelValue" Text="{Binding Channel1Value}"/>
+                                <TextBlock Grid.Column="0" Text="Channel 1" FontSize="12" Foreground="#374151" VerticalAlignment="Center"/>
+                                <ProgressBar Grid.Column="1" Classes="channel-bar-thin" Value="{Binding Channel1Value}" Margin="0,0,8,0"/>
+                                <TextBlock Grid.Column="2" Text="{Binding Channel1Value}" FontSize="12" Foreground="#6B7280" TextAlignment="Right" VerticalAlignment="Center"/>
                             </Grid>
-                            
-                            <!-- Channel 2 -->
                             <Grid ColumnDefinitions="80,*,40">
-                                <TextBlock Grid.Column="0" Classes="ChannelLabel" Text="Channel 2"/>
-                                <ProgressBar Grid.Column="1" Classes="ChannelBar" Value="{Binding Channel2Value}"/>
-                                <TextBlock Grid.Column="2" Classes="ChannelValue" Text="{Binding Channel2Value}"/>
+                                <TextBlock Grid.Column="0" Text="Channel 2" FontSize="12" Foreground="#374151" VerticalAlignment="Center"/>
+                                <ProgressBar Grid.Column="1" Classes="channel-bar-thin" Value="{Binding Channel2Value}" Margin="0,0,8,0"/>
+                                <TextBlock Grid.Column="2" Text="{Binding Channel2Value}" FontSize="12" Foreground="#6B7280" TextAlignment="Right" VerticalAlignment="Center"/>
                             </Grid>
-                            
-                            <!-- Channel 3 -->
                             <Grid ColumnDefinitions="80,*,40">
-                                <TextBlock Grid.Column="0" Classes="ChannelLabel" Text="Channel 3"/>
-                                <ProgressBar Grid.Column="1" Classes="ChannelBar" Value="{Binding Channel3Value}"/>
-                                <TextBlock Grid.Column="2" Classes="ChannelValue" Text="{Binding Channel3Value}"/>
+                                <TextBlock Grid.Column="0" Text="Channel 3" FontSize="12" Foreground="#374151" VerticalAlignment="Center"/>
+                                <ProgressBar Grid.Column="1" Classes="channel-bar-thin" Value="{Binding Channel3Value}" Margin="0,0,8,0"/>
+                                <TextBlock Grid.Column="2" Text="{Binding Channel3Value}" FontSize="12" Foreground="#6B7280" TextAlignment="Right" VerticalAlignment="Center"/>
                             </Grid>
-                            
-                            <!-- Channel 4 -->
                             <Grid ColumnDefinitions="80,*,40">
-                                <TextBlock Grid.Column="0" Classes="ChannelLabel" Text="Channel 4"/>
-                                <ProgressBar Grid.Column="1" Classes="ChannelBar" Value="{Binding Channel4Value}"/>
-                                <TextBlock Grid.Column="2" Classes="ChannelValue" Text="{Binding Channel4Value}"/>
+                                <TextBlock Grid.Column="0" Text="Channel 4" FontSize="12" Foreground="#374151" VerticalAlignment="Center"/>
+                                <ProgressBar Grid.Column="1" Classes="channel-bar-thin" Value="{Binding Channel4Value}" Margin="0,0,8,0"/>
+                                <TextBlock Grid.Column="2" Text="{Binding Channel4Value}" FontSize="12" Foreground="#6B7280" TextAlignment="Right" VerticalAlignment="Center"/>
                             </Grid>
-                            
-                            <!-- Channel 5 -->
                             <Grid ColumnDefinitions="80,*,40">
-                                <TextBlock Grid.Column="0" Classes="ChannelLabel" Text="Channel 5"/>
-                                <ProgressBar Grid.Column="1" Classes="ChannelBar" Value="{Binding Channel5Value}"/>
-                                <TextBlock Grid.Column="2" Classes="ChannelValue" Text="{Binding Channel5Value}"/>
+                                <TextBlock Grid.Column="0" Text="Channel 5" FontSize="12" Foreground="#374151" VerticalAlignment="Center"/>
+                                <ProgressBar Grid.Column="1" Classes="channel-bar-thin" Value="{Binding Channel5Value}" Margin="0,0,8,0"/>
+                                <TextBlock Grid.Column="2" Text="{Binding Channel5Value}" FontSize="12" Foreground="#6B7280" TextAlignment="Right" VerticalAlignment="Center"/>
                             </Grid>
-                            
-                            <!-- Channel 6 -->
                             <Grid ColumnDefinitions="80,*,40">
-                                <TextBlock Grid.Column="0" Classes="ChannelLabel" Text="Channel 6"/>
-                                <ProgressBar Grid.Column="1" Classes="ChannelBar" Value="{Binding Channel6Value}"/>
-                                <TextBlock Grid.Column="2" Classes="ChannelValue" Text="{Binding Channel6Value}"/>
+                                <TextBlock Grid.Column="0" Text="Channel 6" FontSize="12" Foreground="#374151" VerticalAlignment="Center"/>
+                                <ProgressBar Grid.Column="1" Classes="channel-bar-thin" Value="{Binding Channel6Value}" Margin="0,0,8,0"/>
+                                <TextBlock Grid.Column="2" Text="{Binding Channel6Value}" FontSize="12" Foreground="#6B7280" TextAlignment="Right" VerticalAlignment="Center"/>
                             </Grid>
-                            
-                            <!-- Channel 7 -->
                             <Grid ColumnDefinitions="80,*,40">
-                                <TextBlock Grid.Column="0" Classes="ChannelLabel" Text="Channel 7"/>
-                                <ProgressBar Grid.Column="1" Classes="ChannelBar" Value="{Binding Channel7Value}"/>
-                                <TextBlock Grid.Column="2" Classes="ChannelValue" Text="{Binding Channel7Value}"/>
+                                <TextBlock Grid.Column="0" Text="Channel 7" FontSize="12" Foreground="#374151" VerticalAlignment="Center"/>
+                                <ProgressBar Grid.Column="1" Classes="channel-bar-thin" Value="{Binding Channel7Value}" Margin="0,0,8,0"/>
+                                <TextBlock Grid.Column="2" Text="{Binding Channel7Value}" FontSize="12" Foreground="#6B7280" TextAlignment="Right" VerticalAlignment="Center"/>
                             </Grid>
-                            
-                            <!-- Channel 8 -->
                             <Grid ColumnDefinitions="80,*,40">
-                                <TextBlock Grid.Column="0" Classes="ChannelLabel" Text="Channel 8"/>
-                                <ProgressBar Grid.Column="1" Classes="ChannelBar" Value="{Binding Channel8Value}"/>
-                                <TextBlock Grid.Column="2" Classes="ChannelValue" Text="{Binding Channel8Value}"/>
+                                <TextBlock Grid.Column="0" Text="Channel 8" FontSize="12" Foreground="#374151" VerticalAlignment="Center"/>
+                                <ProgressBar Grid.Column="1" Classes="channel-bar-thin" Value="{Binding Channel8Value}" Margin="0,0,8,0"/>
+                                <TextBlock Grid.Column="2" Text="{Binding Channel8Value}" FontSize="12" Foreground="#6B7280" TextAlignment="Right" VerticalAlignment="Center"/>
                             </Grid>
                         </StackPanel>
-                        
+
                         <!-- Right Column: Channels 9-16 -->
-                        <StackPanel Grid.Column="2" Spacing="12">
-                            
-                            <!-- Channel 9 -->
+                        <StackPanel Grid.Column="2" Spacing="8">
                             <Grid ColumnDefinitions="80,*,40">
-                                <TextBlock Grid.Column="0" Classes="ChannelLabel" Text="Channel 9"/>
-                                <ProgressBar Grid.Column="1" Classes="ChannelBar" Value="{Binding Channel9Value}"/>
-                                <TextBlock Grid.Column="2" Classes="ChannelValue" Text="{Binding Channel9Value}"/>
+                                <TextBlock Grid.Column="0" Text="Channel 9" FontSize="12" Foreground="#374151" VerticalAlignment="Center"/>
+                                <ProgressBar Grid.Column="1" Classes="channel-bar-thin" Value="{Binding Channel9Value}" Margin="0,0,8,0"/>
+                                <TextBlock Grid.Column="2" Text="{Binding Channel9Value}" FontSize="12" Foreground="#6B7280" TextAlignment="Right" VerticalAlignment="Center"/>
                             </Grid>
-                            
-                            <!-- Channel 10 -->
                             <Grid ColumnDefinitions="80,*,40">
-                                <TextBlock Grid.Column="0" Classes="ChannelLabel" Text="Channel 10"/>
-                                <ProgressBar Grid.Column="1" Classes="ChannelBar" Value="{Binding Channel10Value}"/>
-                                <TextBlock Grid.Column="2" Classes="ChannelValue" Text="{Binding Channel10Value}"/>
+                                <TextBlock Grid.Column="0" Text="Channel 10" FontSize="12" Foreground="#374151" VerticalAlignment="Center"/>
+                                <ProgressBar Grid.Column="1" Classes="channel-bar-thin" Value="{Binding Channel10Value}" Margin="0,0,8,0"/>
+                                <TextBlock Grid.Column="2" Text="{Binding Channel10Value}" FontSize="12" Foreground="#6B7280" TextAlignment="Right" VerticalAlignment="Center"/>
                             </Grid>
-                            
-                            <!-- Channel 11 -->
                             <Grid ColumnDefinitions="80,*,40">
-                                <TextBlock Grid.Column="0" Classes="ChannelLabel" Text="Channel 11"/>
-                                <ProgressBar Grid.Column="1" Classes="ChannelBar" Value="{Binding Channel11Value}"/>
-                                <TextBlock Grid.Column="2" Classes="ChannelValue" Text="{Binding Channel11Value}"/>
+                                <TextBlock Grid.Column="0" Text="Channel 11" FontSize="12" Foreground="#374151" VerticalAlignment="Center"/>
+                                <ProgressBar Grid.Column="1" Classes="channel-bar-thin" Value="{Binding Channel11Value}" Margin="0,0,8,0"/>
+                                <TextBlock Grid.Column="2" Text="{Binding Channel11Value}" FontSize="12" Foreground="#6B7280" TextAlignment="Right" VerticalAlignment="Center"/>
                             </Grid>
-                            
-                            <!-- Channel 12 -->
                             <Grid ColumnDefinitions="80,*,40">
-                                <TextBlock Grid.Column="0" Classes="ChannelLabel" Text="Channel 12"/>
-                                <ProgressBar Grid.Column="1" Classes="ChannelBar" Value="{Binding Channel12Value}"/>
-                                <TextBlock Grid.Column="2" Classes="ChannelValue" Text="{Binding Channel12Value}"/>
+                                <TextBlock Grid.Column="0" Text="Channel 12" FontSize="12" Foreground="#374151" VerticalAlignment="Center"/>
+                                <ProgressBar Grid.Column="1" Classes="channel-bar-thin" Value="{Binding Channel12Value}" Margin="0,0,8,0"/>
+                                <TextBlock Grid.Column="2" Text="{Binding Channel12Value}" FontSize="12" Foreground="#6B7280" TextAlignment="Right" VerticalAlignment="Center"/>
                             </Grid>
-                            
-                            <!-- Channel 13 -->
                             <Grid ColumnDefinitions="80,*,40">
-                                <TextBlock Grid.Column="0" Classes="ChannelLabel" Text="Channel 13"/>
-                                <ProgressBar Grid.Column="1" Classes="ChannelBar" Value="{Binding Channel13Value}"/>
-                                <TextBlock Grid.Column="2" Classes="ChannelValue" Text="{Binding Channel13Value}"/>
+                                <TextBlock Grid.Column="0" Text="Channel 13" FontSize="12" Foreground="#374151" VerticalAlignment="Center"/>
+                                <ProgressBar Grid.Column="1" Classes="channel-bar-thin" Value="{Binding Channel13Value}" Margin="0,0,8,0"/>
+                                <TextBlock Grid.Column="2" Text="{Binding Channel13Value}" FontSize="12" Foreground="#6B7280" TextAlignment="Right" VerticalAlignment="Center"/>
                             </Grid>
-                            
-                            <!-- Channel 14 -->
                             <Grid ColumnDefinitions="80,*,40">
-                                <TextBlock Grid.Column="0" Classes="ChannelLabel" Text="Channel 14"/>
-                                <ProgressBar Grid.Column="1" Classes="ChannelBar" Value="{Binding Channel14Value}"/>
-                                <TextBlock Grid.Column="2" Classes="ChannelValue" Text="{Binding Channel14Value}"/>
+                                <TextBlock Grid.Column="0" Text="Channel 14" FontSize="12" Foreground="#374151" VerticalAlignment="Center"/>
+                                <ProgressBar Grid.Column="1" Classes="channel-bar-thin" Value="{Binding Channel14Value}" Margin="0,0,8,0"/>
+                                <TextBlock Grid.Column="2" Text="{Binding Channel14Value}" FontSize="12" Foreground="#6B7280" TextAlignment="Right" VerticalAlignment="Center"/>
                             </Grid>
-                            
-                            <!-- Channel 15 -->
                             <Grid ColumnDefinitions="80,*,40">
-                                <TextBlock Grid.Column="0" Classes="ChannelLabel" Text="Channel 15"/>
-                                <ProgressBar Grid.Column="1" Classes="ChannelBar" Value="{Binding Channel15Value}"/>
-                                <TextBlock Grid.Column="2" Classes="ChannelValue" Text="{Binding Channel15Value}"/>
+                                <TextBlock Grid.Column="0" Text="Channel 15" FontSize="12" Foreground="#374151" VerticalAlignment="Center"/>
+                                <ProgressBar Grid.Column="1" Classes="channel-bar-thin" Value="{Binding Channel15Value}" Margin="0,0,8,0"/>
+                                <TextBlock Grid.Column="2" Text="{Binding Channel15Value}" FontSize="12" Foreground="#6B7280" TextAlignment="Right" VerticalAlignment="Center"/>
                             </Grid>
-                            
-                            <!-- Channel 16 -->
                             <Grid ColumnDefinitions="80,*,40">
-                                <TextBlock Grid.Column="0" Classes="ChannelLabel" Text="Channel 16"/>
-                                <ProgressBar Grid.Column="1" Classes="ChannelBar" Value="{Binding Channel16Value}"/>
-                                <TextBlock Grid.Column="2" Classes="ChannelValue" Text="{Binding Channel16Value}"/>
+                                <TextBlock Grid.Column="0" Text="Channel 16" FontSize="12" Foreground="#374151" VerticalAlignment="Center"/>
+                                <ProgressBar Grid.Column="1" Classes="channel-bar-thin" Value="{Binding Channel16Value}" Margin="0,0,8,0"/>
+                                <TextBlock Grid.Column="2" Text="{Binding Channel16Value}" FontSize="12" Foreground="#6B7280" TextAlignment="Right" VerticalAlignment="Center"/>
                             </Grid>
                         </StackPanel>
                     </Grid>
                 </StackPanel>
             </Border>
 
-            <!-- STATUS BAR -->
-            <Border Background="#F5F5F5" CornerRadius="6" Padding="12" Margin="0,8,0,0" IsVisible="{Binding IsBusy}">
-                <StackPanel Orientation="Horizontal" Spacing="8">
-                    <ProgressBar Width="20" Height="20" IsIndeterminate="True"/>
-                    <TextBlock Text="{Binding StatusMessage}" VerticalAlignment="Center" Foreground="#1E293B"/>
+            <!-- Info Footer -->
+            <Border Background="#EFF6FF" CornerRadius="8" Padding="16" IsVisible="{Binding IsConnected}">
+                <StackPanel Spacing="4">
+                    <TextBlock Text="PDRL Compliance" FontSize="13" FontWeight="SemiBold" Foreground="#1E40AF"/>
+                    <TextBlock Text="All main control channels (Roll, Pitch, Yaw, Throttle) must be properly calibrated before flight. Move sticks to all extremes during calibration." 
+                               FontSize="12" Foreground="#3B82F6" TextWrapping="Wrap"/>
                 </StackPanel>
             </Border>
 
-            <!-- INFO FOOTER -->
-            <Border Background="#E7F3FF" CornerRadius="8" Padding="16" Margin="0,16,0,0">
-                <StackPanel Orientation="Horizontal" Spacing="8">
-                    <TextBlock Text="?" FontSize="16" VerticalAlignment="Center"/>
-                    <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="#0B5ED7">
-                        <Run Text="PDRL Compliance:"/>
-                        <Run Text="All main control channels (Roll, Pitch, Yaw, Throttle) must be properly calibrated before flight. Move sticks to all extremes during calibration."/>
-                    </TextBlock>
-                </StackPanel>
-            </Border>
         </StackPanel>
     </ScrollViewer>
 </UserControl>

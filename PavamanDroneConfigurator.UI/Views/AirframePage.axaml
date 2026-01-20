@@ -4,75 +4,176 @@
              x:Class="PavamanDroneConfigurator.UI.Views.AirframePage"
              x:DataType="vm:AirframePageViewModel">
 
-    <ScrollViewer>
-        <StackPanel Margin="20" Spacing="15">
-            <!-- Header -->
-            <TextBlock Text="Airframe Configuration" FontSize="24" FontWeight="Bold" />
-            
-            <TextBlock Text="Configure your drone's frame type and motor layout" 
-                       Opacity="0.7" 
-                       TextWrapping="Wrap" />
-            
-            <!-- Action Buttons -->
-            <StackPanel Orientation="Horizontal" Spacing="10">
-                <Button Content="Load Settings" 
-                        Command="{Binding LoadSettingsCommand}" 
-                        IsEnabled="{Binding IsConnected}"
-                        Width="120" />
-                <Button Content="Apply Settings" 
-                        Command="{Binding ApplySettingsCommand}" 
-                        IsEnabled="{Binding IsConnected}"
-                        Width="120" />
-                <Button Content="Refresh" 
-                        Command="{Binding RefreshSettingsCommand}" 
-                        IsEnabled="{Binding IsConnected}"
-                        Width="120" />
-            </StackPanel>
-            
-            <!-- Status Message -->
-            <TextBlock Text="{Binding StatusMessage}" 
-                       FontWeight="SemiBold"
-                       Foreground="{DynamicResource SystemAccentColor}"
-                       TextWrapping="Wrap" />
-            
-            <!-- Loading Indicator -->
-            <ProgressBar IsIndeterminate="True" 
-                         IsVisible="{Binding IsLoading}"
-                         Height="4" />
+    <UserControl.Styles>
+        <!-- Modern Card Style -->
+        <Style Selector="Border.card">
+            <Setter Property="Background" Value="#FFFFFF"/>
+            <Setter Property="BorderBrush" Value="#E5E7EB"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="12"/>
+            <Setter Property="Padding" Value="24"/>
+            <Setter Property="BoxShadow" Value="0 1 3 0 #10000000"/>
+        </Style>
 
-            <!-- Current Frame Display -->
-            <Border BorderBrush="{DynamicResource SystemAccentColor}" 
-                    BorderThickness="2" 
-                    CornerRadius="8" 
-                    Padding="15"
-                    Background="{DynamicResource SystemControlBackgroundAltHighBrush}">
-                <StackPanel Spacing="5">
-                    <TextBlock Text="Current Airframe Configuration:" 
-                               FontSize="16" 
-                               FontWeight="Bold" />
-                    <TextBlock Text="{Binding CurrentFrameName}" 
-                               FontSize="20" 
-                               FontWeight="SemiBold"
-                               Foreground="{DynamicResource SystemAccentColor}" />
+        <!-- Section Header Style -->
+        <Style Selector="TextBlock.section-title">
+            <Setter Property="FontSize" Value="16"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Foreground" Value="#111827"/>
+            <Setter Property="Margin" Value="0,0,0,8"/>
+        </Style>
+
+        <!-- Label Style -->
+        <Style Selector="TextBlock.label">
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="FontWeight" Value="Medium"/>
+            <Setter Property="Foreground" Value="#374151"/>
+            <Setter Property="Margin" Value="0,0,0,6"/>
+        </Style>
+
+        <!-- Primary Button -->
+        <Style Selector="Button.primary">
+            <Setter Property="Background" Value="#3B82F6"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Padding" Value="24,12"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+        </Style>
+
+        <Style Selector="Button.primary:pointerover">
+            <Setter Property="Background" Value="#2563EB"/>
+        </Style>
+
+        <Style Selector="Button.primary:disabled">
+            <Setter Property="Background" Value="#9CA3AF"/>
+            <Setter Property="Opacity" Value="0.6"/>
+        </Style>
+
+        <!-- Secondary Button -->
+        <Style Selector="Button.secondary">
+            <Setter Property="Background" Value="White"/>
+            <Setter Property="Foreground" Value="#374151"/>
+            <Setter Property="BorderBrush" Value="#D1D5DB"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="20,12"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Cursor" Value="Hand"/>
+        </Style>
+
+        <Style Selector="Button.secondary:pointerover">
+            <Setter Property="Background" Value="#F9FAFB"/>
+        </Style>
+
+        <!-- ComboBox Style -->
+        <Style Selector="ComboBox">
+            <Setter Property="MinHeight" Value="44"/>
+            <Setter Property="Padding" Value="14,10"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="BorderBrush" Value="#D1D5DB"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Background" Value="White"/>
+        </Style>
+
+        <!-- Warning Box -->
+        <Style Selector="Border.warning-box">
+            <Setter Property="Background" Value="#FEF3C7"/>
+            <Setter Property="BorderBrush" Value="#F59E0B"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Padding" Value="16"/>
+        </Style>
+
+        <!-- Success Box -->
+        <Style Selector="Border.success-box">
+            <Setter Property="Background" Value="#D1FAE5"/>
+            <Setter Property="BorderBrush" Value="#10B981"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Padding" Value="16"/>
+        </Style>
+
+        <!-- Current Frame Display -->
+        <Style Selector="Border.current-frame">
+            <Setter Property="Background">
+                <Setter.Value>
+                    <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
+                        <GradientStop Color="#DBEAFE" Offset="0"/>
+                        <GradientStop Color="#E0E7FF" Offset="1"/>
+                    </LinearGradientBrush>
+                </Setter.Value>
+            </Setter>
+            <Setter Property="BorderBrush" Value="#3B82F6"/>
+            <Setter Property="BorderThickness" Value="2"/>
+            <Setter Property="CornerRadius" Value="12"/>
+            <Setter Property="Padding" Value="24"/>
+        </Style>
+    </UserControl.Styles>
+
+    <ScrollViewer>
+        <StackPanel Margin="32,24" Spacing="24" MaxWidth="900">
+            <!-- Header -->
+            <StackPanel Spacing="8">
+                <TextBlock Text="Airframe Configuration" FontSize="28" FontWeight="Bold" Foreground="#111827"/>
+                <TextBlock Text="Configure your drone's frame type and motor layout" FontSize="14" Foreground="#6B7280"/>
+            </StackPanel>
+
+            <!-- Loading Indicator -->
+            <Border Classes="card" IsVisible="{Binding IsLoading}">
+                <StackPanel Orientation="Horizontal" Spacing="12" HorizontalAlignment="Center">
+                    <ProgressBar IsIndeterminate="True" Width="200" Height="4" Foreground="#3B82F6"/>
+                    <TextBlock Text="Loading airframe configuration..." Foreground="#6B7280"/>
                 </StackPanel>
             </Border>
 
-            <!-- Main Configuration -->
-            <StackPanel Spacing="20" IsEnabled="{Binding IsConnected}">
+            <!-- Not Connected Warning -->
+            <Border Classes="warning-box" IsVisible="{Binding !IsConnected}">
+                <StackPanel Orientation="Horizontal" Spacing="12">
+                    <TextBlock Text="??" FontSize="20"/>
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="Not Connected" FontWeight="SemiBold" Foreground="#92400E"/>
+                        <TextBlock Text="Connect to a drone to configure airframe settings" FontSize="13" Foreground="#A16207"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- Current Airframe Display -->
+            <Border Classes="current-frame" IsVisible="{Binding IsConnected}">
+                <Grid ColumnDefinitions="*,Auto">
+                    <StackPanel Spacing="8">
+                        <TextBlock Text="Current Airframe" FontSize="13" FontWeight="SemiBold" Foreground="#3B82F6"/>
+                        <TextBlock Text="{Binding CurrentFrameName}" 
+                                   FontSize="24" 
+                                   FontWeight="Bold" 
+                                   Foreground="#1E40AF"/>
+                    </StackPanel>
+                    
+                    <Button Grid.Column="1"
+                            Content="?? Refresh"
+                            Command="{Binding RefreshSettingsCommand}"
+                            IsEnabled="{Binding IsConnected}"
+                            Classes="secondary"
+                            VerticalAlignment="Center"/>
+                </Grid>
+            </Border>
+
+            <!-- Frame Configuration Cards -->
+            <Grid ColumnDefinitions="*,*" RowDefinitions="Auto" ColumnSpacing="24" IsEnabled="{Binding IsConnected}">
                 
-                <!-- Frame Class Selection -->
-                <Border BorderBrush="{DynamicResource SystemControlForegroundBaseMediumBrush}" 
-                        BorderThickness="1" 
-                        CornerRadius="8" 
-                        Padding="15">
-                    <StackPanel Spacing="10">
-                        <TextBlock Text="Frame Class" 
-                                   FontSize="18" 
-                                   FontWeight="Bold" />
-                        
-                        <TextBlock Text="Select the number of motors and basic configuration:" 
-                                   Opacity="0.7" 
-                                   TextWrapping="Wrap" />
+                <!-- Frame Class Card -->
+                <Border Grid.Column="0" Classes="card">
+                    <StackPanel Spacing="16">
+                        <StackPanel Spacing="4">
+                            <TextBlock Text="Frame Class" Classes="section-title"/>
+                            <TextBlock Text="Select the number of motors and basic configuration" 
+                                       FontSize="13" 
+                                       Foreground="#6B7280"
+                                       TextWrapping="Wrap"/>
+                        </StackPanel>
                         
                         <ComboBox ItemsSource="{Binding AvailableFrameClasses}"
                                   SelectedValue="{Binding SelectedFrameClass}"
@@ -80,12 +181,9 @@
                                   HorizontalAlignment="Stretch">
                             <ComboBox.ItemTemplate>
                                 <DataTemplate>
-                                    <StackPanel Spacing="2">
-                                        <TextBlock Text="{Binding Name}" 
-                                                   FontWeight="Bold" />
-                                        <TextBlock Text="{Binding Description}" 
-                                                   FontSize="11" 
-                                                   Opacity="0.7" />
+                                    <StackPanel Spacing="2" Margin="4,6">
+                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="14"/>
+                                        <TextBlock Text="{Binding Description}" FontSize="11" Foreground="#6B7280"/>
                                     </StackPanel>
                                 </DataTemplate>
                             </ComboBox.ItemTemplate>
@@ -93,19 +191,16 @@
                     </StackPanel>
                 </Border>
 
-                <!-- Frame Type Selection -->
-                <Border BorderBrush="{DynamicResource SystemControlForegroundBaseMediumBrush}" 
-                        BorderThickness="1" 
-                        CornerRadius="8" 
-                        Padding="15">
-                    <StackPanel Spacing="10">
-                        <TextBlock Text="Frame Type" 
-                                   FontSize="18" 
-                                   FontWeight="Bold" />
-                        
-                        <TextBlock Text="Select the motor layout configuration:" 
-                                   Opacity="0.7" 
-                                   TextWrapping="Wrap" />
+                <!-- Frame Type Card -->
+                <Border Grid.Column="1" Classes="card">
+                    <StackPanel Spacing="16">
+                        <StackPanel Spacing="4">
+                            <TextBlock Text="Frame Type" Classes="section-title"/>
+                            <TextBlock Text="Select the motor layout configuration" 
+                                       FontSize="13" 
+                                       Foreground="#6B7280"
+                                       TextWrapping="Wrap"/>
+                        </StackPanel>
                         
                         <ComboBox ItemsSource="{Binding AvailableFrameTypes}"
                                   SelectedValue="{Binding SelectedFrameType}"
@@ -113,42 +208,52 @@
                                   HorizontalAlignment="Stretch">
                             <ComboBox.ItemTemplate>
                                 <DataTemplate>
-                                    <StackPanel Spacing="2">
-                                        <TextBlock Text="{Binding Name}" 
-                                                   FontWeight="Bold" />
-                                        <TextBlock Text="{Binding Description}" 
-                                                   FontSize="11" 
-                                                   Opacity="0.7" />
+                                    <StackPanel Spacing="2" Margin="4,6">
+                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="14"/>
+                                        <TextBlock Text="{Binding Description}" FontSize="11" Foreground="#6B7280"/>
                                     </StackPanel>
                                 </DataTemplate>
                             </ComboBox.ItemTemplate>
                         </ComboBox>
                     </StackPanel>
                 </Border>
+            </Grid>
 
-                <!-- Warning Message -->
-                <Border BorderBrush="Orange" 
-                        BorderThickness="2" 
-                        CornerRadius="8" 
-                        Padding="15"
-                        Background="#22FFA500">
-                    <StackPanel Spacing="5">
-                        <TextBlock Text="Important Warning" 
-                                   FontSize="16" 
-                                   FontWeight="Bold"
-                                   Foreground="Orange" />
-                        <TextBlock TextWrapping="Wrap"
-                                   Foreground="Orange">
-                            <Run>Changing the airframe configuration requires a reboot to take effect.</Run>
-                            <LineBreak/>
-                            <Run>Ensure you have selected the correct frame type that matches your physical drone configuration.</Run>
-                            <LineBreak/>
-                            <Run>Incorrect settings may result in unstable flight or crashes!</Run>
-                        </TextBlock>
-                    </StackPanel>
-                </Border>
-
+            <!-- Action Buttons -->
+            <StackPanel Orientation="Horizontal" Spacing="12" HorizontalAlignment="Left" IsEnabled="{Binding IsConnected}">
+                <Button Content="Apply Settings"
+                        Command="{Binding ApplySettingsCommand}"
+                        Classes="primary"/>
+                <Button Content="Load from Vehicle"
+                        Command="{Binding LoadSettingsCommand}"
+                        Classes="secondary"/>
             </StackPanel>
+
+            <!-- Warning Message -->
+            <Border Classes="warning-box" IsVisible="{Binding IsConnected}">
+                <StackPanel Spacing="8">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <TextBlock Text="??" FontSize="16"/>
+                        <TextBlock Text="Important Warning" FontSize="14" FontWeight="SemiBold" Foreground="#92400E"/>
+                    </StackPanel>
+                    <StackPanel Spacing="4" Margin="24,0,0,0">
+                        <TextBlock Text="• Changing the airframe configuration requires a reboot to take effect" 
+                                   FontSize="13" Foreground="#A16207" TextWrapping="Wrap"/>
+                        <TextBlock Text="• Ensure you have selected the correct frame type that matches your physical drone" 
+                                   FontSize="13" Foreground="#A16207" TextWrapping="Wrap"/>
+                        <TextBlock Text="• Incorrect settings may result in unstable flight or crashes!" 
+                                   FontSize="13" Foreground="#92400E" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- Status Message -->
+            <Border Classes="success-box" IsVisible="{Binding StatusMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                <TextBlock Text="{Binding StatusMessage}" 
+                           FontSize="13" 
+                           Foreground="#047857"
+                           TextWrapping="Wrap"/>
+            </Border>
         </StackPanel>
     </ScrollViewer>
 </UserControl>
