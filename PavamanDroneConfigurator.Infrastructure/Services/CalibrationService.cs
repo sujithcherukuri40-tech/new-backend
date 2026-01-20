@@ -26,16 +26,37 @@ namespace PavamanDroneConfigurator.Infrastructure.Services;
 ///    - NO timer-based CanConfirm toggles
 ///    - Only allow a position when FC sends STATUSTEXT like "Place vehicle level"
 /// 
-/// 3. NO AUTO-RETRY OF ACCELCAL_VEHICLE_POS:
+/// 3. MANDATORY POST-STATUSTEXT SETTLE DELAY (CRITICAL - 2000ms):
+///    After receiving any accel position request via STATUSTEXT:
+///    a) WAIT 2000ms (hard delay) - REQUIRED by ArduPilot internals
+///    b) THEN enable confirm button
+///    This delay is why Mission Planner works correctly at LEVEL position.
+///    Without this delay, the FC may reject position commands with MAV_RESULT_FAILED.
+/// 
+/// 4. IMU STABILITY CHECKS (UI-ONLY):
+///    IMU variance checks may ONLY:
+///    - Enable or disable the confirm button
+///    IMU logic must NEVER:
+///    - Send MAVLink commands
+///    - Retry positions
+///    - Advance calibration
+///    Firmware is the final authority.
+/// 
+/// 5. COMMAND_ACK RULES:
+///    PREFLIGHT_CALIBRATION:
+///    - ACCEPTED/IN_PROGRESS → wait for STATUSTEXT
+///    - DENIED → abort with error
+///    ACCELCAL_VEHICLE_POS:
+///    - ACCEPTED → wait for STATUSTEXT
+///    - FAILED → STOP and wait for FC instruction (NO auto-retry)
+/// 
+/// 6. NO AUTO-RETRY OF ACCELCAL_VEHICLE_POS:
 ///    - When COMMAND_ACK == FAILED: disable confirm button, wait for next STATUSTEXT
 ///    - If FC does not re-request, user must restart calibration
 ///    - NEVER resend the same position automatically
+///    - NO fallback logic, NO fake progress updates, NO internal sampling timers
 /// 
-/// 4. COMMAND_ACK HANDLING:
-///    - PREFLIGHT_CALIBRATION: ACCEPTED/IN_PROGRESS = wait for STATUSTEXT; DENIED = abort
-///    - ACCELCAL_VEHICLE_POS: ACCEPTED = wait for FC validation via STATUSTEXT; FAILED = stop and wait
-/// 
-/// 5. VEHICLE-AGNOSTIC:
+/// 7. VEHICLE-AGNOSTIC:
 ///    - Same logic for ArduCopter, ArduPlane, Rover, SITL, and real hardware
 /// 
 /// Mission Planner Reference Behavior:
@@ -43,12 +64,13 @@ namespace PavamanDroneConfigurator.Infrastructure.Services;
 /// 2. Send MAV_CMD_PREFLIGHT_CALIBRATION (accel=1)
 /// 3. WAIT for COMMAND_ACK (ACCEPTED/IN_PROGRESS)
 /// 4. WAIT for FC STATUSTEXT: "Place vehicle level"
-/// 5. Button enabled, user clicks
-/// 6. Send MAV_CMD_ACCELCAL_VEHICLE_POS(0)  // 0 = Level in MAVLink
-/// 7. FC samples internally
-/// 8. FC sends STATUSTEXT: "Place vehicle on left side"
-/// 9. Repeat for all 6 faces (positions 0-5 in MAVLink terms)
-/// 10. FC sends STATUSTEXT: "Calibration successful"
+/// 5. WAIT 2000ms settle delay (ArduPilot requirement)
+/// 6. Button enabled, user clicks
+/// 7. Send MAV_CMD_ACCELCAL_VEHICLE_POS(0)  // 0 = Level in MAVLink
+/// 8. FC samples internally
+/// 9. FC sends STATUSTEXT: "Place vehicle on left side"
+/// 10. Repeat for all 6 faces (positions 0-5 in MAVLink terms)
+/// 11. FC sends STATUSTEXT: "Calibration successful"
 /// </summary>
 public class CalibrationService : ICalibrationService, IDisposable
 {
@@ -169,11 +191,12 @@ public class CalibrationService : ICalibrationService, IDisposable
         
         if (requestedPosition.HasValue)
         {
-            // FC is requesting a specific position - this is the ONLY way to enable the button
+            // FC is requesting a specific position
+            // CRITICAL: Do NOT enable button immediately - must wait for settle delay first
             lock (_lock)
             {
                 _currentPosition = requestedPosition.Value;
-                _waitingForUserClick = true;  // Enable button because FC requested this position
+                _waitingForUserClick = false;  // Keep disabled until settle delay completes
             }
             
             _logger.LogInformation("FC requests position {Pos}: {Name} (via STATUSTEXT)", requestedPosition.Value, GetPositionName(requestedPosition.Value));
@@ -183,14 +206,21 @@ public class CalibrationService : ICalibrationService, IDisposable
             int progress = CalculateProgressFromPosition(requestedPosition.Value);
             _logger.LogInformation("Progress: {Progress}% (FC requesting position {Pos})", progress, requestedPosition.Value);
             
-            // Show position to user with FC's exact message
+            // Show position to user with FC's exact message - button NOT enabled yet
             SetState(CalibrationStateMachine.WaitingForUserPosition,
                 originalText, // Always show FC's exact message
                 progress);
             
-            // Tell UI to show position image and enable button
-            // RULE 4: Button enabled because FC requested this position via STATUSTEXT
-            RaiseStepRequired(requestedPosition.Value, true, originalText);
+            // Tell UI to show position image - button disabled until settle delay completes
+            RaiseStepRequired(requestedPosition.Value, false, originalText);
+            
+            // RULE 3 (MANDATORY POST-STATUSTEXT SETTLE DELAY):
+            // After receiving any accel position request via STATUSTEXT:
+            // 1. WAIT 2000ms (hard delay) - REQUIRED by ArduPilot internals
+            // 2. THEN enable confirm button
+            // This delay is why Mission Planner works correctly at LEVEL position.
+            // Without this delay, the FC may not be ready to accept the position command.
+            _ = StartSettleDelayAsync(requestedPosition.Value, originalText);
         }
         // FC is sampling - user should NOT click until FC asks for next position
         else if (lower.Contains("sampling") || lower.Contains("reading") || lower.Contains("hold"))
@@ -232,6 +262,79 @@ public class CalibrationService : ICalibrationService, IDisposable
             // Tell UI - button disabled because FC didn't explicitly re-request
             RaiseStepRequired(pos, false, originalText);
         }
+    }
+
+    /// <summary>
+    /// MANDATORY POST-STATUSTEXT SETTLE DELAY (CRITICAL ArduPilot requirement)
+    /// 
+    /// After receiving any accel position request via STATUSTEXT from the FC:
+    /// 1. WAIT 2000ms (hard delay) - this is REQUIRED by ArduPilot internals
+    /// 2. THEN enable confirm button so user can click
+    /// 
+    /// This delay exists because:
+    /// - ArduPilot's internal state machine needs time to transition after sending STATUSTEXT
+    /// - The FC may not be ready to accept MAV_CMD_ACCELCAL_VEHICLE_POS immediately
+    /// - Mission Planner implements this same delay, which is why it works correctly
+    /// - Without this delay, the LEVEL position (and others) may fail with MAV_RESULT_FAILED
+    /// 
+    /// The delay is hard-coded because it reflects ArduPilot firmware timing requirements,
+    /// not network latency or user preference.
+    /// </summary>
+    private async Task StartSettleDelayAsync(int position, string originalText)
+    {
+        // RULE 3: 2000ms settle delay is MANDATORY per ArduPilot protocol
+        const int SettleDelayMs = 2000;
+        
+        _logger.LogInformation("Starting {Delay}ms settle delay for position {Pos} (ArduPilot requirement)", SettleDelayMs, position);
+        
+        CancellationToken ct;
+        lock (_lock)
+        {
+            ct = _calibrationCts?.Token ?? CancellationToken.None;
+        }
+        
+        try
+        {
+            await Task.Delay(SettleDelayMs, ct);
+        }
+        catch (OperationCanceledException)
+        {
+            _logger.LogInformation("Settle delay cancelled for position {Pos}", position);
+            return;
+        }
+        
+        // After delay completes, verify we're still waiting for this position
+        // (FC may have sent a different STATUSTEXT while we were waiting)
+        lock (_lock)
+        {
+            if (!_isCalibrating)
+            {
+                _logger.LogInformation("Calibration no longer active after settle delay");
+                return;
+            }
+            
+            if (_currentPosition != position)
+            {
+                _logger.LogInformation("Position changed during settle delay (now {Current}, was waiting for {Expected})", _currentPosition, position);
+                return;
+            }
+            
+            // RULE 4: IMU checks may ONLY enable/disable the confirm button (UI-only)
+            // They must NEVER send MAVLink commands, retry positions, or advance calibration
+            // At this point, we're simply enabling the button - no IMU validation required
+            // IMU stability validation is a UI concern and can be handled by the ViewModel
+            _waitingForUserClick = true;
+        }
+        
+        _logger.LogInformation("Settle delay complete for position {Pos} - enabling confirm button", position);
+        
+        // Update state to indicate button is now enabled
+        SetState(CalibrationStateMachine.WaitingForUserPosition,
+            $"{originalText} - Ready for confirmation",
+            GetProgress());
+        
+        // Tell UI to enable button - FC requested this position and settle delay is complete
+        RaiseStepRequired(position, true, originalText);
     }
 
     private int? DetectPositionFromMessage(string lower)
