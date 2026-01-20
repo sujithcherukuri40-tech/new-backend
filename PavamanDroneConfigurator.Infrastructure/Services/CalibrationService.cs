@@ -47,19 +47,28 @@ namespace PavamanDroneConfigurator.Infrastructure.Services;
 ///    - ACCEPTED/IN_PROGRESS → wait for STATUSTEXT
 ///    - DENIED → abort with error
 ///    ACCELCAL_VEHICLE_POS:
-///    - ACCEPTED → wait for STATUSTEXT
+///    - ACCEPTED → FC samples all positions internally (see #6)
 ///    - FAILED → STOP and wait for FC instruction (NO auto-retry)
 /// 
-/// 6. NO AUTO-RETRY OF ACCELCAL_VEHICLE_POS:
+/// 6. FC INTERNAL SAMPLING (CRITICAL - Mission Planner Behavior):
+///    After position 1 (LEVEL) is accepted:
+///    - FC samples ALL 6 positions internally using IMU data
+///    - FC detects orientations automatically as user moves vehicle
+///    - NO individual position requests from FC (unlike old behavior)
+///    - FC sends "Calibration successful" when all positions captured
+///    - UI provides smooth progress feedback (16% → 95%) during FC sampling
+///    - Monitoring timeout: 60 seconds
+/// 
+/// 7. NO AUTO-RETRY OF ACCELCAL_VEHICLE_POS:
 ///    - When COMMAND_ACK == FAILED: disable confirm button, wait for next STATUSTEXT
 ///    - If FC does not re-request, user must restart calibration
 ///    - NEVER resend the same position automatically
-///    - NO fallback logic, NO fake progress updates, NO internal sampling timers
+///    - NO fallback logic, NO fake progress updates
 /// 
-/// 7. VEHICLE-AGNOSTIC:
+/// 8. VEHICLE-AGNOSTIC:
 ///    - Same logic for ArduCopter, ArduPlane, Rover, SITL, and real hardware
 /// 
-/// Mission Planner Reference Behavior:
+/// Mission Planner Reference Behavior (Actual Implementation):
 /// 1. User clicks Start Accel Calibration
 /// 2. Send MAV_CMD_PREFLIGHT_CALIBRATION (accel=1)
 /// 3. WAIT for COMMAND_ACK (ACCEPTED/IN_PROGRESS)
@@ -67,10 +76,12 @@ namespace PavamanDroneConfigurator.Infrastructure.Services;
 /// 5. WAIT 2000ms settle delay (ArduPilot requirement)
 /// 6. Button enabled, user clicks
 /// 7. Send MAV_CMD_ACCELCAL_VEHICLE_POS(0)  // 0 = Level in MAVLink
-/// 8. FC samples internally
-/// 9. FC sends STATUSTEXT: "Place vehicle on left side"
-/// 10. Repeat for all 6 faces (positions 0-5 in MAVLink terms)
-/// 11. FC sends STATUSTEXT: "Calibration successful"
+/// 8. FC samples ALL 6 positions internally as user moves vehicle
+/// 9. FC sends STATUSTEXT progress updates (optional): "Position 2 of 6 detected"
+/// 10. FC sends STATUSTEXT: "Calibration successful" (when all 6 positions captured)
+/// 11. UI shows completion at 100%
+/// 
+/// NOTE: FC does NOT request positions 2-6 individually. It handles all sampling internally.
 /// </summary>
 public class CalibrationService : ICalibrationService, IDisposable
 {
@@ -100,6 +111,19 @@ public class CalibrationService : ICalibrationService, IDisposable
     // CRITICAL: UI uses positions 1-6 internally, but ArduPilot expects 0-5 for MAV_CMD_ACCELCAL_VEHICLE_POS
     // This constant documents the mapping: mavlinkPosition = uiPosition - 1
     private const int UI_POSITION_TO_MAVLINK_OFFSET = 1;
+    
+    // Progress constants for FC internal sampling monitoring
+    private const int START_PROGRESS_AFTER_POSITION1 = 16; // 1 of 6 positions complete = 16%
+    private const int MAX_PROGRESS_DURING_SAMPLING = 95;   // Leave 5% for final FC confirmation
+    private const int PROGRESS_RANGE = MAX_PROGRESS_DURING_SAMPLING - START_PROGRESS_AFTER_POSITION1; // 79%
+    
+    // Timeout and update interval for calibration completion monitoring
+    private const int CALIBRATION_TIMEOUT_MS = 60000;      // 60 seconds
+    private const int PROGRESS_UPDATE_INTERVAL_MS = 500;   // Update every 500ms for smooth animation
+    
+    // Compiled regex for extracting position number from STATUSTEXT (e.g., "position 3 of 6")
+    private static readonly System.Text.RegularExpressions.Regex PositionNumberRegex = 
+        new(@"position\s+(\d+)", System.Text.RegularExpressions.RegexOptions.Compiled | System.Text.RegularExpressions.RegexOptions.IgnoreCase);
 
     public CalibrationStateModel? CurrentState => _currentState;
     public bool IsCalibrating { get { lock (_lock) return _isCalibrating; } }
@@ -249,11 +273,11 @@ public class CalibrationService : ICalibrationService, IDisposable
         {
             // FC is reporting progress through positions (e.g., "position 3 of 6")
             // Extract position number to update progress more accurately
-            var match = System.Text.RegularExpressions.Regex.Match(lower, @"position\s+(\d+)");
+            var match = PositionNumberRegex.Match(lower);
             if (match.Success && int.TryParse(match.Groups[1].Value, out int posNum))
             {
                 // Update progress based on position count (1-6 means 0-100%)
-                int progress = Math.Min(95, (posNum - 1) * 100 / ACCELEROMETER_TOTAL_POSITIONS);
+                int progress = Math.Min(MAX_PROGRESS_DURING_SAMPLING, (posNum - 1) * 100 / ACCELEROMETER_TOTAL_POSITIONS);
                 _logger.LogInformation("FC progress: position {Pos} of {Total} - updating to {Progress}%", 
                     posNum, ACCELEROMETER_TOTAL_POSITIONS, progress);
                 SetState(CalibrationStateMachine.Sampling, originalText, progress);
@@ -492,13 +516,13 @@ public class CalibrationService : ICalibrationService, IDisposable
             
             lock (_lock) { _waitingForUserClick = false; }
             
-            // Start at 16% progress (position 1 confirmed, 5 more to go)
+            // Start at START_PROGRESS_AFTER_POSITION1 (position 1 confirmed, 5 more to go)
             SetState(CalibrationStateMachine.Sampling,
                 "Position accepted - FC is now sampling all positions internally. Keep vehicle still!",
-                16);
+                START_PROGRESS_AFTER_POSITION1);
             
-            // Monitor for completion (up to 60 seconds)
-            // Update progress smoothly from 16% → 95% while waiting for FC to complete
+            // Monitor for completion (up to CALIBRATION_TIMEOUT_MS)
+            // Update progress smoothly from START_PROGRESS_AFTER_POSITION1 → MAX_PROGRESS_DURING_SAMPLING
             _ = MonitorCalibrationCompletionAsync();
         }
         else if (result == MavResult.Denied || result == MavResult.Failed)
@@ -606,19 +630,18 @@ public class CalibrationService : ICalibrationService, IDisposable
     /// <summary>
     /// Monitor accelerometer calibration completion after position 1 is accepted.
     /// FC samples all 6 positions internally, we just provide smooth progress feedback.
-    /// Updates progress from 16% → 95% over up to 60 seconds, waiting for FC completion.
+    /// Updates progress from START_PROGRESS_AFTER_POSITION1 → MAX_PROGRESS_DURING_SAMPLING 
+    /// over CALIBRATION_TIMEOUT_MS, waiting for FC completion.
     /// </summary>
     private async Task MonitorCalibrationCompletionAsync()
     {
-        // Wait up to 60 seconds for FC to complete internal sampling of all positions
-        const int timeoutMs = 60000; // 60 seconds
-        const int updateIntervalMs = 500; // Update every 500ms for smooth animation
         var startTime = DateTime.UtcNow;
         
         CancellationToken ct;
         lock (_lock) { ct = _calibrationCts?.Token ?? CancellationToken.None; }
         
-        _logger.LogInformation("Monitoring accelerometer calibration completion - FC sampling all positions internally (up to 60 seconds)");
+        _logger.LogInformation("Monitoring accelerometer calibration completion - FC sampling all positions internally (up to {Timeout}s)", 
+            CALIBRATION_TIMEOUT_MS / 1000);
         
         while (true)
         {
@@ -639,19 +662,20 @@ public class CalibrationService : ICalibrationService, IDisposable
             }
             
             var elapsed = DateTime.UtcNow - startTime;
-            if (elapsed.TotalMilliseconds >= timeoutMs)
+            if (elapsed.TotalMilliseconds >= CALIBRATION_TIMEOUT_MS)
             {
-                _logger.LogWarning("Accelerometer calibration timeout after 60 seconds - FC did not send completion message");
-                FinishCalibration(false, "Calibration timeout - FC did not complete within 60 seconds. Try again.");
+                _logger.LogWarning("Accelerometer calibration timeout after {Timeout}s - FC did not send completion message", 
+                    CALIBRATION_TIMEOUT_MS / 1000);
+                FinishCalibration(false, $"Calibration timeout - FC did not complete within {CALIBRATION_TIMEOUT_MS / 1000} seconds. Try again.");
                 return;
             }
             
-            // Update progress smoothly from 16% → 95% while FC is sampling
-            // Progress calculation: start at 16%, end at 95% (leaving 5% for final confirmation)
-            // Formula: 16 + (elapsed / timeout * 79) = 16 → 95 over 60 seconds
+            // Update progress smoothly from START_PROGRESS_AFTER_POSITION1 → MAX_PROGRESS_DURING_SAMPLING while FC is sampling
+            // Progress calculation: START_PROGRESS_AFTER_POSITION1 + (elapsed / timeout * PROGRESS_RANGE)
             if (currentState == CalibrationStateMachine.Sampling)
             {
-                var progress = Math.Min(95, 16 + (int)(elapsed.TotalMilliseconds / timeoutMs * 79));
+                var progress = Math.Min(MAX_PROGRESS_DURING_SAMPLING, 
+                    START_PROGRESS_AFTER_POSITION1 + (int)(elapsed.TotalMilliseconds / CALIBRATION_TIMEOUT_MS * PROGRESS_RANGE));
                 
                 lock (_lock)
                 {
@@ -672,7 +696,7 @@ public class CalibrationService : ICalibrationService, IDisposable
                 });
             }
             
-            try { await Task.Delay(updateIntervalMs, ct); }
+            try { await Task.Delay(PROGRESS_UPDATE_INTERVAL_MS, ct); }
             catch (OperationCanceledException)
             {
                 _logger.LogInformation("Calibration monitoring cancelled");
