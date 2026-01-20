@@ -480,16 +480,10 @@ public class CalibrationService : ICalibrationService, IDisposable
         }
         else
         {
-            // RULE 4: COMMAND_ACK DENIED = abort with clear error
-            string msg = result switch
-            {
-                MavResult.Denied => "Calibration denied - vehicle may be armed or sensors not ready",
-                MavResult.TemporarilyRejected => "Temporarily rejected - FC is busy, try again later",
-                MavResult.Unsupported => "Calibration not supported by this firmware",
-                MavResult.Failed => "Calibration command failed",
-                _ => $"Calibration rejected by FC (result code: {(int)result})"
-            };
-            _logger.LogWarning("FC rejected MAV_CMD_PREFLIGHT_CALIBRATION: {Result} - {Message}", result, msg);
+            // RULE 4: COMMAND_ACK DENIED = abort with detailed user-friendly error
+            // Use PDRL-compliant error explanations for better user guidance
+            string msg = AccelCalibrationPreflightValidator.GetCommandAckExplanation(241, (byte)result);
+            _logger.LogWarning("FC rejected MAV_CMD_PREFLIGHT_CALIBRATION: result={Result}\n{Message}", result, msg);
             FinishCalibration(false, msg);
         }
     }
@@ -534,20 +528,26 @@ public class CalibrationService : ICalibrationService, IDisposable
             // RULE 3: NO AUTO-RETRY OF ACCELCAL_VEHICLE_POS
             // When COMMAND_ACK == FAILED:
             // 1. Disable confirm button (set _waitingForUserClick = false)
-            // 2. Wait for next STATUSTEXT from FC
-            // 3. If FC does not re-request, user must restart calibration cleanly
+            // 2. Show detailed user-friendly error message (PDRL-compliant)
+            // 3. Wait for next STATUSTEXT from FC
+            // 4. If FC does not re-request, user must restart calibration cleanly
             // NEVER resend the same position automatically
-            _logger.LogWarning("FC rejected position command (UI pos {UiPos}, MAVLink pos {MavPos}): {Result} - disabling button and waiting for FC instruction", pos, mavlinkPos, result);
+            
+            // Get detailed PDRL-compliant error explanation
+            string detailedError = AccelCalibrationPreflightValidator.GetCommandAckExplanation(42429, (byte)result);
+            
+            _logger.LogWarning("FC rejected position command (UI pos {UiPos}, MAVLink pos {MavPos}): result={Result}\n{DetailedError}", 
+                pos, mavlinkPos, result, detailedError);
             
             // CRITICAL: Disable button - user cannot click until FC re-requests via STATUSTEXT
             lock (_lock) { _waitingForUserClick = false; }
             
             SetState(CalibrationStateMachine.PositionRejected,
-                $"Position {pos} ({GetPositionName(pos)}) rejected by FC. Waiting for FC to provide instructions...",
+                $"❌ Position {pos} ({GetPositionName(pos)}) validation failed.\n\n{detailedError}",
                 GetProgress());
             
-            // Tell UI that position was rejected - button should be disabled
-            RaiseStepRequired(pos, false, $"Position rejected by FC. Wait for flight controller instructions.");
+            // Tell UI that position was rejected with detailed explanation - button should be disabled
+            RaiseStepRequired(pos, false, $"Position rejected. See details below.\n\n{detailedError}");
             
             // DO NOT auto-retry - wait for FC STATUSTEXT to either:
             // - Re-request the same position
@@ -731,6 +731,42 @@ public class CalibrationService : ICalibrationService, IDisposable
     public Task<bool> StartAccelerometerCalibrationAsync(bool fullSixAxis = true)
     {
         if (!CanStart()) return Task.FromResult(false);
+        
+        // PDRL Pre-flight validation (following PDRL configuration guide)
+        // Validates critical preconditions before starting calibration
+        try
+        {
+            _logger.LogInformation("=== PDRL PRE-FLIGHT VALIDATION ===");
+            _logger.LogInformation("Checking calibration preconditions before sending command to FC...");
+            
+            // Validate connection is active
+            if (!_connectionService.IsConnected)
+            {
+                _logger.LogError("Pre-flight check FAILED: Not connected to FC");
+                SetState(CalibrationStateMachine.Failed,
+                    "❌ Not connected to flight controller.\n\n" +
+                    "Connect to FC and retry calibration.", 0);
+                return Task.FromResult(false);
+            }
+            
+            // Log recommended checks (not enforced since we don't have access to HEARTBEAT data yet)
+            _logger.LogWarning("IMPORTANT PRE-FLIGHT CHECKS (user responsibility):");
+            _logger.LogWarning("  1. ⚠ Vehicle MUST be DISARMED (most common cause of MAV_RESULT_FAILED)");
+            _logger.LogWarning("  2. ⚠ FC should be in STANDBY or ACTIVE state (not BOOT, CRITICAL, or EMERGENCY)");
+            _logger.LogWarning("  3. ⚠ IMU sensors should be healthy (check SYS_STATUS)");
+            _logger.LogWarning("  4. ⚠ Vehicle should be on stable, level surface (no vibration)");
+            _logger.LogWarning("  5. ⚠ Wait 30 seconds after FC power-on for sensors to stabilize");
+            _logger.LogInformation("Pre-flight validation complete. Starting calibration...");
+            _logger.LogInformation("=== END PRE-FLIGHT VALIDATION ===");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Pre-flight validation failed");
+            SetState(CalibrationStateMachine.Failed,
+                $"Pre-flight validation failed: {ex.Message}\n\n" +
+                "Resolve issues and retry calibration.", 0);
+            return Task.FromResult(false);
+        }
         
         InitializeCalibration(CalibrationType.Accelerometer);
         
