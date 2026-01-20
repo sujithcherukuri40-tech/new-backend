@@ -319,18 +319,19 @@ public class CalibrationService : ICalibrationService, IDisposable
                 return;
             }
             
-            // RULE 4: IMU checks may ONLY enable/disable the confirm button (UI-only)
-            // They must NEVER send MAVLink commands, retry positions, or advance calibration
-            // At this point, we're simply enabling the button - no IMU validation required
-            // IMU stability validation is a UI concern and can be handled by the ViewModel
+            // After the settle delay, we enable the button. The actual IMU stability validation
+            // (if any) is a UI concern that can be handled by the ViewModel layer.
+            // This service only enables/disables the button based on FC state and timing.
+            // Note: IMU checks must NEVER send MAVLink commands, retry positions, or advance calibration.
             _waitingForUserClick = true;
         }
         
         _logger.LogInformation("Settle delay complete for position {Pos} - enabling confirm button", position);
         
-        // Update state to indicate button is now enabled
+        // Update state to indicate button is now enabled - use FC's original message
+        // to maintain consistency with Mission Planner's behavior of showing FC messages verbatim
         SetState(CalibrationStateMachine.WaitingForUserPosition,
-            $"{originalText} - Ready for confirmation",
+            originalText,
             GetProgress());
         
         // Tell UI to enable button - FC requested this position and settle delay is complete
