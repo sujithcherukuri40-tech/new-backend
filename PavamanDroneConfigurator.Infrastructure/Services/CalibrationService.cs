@@ -235,14 +235,35 @@ public class CalibrationService : ICalibrationService, IDisposable
                 originalText, // Show FC's exact message
                 GetProgress());
         }
-        // FC says position detected/held/complete
+        // FC says position detected/held/complete - indicates progress during internal sampling
         else if (lower.Contains("got") || lower.Contains("detected") || lower.Contains("held") || lower.Contains("complete"))
         {
-            // Position was accepted - wait for FC to request next position
+            // Position was accepted - FC is progressing through internal sampling
             lock (_lock) { _waitingForUserClick = false; } // Keep button disabled until FC asks for next
             
-            _logger.LogInformation("FC acknowledged position - waiting for next STATUSTEXT");
-            SetState(CalibrationStateMachine.PositionAccepted, originalText, GetProgress());
+            _logger.LogInformation("FC acknowledged position - internal sampling in progress");
+            SetState(CalibrationStateMachine.Sampling, originalText, GetProgress());
+        }
+        // Detect position progress keywords during internal sampling (e.g., "position 2 of 6")
+        else if (lower.Contains("position") && (lower.Contains(" of ") || lower.Contains("/")))
+        {
+            // FC is reporting progress through positions (e.g., "position 3 of 6")
+            // Extract position number to update progress more accurately
+            var match = System.Text.RegularExpressions.Regex.Match(lower, @"position\s+(\d+)");
+            if (match.Success && int.TryParse(match.Groups[1].Value, out int posNum))
+            {
+                // Update progress based on position count (1-6 means 0-100%)
+                int progress = Math.Min(95, (posNum - 1) * 100 / ACCELEROMETER_TOTAL_POSITIONS);
+                _logger.LogInformation("FC progress: position {Pos} of {Total} - updating to {Progress}%", 
+                    posNum, ACCELEROMETER_TOTAL_POSITIONS, progress);
+                SetState(CalibrationStateMachine.Sampling, originalText, progress);
+            }
+            else
+            {
+                // Generic progress message
+                _logger.LogInformation("FC sampling progress update: {Text}", originalText);
+                SetState(CalibrationStateMachine.Sampling, originalText, GetProgress());
+            }
         }
         // FC reports a problem with current position
         else if (lower.Contains("bad") || lower.Contains("wrong") || lower.Contains("incorrect"))
@@ -464,21 +485,21 @@ public class CalibrationService : ICalibrationService, IDisposable
         
         if (result == MavResult.Accepted || result == MavResult.InProgress)
         {
-            // RULE 4: ACCELCAL_VEHICLE_POS ACCEPTED = wait for FC validation via STATUSTEXT
-            // FC will either:
-            // - Send sampling/hold messages and then request next position
-            // - Send success message when all positions complete
-            // - Send failure message if something went wrong
-            _logger.LogInformation("FC accepted position command (UI pos {UiPos}, MAVLink pos {MavPos}) - waiting for FC STATUSTEXT", pos, mavlinkPos);
+            // CRITICAL: After position 1 is accepted, FC samples ALL positions internally!
+            // This matches Mission Planner's actual behavior - FC does not request positions 2-6.
+            // Instead, FC uses internal IMU to detect when user moves vehicle through all orientations.
+            _logger.LogInformation("FC accepted position command (UI pos {UiPos}, MAVLink pos {MavPos}) - FC will now sample all positions internally", pos, mavlinkPos);
             
             lock (_lock) { _waitingForUserClick = false; }
             
+            // Start at 16% progress (position 1 confirmed, 5 more to go)
             SetState(CalibrationStateMachine.Sampling,
-                $"Position {pos} accepted by FC - waiting for sampling to complete...",
-                GetProgress());
+                "Position accepted - FC is now sampling all positions internally. Keep vehicle still!",
+                16);
             
-            // NO TIMER! Just wait for FC to send STATUSTEXT
-            // FC will tell us via STATUSTEXT when it needs the next position
+            // Monitor for completion (up to 60 seconds)
+            // Update progress smoothly from 16% → 95% while waiting for FC to complete
+            _ = MonitorCalibrationCompletionAsync();
         }
         else if (result == MavResult.Denied || result == MavResult.Failed)
         {
@@ -579,6 +600,84 @@ public class CalibrationService : ICalibrationService, IDisposable
             
             try { await Task.Delay(updateIntervalMs, ct); }
             catch (OperationCanceledException) { return; }
+        }
+    }
+
+    /// <summary>
+    /// Monitor accelerometer calibration completion after position 1 is accepted.
+    /// FC samples all 6 positions internally, we just provide smooth progress feedback.
+    /// Updates progress from 16% → 95% over up to 60 seconds, waiting for FC completion.
+    /// </summary>
+    private async Task MonitorCalibrationCompletionAsync()
+    {
+        // Wait up to 60 seconds for FC to complete internal sampling of all positions
+        const int timeoutMs = 60000; // 60 seconds
+        const int updateIntervalMs = 500; // Update every 500ms for smooth animation
+        var startTime = DateTime.UtcNow;
+        
+        CancellationToken ct;
+        lock (_lock) { ct = _calibrationCts?.Token ?? CancellationToken.None; }
+        
+        _logger.LogInformation("Monitoring accelerometer calibration completion - FC sampling all positions internally (up to 60 seconds)");
+        
+        while (true)
+        {
+            // Check if calibration is still active
+            bool stillCalibrating;
+            CalibrationStateMachine currentState;
+            lock (_lock)
+            {
+                stillCalibrating = _isCalibrating;
+                currentState = _state;
+            }
+            
+            // Exit if calibration completed or failed (FC sent STATUSTEXT)
+            if (!stillCalibrating || currentState == CalibrationStateMachine.Completed || currentState == CalibrationStateMachine.Failed)
+            {
+                _logger.LogInformation("Calibration monitoring stopped - final state: {State}", currentState);
+                return;
+            }
+            
+            var elapsed = DateTime.UtcNow - startTime;
+            if (elapsed.TotalMilliseconds >= timeoutMs)
+            {
+                _logger.LogWarning("Accelerometer calibration timeout after 60 seconds - FC did not send completion message");
+                FinishCalibration(false, "Calibration timeout - FC did not complete within 60 seconds. Try again.");
+                return;
+            }
+            
+            // Update progress smoothly from 16% → 95% while FC is sampling
+            // Progress calculation: start at 16%, end at 95% (leaving 5% for final confirmation)
+            // Formula: 16 + (elapsed / timeout * 79) = 16 → 95 over 60 seconds
+            if (currentState == CalibrationStateMachine.Sampling)
+            {
+                var progress = Math.Min(95, 16 + (int)(elapsed.TotalMilliseconds / timeoutMs * 79));
+                
+                lock (_lock)
+                {
+                    if (_isCalibrating && _state == CalibrationStateMachine.Sampling)
+                    {
+                        _currentState.Progress = progress;
+                    }
+                }
+                
+                CalibrationProgressChanged?.Invoke(this, new CalibrationProgressEventArgs
+                {
+                    Type = CalibrationType.Accelerometer,
+                    ProgressPercent = progress,
+                    StatusText = "FC is sampling all positions internally - keep vehicle still!",
+                    CurrentStep = 1,
+                    TotalSteps = ACCELEROMETER_TOTAL_POSITIONS,
+                    StateMachine = CalibrationStateMachine.Sampling
+                });
+            }
+            
+            try { await Task.Delay(updateIntervalMs, ct); }
+            catch (OperationCanceledException)
+            {
+                _logger.LogInformation("Calibration monitoring cancelled");
+                return;
+            }
         }
     }
 
