@@ -119,7 +119,11 @@ public class CalibrationService : ICalibrationService, IDisposable
     
     // Timeout and update interval for calibration completion monitoring
     private const int CALIBRATION_TIMEOUT_MS = 60000;      // 60 seconds
+    private const int CALIBRATION_TIMEOUT_SECONDS = CALIBRATION_TIMEOUT_MS / 1000; // 60 seconds (for logging)
     private const int PROGRESS_UPDATE_INTERVAL_MS = 500;   // Update every 500ms for smooth animation
+    
+    // Status messages
+    private const string FC_SAMPLING_MESSAGE = "FC is sampling all positions internally - keep vehicle still!";
     
     // Compiled regex for extracting position number from STATUSTEXT (e.g., "position 3 of 6")
     private static readonly System.Text.RegularExpressions.Regex PositionNumberRegex = 
@@ -274,7 +278,7 @@ public class CalibrationService : ICalibrationService, IDisposable
             // FC is reporting progress through positions (e.g., "position 3 of 6")
             // Extract position number to update progress more accurately
             var match = PositionNumberRegex.Match(lower);
-            if (match.Success && int.TryParse(match.Groups[1].Value, out int posNum))
+            if (match.Success && int.TryParse(match.Groups[1].Value, out int posNum) && ACCELEROMETER_TOTAL_POSITIONS > 0)
             {
                 // Update progress based on position count (1-6 means 0-100%)
                 int progress = Math.Min(MAX_PROGRESS_DURING_SAMPLING, (posNum - 1) * 100 / ACCELEROMETER_TOTAL_POSITIONS);
@@ -518,7 +522,7 @@ public class CalibrationService : ICalibrationService, IDisposable
             
             // Start at START_PROGRESS_AFTER_POSITION1 (position 1 confirmed, 5 more to go)
             SetState(CalibrationStateMachine.Sampling,
-                "Position accepted - FC is now sampling all positions internally. Keep vehicle still!",
+                "Position accepted - " + FC_SAMPLING_MESSAGE,
                 START_PROGRESS_AFTER_POSITION1);
             
             // Monitor for completion (up to CALIBRATION_TIMEOUT_MS)
@@ -641,7 +645,7 @@ public class CalibrationService : ICalibrationService, IDisposable
         lock (_lock) { ct = _calibrationCts?.Token ?? CancellationToken.None; }
         
         _logger.LogInformation("Monitoring accelerometer calibration completion - FC sampling all positions internally (up to {Timeout}s)", 
-            CALIBRATION_TIMEOUT_MS / 1000);
+            CALIBRATION_TIMEOUT_SECONDS);
         
         while (true)
         {
@@ -665,14 +669,15 @@ public class CalibrationService : ICalibrationService, IDisposable
             if (elapsed.TotalMilliseconds >= CALIBRATION_TIMEOUT_MS)
             {
                 _logger.LogWarning("Accelerometer calibration timeout after {Timeout}s - FC did not send completion message", 
-                    CALIBRATION_TIMEOUT_MS / 1000);
-                FinishCalibration(false, $"Calibration timeout - FC did not complete within {CALIBRATION_TIMEOUT_MS / 1000} seconds. Try again.");
+                    CALIBRATION_TIMEOUT_SECONDS);
+                FinishCalibration(false, $"Calibration timeout - FC did not complete within {CALIBRATION_TIMEOUT_SECONDS} seconds. Try again.");
                 return;
             }
             
             // Update progress smoothly from START_PROGRESS_AFTER_POSITION1 → MAX_PROGRESS_DURING_SAMPLING while FC is sampling
             // Progress calculation: START_PROGRESS_AFTER_POSITION1 + (elapsed / timeout * PROGRESS_RANGE)
-            if (currentState == CalibrationStateMachine.Sampling)
+            // Defensive check: only calculate if timeout is positive
+            if (currentState == CalibrationStateMachine.Sampling && CALIBRATION_TIMEOUT_MS > 0)
             {
                 var progress = Math.Min(MAX_PROGRESS_DURING_SAMPLING, 
                     START_PROGRESS_AFTER_POSITION1 + (int)(elapsed.TotalMilliseconds / CALIBRATION_TIMEOUT_MS * PROGRESS_RANGE));
@@ -689,7 +694,7 @@ public class CalibrationService : ICalibrationService, IDisposable
                 {
                     Type = CalibrationType.Accelerometer,
                     ProgressPercent = progress,
-                    StatusText = "FC is sampling all positions internally - keep vehicle still!",
+                    StatusText = FC_SAMPLING_MESSAGE,
                     CurrentStep = 1,
                     TotalSteps = ACCELEROMETER_TOTAL_POSITIONS,
                     StateMachine = CalibrationStateMachine.Sampling
