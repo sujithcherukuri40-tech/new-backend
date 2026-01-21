@@ -10,6 +10,8 @@ namespace PavamanDroneConfigurator.UI.Views;
 
 public partial class ParametersPage : UserControl
 {
+    private ParametersPageViewModel? ViewModel => DataContext as ParametersPageViewModel;
+
     public ParametersPage()
     {
         InitializeComponent();
@@ -25,9 +27,9 @@ public partial class ParametersPage : UserControl
     {
         if (sender is Border border && border.Tag is DroneParameter parameter)
         {
-            if (DataContext is ParametersPageViewModel vm)
+            if (ViewModel != null)
             {
-                vm.SelectedParameter = parameter;
+                ViewModel.SelectedParameter = parameter;
             }
         }
     }
@@ -61,6 +63,33 @@ public partial class ParametersPage : UserControl
 
         // Update the parameter value from bitmask
         parameter.UpdateValueFromBitmask();
+    }
+
+    /// <summary>
+    /// Handles OPTIONS column input when focus is lost.
+    /// Validates and applies the input to the parameter value.
+    /// </summary>
+    private void OptionsInput_LostFocus(object? sender, RoutedEventArgs e)
+    {
+        if (sender is TextBox tb && tb.DataContext is DroneParameter param && ViewModel != null)
+        {
+            ViewModel.ApplyOptionsInput(param);
+        }
+    }
+
+    /// <summary>
+    /// Handles OPTIONS column input when Enter key is pressed.
+    /// Validates and applies the input to the parameter value.
+    /// </summary>
+    private void OptionsInput_KeyUp(object? sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter)
+        {
+            if (sender is TextBox tb && tb.DataContext is DroneParameter param && ViewModel != null)
+            {
+                ViewModel.ApplyOptionsInput(param);
+            }
+        }
     }
 
     private static T? FindParent<T>(Control control) where T : Control
