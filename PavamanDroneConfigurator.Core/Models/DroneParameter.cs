@@ -23,6 +23,7 @@ public class DroneParameter : INotifyPropertyChanged
     private bool _isBitmask;
     private ObservableCollection<ParameterOption> _selectedBitmaskOptions = new();
     private string? _validationError;
+    private string _optionsInputText = string.Empty;
 
     public string Name
     {
@@ -501,6 +502,40 @@ public class DroneParameter : INotifyPropertyChanged
     {
         Value = _originalValue;
         ValidationError = null;
+    }
+
+    /// <summary>
+    /// Input text for the OPTIONS column. Always starts empty.
+    /// User types here, and valid values are applied to Value property.
+    /// </summary>
+    public string OptionsInputText
+    {
+        get => _optionsInputText;
+        set
+        {
+            if (_optionsInputText != value)
+            {
+                _optionsInputText = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>
+    /// Placeholder for OPTIONS column showing valid range
+    /// </summary>
+    public string RangePlaceholder
+    {
+        get
+        {
+            if (MinValue.HasValue && MaxValue.HasValue)
+                return $"Min: {MinValue.Value:G}   Max: {MaxValue.Value:G}";
+            else if (MinValue.HasValue)
+                return $"Min: {MinValue.Value:G}";
+            else if (MaxValue.HasValue)
+                return $"Max: {MaxValue.Value:G}";
+            return "Enter value";
+        }
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
