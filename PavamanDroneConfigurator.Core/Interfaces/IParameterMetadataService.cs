@@ -1,4 +1,4 @@
-using PavamanDroneConfigurator.Core.Models;
+﻿using PavamanDroneConfigurator.Core.Models;
 
 namespace PavamanDroneConfigurator.Core.Interfaces;
 

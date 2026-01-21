@@ -176,19 +176,28 @@ public partial class ParametersPageViewModel : ViewModelBase
 
         SelectedParamName = param.Name;
         
-        // Get metadata for this parameter
         var meta = _metadataService.GetMetadata(param.Name);
         
         if (meta != null)
         {
-            SelectedParamDisplayName = meta.DisplayName;
-            SelectedParamDescription = meta.Description;
-            SelectedParamRange = meta.MinValue.HasValue && meta.MaxValue.HasValue 
-                ? $"{meta.MinValue} to {meta.MaxValue}" 
+            SelectedParamDisplayName = !string.IsNullOrEmpty(meta.DisplayName) ? meta.DisplayName : param.Name;
+            SelectedParamDescription = !string.IsNullOrEmpty(meta.Description) ? meta.Description : "No description available";
+            
+            // Show range
+            SelectedParamRange = meta.Min.HasValue && meta.Max.HasValue 
+                ? $"{meta.Min.Value:G} to {meta.Max.Value:G}" 
                 : "Not specified";
-            SelectedParamUnits = meta.Units ?? "None";
-            SelectedParamDefault = meta.DefaultValue?.ToString() ?? "Not specified";
-            SelectedParamGroup = meta.Group ?? "General";
+            
+            // Show units
+            SelectedParamUnits = !string.IsNullOrEmpty(meta.Units) 
+                ? meta.Units 
+                : (!string.IsNullOrEmpty(meta.UnitsText) ? meta.UnitsText : "None");
+            
+            // Show default value (should be 0 if not specified)
+            SelectedParamDefault = meta.DefaultValue.ToString("G");
+            
+            // Show group
+            SelectedParamGroup = !string.IsNullOrEmpty(meta.Group) ? meta.Group : "General";
 
             // Add value options if available
             if (meta.Values != null && meta.Values.Count > 0)
@@ -203,20 +212,15 @@ public partial class ParametersPageViewModel : ViewModelBase
                 }
                 HasParamOptions = true;
             }
-
-            // Update the parameter's description and range from metadata
-            param.Description = meta.Description;
-            param.MinValue = meta.MinValue;
-            param.MaxValue = meta.MaxValue;
         }
         else
         {
-            // No metadata found - use defaults
+            // No metadata found - use parameter properties
             SelectedParamDisplayName = param.Name;
             SelectedParamDescription = param.Description ?? "No description available for this parameter.";
             SelectedParamRange = param.RangeDisplay;
-            SelectedParamUnits = "Not specified";
-            SelectedParamDefault = "Not specified";
+            SelectedParamUnits = param.Units ?? "Not specified";
+            SelectedParamDefault = param.DefaultDisplay;
             SelectedParamGroup = "Unknown";
         }
     }
@@ -328,14 +332,33 @@ public partial class ParametersPageViewModel : ViewModelBase
             
             foreach (var p in allParams)
             {
+                // Always enrich with metadata
                 _metadataService.EnrichParameter(p);
                 
                 var meta = _metadataService.GetMetadata(p.Name);
                 if (meta != null)
                 {
+                    // Set default value (0 if not specified in metadata)
+                    p.DefaultValue = meta.DefaultValue;
+                    
+                    // Set step size (1 if not specified)
+                    p.StepSize = meta.StepSize ?? 1.0f;
+                    
+                    // Set min/max from metadata
+                    p.MinValue = meta.Min;
+                    p.MaxValue = meta.Max;
+                    
+                    // Set units
+                    p.Units = meta.Units;
+                    
+                    // Set description
+                    p.Description = meta.Description;
+                    
+                    // Populate options (enum or bitmask)
                     if (meta.Values != null && meta.Values.Count > 0)
                     {
-                        foreach (var kvp in meta.Values)
+                        p.Options.Clear();
+                        foreach (var kvp in meta.Values.OrderBy(x => x.Key))
                         {
                             p.Options.Add(new ParameterOption
                             {
@@ -343,26 +366,41 @@ public partial class ParametersPageViewModel : ViewModelBase
                                 Label = kvp.Value
                             });
                         }
-                    }
-                    
-                    if (p.IsBitmask)
-                    {
-                        p.InitializeBitmaskFromValue();
+                        
+                        // If bitmask, initialize selected options from current value
+                        if (p.IsBitmask)
+                        {
+                            p.InitializeBitmaskFromValue();
+                        }
                     }
                 }
+                else
+                {
+                    // No metadata - set defaults
+                    p.DefaultValue = 0;
+                    p.StepSize = 1.0f;
+                }
                 
+                // Store original value
                 _originalValues[p.Name] = p.Value;
                 p.OriginalValue = p.Value;
+                
+                // Subscribe to property changes
                 p.PropertyChanged += OnParameterPropertyChanged;
+                
+                // Add to collection
                 Parameters.Add(p);
             }
             
+            // Apply filters to populate FilteredParameters
             ApplyFilter();
             
+            // Update counts
             TotalParameterCount = Parameters.Count;
             ModifiedParameterCount = 0;
             HasUnsavedChanges = false;
             
+            // Notify UI
             OnPropertyChanged(nameof(Parameters));
             OnPropertyChanged(nameof(FilteredParameters));
         }
@@ -387,6 +425,20 @@ public partial class ParametersPageViewModel : ViewModelBase
         
         if (_isSaving)
             return;
+        
+        // Validate the value before saving
+        if (parameter.MinValue.HasValue || parameter.MaxValue.HasValue)
+        {
+            float validatedValue = parameter.ValidateValue(parameter.Value, out bool isValid);
+            if (!isValid)
+            {
+                // Value was automatically reverted to DefaultValue by the Value setter
+                // Log this event
+                StatusMessage = $"?? {parameter.Name}: Invalid value rejected. Using default {parameter.DefaultValue:G}";
+                UpdateModifiedCount();
+                return; // Don't save invalid value to vehicle
+            }
+        }
         
         UpdateModifiedCount();
         _ = SaveParameterToVehicleAsync(parameter);

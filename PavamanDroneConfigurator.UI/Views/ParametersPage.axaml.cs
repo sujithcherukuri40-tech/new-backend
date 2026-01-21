@@ -4,6 +4,7 @@ using Avalonia.Interactivity;
 using PavamanDroneConfigurator.Core.Models;
 using PavamanDroneConfigurator.UI.ViewModels;
 using System;
+using System.Linq;
 
 namespace PavamanDroneConfigurator.UI.Views;
 
@@ -33,24 +34,44 @@ public partial class ParametersPage : UserControl
 
     private void OnBitmaskOptionChanged(object? sender, RoutedEventArgs e)
     {
-        if (DataContext is not ParametersPageViewModel vm)
+        if (sender is not CheckBox cb || cb.Tag is not ParameterOption opt)
             return;
 
-        if (sender is CheckBox cb &&
-            cb.DataContext is ParameterOption opt &&
-            vm.SelectedParameter != null)
-        {
-            if (cb.IsChecked == true)
-            {
-                if (!vm.SelectedParameter.SelectedBitmaskOptions.Contains(opt))
-                    vm.SelectedParameter.SelectedBitmaskOptions.Add(opt);
-            }
-            else
-            {
-                vm.SelectedParameter.SelectedBitmaskOptions.Remove(opt);
-            }
+        // Find the parameter this checkbox belongs to by traversing up the visual tree
+        var border = FindParent<Border>(cb);
+        if (border?.Tag is not DroneParameter parameter)
+            return;
 
-            vm.SelectedParameter.UpdateValueFromBitmask();
+        // Update the bitmask selection
+        if (cb.IsChecked == true)
+        {
+            if (!parameter.SelectedBitmaskOptions.Any(o => o.Value == opt.Value))
+            {
+                parameter.SelectedBitmaskOptions.Add(opt);
+            }
         }
+        else
+        {
+            var toRemove = parameter.SelectedBitmaskOptions.FirstOrDefault(o => o.Value == opt.Value);
+            if (toRemove != null)
+            {
+                parameter.SelectedBitmaskOptions.Remove(toRemove);
+            }
+        }
+
+        // Update the parameter value from bitmask
+        parameter.UpdateValueFromBitmask();
+    }
+
+    private static T? FindParent<T>(Control control) where T : Control
+    {
+        var parent = control.Parent;
+        while (parent != null)
+        {
+            if (parent is T typedParent)
+                return typedParent;
+            parent = parent.Parent;
+        }
+        return null;
     }
 }

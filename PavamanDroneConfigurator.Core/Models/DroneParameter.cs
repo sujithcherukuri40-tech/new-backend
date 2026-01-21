@@ -14,13 +14,15 @@ public class DroneParameter : INotifyPropertyChanged
     private string? _description;
     private float? _minValue;
     private float? _maxValue;
-    private float? _defaultValue;
+    private float _defaultValue = 0;
+    private float _stepSize = 1;
     private string? _units;
     private bool _isModified;
     private ObservableCollection<ParameterOption> _options = new();
     private ParameterOption? _selectedOption;
     private bool _isBitmask;
     private ObservableCollection<ParameterOption> _selectedBitmaskOptions = new();
+    private string? _validationError;
 
     public string Name
     {
@@ -31,6 +33,7 @@ public class DroneParameter : INotifyPropertyChanged
             {
                 _name = value;
                 OnPropertyChanged();
+                OnPropertyChanged(nameof(IsBitmask));
             }
         }
     }
@@ -40,25 +43,46 @@ public class DroneParameter : INotifyPropertyChanged
         get => _value;
         set
         {
-            if (System.Math.Abs(_value - value) > 0.0001f)
+            // STRICT VALIDATION: Revert to DefaultValue if out of range
+            float validatedValue = value;
+            bool isOutOfRange = false;
+
+            if (MinValue.HasValue && value < MinValue.Value)
             {
-                _value = value;
+                validatedValue = DefaultValue;
+                isOutOfRange = true;
+                ValidationError = $"Value {value:G} is below minimum {MinValue.Value:G}. Reverted to default {DefaultValue:G}.";
+            }
+            else if (MaxValue.HasValue && value > MaxValue.Value)
+            {
+                validatedValue = DefaultValue;
+                isOutOfRange = true;
+                ValidationError = $"Value {value:G} exceeds maximum {MaxValue.Value:G}. Reverted to default {DefaultValue:G}.";
+            }
+            else
+            {
+                ValidationError = null;
+            }
+
+            if (System.Math.Abs(_value - validatedValue) > 0.0001f)
+            {
+                _value = validatedValue;
                 IsModified = System.Math.Abs(_value - _originalValue) > 0.0001f;
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(ValueDisplay));
                 UpdateSelectedOptionFromValue();
+
+                // If we reverted to default, notify UI to clear invalid input
+                if (isOutOfRange)
+                {
+                    OnPropertyChanged(nameof(Value));
+                }
             }
         }
     }
 
-    /// <summary>
-    /// Display string for the value (used in grid).
-    /// </summary>
     public string ValueDisplay => _value.ToString("G");
 
-    /// <summary>
-    /// The original value from the vehicle. Used to track if the parameter has been modified.
-    /// </summary>
     public float OriginalValue
     {
         get => _originalValue;
@@ -74,14 +98,14 @@ public class DroneParameter : INotifyPropertyChanged
     }
 
     /// <summary>
-    /// Default value from metadata.
+    /// Default value from metadata. Defaults to 0 if not specified.
     /// </summary>
-    public float? DefaultValue
+    public float DefaultValue
     {
         get => _defaultValue;
         set
         {
-            if (_defaultValue != value)
+            if (System.Math.Abs(_defaultValue - value) > 0.0001f)
             {
                 _defaultValue = value;
                 OnPropertyChanged();
@@ -90,14 +114,60 @@ public class DroneParameter : INotifyPropertyChanged
         }
     }
 
-    /// <summary>
-    /// Display string for the default value.
-    /// </summary>
-    public string DefaultDisplay => _defaultValue?.ToString("G") ?? "NaN";
+    public string DefaultDisplay => _defaultValue.ToString("G");
 
     /// <summary>
-    /// Units for this parameter (e.g., "cm/s", "deg", "Hz").
+    /// Step size for editing (increment amount when adjusting parameter)
     /// </summary>
+    public float StepSize
+    {
+        get => _stepSize;
+        set
+        {
+            if (System.Math.Abs(_stepSize - value) > 0.0001f)
+            {
+                _stepSize = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(ValuePlaceholder));
+            }
+        }
+    }
+
+    /// <summary>
+    /// Placeholder text showing Min, Max, and Step
+    /// </summary>
+    public string ValuePlaceholder
+    {
+        get
+        {
+            var parts = new List<string>();
+            if (MinValue.HasValue)
+                parts.Add($"Min: {MinValue.Value:G}");
+            if (MaxValue.HasValue)
+                parts.Add($"Max: {MaxValue.Value:G}");
+            if (StepSize > 0)
+                parts.Add($"Step: {StepSize:G}");
+            return parts.Count > 0 ? string.Join("  ", parts) : "Enter value";
+        }
+    }
+
+    /// <summary>
+    /// Options column placeholder showing range
+    /// </summary>
+    public string OptionsPlaceholder
+    {
+        get
+        {
+            if (MinValue.HasValue && MaxValue.HasValue)
+                return $"Min: {MinValue.Value:G}   Max: {MaxValue.Value:G}";
+            else if (MinValue.HasValue)
+                return $"Min: {MinValue.Value:G}";
+            else if (MaxValue.HasValue)
+                return $"Max: {MaxValue.Value:G}";
+            return "Enter value";
+        }
+    }
+
     public string? Units
     {
         get => _units;
@@ -112,8 +182,27 @@ public class DroneParameter : INotifyPropertyChanged
     }
 
     /// <summary>
-    /// Indicates whether the current value differs from the original value.
+    /// Validates a value against Min/Max constraints.
+    /// Returns the value if valid, or DefaultValue if out of range.
     /// </summary>
+    public float ValidateValue(float value, out bool isValid)
+    {
+        if (MinValue.HasValue && value < MinValue.Value)
+        {
+            isValid = false;
+            return DefaultValue;
+        }
+
+        if (MaxValue.HasValue && value > MaxValue.Value)
+        {
+            isValid = false;
+            return DefaultValue;
+        }
+
+        isValid = true;
+        return value;
+    }
+
     public bool IsModified
     {
         get => _isModified;
@@ -150,6 +239,8 @@ public class DroneParameter : INotifyPropertyChanged
                 _minValue = value;
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(RangeDisplay));
+                OnPropertyChanged(nameof(ValuePlaceholder));
+                OnPropertyChanged(nameof(OptionsPlaceholder));
             }
         }
     }
@@ -164,13 +255,12 @@ public class DroneParameter : INotifyPropertyChanged
                 _maxValue = value;
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(RangeDisplay));
+                OnPropertyChanged(nameof(ValuePlaceholder));
+                OnPropertyChanged(nameof(OptionsPlaceholder));
             }
         }
     }
 
-    /// <summary>
-    /// Available options for enum-type parameters (like Mission Planner).
-    /// </summary>
     public ObservableCollection<ParameterOption> Options
     {
         get => _options;
@@ -181,101 +271,51 @@ public class DroneParameter : INotifyPropertyChanged
                 _options = value;
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(HasOptions));
+                OnPropertyChanged(nameof(HasEnumOptions));
+                OnPropertyChanged(nameof(HasBitmaskOptions));
+                OnPropertyChanged(nameof(IsBitmask));
                 UpdateSelectedOptionFromValue();
             }
         }
     }
 
     /// <summary>
-    /// Whether this parameter has selectable options.
+    /// Whether this parameter has any selectable options.
     /// </summary>
-    public bool HasOptions => _options.Count > 0;
+    public bool HasOptions => _options != null && _options.Count > 0;
 
     /// <summary>
-    /// Currently selected option (bound to ComboBox).
-    /// When changed, updates the Value property.
+    /// Whether this parameter has enum options (single-select dropdown)
     /// </summary>
-    public ParameterOption? SelectedOption
-    {
-        get => _selectedOption;
-        set
-        {
-            if (_selectedOption != value)
-            {
-                _selectedOption = value;
-                OnPropertyChanged();
-                
-                // Update Value when option is selected
-                if (value != null)
-                {
-                    Value = value.Value;
-                }
-            }
-        }
-    }
+    public bool HasEnumOptions => HasOptions && !IsBitmask;
 
     /// <summary>
-    /// Gets a formatted display string for the parameter's valid range.
-    /// Returns "NA" if no min/max values are defined.
+    /// Whether this parameter has bitmask options (multiple-select checkboxes)
     /// </summary>
-    public string RangeDisplay
-    {
-        get
-        {
-            if (!MinValue.HasValue && !MaxValue.HasValue)
-            {
-                return string.Empty;
-            }
-            
-            var minStr = MinValue.HasValue ? MinValue.Value.ToString("G") : "";
-            var maxStr = MaxValue.HasValue ? MaxValue.Value.ToString("G") : "";
-            
-            return $"{minStr} - {maxStr}";
-        }
-    }
-
-    /// <summary>
-    /// Display for the Options column showing range or options list.
-    /// Like Mission Planner shows "-0.5 0.95" or "0:Disabled\n1:Enabled".
-    /// </summary>
-    public string OptionsDisplay
-    {
-        get
-        {
-            if (HasOptions)
-            {
-                // Show first few options like Mission Planner
-                var display = string.Join("\n", Options.Take(4).Select(o => $"{o.Value}:{o.Label}"));
-                if (Options.Count > 4)
-                    display += "\n...";
-                return display;
-            }
-            
-            // Show range if no options
-            if (MinValue.HasValue && MaxValue.HasValue)
-            {
-                return $"{MinValue:G} {MaxValue:G}";
-            }
-            
-            return string.Empty;
-        }
-    }
+    public bool HasBitmaskOptions => IsBitmask;
 
     /// <summary>
     /// Indicates if this parameter is a bitmask type.
     /// </summary>
     public bool IsBitmask
     {
-        get => _isBitmask;
+        get => _isBitmask || (HasOptions && (_name.Contains("_MASK") || _name.EndsWith("MASK") || _name.Contains("ENABLE")));
         set
         {
             if (_isBitmask != value)
             {
                 _isBitmask = value;
                 OnPropertyChanged();
+                OnPropertyChanged(nameof(HasEnumOptions));
+                OnPropertyChanged(nameof(HasBitmaskOptions));
             }
         }
     }
+
+    /// <summary>
+    /// Whether this parameter has no options (should show TextBox in OPTIONS column)
+    /// </summary>
+    public bool HasNoOptions => !HasOptions;
 
     /// <summary>
     /// Selected bitmask options for bitmask-type parameters.
@@ -293,25 +333,102 @@ public class DroneParameter : INotifyPropertyChanged
         }
     }
 
-    /// <summary>
-    /// Initializes the bitmask selection based on the current value.
-    /// </summary>
-    public void InitializeBitmaskFromValue()
+    public ParameterOption? SelectedOption
     {
-        if (!IsBitmask || Options.Count == 0)
-            return;
-
-        SelectedBitmaskOptions.Clear();
-        var intValue = (int)System.Math.Round(_value);
-
-        foreach (var option in Options)
+        get => _selectedOption;
+        set
         {
-            // Check if this bit is set in the value
-            if ((intValue & option.Value) != 0)
+            if (_selectedOption != value)
             {
-                SelectedBitmaskOptions.Add(option);
+                _selectedOption = value;
+                OnPropertyChanged();
+
+                if (value != null)
+                {
+                    Value = value.Value;
+                }
             }
         }
+    }
+
+    /// <summary>
+    /// Validation error message (if value is out of range)
+    /// </summary>
+    public string? ValidationError
+    {
+        get => _validationError;
+        private set
+        {
+            if (_validationError != value)
+            {
+                _validationError = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(HasValidationError));
+            }
+        }
+    }
+
+    public bool HasValidationError => !string.IsNullOrEmpty(ValidationError);
+
+    public string RangeDisplay
+    {
+        get
+        {
+            if (!MinValue.HasValue && !MaxValue.HasValue)
+            {
+                return string.Empty;
+            }
+
+            var minStr = MinValue.HasValue ? MinValue.Value.ToString("G") : "";
+            var maxStr = MaxValue.HasValue ? MaxValue.Value.ToString("G") : "";
+
+            return $"{minStr} - {maxStr}";
+        }
+    }
+
+    public string OptionsDisplay
+    {
+        get
+        {
+            if (HasOptions)
+            {
+                var display = string.Join("\n", Options.Take(4).Select(o => $"{o.Value}:{o.Label}"));
+                if (Options.Count > 4)
+                    display += "\n...";
+                return display;
+            }
+
+            if (MinValue.HasValue && MaxValue.HasValue)
+            {
+                return $"{MinValue:G} {MaxValue:G}";
+            }
+
+            return string.Empty;
+        }
+    }
+
+    /// <summary>
+    /// Gets the bitmask value from selected options.
+    /// Supports both direct bit values and bit positions (using bitshift).
+    /// </summary>
+    public int GetBitmaskValue()
+    {
+        int result = 0;
+        foreach (var opt in SelectedBitmaskOptions)
+        {
+            // Check if the value is already a bitmask (power of 2) or needs bitshift
+            if (opt.Value > 0 && (opt.Value & (opt.Value - 1)) == 0)
+            {
+                // Value is already a power of 2, use it directly
+                result |= opt.Value;
+            }
+            else
+            {
+                // Value is a bit position, use bitshift
+                result |= (1 << opt.Value);
+            }
+        }
+        return result;
     }
 
     /// <summary>
@@ -322,13 +439,42 @@ public class DroneParameter : INotifyPropertyChanged
         if (!IsBitmask)
             return;
 
-        var newValue = 0;
-        foreach (var option in SelectedBitmaskOptions)
-        {
-            newValue |= option.Value;
-        }
+        Value = GetBitmaskValue();
+    }
 
-        Value = newValue;
+    /// <summary>
+    /// Initializes the bitmask selection based on the current value.
+    /// Supports both direct bit values and bit positions.
+    /// </summary>
+    public void InitializeBitmaskFromValue()
+    {
+        if (!IsBitmask || Options.Count == 0)
+            return;
+
+        SelectedBitmaskOptions.Clear();
+        int intValue = (int)System.Math.Round(_value);
+
+        foreach (var opt in Options)
+        {
+            bool isSelected = false;
+
+            // Check if the value is already a bitmask (power of 2) or a bit position
+            if (opt.Value > 0 && (opt.Value & (opt.Value - 1)) == 0)
+            {
+                // Value is already a power of 2, check directly
+                isSelected = (intValue & opt.Value) != 0;
+            }
+            else
+            {
+                // Value is a bit position, use bitshift
+                isSelected = (intValue & (1 << opt.Value)) != 0;
+            }
+
+            if (isSelected)
+            {
+                SelectedBitmaskOptions.Add(opt);
+            }
+        }
     }
 
     /// <summary>
@@ -336,7 +482,7 @@ public class DroneParameter : INotifyPropertyChanged
     /// </summary>
     private void UpdateSelectedOptionFromValue()
     {
-        if (HasOptions)
+        if (HasOptions && !IsBitmask)
         {
             var intValue = (int)System.Math.Round(_value);
             _selectedOption = Options.FirstOrDefault(o => o.Value == intValue);
@@ -344,21 +490,17 @@ public class DroneParameter : INotifyPropertyChanged
         }
     }
 
-    /// <summary>
-    /// Marks this parameter as saved by updating the original value to match the current value.
-    /// </summary>
     public void MarkAsSaved()
     {
         _originalValue = _value;
         IsModified = false;
+        ValidationError = null;
     }
 
-    /// <summary>
-    /// Reverts the value to the original value from the vehicle.
-    /// </summary>
     public void RevertToOriginal()
     {
         Value = _originalValue;
+        ValidationError = null;
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -369,19 +511,10 @@ public class DroneParameter : INotifyPropertyChanged
     }
 }
 
-/// <summary>
-/// Represents a selectable option for enum-type parameters.
-/// Used in the Options ComboBox like Mission Planner.
-/// </summary>
 public class ParameterOption
 {
     public int Value { get; set; }
     public string Label { get; set; } = string.Empty;
-    
-    /// <summary>
-    /// Display format: "Value:Label" (e.g., "0:Disabled", "1:Enabled")
-    /// </summary>
     public string Display => $"{Value}:{Label}";
-    
     public override string ToString() => Display;
 }
