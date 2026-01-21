@@ -627,9 +627,9 @@ public partial class FirmwarePageViewModel : ViewModelBase
         ShowReconnectPromptDialog = true;
     }
 
-    private async Task FlashFromWebAsync(VehicleTypeItem vehicleType, string? releaseType)
+    private Task FlashFromWebAsync(VehicleTypeItem vehicleType, string? releaseType)
     {
-        await FlashFromWebWithPlatformAsync(vehicleType, null, releaseType);
+        return FlashFromWebWithPlatformAsync(vehicleType, null, releaseType);
     }
 
     private async Task FlashFromFileAsync(string path)

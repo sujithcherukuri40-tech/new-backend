@@ -19,6 +19,8 @@ public class DroneParameter : INotifyPropertyChanged
     private bool _isModified;
     private ObservableCollection<ParameterOption> _options = new();
     private ParameterOption? _selectedOption;
+    private bool _isBitmask;
+    private ObservableCollection<ParameterOption> _selectedBitmaskOptions = new();
 
     public string Name
     {
@@ -257,6 +259,76 @@ public class DroneParameter : INotifyPropertyChanged
             
             return string.Empty;
         }
+    }
+
+    /// <summary>
+    /// Indicates if this parameter is a bitmask type.
+    /// </summary>
+    public bool IsBitmask
+    {
+        get => _isBitmask;
+        set
+        {
+            if (_isBitmask != value)
+            {
+                _isBitmask = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>
+    /// Selected bitmask options for bitmask-type parameters.
+    /// </summary>
+    public ObservableCollection<ParameterOption> SelectedBitmaskOptions
+    {
+        get => _selectedBitmaskOptions;
+        set
+        {
+            if (_selectedBitmaskOptions != value)
+            {
+                _selectedBitmaskOptions = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>
+    /// Initializes the bitmask selection based on the current value.
+    /// </summary>
+    public void InitializeBitmaskFromValue()
+    {
+        if (!IsBitmask || Options.Count == 0)
+            return;
+
+        SelectedBitmaskOptions.Clear();
+        var intValue = (int)System.Math.Round(_value);
+
+        foreach (var option in Options)
+        {
+            // Check if this bit is set in the value
+            if ((intValue & option.Value) != 0)
+            {
+                SelectedBitmaskOptions.Add(option);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Updates the parameter value from the selected bitmask options.
+    /// </summary>
+    public void UpdateValueFromBitmask()
+    {
+        if (!IsBitmask)
+            return;
+
+        var newValue = 0;
+        foreach (var option in SelectedBitmaskOptions)
+        {
+            newValue |= option.Value;
+        }
+
+        Value = newValue;
     }
 
     /// <summary>
