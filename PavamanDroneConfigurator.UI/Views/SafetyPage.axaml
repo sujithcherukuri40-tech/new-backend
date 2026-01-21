@@ -272,11 +272,6 @@
                             <TextBlock Classes="SectionTitle" Text=" Pre-Flight Arming Checks"/>
                             <TextBlock Classes="SectionSubtitle" Text="Required sensor and system checks before flight"/>
                             
-                            <CheckBox Content="All Checks (Master)" 
-                                      IsChecked="{Binding ArmingCheckAll}"
-                                      FontWeight="Bold"
-                                      Margin="0,0,0,16"/>
-                            
                             <Grid ColumnDefinitions="*,*,*" RowDefinitions="Auto,Auto">
                                 
                                 <!-- SENSORS Column -->

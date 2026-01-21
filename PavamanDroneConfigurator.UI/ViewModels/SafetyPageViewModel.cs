@@ -190,7 +190,6 @@ public sealed partial class SafetyPageViewModel : ViewModelBase
 
     #region Observable Properties - Arming Checks
     
-    [ObservableProperty] private bool _armingCheckAll;
     [ObservableProperty] private bool _armingCheckBarometer;
     [ObservableProperty] private bool _armingCheckCompass;
     [ObservableProperty] private bool _armingCheckGps;
@@ -395,7 +394,6 @@ public sealed partial class SafetyPageViewModel : ViewModelBase
         _isSyncing = true;
         try
         {
-            ArmingCheckAll = HasBit(mask, ArmingBitAll);
             ArmingCheckBarometer = HasBit(mask, ArmingBitBarometer);
             ArmingCheckCompass = HasBit(mask, ArmingBitCompass);
             ArmingCheckGps = HasBit(mask, ArmingBitGps);
@@ -700,7 +698,6 @@ public sealed partial class SafetyPageViewModel : ViewModelBase
 
     #region Property Change Handlers - Arming Checks
     
-    partial void OnArmingCheckAllChanged(bool value) => RunSafe(UpdateArmingChecksAsync);
     partial void OnArmingCheckBarometerChanged(bool value) => RunSafe(UpdateArmingChecksAsync);
     partial void OnArmingCheckCompassChanged(bool value) => RunSafe(UpdateArmingChecksAsync);
     partial void OnArmingCheckGpsChanged(bool value) => RunSafe(UpdateArmingChecksAsync);
@@ -730,7 +727,6 @@ public sealed partial class SafetyPageViewModel : ViewModelBase
     private int BuildArmingMask()
     {
         var mask = 0;
-        if (ArmingCheckAll) mask |= ArmingBitAll;
         if (ArmingCheckBarometer) mask |= ArmingBitBarometer;
         if (ArmingCheckCompass) mask |= ArmingBitCompass;
         if (ArmingCheckGps) mask |= ArmingBitGps;
