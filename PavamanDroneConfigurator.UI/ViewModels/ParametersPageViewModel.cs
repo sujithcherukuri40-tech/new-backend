@@ -49,7 +49,7 @@ public partial class ParametersPageViewModel : ViewModelBase
     private bool _canEditParameters;
 
     [ObservableProperty]
-    private string _searchText = string.Empty;
+    private string _searchQuery = string.Empty;
 
     [ObservableProperty]
     private int _totalParameterCount;
@@ -65,6 +65,13 @@ public partial class ParametersPageViewModel : ViewModelBase
     
     [ObservableProperty]
     private bool _isRefreshing;
+
+    // Group filtering (Mission Planner style)
+    [ObservableProperty]
+    private string _selectedGroup = "All";
+
+    [ObservableProperty]
+    private ObservableCollection<string> _groupList = new();
 
     // Selected parameter details for the detail panel (like Mission Planner)
     [ObservableProperty]
@@ -112,6 +119,9 @@ public partial class ParametersPageViewModel : ViewModelBase
         _importService = importService;
         _metadataService = metadataService;
 
+        // Initialize group list
+        InitializeGroupList();
+
         // Subscribe to all relevant events
         _connectionService.ConnectionStateChanged += OnConnectionStateChanged;
         _parameterService.ParameterDownloadStarted += OnDownloadStarted;
@@ -123,6 +133,22 @@ public partial class ParametersPageViewModel : ViewModelBase
         {
             _ = LoadParametersIntoGridAsync();
         }
+    }
+
+    private void InitializeGroupList()
+    {
+        GroupList.Clear();
+        GroupList.Add("All");
+
+        foreach (var group in _metadataService.GetGroups())
+        {
+            GroupList.Add(group);
+        }
+    }
+
+    partial void OnSelectedGroupChanged(string value)
+    {
+        ApplyFilter();
     }
 
     partial void OnSelectedParameterChanged(DroneParameter? value)
@@ -302,22 +328,38 @@ public partial class ParametersPageViewModel : ViewModelBase
             
             foreach (var p in allParams)
             {
-                // Parameters are already enriched by ParameterService when received
-                // Only enrich if metadata is missing (for imported parameters)
-                if (string.IsNullOrEmpty(p.Description) || p.Options.Count == 0)
+                _metadataService.EnrichParameter(p);
+                
+                var meta = _metadataService.GetMetadata(p.Name);
+                if (meta != null)
                 {
-                    _metadataService.EnrichParameter(p);
+                    if (meta.Values != null && meta.Values.Count > 0)
+                    {
+                        foreach (var kvp in meta.Values)
+                        {
+                            p.Options.Add(new ParameterOption
+                            {
+                                Value = kvp.Key,
+                                Label = kvp.Value
+                            });
+                        }
+                    }
+                    
+                    if (p.IsBitmask)
+                    {
+                        p.InitializeBitmaskFromValue();
+                    }
                 }
                 
                 _originalValues[p.Name] = p.Value;
                 p.OriginalValue = p.Value;
                 p.PropertyChanged += OnParameterPropertyChanged;
                 Parameters.Add(p);
-                FilteredParameters.Add(p);
             }
             
+            ApplyFilter();
+            
             TotalParameterCount = Parameters.Count;
-            LoadedParameterCount = FilteredParameters.Count;
             ModifiedParameterCount = 0;
             HasUnsavedChanges = false;
             
@@ -530,23 +572,43 @@ public partial class ParametersPageViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// Applies the current search filter to update FilteredParameters.
+    /// Applies the current search and group filters to update FilteredParameters.
     /// </summary>
     private void ApplyFilter()
     {
+        if (Parameters == null)
+            return;
+
+        IEnumerable<DroneParameter> filtered = Parameters;
+
+        // Apply group filter
+        if (!string.IsNullOrWhiteSpace(SelectedGroup) && SelectedGroup != "All")
+        {
+            filtered = filtered.Where(p =>
+            {
+                var meta = _metadataService.GetMetadata(p.Name);
+                return meta != null && meta.Group == SelectedGroup;
+            });
+        }
+
+        // Apply search filter
+        if (!string.IsNullOrWhiteSpace(SearchQuery))
+        {
+            filtered = filtered.Where(p =>
+                p.Name.Contains(SearchQuery, StringComparison.OrdinalIgnoreCase) ||
+                (p.Description?.Contains(SearchQuery, StringComparison.OrdinalIgnoreCase) ?? false));
+        }
+
+        // Sort by name
+        filtered = filtered.OrderBy(p => p.Name);
+
+        // Clear and populate FilteredParameters
         FilteredParameters.Clear();
-        
-        var filtered = string.IsNullOrWhiteSpace(SearchText)
-            ? Parameters
-            : Parameters.Where(p => 
-                p.Name.Contains(SearchText, StringComparison.OrdinalIgnoreCase) ||
-                (p.Description?.Contains(SearchText, StringComparison.OrdinalIgnoreCase) ?? false));
-        
         foreach (var p in filtered)
         {
             FilteredParameters.Add(p);
         }
-        
+
         LoadedParameterCount = FilteredParameters.Count;
     }
 
@@ -621,7 +683,7 @@ public partial class ParametersPageViewModel : ViewModelBase
         return null;
     }
 
-    partial void OnSearchTextChanged(string value)
+    partial void OnSearchQueryChanged(string value)
     {
         ApplyFilter();
     }

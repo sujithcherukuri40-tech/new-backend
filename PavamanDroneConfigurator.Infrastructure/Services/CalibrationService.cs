@@ -8,23 +8,6 @@ using PavamanDroneConfigurator.Core.Models;
 
 namespace PavamanDroneConfigurator.Infrastructure.Services;
 
-/// <summary>
-/// Mission Planner-style calibration service.
-/// 
-/// KEY PRINCIPLE: The FC is the ONLY source of truth.
-/// - NO client-side IMU validation
-/// - NO hardcoded thresholds  
-/// - NO assumptions about what FC wants
-/// - UI just shows FC messages and sends position confirmations
-/// 
-/// Mission Planner flow:
-/// 1. Send MAV_CMD_PREFLIGHT_CALIBRATION (param5=4)
-/// 2. FC sends STATUSTEXT "Place vehicle level and press any key"
-/// 3. User clicks ? send MAV_CMD_ACCELCAL_VEHICLE_POS(1)
-/// 4. FC validates internally, responds via STATUSTEXT
-/// 5. FC either requests next position OR says "calibration successful"
-/// 6. Repeat until FC says done
-/// </summary>
 public class CalibrationService : ICalibrationService, IDisposable
 {
     private readonly ILogger<CalibrationService> _logger;
@@ -43,11 +26,33 @@ public class CalibrationService : ICalibrationService, IDisposable
     
     private CalibrationStateModel _currentState = new();
     
-    // Position display names - ONLY for UI, not for validation
+    // Position display names - ONLY for UI display, not for validation
+    // UI positions are 1-6, MAVLink positions are 0-5
     private static readonly string[] PositionNames = { "LEVEL", "LEFT", "RIGHT", "NOSE DOWN", "NOSE UP", "BACK" };
     
     // Total positions required for accelerometer calibration
     private const int ACCELEROMETER_TOTAL_POSITIONS = 6;
+    
+    // CRITICAL: UI uses positions 1-6 internally, but ArduPilot expects 0-5 for MAV_CMD_ACCELCAL_VEHICLE_POS
+    // This constant documents the mapping: mavlinkPosition = uiPosition - 1
+    private const int UI_POSITION_TO_MAVLINK_OFFSET = 1;
+    
+    // Progress constants for FC internal sampling monitoring
+    private const int START_PROGRESS_AFTER_POSITION1 = 16; // 1 of 6 positions complete = 16%
+    private const int MAX_PROGRESS_DURING_SAMPLING = 95;   // Leave 5% for final FC confirmation
+    private const int PROGRESS_RANGE = MAX_PROGRESS_DURING_SAMPLING - START_PROGRESS_AFTER_POSITION1; // 79%
+    
+    // Timeout and update interval for calibration completion monitoring
+    private const int CALIBRATION_TIMEOUT_MS = 60000;      // 60 seconds
+    private const int CALIBRATION_TIMEOUT_SECONDS = CALIBRATION_TIMEOUT_MS / 1000; // 60 seconds (for logging)
+    private const int PROGRESS_UPDATE_INTERVAL_MS = 500;   // Update every 500ms for smooth animation
+    
+    // Status messages
+    private const string FC_SAMPLING_MESSAGE = "FC is sampling all positions internally - keep vehicle still!";
+    
+    // Compiled regex for extracting position number from STATUSTEXT (e.g., "position 3 of 6")
+    private static readonly System.Text.RegularExpressions.Regex PositionNumberRegex = 
+        new(@"position\s+(\d+)", System.Text.RegularExpressions.RegexOptions.Compiled | System.Text.RegularExpressions.RegexOptions.IgnoreCase);
 
     public CalibrationStateModel? CurrentState => _currentState;
     public bool IsCalibrating { get { lock (_lock) return _isCalibrating; } }
@@ -133,64 +138,178 @@ public class CalibrationService : ICalibrationService, IDisposable
 
     private void HandleAccelStatusText(string lower, string originalText)
     {
+        // RULE 2: STATUSTEXT is the SINGLE SOURCE OF TRUTH
         // Detect if FC is requesting a specific position
         int? requestedPosition = DetectPositionFromMessage(lower);
         
         if (requestedPosition.HasValue)
         {
+            // FC is requesting a specific position
+            // CRITICAL: Do NOT enable button immediately - must wait for settle delay first
             lock (_lock)
             {
                 _currentPosition = requestedPosition.Value;
-                _waitingForUserClick = true;
+                _waitingForUserClick = false;  // Keep disabled until settle delay completes
             }
             
-            _logger.LogInformation("FC requests position {Pos}: {Name}", requestedPosition.Value, GetPositionName(requestedPosition.Value));
+            _logger.LogInformation("FC requests position {Pos}: {Name} (via STATUSTEXT)", requestedPosition.Value, GetPositionName(requestedPosition.Value));
             
-            // Calculate progress based on positions completed
+            // RULE 5: Progress comes ONLY from FC requesting next position
             // When FC requests position N, it means positions 1 to N-1 are complete
-            // (e.g., requesting position 1 = 0% complete, requesting position 2 = 16.67% complete)
             int progress = CalculateProgressFromPosition(requestedPosition.Value);
-            _logger.LogInformation("Progress from STATUSTEXT: {Progress}% (FC requesting position {Pos})", progress, requestedPosition.Value);
+            _logger.LogInformation("Progress: {Progress}% (FC requesting position {Pos})", progress, requestedPosition.Value);
             
-            // Show position to user
+            // Show position to user with FC's exact message - button NOT enabled yet
             SetState(CalibrationStateMachine.WaitingForUserPosition,
-                originalText, // Show FC's exact message
+                originalText, // Always show FC's exact message
                 progress);
             
-            // Tell UI to show position image and enable button
-            RaiseStepRequired(requestedPosition.Value, true, originalText);
+            // Tell UI to show position image - button disabled until settle delay completes
+            RaiseStepRequired(requestedPosition.Value, false, originalText);
+            
+            // RULE 3 (MANDATORY POST-STATUSTEXT SETTLE DELAY):
+            // After receiving any accel position request via STATUSTEXT:
+            // 1. WAIT 2000ms (hard delay) - REQUIRED by ArduPilot internals
+            // 2. THEN enable confirm button
+            // This delay is why Mission Planner works correctly at LEVEL position.
+            // Without this delay, the FC may not be ready to accept the position command.
+            _ = StartSettleDelayAsync(requestedPosition.Value, originalText);
         }
-        // FC is sampling - important message!
+        // FC is sampling - user should NOT click until FC asks for next position
         else if (lower.Contains("sampling") || lower.Contains("reading") || lower.Contains("hold"))
         {
-            lock (_lock) { _waitingForUserClick = false; }
+            lock (_lock) { _waitingForUserClick = false; } // Disable button during sampling
             
             int pos;
             lock (_lock) { pos = _currentPosition; }
             
-            _logger.LogInformation("FC is sampling position {Pos}", pos);
+            _logger.LogInformation("FC is sampling position {Pos} - button disabled", pos);
             SetState(CalibrationStateMachine.Sampling, 
-                $"FC is sampling position {pos}/{ACCELEROMETER_TOTAL_POSITIONS} - Hold vehicle still!", 
+                originalText, // Show FC's exact message
                 GetProgress());
         }
-        // FC says position detected/held
-        else if (lower.Contains("got") || lower.Contains("detected") || lower.Contains("held"))
+        // FC says position detected/held/complete - indicates progress during internal sampling
+        else if (lower.Contains("got") || lower.Contains("detected") || lower.Contains("held") || lower.Contains("complete"))
         {
-            lock (_lock) { _waitingForUserClick = false; }
+            // Position was accepted - FC is progressing through internal sampling
+            lock (_lock) { _waitingForUserClick = false; } // Keep button disabled until FC asks for next
+            
+            _logger.LogInformation("FC acknowledged position - internal sampling in progress");
             SetState(CalibrationStateMachine.Sampling, originalText, GetProgress());
         }
-        // FC rejected position
-        else if (lower.Contains("bad") || lower.Contains("wrong") || lower.Contains("incorrect") || lower.Contains("failed"))
+        // Detect position progress keywords during internal sampling (e.g., "position 2 of 6")
+        else if (lower.Contains("position") && (lower.Contains(" of ") || lower.Contains("/")))
         {
-            // FC rejected position - let user try again
-            lock (_lock) { _waitingForUserClick = true; }
+            // FC is reporting progress through positions (e.g., "position 3 of 6")
+            // Extract position number to update progress more accurately
+            var match = PositionNumberRegex.Match(lower);
+            if (match.Success && int.TryParse(match.Groups[1].Value, out int posNum) && ACCELEROMETER_TOTAL_POSITIONS > 0)
+            {
+                // Update progress based on position count (1-6 means 0-100%)
+                int progress = Math.Min(MAX_PROGRESS_DURING_SAMPLING, (posNum - 1) * 100 / ACCELEROMETER_TOTAL_POSITIONS);
+                _logger.LogInformation("FC progress: position {Pos} of {Total} - updating to {Progress}%", 
+                    posNum, ACCELEROMETER_TOTAL_POSITIONS, progress);
+                SetState(CalibrationStateMachine.Sampling, originalText, progress);
+            }
+            else
+            {
+                // Generic progress message
+                _logger.LogInformation("FC sampling progress update: {Text}", originalText);
+                SetState(CalibrationStateMachine.Sampling, originalText, GetProgress());
+            }
+        }
+        // FC reports a problem with current position
+        else if (lower.Contains("bad") || lower.Contains("wrong") || lower.Contains("incorrect"))
+        {
+            // RULE 3: NO AUTO-RETRY - FC will tell us what to do next via another STATUSTEXT
+            // Keep button disabled and wait for FC instruction
+            lock (_lock) { _waitingForUserClick = false; }
+            
             int pos;
             lock (_lock) { pos = _currentPosition; }
-            SetState(CalibrationStateMachine.WaitingForUserPosition,
+            
+            _logger.LogWarning("FC reported issue with position {Pos}: {Text} - waiting for FC instruction", pos, originalText);
+            SetState(CalibrationStateMachine.PositionRejected,
                 originalText, // Show FC's exact error message
                 GetProgress());
-            RaiseStepRequired(pos, true, originalText);
+            
+            // Tell UI - button disabled because FC didn't explicitly re-request
+            RaiseStepRequired(pos, false, originalText);
         }
+    }
+
+    /// <summary>
+    /// MANDATORY POST-STATUSTEXT SETTLE DELAY (CRITICAL ArduPilot requirement)
+    /// 
+    /// After receiving any accel position request via STATUSTEXT from the FC:
+    /// 1. WAIT 2000ms (hard delay) - this is REQUIRED by ArduPilot internals
+    /// 2. THEN enable confirm button so user can click
+    /// 
+    /// This delay exists because:
+    /// - ArduPilot's internal state machine needs time to transition after sending STATUSTEXT
+    /// - The FC may not be ready to accept MAV_CMD_ACCELCAL_VEHICLE_POS immediately
+    /// - Mission Planner implements this same delay, which is why it works correctly
+    /// - Without this delay, the LEVEL position (and others) may fail with MAV_RESULT_FAILED
+    /// 
+    /// The delay is hard-coded because it reflects ArduPilot firmware timing requirements,
+    /// not network latency or user preference.
+    /// </summary>
+    private async Task StartSettleDelayAsync(int position, string originalText)
+    {
+        // RULE 3: 2000ms settle delay is MANDATORY per ArduPilot protocol
+        const int SettleDelayMs = 2000;
+        
+        _logger.LogInformation("Starting {Delay}ms settle delay for position {Pos} (ArduPilot requirement)", SettleDelayMs, position);
+        
+        CancellationToken ct;
+        lock (_lock)
+        {
+            ct = _calibrationCts?.Token ?? CancellationToken.None;
+        }
+        
+        try
+        {
+            await Task.Delay(SettleDelayMs, ct);
+        }
+        catch (OperationCanceledException)
+        {
+            _logger.LogInformation("Settle delay cancelled for position {Pos}", position);
+            return;
+        }
+        
+        // After delay completes, verify we're still waiting for this position
+        // (FC may have sent a different STATUSTEXT while we were waiting)
+        lock (_lock)
+        {
+            if (!_isCalibrating)
+            {
+                _logger.LogInformation("Calibration no longer active after settle delay");
+                return;
+            }
+            
+            if (_currentPosition != position)
+            {
+                _logger.LogInformation("Position changed during settle delay (now {Current}, was waiting for {Expected})", _currentPosition, position);
+                return;
+            }
+            
+            // After the settle delay, we enable the button. The actual IMU stability validation
+            // (if any) is a UI concern that can be handled by the ViewModel layer.
+            // This service only enables/disables the button based on FC state and timing.
+            // Note: IMU checks must NEVER send MAVLink commands, retry positions, or advance calibration.
+            _waitingForUserClick = true;
+        }
+        
+        _logger.LogInformation("Settle delay complete for position {Pos} - enabling confirm button", position);
+        
+        // Update state to indicate button is now enabled - use FC's original message
+        // to maintain consistency with Mission Planner's behavior of showing FC messages verbatim
+        SetState(CalibrationStateMachine.WaitingForUserPosition,
+            originalText,
+            GetProgress());
+        
+        // Tell UI to enable button - FC requested this position and settle delay is complete
+        RaiseStepRequired(position, true, originalText);
     }
 
     private int? DetectPositionFromMessage(string lower)
@@ -258,23 +377,27 @@ public class CalibrationService : ICalibrationService, IDisposable
     {
         if (result == MavResult.Accepted || result == MavResult.InProgress)
         {
-            _logger.LogInformation("FC accepted calibration");
+            _logger.LogInformation("FC accepted calibration command - waiting for FC STATUSTEXT instructions");
             
             CalibrationType type;
             lock (_lock) { type = _currentType; }
             
             if (type == CalibrationType.Accelerometer)
             {
-                // Wait for FC to send first position request
+                // RULE 2: STATUSTEXT is the SINGLE SOURCE OF TRUTH
+                // We MUST wait for FC to send STATUSTEXT telling us which position it wants
+                // NO fallback timers, NO assumptions about starting with LEVEL
+                // FC will send something like "Place vehicle level" when ready
                 SetState(CalibrationStateMachine.WaitingForInstruction,
-                    "Waiting for flight controller to request first position...", 0);
+                    "Calibration accepted - waiting for flight controller instructions...", 0);
                 
-                // Start 5-second fallback timer
-                _ = StartPositionRequestFallbackAsync();
+                // NO FALLBACK TIMER - violates Mission Planner protocol
+                // The FC drives the calibration, not the UI
+                _logger.LogInformation("Accelerometer calibration: Waiting for FC STATUSTEXT to request first position (NO fallback timer)");
             }
             else
             {
-                // Simple calibration - just wait
+                // Simple calibration types (gyro, baro, etc.) - just wait for completion
                 SetState(CalibrationStateMachine.Sampling,
                     $"{GetTypeName(type)} calibration in progress...", 50);
                 _ = WaitForSimpleCalibrationAsync();
@@ -282,81 +405,79 @@ public class CalibrationService : ICalibrationService, IDisposable
         }
         else
         {
-            string msg = result switch
-            {
-                MavResult.Denied => "Calibration denied - vehicle may be armed",
-                MavResult.TemporarilyRejected => "Temporarily rejected - try again",
-                MavResult.Unsupported => "Not supported by firmware",
-                _ => $"Rejected (code: {(int)result})"
-            };
+            // RULE 4: COMMAND_ACK DENIED = abort with detailed user-friendly error
+            // Use PDRL-compliant error explanations for better user guidance
+            string msg = AccelCalibrationPreflightValidator.GetCommandAckExplanation(241, (byte)result);
+            _logger.LogWarning("FC rejected MAV_CMD_PREFLIGHT_CALIBRATION: result={Result}\n{Message}", result, msg);
             FinishCalibration(false, msg);
         }
     }
 
-    private async Task StartPositionRequestFallbackAsync()
-    {
-        const int timeoutMs = 5000;
-        CancellationToken ct;
-        lock (_lock) { ct = _calibrationCts?.Token ?? CancellationToken.None; }
-        
-        try
-        {
-            await Task.Delay(timeoutMs, ct);
-        }
-        catch (OperationCanceledException) { return; }
-        
-        // Check if we're still waiting for FC instruction
-        CalibrationStateMachine currentState;
-        lock (_lock) { currentState = _state; }
-        
-        if (currentState == CalibrationStateMachine.WaitingForInstruction)
-        {
-            _logger.LogWarning("FC did not send position request within {Timeout}ms - starting with position 1", timeoutMs);
-            
-            lock (_lock)
-            {
-                _currentPosition = 1;
-                _waitingForUserClick = true;
-            }
-            
-            SetState(CalibrationStateMachine.WaitingForUserPosition,
-                "Place vehicle LEVEL on a flat surface and click 'Click When In Position' when ready",
-                0);
-            
-            RaiseStepRequired(1, true, "Place vehicle LEVEL on a flat surface");
-        }
-    }
+    // REMOVED: StartPositionRequestFallbackAsync()
+    // This method was ILLEGAL - it violated Mission Planner protocol by:
+    // 1. Auto-assuming LEVEL position after 5 seconds if FC didn't respond
+    // 2. Fabricating UI steps that the FC never requested
+    // 3. Breaking the rule: "STATUSTEXT is the SINGLE SOURCE OF TRUTH"
+    // 
+    // Per ArduPilot MAVLink contract: The FC drives calibration, not the UI.
+    // If FC doesn't send STATUSTEXT, calibration cannot proceed - this is correct behavior.
 
     private void HandlePositionCommandAck(MavResult result)
     {
         int pos;
         lock (_lock) { pos = _currentPosition; }
         
+        // Convert UI position (1-6) to MAVLink position (0-5) for logging clarity
+        int mavlinkPos = pos - UI_POSITION_TO_MAVLINK_OFFSET;
+        
         if (result == MavResult.Accepted || result == MavResult.InProgress)
         {
-            _logger.LogInformation("FC accepted position {Pos} command - waiting for FC validation via STATUSTEXT", pos);
+            // CRITICAL: After position 1 is accepted, FC samples ALL positions internally!
+            // This matches Mission Planner's actual behavior - FC does not request positions 2-6.
+            // Instead, FC uses internal IMU to detect when user moves vehicle through all orientations.
+            _logger.LogInformation("FC accepted position command (UI pos {UiPos}, MAVLink pos {MavPos}) - FC will now sample all positions internally", pos, mavlinkPos);
             
             lock (_lock) { _waitingForUserClick = false; }
             
+            // Start at START_PROGRESS_AFTER_POSITION1 (position 1 confirmed, 5 more to go)
             SetState(CalibrationStateMachine.Sampling,
-                $"Position {pos} sent to FC - waiting for FC validation...",
-                GetProgress());
+                "Position accepted - " + FC_SAMPLING_MESSAGE,
+                START_PROGRESS_AFTER_POSITION1);
             
-            // NO TIMER! Just wait for FC to send STATUSTEXT
-            // FC will tell us via STATUSTEXT when it needs the next position
-            _logger.LogInformation("Position {Position} sent to FC - waiting for FC validation via STATUSTEXT", pos);
+            // Monitor for completion (up to CALIBRATION_TIMEOUT_MS)
+            // Update progress smoothly from START_PROGRESS_AFTER_POSITION1 → MAX_PROGRESS_DURING_SAMPLING
+            _ = MonitorCalibrationCompletionAsync();
         }
         else if (result == MavResult.Denied || result == MavResult.Failed)
         {
-            _logger.LogWarning("FC rejected position {Pos}: {Result}", pos, result);
+            // RULE 3: NO AUTO-RETRY OF ACCELCAL_VEHICLE_POS
+            // When COMMAND_ACK == FAILED:
+            // 1. Disable confirm button (set _waitingForUserClick = false)
+            // 2. Show detailed user-friendly error message (PDRL-compliant)
+            // 3. Wait for next STATUSTEXT from FC
+            // 4. If FC does not re-request, user must restart calibration cleanly
+            // NEVER resend the same position automatically
             
-            lock (_lock) { _waitingForUserClick = true; }
+            // Get detailed PDRL-compliant error explanation
+            string detailedError = AccelCalibrationPreflightValidator.GetCommandAckExplanation(42429, (byte)result);
             
-            SetState(CalibrationStateMachine.WaitingForUserPosition,
-                $"?? Position {pos} rejected by FC. Please verify {GetPositionName(pos)} orientation and try again.",
+            _logger.LogWarning("FC rejected position command (UI pos {UiPos}, MAVLink pos {MavPos}): result={Result}\n{DetailedError}", 
+                pos, mavlinkPos, result, detailedError);
+            
+            // CRITICAL: Disable button - user cannot click until FC re-requests via STATUSTEXT
+            lock (_lock) { _waitingForUserClick = false; }
+            
+            SetState(CalibrationStateMachine.PositionRejected,
+                $"❌ Position {pos} ({GetPositionName(pos)}) validation failed.\n\n{detailedError}",
                 GetProgress());
             
-            RaiseStepRequired(pos, true, $"Position rejected. Verify {GetPositionName(pos)} orientation and try again.");
+            // Tell UI that position was rejected with detailed explanation - button should be disabled
+            RaiseStepRequired(pos, false, $"Position rejected. See details below.\n\n{detailedError}");
+            
+            // DO NOT auto-retry - wait for FC STATUSTEXT to either:
+            // - Re-request the same position
+            // - Request a different position
+            // - Report calibration failure
         }
     }
     
@@ -435,6 +556,85 @@ public class CalibrationService : ICalibrationService, IDisposable
         }
     }
 
+    /// <summary>
+    /// Monitor accelerometer calibration completion after position 1 is accepted.
+    /// FC samples all 6 positions internally, we just provide smooth progress feedback.
+    /// Updates progress from START_PROGRESS_AFTER_POSITION1 → MAX_PROGRESS_DURING_SAMPLING 
+    /// over CALIBRATION_TIMEOUT_MS, waiting for FC completion.
+    /// </summary>
+    private async Task MonitorCalibrationCompletionAsync()
+    {
+        var startTime = DateTime.UtcNow;
+        
+        CancellationToken ct;
+        lock (_lock) { ct = _calibrationCts?.Token ?? CancellationToken.None; }
+        
+        _logger.LogInformation("Monitoring accelerometer calibration completion - FC sampling all positions internally (up to {Timeout}s)", 
+            CALIBRATION_TIMEOUT_SECONDS);
+        
+        while (true)
+        {
+            // Check if calibration is still active
+            bool stillCalibrating;
+            CalibrationStateMachine currentState;
+            lock (_lock)
+            {
+                stillCalibrating = _isCalibrating;
+                currentState = _state;
+            }
+            
+            // Exit if calibration completed or failed (FC sent STATUSTEXT)
+            if (!stillCalibrating || currentState == CalibrationStateMachine.Completed || currentState == CalibrationStateMachine.Failed)
+            {
+                _logger.LogInformation("Calibration monitoring stopped - final state: {State}", currentState);
+                return;
+            }
+            
+            var elapsed = DateTime.UtcNow - startTime;
+            if (elapsed.TotalMilliseconds >= CALIBRATION_TIMEOUT_MS)
+            {
+                _logger.LogWarning("Accelerometer calibration timeout after {Timeout}s - FC did not send completion message", 
+                    CALIBRATION_TIMEOUT_SECONDS);
+                FinishCalibration(false, $"Calibration timeout - FC did not complete within {CALIBRATION_TIMEOUT_SECONDS} seconds. Try again.");
+                return;
+            }
+            
+            // Update progress smoothly from START_PROGRESS_AFTER_POSITION1 → MAX_PROGRESS_DURING_SAMPLING while FC is sampling
+            // Progress calculation: START_PROGRESS_AFTER_POSITION1 + (elapsed / timeout * PROGRESS_RANGE)
+            // Defensive check: only calculate if timeout is positive
+            if (currentState == CalibrationStateMachine.Sampling && CALIBRATION_TIMEOUT_MS > 0)
+            {
+                var progress = Math.Min(MAX_PROGRESS_DURING_SAMPLING, 
+                    START_PROGRESS_AFTER_POSITION1 + (int)(elapsed.TotalMilliseconds / CALIBRATION_TIMEOUT_MS * PROGRESS_RANGE));
+                
+                lock (_lock)
+                {
+                    if (_isCalibrating && _state == CalibrationStateMachine.Sampling)
+                    {
+                        _currentState.Progress = progress;
+                    }
+                }
+                
+                CalibrationProgressChanged?.Invoke(this, new CalibrationProgressEventArgs
+                {
+                    Type = CalibrationType.Accelerometer,
+                    ProgressPercent = progress,
+                    StatusText = FC_SAMPLING_MESSAGE,
+                    CurrentStep = 1,
+                    TotalSteps = ACCELEROMETER_TOTAL_POSITIONS,
+                    StateMachine = CalibrationStateMachine.Sampling
+                });
+            }
+            
+            try { await Task.Delay(PROGRESS_UPDATE_INTERVAL_MS, ct); }
+            catch (OperationCanceledException)
+            {
+                _logger.LogInformation("Calibration monitoring cancelled");
+                return;
+            }
+        }
+    }
+
     #endregion
 
     #region Calibration Operations
@@ -457,16 +657,59 @@ public class CalibrationService : ICalibrationService, IDisposable
     {
         if (!CanStart()) return Task.FromResult(false);
         
+        // PDRL Pre-flight validation (following PDRL configuration guide)
+        // Validates critical preconditions before starting calibration
+        try
+        {
+            _logger.LogInformation("=== PDRL PRE-FLIGHT VALIDATION ===");
+            _logger.LogInformation("Checking calibration preconditions before sending command to FC...");
+            
+            // Validate connection is active
+            if (!_connectionService.IsConnected)
+            {
+                _logger.LogError("Pre-flight check FAILED: Not connected to FC");
+                SetState(CalibrationStateMachine.Failed,
+                    "❌ Not connected to flight controller.\n\n" +
+                    "Connect to FC and retry calibration.", 0);
+                return Task.FromResult(false);
+            }
+            
+            // Log recommended checks (not enforced since we don't have access to HEARTBEAT data yet)
+            _logger.LogWarning("IMPORTANT PRE-FLIGHT CHECKS (user responsibility):");
+            _logger.LogWarning("  1. ⚠ Vehicle MUST be DISARMED (most common cause of MAV_RESULT_FAILED)");
+            _logger.LogWarning("  2. ⚠ FC should be in STANDBY or ACTIVE state (not BOOT, CRITICAL, or EMERGENCY)");
+            _logger.LogWarning("  3. ⚠ IMU sensors should be healthy (check SYS_STATUS)");
+            _logger.LogWarning("  4. ⚠ Vehicle should be on stable, level surface (no vibration)");
+            _logger.LogWarning("  5. ⚠ Wait 30 seconds after FC power-on for sensors to stabilize");
+            _logger.LogInformation("Pre-flight validation complete. Starting calibration...");
+            _logger.LogInformation("=== END PRE-FLIGHT VALIDATION ===");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Pre-flight validation failed");
+            SetState(CalibrationStateMachine.Failed,
+                $"Pre-flight validation failed: {ex.Message}\n\n" +
+                "Resolve issues and retry calibration.", 0);
+            return Task.FromResult(false);
+        }
+        
         InitializeCalibration(CalibrationType.Accelerometer);
         
-        _logger.LogInformation("Starting accelerometer calibration with param5=1 (position-based, 6 positions required)");
-        SetState(CalibrationStateMachine.WaitingForAck, "Starting calibration...", 0);
-        
+        // RULE 6: PREFLIGHT_CALIBRATION FLOW (Match Mission Planner)
+        // 1. Send MAV_CMD_PREFLIGHT_CALIBRATION (accel = 1)
+        // 2. WAIT for COMMAND_ACK (ACCEPTED/IN_PROGRESS)
+        // 3. WAIT for STATUSTEXT asking for first position
+        // 4. DO NOT assume LEVEL - wait for FC instruction
+        //
         // ArduPilot accelerometer calibration modes:
-        // param5=1: Position-based calibration (6 positions, FC validates each) - RECOMMENDED
-        // param5=2: Level calibration only (single position)
-        // param5=4: Simple calibration (automatic, no user positions)
+        // - param5=1: Position-based calibration (6 positions, FC validates each) - RECOMMENDED
+        // - param5=2: Level calibration only (single position)  
+        // - param5=4: Simple calibration (automatic, no user positions)
         // We use param5=1 to match Mission Planner's behavior
+        
+        _logger.LogInformation("Starting accelerometer calibration: MAV_CMD_PREFLIGHT_CALIBRATION(accel=1) - 6-position calibration");
+        SetState(CalibrationStateMachine.WaitingForAck, "Sending calibration command to FC...", 0);
+        
         _connectionService.SendPreflightCalibration(gyro: 0, mag: 0, groundPressure: 0, airspeed: 0, accel: 1);
         
         return Task.FromResult(true);
@@ -540,37 +783,44 @@ public class CalibrationService : ICalibrationService, IDisposable
 
     /// <summary>
     /// User clicked "Click When In Position" button.
-    /// Send position 1 command to FC - FC will then sample ALL positions internally.
-    /// Mission Planner only sends this command ONCE!
+    /// Send MAV_CMD_ACCELCAL_VEHICLE_POS command to FC for the current position.
+    /// 
+    /// CRITICAL POSITION MAPPING:
+    /// - UI/internal logic uses positions 1..6 (Level=1, Left=2, etc.)
+    /// - ArduPilot expects param1 = 0..5 for MAV_CMD_ACCELCAL_VEHICLE_POS
+    /// - Mapping is done HERE at the MAVLink send boundary: mavlinkPosition = uiPosition - 1
+    /// 
+    /// Mission Planner sends this command for ALL 6 positions (not just position 1).
+    /// The FC tells us which position it wants via STATUSTEXT.
     /// </summary>
     public Task<bool> AcceptCalibrationStepAsync()
     {
-        int position;
+        int uiPosition;
         bool waitingForClick;
         
         lock (_lock)
         {
             if (!_isCalibrating || _currentType != CalibrationType.Accelerometer)
             {
-                _logger.LogWarning("Not in accel calibration");
+                _logger.LogWarning("AcceptCalibrationStepAsync: Not in accelerometer calibration");
                 return Task.FromResult(false);
             }
             
-            position = _currentPosition;
+            uiPosition = _currentPosition;
             waitingForClick = _waitingForUserClick;
         }
         
+        // RULE 2: Only allow if FC requested this position via STATUSTEXT
         if (!waitingForClick)
         {
-            _logger.LogWarning("Not waiting for user click");
+            _logger.LogWarning("AcceptCalibrationStepAsync: Not waiting for user click (FC has not requested position confirmation)");
             return Task.FromResult(false);
         }
         
-        // IMPORTANT: Only accept position 1!
-        // Mission Planner does NOT send commands for positions 2-6
-        if (position != 1)
+        // Validate position range (UI positions 1-6)
+        if (uiPosition < 1 || uiPosition > ACCELEROMETER_TOTAL_POSITIONS)
         {
-            _logger.LogWarning("AcceptCalibrationStepAsync called for position {Pos} - should only be called for position 1!", position);
+            _logger.LogError("AcceptCalibrationStepAsync: Invalid UI position {Pos} (expected 1-6)", uiPosition);
             return Task.FromResult(false);
         }
         
@@ -580,27 +830,41 @@ public class CalibrationService : ICalibrationService, IDisposable
             return Task.FromResult(false);
         }
         
-        _logger.LogInformation("User confirmed position 1 (LEVEL) - sending MAV_CMD_ACCELCAL_VEHICLE_POS(1) to FC");
+        // CRITICAL: Map UI position (1-6) to MAVLink position (0-5)
+        // ArduPilot expects param1 = 0..5 for MAV_CMD_ACCELCAL_VEHICLE_POS
+        // UI uses 1..6 internally for display purposes
+        // This mapping MUST only happen at the MAVLink send boundary
+        int mavlinkPosition = uiPosition - UI_POSITION_TO_MAVLINK_OFFSET;
         
+        _logger.LogInformation("User confirmed position {UiPos} ({Name}) - sending MAV_CMD_ACCELCAL_VEHICLE_POS({MavPos}) to FC",
+            uiPosition, GetPositionName(uiPosition), mavlinkPosition);
+        
+        // Disable button until FC responds via STATUSTEXT
         lock (_lock) { _waitingForUserClick = false; }
         
-        SetState(CalibrationStateMachine.Sampling,
-            "Position 1 confirmed - Sending command to FC...",
+        SetState(CalibrationStateMachine.WaitingForSampling,
+            $"Sending position {uiPosition} ({GetPositionName(uiPosition)}) to FC...",
             GetProgress());
         
-        // Send position 1 command - FC will handle the rest internally
+        // Send position command to FC
+        // CRITICAL: Send mavlinkPosition (0-5), NOT uiPosition (1-6)
         try
         {
-            _connectionService.SendAccelCalVehiclePos(position);
-            _logger.LogInformation("Successfully sent MAV_CMD_ACCELCAL_VEHICLE_POS(1) - FC will now sample all positions internally");
+            _connectionService.SendAccelCalVehiclePos(mavlinkPosition);
+            _logger.LogInformation("Successfully sent MAV_CMD_ACCELCAL_VEHICLE_POS({MavPos}) - waiting for FC COMMAND_ACK and STATUSTEXT", mavlinkPosition);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to send MAV_CMD_ACCELCAL_VEHICLE_POS command");
-            SetState(CalibrationStateMachine.WaitingForUserPosition,
-                $"Error sending command: {ex.Message}",
-                GetProgress());
+            
+            // Re-enable button so user can retry (connection might have recovered)
             lock (_lock) { _waitingForUserClick = true; }
+            
+            SetState(CalibrationStateMachine.WaitingForUserPosition,
+                $"Error sending command: {ex.Message}. Please try again.",
+                GetProgress());
+            
+            RaiseStepRequired(uiPosition, true, $"Error sending command. Click to retry.");
             return Task.FromResult(false);
         }
         

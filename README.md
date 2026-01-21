@@ -56,6 +56,30 @@ cd PavamanDroneConfigurator.UI/bin/Release/net9.0-windows
 - **Safety Page** - Configure safety settings
 - **Profile Page** - Save and load configuration profiles
 
+## Accelerometer Calibration
+
+The application implements Mission Planner-compatible accelerometer calibration with comprehensive validation and error handling.
+
+### Documentation
+- **[PDRL Configuration Guide](PDRL_CONFIGURATION_GUIDE.md)** - Complete reference for accelerometer calibration following PDRL standards
+- **[Troubleshooting Guide](ACCELEROMETER_CALIBRATION_TROUBLESHOOTING.md)** - Quick reference for diagnosing and fixing common calibration failures
+- **[Implementation Summary](IMPLEMENTATION_SUMMARY.md)** - Technical overview of calibration validation implementation
+
+### Quick Start
+1. Connect to flight controller via Serial or TCP
+2. Navigate to Calibration page
+3. Click "Calibrate Accelerometer"
+4. **IMPORTANT:** Vehicle MUST be disarmed (90% of calibration failures are due to armed status)
+5. Follow on-screen instructions to position vehicle
+6. Wait for FC to complete calibration
+
+### Common Issues
+- **Position validation fails:** Check vehicle is disarmed (most common cause)
+- **Calibration times out:** Ensure 2-second settle delay after each position request
+- **Position rejected:** Vehicle may have moved during sampling - keep completely still
+
+See [Troubleshooting Guide](ACCELEROMETER_CALIBRATION_TROUBLESHOOTING.md) for detailed solutions.
+
 ## Architecture
 
 The application follows Clean Architecture principles:

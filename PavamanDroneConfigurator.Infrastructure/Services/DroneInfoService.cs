@@ -7,6 +7,8 @@ namespace PavamanDroneConfigurator.Infrastructure.Services;
 /// <summary>
 /// Service implementation for retrieving drone identification and version information.
 /// Aggregates data from MAVLink heartbeat, parameters, and AUTOPILOT_VERSION message.
+/// 
+/// Optimized to only fire DroneInfoUpdated when values actually change to prevent UI flickering.
 /// </summary>
 public class DroneInfoService : IDroneInfoService
 {
@@ -14,6 +16,12 @@ public class DroneInfoService : IDroneInfoService
     private readonly IConnectionService _connectionService;
     private readonly IParameterService _parameterService;
     private DroneInfo? _currentInfo;
+    
+    /// <summary>
+    /// Tracks the last notified state to avoid unnecessary event firing.
+    /// Only fires DroneInfoUpdated when values actually change.
+    /// </summary>
+    private DroneInfo? _lastNotifiedInfo;
 
     public event EventHandler<DroneInfo>? DroneInfoUpdated;
 
@@ -39,6 +47,7 @@ public class DroneInfoService : IDroneInfoService
         if (!connected)
         {
             _currentInfo = null;
+            _lastNotifiedInfo = null;
             _logger.LogInformation("Drone info cleared - disconnected");
         }
     }
@@ -47,14 +56,112 @@ public class DroneInfoService : IDroneInfoService
     {
         _currentInfo ??= new DroneInfo();
         
-        _currentInfo.SystemId = e.SystemId;
-        _currentInfo.ComponentId = e.ComponentId;
-        _currentInfo.IsArmed = e.IsArmed;
-        _currentInfo.VehicleType = GetVehicleTypeName(e.VehicleType);
-        _currentInfo.AutopilotType = GetAutopilotTypeName(e.Autopilot);
-        _currentInfo.FlightMode = GetFlightModeName(e.CustomMode, e.VehicleType);
+        // Track if any values actually changed
+        bool hasChanges = false;
+        
+        if (_currentInfo.SystemId != e.SystemId)
+        {
+            _currentInfo.SystemId = e.SystemId;
+            hasChanges = true;
+        }
+        if (_currentInfo.ComponentId != e.ComponentId)
+        {
+            _currentInfo.ComponentId = e.ComponentId;
+            hasChanges = true;
+        }
+        if (_currentInfo.IsArmed != e.IsArmed)
+        {
+            _currentInfo.IsArmed = e.IsArmed;
+            hasChanges = true;
+        }
+        
+        var newVehicleType = GetVehicleTypeName(e.VehicleType);
+        if (_currentInfo.VehicleType != newVehicleType)
+        {
+            _currentInfo.VehicleType = newVehicleType;
+            hasChanges = true;
+        }
+        
+        var newAutopilotType = GetAutopilotTypeName(e.Autopilot);
+        if (_currentInfo.AutopilotType != newAutopilotType)
+        {
+            _currentInfo.AutopilotType = newAutopilotType;
+            hasChanges = true;
+        }
+        
+        var newFlightMode = GetFlightModeName(e.CustomMode, e.VehicleType);
+        if (_currentInfo.FlightMode != newFlightMode)
+        {
+            _currentInfo.FlightMode = newFlightMode;
+            hasChanges = true;
+        }
 
-        DroneInfoUpdated?.Invoke(this, _currentInfo);
+        // Only fire event if something actually changed
+        if (hasChanges)
+        {
+            NotifyIfChanged();
+        }
+    }
+    
+    /// <summary>
+    /// Compares current info with last notified info and fires event only if changed.
+    /// </summary>
+    private void NotifyIfChanged()
+    {
+        if (_currentInfo == null) return;
+        
+        // First notification always fires
+        if (_lastNotifiedInfo == null)
+        {
+            _lastNotifiedInfo = CloneDroneInfo(_currentInfo);
+            DroneInfoUpdated?.Invoke(this, _currentInfo);
+            return;
+        }
+        
+        // Check if any values changed since last notification
+        if (HasInfoChanged(_currentInfo, _lastNotifiedInfo))
+        {
+            _lastNotifiedInfo = CloneDroneInfo(_currentInfo);
+            DroneInfoUpdated?.Invoke(this, _currentInfo);
+        }
+    }
+    
+   
+    private static bool HasInfoChanged(DroneInfo current, DroneInfo last)
+    {
+        return current.DroneId != last.DroneId ||
+               current.FcId != last.FcId ||
+               current.FirmwareVersion != last.FirmwareVersion ||
+               current.CodeChecksum != last.CodeChecksum ||
+               current.DataChecksum != last.DataChecksum ||
+               current.VehicleType != last.VehicleType ||
+               current.AutopilotType != last.AutopilotType ||
+               current.BoardType != last.BoardType ||
+               current.FlightMode != last.FlightMode ||
+               current.IsArmed != last.IsArmed ||
+               current.SystemId != last.SystemId ||
+               current.ComponentId != last.ComponentId;
+    }
+    
+
+    private static DroneInfo CloneDroneInfo(DroneInfo info)
+    {
+        return new DroneInfo
+        {
+            DroneId = info.DroneId,
+            FcId = info.FcId,
+            FirmwareVersion = info.FirmwareVersion,
+            CodeChecksum = info.CodeChecksum,
+            DataChecksum = info.DataChecksum,
+            VehicleType = info.VehicleType,
+            AutopilotType = info.AutopilotType,
+            BoardType = info.BoardType,
+            FlightMode = info.FlightMode,
+            IsArmed = info.IsArmed,
+            SystemId = info.SystemId,
+            ComponentId = info.ComponentId,
+            GitHash = info.GitHash
+        };
     }
 
     private async void OnParameterDownloadCompleted(object? sender, bool success)
@@ -115,7 +222,7 @@ public class DroneInfoService : IDroneInfoService
                 }
             }
 
-            // Get firmware version from parameters
+            // Get firmware version from params
             var fwVerMajor = await _parameterService.GetParameterAsync("STAT_FLTTIME");
             var swVersion = await _parameterService.GetParameterAsync("SYSID_SW_MREV");
             
@@ -147,7 +254,9 @@ public class DroneInfoService : IDroneInfoService
             _logger.LogInformation("Drone info refreshed: ID={DroneId}, FW={FwVer}", 
                 _currentInfo.DroneId, _currentInfo.FirmwareVersion);
 
-            DroneInfoUpdated?.Invoke(this, _currentInfo);
+            // Force notify on refresh since parameters may have changed
+            _lastNotifiedInfo = null;
+            NotifyIfChanged();
         }
         catch (Exception ex)
         {
