@@ -15,6 +15,7 @@
         <converters:DirectionToColorConverter x:Key="DirectionToColorConverter"/>
         <converters:DirectionToPrefixConverter x:Key="DirectionToPrefixConverter"/>
         <converters:BitmaskSelectionConverter x:Key="BitmaskSelectionConverter"/>
+        <converters:ParameterValueConverter x:Key="ParameterValueConverter"/>
     </Application.Resources>
 
     <Application.DataTemplates>

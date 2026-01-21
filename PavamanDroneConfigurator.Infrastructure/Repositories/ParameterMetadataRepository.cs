@@ -167,7 +167,7 @@ public class ParameterMetadataRepository : IParameterMetadataRepository
             Group = group, 
             MinValue = min, 
             MaxValue = max, 
-            DefaultValue = defaultVal, 
+            DefaultValue = defaultVal ?? 0, 
             Units = units, 
             Values = values, 
             Range = min.HasValue && max.HasValue ? $"{min} - {max}" : null 

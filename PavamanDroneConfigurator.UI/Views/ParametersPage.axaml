@@ -271,37 +271,13 @@
                                            TextTrimming="CharacterEllipsis"
                                            ToolTip.Tip="{Binding Name}"/>
 
-                                <!-- Value (Bitmask checkboxes OR ComboBox OR TextBox) -->
-                                <StackPanel Grid.Column="1" Margin="4" IsVisible="{Binding IsBitmask}">
-                                    <ItemsControl ItemsSource="{Binding Options}">
-                                        <ItemsControl.ItemTemplate>
-                                            <DataTemplate x:DataType="models:ParameterOption">
-                                                <CheckBox Content="{Binding Label}"
-                                                          FontSize="10"
-                                                          Margin="0,2"
-                                                          IsChecked="{Binding $parent[UserControl].((vm:ParametersPageViewModel)DataContext).SelectedParameter.SelectedBitmaskOptions, 
-                                                                      Converter={StaticResource BitmaskSelectionConverter},
-                                                                      ConverterParameter={Binding},
-                                                                      Mode=TwoWay}"
-                                                          Checked="OnBitmaskOptionChanged"
-                                                          Unchecked="OnBitmaskOptionChanged"/>
-                                            </DataTemplate>
-                                        </ItemsControl.ItemTemplate>
-                                    </ItemsControl>
-                                </StackPanel>
-                                
-                                <Panel Grid.Column="1" Margin="4" IsVisible="{Binding !IsBitmask}">
-                                    <ComboBox Classes="options-combo"
-                                              ItemsSource="{Binding Options}"
-                                              SelectedItem="{Binding SelectedOption, Mode=TwoWay}"
-                                              IsVisible="{Binding HasOptions}"
-                                              DisplayMemberBinding="{Binding Display}"/>
-                                    
-                                    <TextBox Text="{Binding Value, Mode=TwoWay}"
-                                             Classes="value-input"
-                                             IsVisible="{Binding !HasOptions}"
-                                             ToolTip.Tip="Edit value and press Enter to save"/>
-                                </Panel>
+                                <!-- Value (Numeric input with validation) -->
+                                <TextBox Grid.Column="1"
+                                         Text="{Binding Value, Mode=TwoWay, Converter={StaticResource ParameterValueConverter}}"
+                                         Classes="value-input"
+                                         Watermark="{Binding ValuePlaceholder}"
+                                         Margin="4,4"
+                                         ToolTip.Tip="{Binding ValuePlaceholder}"/>
 
                                 <!-- Default -->
                                 <TextBlock Grid.Column="2" 
@@ -315,23 +291,37 @@
                                            Classes="cell"
                                            Foreground="#6B7280"/>
 
-                                <!-- Options (ComboBox for enum params, Range text for others) -->
+                                <!-- Options Column (Enum ComboBox OR Bitmask Checkboxes OR TextBox with Range) -->
                                 <Panel Grid.Column="4" Margin="4,4">
-                                    <!-- ComboBox for parameters with options -->
+                                    <!-- Bitmask Checkboxes (for parameters like ARMING_CHECK, GCS_PID_MASK) -->
+                                    <StackPanel IsVisible="{Binding HasBitmaskOptions}">
+                                        <ItemsControl ItemsSource="{Binding Options}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate x:DataType="models:ParameterOption">
+                                                    <CheckBox Content="{Binding Label}"
+                                                              FontSize="10"
+                                                              Margin="0,2"
+                                                              Checked="OnBitmaskOptionChanged"
+                                                              Unchecked="OnBitmaskOptionChanged"
+                                                              Tag="{Binding}"/>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                    
+                                    <!-- Enum ComboBox (for parameters with single-select options) -->
                                     <ComboBox Classes="options-combo"
                                               ItemsSource="{Binding Options}"
                                               SelectedItem="{Binding SelectedOption, Mode=TwoWay}"
-                                              IsVisible="{Binding HasOptions}"
-                                              DisplayMemberBinding="{Binding Display}">
-                                    </ComboBox>
+                                              IsVisible="{Binding HasEnumOptions}"
+                                              DisplayMemberBinding="{Binding Display}"/>
                                     
-                                    <!-- Range display for parameters without options -->
-                                    <TextBlock Text="{Binding RangeDisplay}"
-                                               IsVisible="{Binding !HasOptions}"
-                                               FontSize="11"
-                                               Foreground="#3B82F6"
-                                               VerticalAlignment="Center"
-                                               Padding="4,0"/>
+                                    <!-- TextBox for parameters with no options (strict range validation) -->
+                                    <TextBox Text="{Binding Value, Mode=TwoWay, Converter={StaticResource ParameterValueConverter}}"
+                                             Classes="value-input"
+                                             IsVisible="{Binding HasNoOptions}"
+                                             Watermark="{Binding OptionsPlaceholder}"
+                                             ToolTip.Tip="{Binding OptionsPlaceholder}"/>
                                 </Panel>
 
                                 <!-- Description -->
