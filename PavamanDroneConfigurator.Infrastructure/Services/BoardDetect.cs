@@ -524,6 +524,8 @@ public static class BoardDetect
 
     /// <summary>
     /// Gets the board ID for a given board type
+    /// These MUST match the actual board_id values reported by the PX4 bootloader.
+    /// Reference: ArduPilot hwdef files and bootloader source
     /// </summary>
     public static int GetBoardId(Boards board)
     {
@@ -531,7 +533,7 @@ public static class BoardDetect
         {
             Boards.px4 => 5,
             Boards.px4v2 => 9,
-            Boards.px4v3 => 9,
+            Boards.px4v3 => 9,      // Same as px4v2, uses fmuv3 firmware
             Boards.px4v4 => 11,
             Boards.px4v4pro => 13,
             Boards.fmuv5 => 50,
@@ -539,8 +541,8 @@ public static class BoardDetect
             Boards.fmuv6 => 52,
             Boards.fmuv6x => 53,
             Boards.fmuv6c => 55,
-            Boards.cubeorange => 140,
-            Boards.cubeorangeplus => 141,
+            Boards.cubeorange => 140,       // CubeOrange uses board_id 140
+            Boards.cubeorangeplus => 1063,  // FIXED: CubeOrange+ uses board_id 1063, NOT 141!
             Boards.cubeyellow => 120,
             Boards.cubepurple => 142,
             Boards.durandal => 36,
@@ -550,7 +552,7 @@ public static class BoardDetect
             Boards.matekf405 => 1002,
             Boards.kakuteh7 => 1044,
             Boards.kakuteh7_mini => 1062,
-            Boards.kakutef7 => 1025,
+            Boards.kakutef7 => 1012,  // FIXED: Was 1025, which conflicts with nothing standard
             Boards.kakutef4 => 1010,
             Boards.holybro_pix32v5 => 78,
             Boards.speedybeef4 => 1015,

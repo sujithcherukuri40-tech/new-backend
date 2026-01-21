@@ -311,7 +311,13 @@ public partial class FirmwarePageViewModel : ViewModelBase
             await FlashSelectedFirmwareAsync();
         }
         
-        PendingVehicleType = null;
+        // Only clear PendingVehicleType if we're not showing the platform selection dialog
+        // If platform selection dialog is shown, we need to keep PendingVehicleType for
+        // the subsequent ConfirmPlatformSelectionAsync call
+        if (!ShowPlatformSelectionDialog)
+        {
+            PendingVehicleType = null;
+        }
     }
 
     /// <summary>
@@ -581,7 +587,7 @@ public partial class FirmwarePageViewModel : ViewModelBase
         finally
         {
             IsOperationInProgress = false;
-            PendingVehicleType = null;
+            //PendingVehicleType = null;
             _operationCts?.Dispose();
             _operationCts = null;
         }
