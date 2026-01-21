@@ -37,7 +37,22 @@ public partial class MotorEscPageViewModel : ViewModelBase
 
     [ObservableProperty]
     private bool _slidersEnabled;
-
+    
+    [ObservableProperty]
+    private bool _propellersRemoved;
+    
+    [ObservableProperty]
+    private bool _vehicleSecured;
+    
+    [ObservableProperty]
+    private bool _testAreaClear;
+    
+    [ObservableProperty]
+    private bool _emergencyStopReady;
+    
+    [ObservableProperty]
+    private bool _isVehicleArmed;
+    
     [ObservableProperty]
     private int _motorCount = 6;
 
@@ -184,6 +199,10 @@ public partial class MotorEscPageViewModel : ViewModelBase
             // Reset safety when disconnected
             SafetyAcknowledged = false;
             SlidersEnabled = false;
+            PropellersRemoved = false;
+            VehicleSecured = false;
+            TestAreaClear = false;
+            EmergencyStopReady = false;
         }
     }
 
@@ -280,6 +299,36 @@ public partial class MotorEscPageViewModel : ViewModelBase
             Motor8Throttle = 0;
         }
     }
+    
+    partial void OnPropellersRemovedChanged(bool value) => OnPropertyChanged(nameof(CanAcknowledgeSafety));
+    partial void OnVehicleSecuredChanged(bool value) => OnPropertyChanged(nameof(CanAcknowledgeSafety));
+    partial void OnTestAreaClearChanged(bool value) => OnPropertyChanged(nameof(CanAcknowledgeSafety));
+    partial void OnEmergencyStopReadyChanged(bool value) => OnPropertyChanged(nameof(CanAcknowledgeSafety));
+    partial void OnIsVehicleArmedChanged(bool value)
+    {
+        OnPropertyChanged(nameof(CanAcknowledgeSafety));
+        OnPropertyChanged(nameof(CanStartEscCalibration));
+        
+        // Auto-disable sliders if vehicle becomes armed
+        if (value && SafetyAcknowledged)
+        {
+            SafetyAcknowledged = false;
+            SlidersEnabled = false;
+        }
+    }
+    
+    partial void OnHasValidationWarningsChanged(bool value) => OnPropertyChanged(nameof(CanSaveSettings));
+    
+    [RelayCommand]
+    private void AcknowledgeSafety()
+    {
+        if (!CanAcknowledgeSafety) return;
+        
+        SafetyAcknowledged = true;
+        SlidersEnabled = true;
+        _motorEscService.AcknowledgeSafetyWarning(true);
+        StatusMessage = "Safety acknowledged - Motor testing enabled";
+    }
 
     #region Motor Test Commands
 
@@ -321,17 +370,42 @@ public partial class MotorEscPageViewModel : ViewModelBase
     private async Task StopAllMotorsAsync()
     {
         StatusMessage = "Stopping all motors...";
-        await _motorEscService.StopAllMotorTestsAsync();
         
-        // Reset all throttle values
-        Motor1Throttle = 0;
-        Motor2Throttle = 0;
-        Motor3Throttle = 0;
-        Motor4Throttle = 0;
-        Motor5Throttle = 0;
-        Motor6Throttle = 0;
-        Motor7Throttle = 0;
-        Motor8Throttle = 0;
+        // Disable slider events temporarily to prevent re-triggering
+        var wasSlidersEnabled = SlidersEnabled;
+        SlidersEnabled = false;
+        
+        try
+        {
+            // Stop all motors via service
+            await _motorEscService.StopAllMotorTestsAsync();
+            
+            // Reset all testing states
+            Motor1Testing = false;
+            Motor2Testing = false;
+            Motor3Testing = false;
+            Motor4Testing = false;
+            Motor5Testing = false;
+            Motor6Testing = false;
+            
+            // Reset all throttle values
+            Motor1Throttle = 0;
+            Motor2Throttle = 0;
+            Motor3Throttle = 0;
+            Motor4Throttle = 0;
+            Motor5Throttle = 0;
+            Motor6Throttle = 0;
+            Motor7Throttle = 0;
+            Motor8Throttle = 0;
+            
+            StatusMessage = "All motors stopped";
+        }
+        finally
+        {
+            // Re-enable sliders after a short delay to ensure stop commands are sent
+            await Task.Delay(100);
+            SlidersEnabled = wasSlidersEnabled && SafetyAcknowledged && !IsVehicleArmed;
+        }
     }
 
     [RelayCommand]
@@ -377,6 +451,9 @@ public partial class MotorEscPageViewModel : ViewModelBase
     private void OnMotorThrottleChanged(int motorNumber, float value)
     {
         if (!SlidersEnabled || !IsConnected) return;
+        
+        // Don't send commands if sliders are being reset programmatically
+        if (value == 0) return;
         
         // Send motor test command when slider value changes
         var request = new MotorTestRequest
@@ -534,6 +611,21 @@ public partial class MotorEscPageViewModel : ViewModelBase
     }
 
     #endregion
+
+    /// <summary>
+    /// Can acknowledge safety if all checks are completed and vehicle is disarmed
+    /// </summary>
+    public bool CanAcknowledgeSafety => PropellersRemoved && VehicleSecured && TestAreaClear && EmergencyStopReady && !IsVehicleArmed;
+    
+    /// <summary>
+    /// Can start ESC calibration if vehicle is disarmed and not already calibrating
+    /// </summary>
+    public bool CanStartEscCalibration => IsConnected && !IsVehicleArmed && !EscCalibrationPending;
+    
+    /// <summary>
+    /// Can save settings if validation passes
+    /// </summary>
+    public bool CanSaveSettings => IsConnected && !HasValidationWarnings;
 
     protected override void Dispose(bool disposing)
     {

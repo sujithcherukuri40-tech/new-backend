@@ -41,8 +41,22 @@ public partial class RcCalibrationPageViewModel : ViewModelBase
 
     [ObservableProperty]
     private string _calibrationStatusText = "Radio calibration required";
+    
+    [ObservableProperty]
+    private bool _isRcConnected;
+    
+    [ObservableProperty]
+    private string _rcConnectionStatus = "Checking RC connection...";
+    
+    [ObservableProperty]
+    private DateTime _lastRcDataReceived = DateTime.MinValue;
 
     #endregion
+    
+    /// <summary>
+    /// True when flight controller is connected but RC receiver is not connected
+    /// </summary>
+    public bool IsConnectedButRcNotConnected => IsConnected && !IsRcConnected;
 
     #region Main Attitude Channels (Roll, Pitch, Yaw, Throttle)
 
@@ -185,6 +199,7 @@ public partial class RcCalibrationPageViewModel : ViewModelBase
         Dispatcher.UIThread.Post(() =>
         {
             IsConnected = connected;
+            OnPropertyChanged(nameof(IsConnectedButRcNotConnected));
             if (connected)
             {
                 _ = RefreshAsync();
@@ -192,6 +207,8 @@ public partial class RcCalibrationPageViewModel : ViewModelBase
             else
             {
                 ResetChannelValues();
+                IsRcConnected = false;
+                RcConnectionStatus = "Not connected to flight controller";
             }
         });
     }
@@ -261,6 +278,63 @@ public partial class RcCalibrationPageViewModel : ViewModelBase
             ThrottleValue = Channel3Value;
             YawValue = Channel4Value;
         }
+        
+        // Update RC connection status
+        UpdateRcConnectionStatus(e);
+    }
+    
+    /// <summary>
+    /// Check if RC is connected by validating channel data
+    /// </summary>
+    private void UpdateRcConnectionStatus(RcChannelsUpdateEventArgs e)
+    {
+        // RC is considered connected if:
+        // 1. We're receiving channel data
+        // 2. At least the first 4 channels have valid PWM values (not 0 or 65535)
+        // 3. Values are in reasonable range (800-2200 µs)
+        
+        var ch1 = e.GetChannel(1);
+        var ch2 = e.GetChannel(2);
+        var ch3 = e.GetChannel(3);
+        var ch4 = e.GetChannel(4);
+        
+        bool hasValidChannels = ch1 != null && ch2 != null && ch3 != null && ch4 != null &&
+                                 IsValidPwmValue(ch1.PwmValue) &&
+                                 IsValidPwmValue(ch2.PwmValue) &&
+                                 IsValidPwmValue(ch3.PwmValue) &&
+                                 IsValidPwmValue(ch4.PwmValue);
+        
+        if (hasValidChannels)
+        {
+            LastRcDataReceived = DateTime.Now;
+            if (!IsRcConnected)
+            {
+                IsRcConnected = true;
+                OnPropertyChanged(nameof(IsConnectedButRcNotConnected));
+            }
+            RcConnectionStatus = $"RC Connected - {e.ChannelCount} channels, RSSI: {e.Rssi}";
+        }
+        else
+        {
+            // Check if we've lost RC connection (no valid data for 2 seconds)
+            if ((DateTime.Now - LastRcDataReceived).TotalSeconds > 2)
+            {
+                if (IsRcConnected)
+                {
+                    IsRcConnected = false;
+                    OnPropertyChanged(nameof(IsConnectedButRcNotConnected));
+                }
+                RcConnectionStatus = "No RC signal detected - Check transmitter power and receiver connection";
+            }
+        }
+    }
+    
+    /// <summary>
+    /// Validate PWM value is in acceptable range
+    /// </summary>
+    private bool IsValidPwmValue(int value)
+    {
+        return value > 800 && value < 2200 && value != 65535;
     }
 
     private void ResetChannelValues()
@@ -327,6 +401,15 @@ public partial class RcCalibrationPageViewModel : ViewModelBase
             StatusMessage = "Not connected to vehicle";
             return;
         }
+        
+        // Check if RC is connected before starting calibration
+        if (!IsRcConnected && !IsCalibrating)
+        {
+            StatusMessage = "RC not connected - Turn on transmitter and ensure receiver is connected";
+            RcConnectionStatus = "No RC signal - Cannot calibrate without RC input";
+            _logger.LogWarning("Calibration blocked: RC receiver not connected");
+            return;
+        }
 
         if (IsCalibrating)
         {
@@ -336,6 +419,7 @@ public partial class RcCalibrationPageViewModel : ViewModelBase
         else
         {
             // Start calibration
+            _logger.LogInformation("Starting RC calibration - RC is connected");
             await _rcCalibrationService.StartCalibrationAsync();
             StatusMessage = "Move all sticks to their extreme positions...";
         }

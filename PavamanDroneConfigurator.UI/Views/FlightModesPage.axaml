@@ -5,409 +5,410 @@
              x:Class="PavamanDroneConfigurator.UI.Views.FlightModesPage"
              x:DataType="vm:FlightModePageViewModel">
 
-    <UserControl.Resources>
-        <converters:BoolToActiveBackgroundConverter x:Key="BoolToActiveBackgroundConverter"/>
-        <converters:BoolToActiveBorderConverter x:Key="BoolToActiveBorderConverter"/>
-    </UserControl.Resources>
-
     <UserControl.Styles>
-        <!-- Aviation-Grade Color System -->
-        <Style Selector="TextBlock.PageTitle">
-            <Setter Property="FontSize" Value="28"/>
-            <Setter Property="FontWeight" Value="Bold"/>
-            <Setter Property="Foreground" Value="#0B5ED7"/>
+        <!-- macOS-Inspired Design System -->
+        
+        <!-- Page Title -->
+        <Style Selector="TextBlock.page-title">
+            <Setter Property="FontSize" Value="26"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Foreground" Value="#1D1D1F"/>
+            <Setter Property="Margin" Value="0"/>
         </Style>
         
-        <Style Selector="TextBlock.PageSubtitle">
-            <Setter Property="FontSize" Value="14"/>
-            <Setter Property="Foreground" Value="#64748B"/>
-            <Setter Property="Margin" Value="0,4,0,0"/>
+        <!-- Page Subtitle -->
+        <Style Selector="TextBlock.page-subtitle">
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Foreground" Value="#86868B"/>
+            <Setter Property="Margin" Value="0,2,0,0"/>
         </Style>
         
-        <Style Selector="Border.SectionCard">
-            <Setter Property="Background" Value="White"/>
-            <Setter Property="BorderBrush" Value="#E2E8F0"/>
+        <!-- Section Card Container -->
+        <Style Selector="Border.section-card">
+            <Setter Property="Background" Value="#FFFFFF"/>
+            <Setter Property="BorderBrush" Value="#D2D2D7"/>
             <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="CornerRadius" Value="12"/>
-            <Setter Property="Padding" Value="24"/>
-            <Setter Property="Margin" Value="0,0,0,20"/>
+            <Setter Property="CornerRadius" Value="10"/>
+            <Setter Property="Padding" Value="20"/>
+            <Setter Property="BoxShadow" Value="0 1 2 0 #0A000000"/>
         </Style>
         
-        <Style Selector="TextBlock.SectionTitle">
-            <Setter Property="FontSize" Value="18"/>
-            <Setter Property="FontWeight" Value="Bold"/>
-            <Setter Property="Foreground" Value="#0B5ED7"/>
+        <!-- Section Title -->
+        <Style Selector="TextBlock.section-title">
+            <Setter Property="FontSize" Value="15"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Foreground" Value="#1D1D1F"/>
             <Setter Property="Margin" Value="0,0,0,4"/>
         </Style>
         
-        <Style Selector="TextBlock.SectionSubtitle">
-            <Setter Property="FontSize" Value="14"/>
-            <Setter Property="Foreground" Value="#64748B"/>
-            <Setter Property="Margin" Value="0,0,0,16"/>
+        <!-- Helper Text -->
+        <Style Selector="TextBlock.helper-text">
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Foreground" Value="#86868B"/>
+            <Setter Property="Margin" Value="0,4,0,0"/>
         </Style>
         
-        <Style Selector="TextBlock.FieldLabel">
+        <!-- Field Label -->
+        <Style Selector="TextBlock.field-label">
             <Setter Property="FontSize" Value="13"/>
             <Setter Property="FontWeight" Value="Medium"/>
-            <Setter Property="Foreground" Value="#475569"/>
+            <Setter Property="Foreground" Value="#1D1D1F"/>
             <Setter Property="VerticalAlignment" Value="Center"/>
-            <Setter Property="Margin" Value="0,0,8,0"/>
         </Style>
         
-        <Style Selector="TextBlock.PwmLabel">
+        <!-- PWM Range Label -->
+        <Style Selector="TextBlock.pwm-range">
             <Setter Property="FontSize" Value="11"/>
-            <Setter Property="Foreground" Value="#94A3B8"/>
-            <Setter Property="HorizontalAlignment" Value="Right"/>
+            <Setter Property="Foreground" Value="#86868B"/>
             <Setter Property="Margin" Value="0,4,0,0"/>
         </Style>
         
-        <Style Selector="TextBlock.HelpText">
-            <Setter Property="FontSize" Value="12"/>
-            <Setter Property="Foreground" Value="#64748B"/>
-            <Setter Property="Margin" Value="0,4,0,0"/>
-        </Style>
-        
-        <Style Selector="Button.Primary">
-            <Setter Property="Background" Value="#0B5ED7"/>
-            <Setter Property="Foreground" Value="White"/>
-            <Setter Property="FontWeight" Value="Bold"/>
-            <Setter Property="Padding" Value="16,10"/>
-            <Setter Property="CornerRadius" Value="8"/>
+        <!-- Flat Buttons (macOS style) -->
+        <Style Selector="Button.flat-button">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="#0066CC"/>
             <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="14,8"/>
+            <Setter Property="CornerRadius" Value="6"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="FontWeight" Value="Medium"/>
+            <Setter Property="Cursor" Value="Hand"/>
         </Style>
         
-        <Style Selector="Button.Primary:pointerover">
-            <Setter Property="Background" Value="#084298"/>
+        <Style Selector="Button.flat-button:pointerover">
+            <Setter Property="Background" Value="#F5F5F7"/>
         </Style>
         
-        <Style Selector="Button.Secondary">
-            <Setter Property="Background" Value="#6C757D"/>
+        <Style Selector="Button.flat-button:pressed">
+            <Setter Property="Background" Value="#E8E8ED"/>
+        </Style>
+        
+        <!-- Primary Button (macOS blue) -->
+        <Style Selector="Button.primary-button">
+            <Setter Property="Background" Value="#0066CC"/>
             <Setter Property="Foreground" Value="White"/>
-            <Setter Property="Padding" Value="16,10"/>
-            <Setter Property="CornerRadius" Value="8"/>
             <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="18,8"/>
+            <Setter Property="CornerRadius" Value="6"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="FontWeight" Value="Medium"/>
+            <Setter Property="Cursor" Value="Hand"/>
         </Style>
         
-        <Style Selector="Button.Secondary:pointerover">
-            <Setter Property="Background" Value="#5A6268"/>
+        <Style Selector="Button.primary-button:pointerover">
+            <Setter Property="Background" Value="#0055B3"/>
         </Style>
         
+        <Style Selector="Button.primary-button:pressed">
+            <Setter Property="Background" Value="#004999"/>
+        </Style>
+        
+        <!-- ComboBox (macOS style) -->
         <Style Selector="ComboBox">
-            <Setter Property="CornerRadius" Value="8"/>
-            <Setter Property="MinWidth" Value="150"/>
+            <Setter Property="Background" Value="White"/>
+            <Setter Property="BorderBrush" Value="#D2D2D7"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="6"/>
+            <Setter Property="Padding" Value="10,6"/>
+            <Setter Property="FontSize" Value="13"/>
             <Setter Property="HorizontalAlignment" Value="Stretch"/>
         </Style>
         
-        <Style Selector="Border.ModeCard">
-            <Setter Property="Background" Value="#F8FAFC"/>
-            <Setter Property="BorderBrush" Value="#E2E8F0"/>
+        <Style Selector="ComboBox:pointerover /template/ Border#Background">
+            <Setter Property="BorderBrush" Value="#A1A1A6"/>
+        </Style>
+        
+        <!-- Mode Card -->
+        <Style Selector="Border.mode-card">
+            <Setter Property="Background" Value="#F5F5F7"/>
+            <Setter Property="BorderBrush" Value="#D2D2D7"/>
             <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="CornerRadius" Value="10"/>
+            <Setter Property="CornerRadius" Value="8"/>
             <Setter Property="Padding" Value="16"/>
         </Style>
         
-        <Style Selector="Border.ModeCard.Active">
-            <Setter Property="Background" Value="#E7F3FF"/>
-            <Setter Property="BorderBrush" Value="#0B5ED7"/>
+        <!-- Active Mode Card -->
+        <Style Selector="Border.mode-card.active">
+            <Setter Property="Background" Value="#E8F4FD"/>
+            <Setter Property="BorderBrush" Value="#0066CC"/>
             <Setter Property="BorderThickness" Value="2"/>
         </Style>
         
-        <Style Selector="Border.AlertPanel">
-            <Setter Property="CornerRadius" Value="10"/>
-            <Setter Property="Padding" Value="16"/>
-            <Setter Property="Margin" Value="0,0,0,16"/>
+        <!-- Status Card -->
+        <Style Selector="Border.status-card">
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Padding" Value="14,10"/>
         </Style>
         
-        <Style Selector="Border.AlertPanel.Success">
-            <Setter Property="Background" Value="#D1FAE5"/>
-            <Setter Property="BorderBrush" Value="#1E9E6A"/>
+        <Style Selector="Border.status-card.success">
+            <Setter Property="Background" Value="#D9F4E8"/>
+            <Setter Property="BorderBrush" Value="#34C759"/>
             <Setter Property="BorderThickness" Value="1"/>
         </Style>
         
-        <Style Selector="Border.AlertPanel.Warning">
-            <Setter Property="Background" Value="#FFF3CD"/>
-            <Setter Property="BorderBrush" Value="#FDB022"/>
+        <Style Selector="Border.status-card.warning">
+            <Setter Property="Background" Value="#FFF4E5"/>
+            <Setter Property="BorderBrush" Value="#FF9500"/>
             <Setter Property="BorderThickness" Value="1"/>
         </Style>
         
-        <Style Selector="Border.GpsBadge">
-            <Setter Property="Background" Value="#3B82F6"/>
+        <!-- Active Badge -->
+        <Style Selector="Border.active-badge">
+            <Setter Property="Background" Value="#34C759"/>
             <Setter Property="CornerRadius" Value="4"/>
-            <Setter Property="Padding" Value="4,2"/>
-            <Setter Property="Margin" Value="4,0,0,0"/>
+            <Setter Property="Padding" Value="6,3"/>
         </Style>
         
-        <Style Selector="Border.SafeBadge">
-            <Setter Property="Background" Value="#1E9E6A"/>
-            <Setter Property="CornerRadius" Value="4"/>
-            <Setter Property="Padding" Value="4,2"/>
-            <Setter Property="Margin" Value="4,0,0,0"/>
+        <!-- Recommendation Panel -->
+        <Style Selector="Border.recommendation">
+            <Setter Property="Background" Value="#F5F5F7"/>
+            <Setter Property="BorderBrush" Value="#D2D2D7"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Padding" Value="14,10"/>
         </Style>
     </UserControl.Styles>
 
     <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
-        <StackPanel Margin="24" MaxWidth="1400">
+        <StackPanel Margin="40,32,40,40" MaxWidth="1200" Spacing="24">
             
-            <!-- HEADER SECTION -->
-            <Grid ColumnDefinitions="*,Auto,Auto,Auto" Margin="0,0,0,16">
-                <StackPanel Grid.Column="0">
-                    <TextBlock Classes="PageTitle" Text="Flight Modes"/>
-                    <TextBlock Classes="PageSubtitle" Text="Configure 6-position flight mode switch"/>
+            <!-- HEADER -->
+            <Grid ColumnDefinitions="*,Auto,Auto,Auto">
+                <StackPanel Grid.Column="0" Spacing="0">
+                    <TextBlock Classes="page-title" Text="Flight Modes"/>
+                    <TextBlock Classes="page-subtitle" Text="Configure 6-position flight mode switch"/>
                 </StackPanel>
                 
-                <Button Grid.Column="1" Classes="Secondary" Command="{Binding RefreshCommand}" Margin="0,0,8,0">
-                    <StackPanel Orientation="Horizontal" Spacing="6">
-                        <TextBlock Text="" FontSize="16"/>
-                        <TextBlock Text="Refresh"/>
-                    </StackPanel>
+                <Button Grid.Column="1" Classes="flat-button" Command="{Binding RefreshCommand}" Margin="0,0,8,0">
+                    <TextBlock Text="Refresh"/>
                 </Button>
                 
-                <Button Grid.Column="2" Classes="Secondary" Command="{Binding ApplyDefaultsCommand}" Margin="0,0,8,0">
+                <Button Grid.Column="2" Classes="flat-button" Command="{Binding ApplyDefaultsCommand}" Margin="0,0,8,0">
                     <TextBlock Text="Apply Defaults"/>
                 </Button>
                 
-                <Button Grid.Column="3" Classes="Primary" Command="{Binding UpdateCommand}">
+                <Button Grid.Column="3" Classes="primary-button" Command="{Binding UpdateCommand}">
                     <TextBlock Text="Update"/>
                 </Button>
             </Grid>
 
-            <!-- STATUS BAR -->
-            <Border Background="#F5F5F5" CornerRadius="6" Padding="12" Margin="0,0,0,16" IsVisible="{Binding IsBusy}">
-                <StackPanel Orientation="Horizontal" Spacing="8">
-                    <ProgressBar Width="20" Height="20" IsIndeterminate="True"/>
-                    <TextBlock Text="{Binding StatusMessage}" VerticalAlignment="Center" Foreground="#1E293B"/>
-                </StackPanel>
-            </Border>
-
-            <!-- VALIDATION ALERTS -->
-            <Border Classes="AlertPanel"
-                    Classes.Success="{Binding !HasValidationWarnings}"
-                    Classes.Warning="{Binding HasValidationWarnings}"
-                    Margin="0,0,0,16">
-                <StackPanel>
-                    <TextBlock FontSize="14" FontWeight="Bold" Margin="0,0,0,8"
-                               Foreground="#1E293B"
-                               Text=" Configuration Valid"
-                               IsVisible="{Binding !HasValidationWarnings}"/>
-                    <TextBlock FontSize="14" FontWeight="Bold" Margin="0,0,0,8"
-                               Foreground="#1E293B"
-                               Text=" Configuration Warnings"
-                               IsVisible="{Binding HasValidationWarnings}"/>
-                    <TextBlock Text="{Binding ValidationMessage}" 
-                               TextWrapping="Wrap" 
-                               FontSize="13"
-                               Foreground="#1E293B"/>
-                </StackPanel>
+            <!-- STATUS FEEDBACK (Single Clean Card) -->
+            <Border Classes="status-card"
+                    Classes.success="{Binding !HasValidationWarnings}"
+                    Classes.warning="{Binding HasValidationWarnings}">
+                <TextBlock Text="{Binding ValidationMessage}" 
+                           FontSize="13"
+                           Foreground="#1D1D1F"
+                           TextWrapping="Wrap"/>
             </Border>
 
             <!-- CHANNEL CONFIGURATION -->
-            <Border Classes="SectionCard">
-                <StackPanel>
-                    <TextBlock Classes="SectionTitle" Text=" Channel Configuration"/>
-                    <TextBlock Classes="SectionSubtitle" Text="Select the RC channel used for flight mode switching"/>
+            <Border Classes="section-card">
+                <StackPanel Spacing="12">
+                    <TextBlock Classes="section-title" Text="Flight Mode Channel"/>
                     
-                    <Grid ColumnDefinitions="200,*" Margin="0,0,0,8">
-                        <TextBlock Grid.Column="0" Classes="FieldLabel" Text="Flight Mode Channel:"/>
+                    <Grid ColumnDefinitions="180,*">
+                        <TextBlock Grid.Column="0" Classes="field-label" Text="Channel Selection"/>
                         <ComboBox Grid.Column="1"
                                   ItemsSource="{Binding ChannelOptions}"
                                   SelectedValue="{Binding SelectedChannel}"
                                   SelectedValueBinding="{Binding Channel}"
                                   DisplayMemberBinding="{Binding Label}"
-                                  Width="200"
+                                  Width="220"
                                   HorizontalAlignment="Left"/>
                     </Grid>
-                    <TextBlock Classes="HelpText" Text="Most transmitters use Channel 5 for flight mode switch"/>
+                    
+                    <TextBlock Classes="helper-text" Text="Most transmitters use Channel 5 for flight mode switch"/>
                 </StackPanel>
             </Border>
 
-            <!-- FLIGHT MODE SLOTS (3x2 Grid) -->
-            <Border Classes="SectionCard">
-                <StackPanel>
-                    <TextBlock Classes="SectionTitle" Text=" Flight Mode Slots"/>
-                    <TextBlock Classes="SectionSubtitle" Text="Configure flight modes for each PWM range position"/>
+            <!-- FLIGHT MODE SLOTS (Clean 2x3 Grid) -->
+            <Border Classes="section-card">
+                <StackPanel Spacing="16">
+                    <TextBlock Classes="section-title" Text="Flight Mode Slots"/>
                     
                     <!-- Row 1: Modes 1-3 -->
-                    <Grid ColumnDefinitions="*,16,*,16,*" Margin="0,0,0,16">
+                    <Grid ColumnDefinitions="*,14,*,14,*" Margin="0,8,0,0">
                         
                         <!-- Mode 1 -->
-                        <Border Grid.Column="0" Classes="ModeCard" 
-                                Background="{Binding IsSlot1Active, Converter={StaticResource BoolToActiveBackgroundConverter}, FallbackValue=#F8FAFC}"
-                                BorderBrush="{Binding IsSlot1Active, Converter={StaticResource BoolToActiveBorderConverter}, FallbackValue=#E2E8F0}">
-                            <StackPanel Spacing="8">
+                        <Border Grid.Column="0" Classes="mode-card" Classes.active="{Binding IsSlot1Active}">
+                            <StackPanel Spacing="10">
                                 <Grid ColumnDefinitions="*,Auto">
-                                    <TextBlock Grid.Column="0" Text="Flight Mode 1" FontWeight="Bold" FontSize="14" Foreground="#0B5ED7"/>
-                                    <Border Grid.Column="1" IsVisible="{Binding IsSlot1Active}" 
-                                            Background="#1E9E6A" CornerRadius="10" Padding="8,4">
-                                        <TextBlock Text="ACTIVE" FontSize="10" Foreground="White" FontWeight="Bold"/>
+                                    <TextBlock Grid.Column="0" 
+                                               Text="Flight Mode 1" 
+                                               FontWeight="SemiBold" 
+                                               FontSize="13" 
+                                               Foreground="#1D1D1F"/>
+                                    <Border Grid.Column="1" 
+                                            Classes="active-badge"
+                                            IsVisible="{Binding IsSlot1Active}">
+                                        <TextBlock Text="ACTIVE" 
+                                                   FontSize="9" 
+                                                   Foreground="White" 
+                                                   FontWeight="Bold"/>
                                     </Border>
                                 </Grid>
+                                
                                 <ComboBox ItemsSource="{Binding FlightModeOptions}"
                                           SelectedItem="{Binding SelectedMode1}"
                                           DisplayMemberBinding="{Binding Label}"/>
-                                <TextBlock Classes="PwmLabel" Text="{Binding PwmRange1}"/>
+                                
+                                <TextBlock Classes="pwm-range" Text="{Binding PwmRange1}"/>
                             </StackPanel>
                         </Border>
                         
                         <!-- Mode 2 -->
-                        <Border Grid.Column="2" Classes="ModeCard"
-                                Background="{Binding IsSlot2Active, Converter={StaticResource BoolToActiveBackgroundConverter}, FallbackValue=#F8FAFC}"
-                                BorderBrush="{Binding IsSlot2Active, Converter={StaticResource BoolToActiveBorderConverter}, FallbackValue=#E2E8F0}">
-                            <StackPanel Spacing="8">
+                        <Border Grid.Column="2" Classes="mode-card" Classes.active="{Binding IsSlot2Active}">
+                            <StackPanel Spacing="10">
                                 <Grid ColumnDefinitions="*,Auto">
-                                    <TextBlock Grid.Column="0" Text="Flight Mode 2" FontWeight="Bold" FontSize="14" Foreground="#0B5ED7"/>
-                                    <Border Grid.Column="1" IsVisible="{Binding IsSlot2Active}" 
-                                            Background="#1E9E6A" CornerRadius="10" Padding="8,4">
-                                        <TextBlock Text="ACTIVE" FontSize="10" Foreground="White" FontWeight="Bold"/>
+                                    <TextBlock Grid.Column="0" 
+                                               Text="Flight Mode 2" 
+                                               FontWeight="SemiBold" 
+                                               FontSize="13" 
+                                               Foreground="#1D1D1F"/>
+                                    <Border Grid.Column="1" 
+                                            Classes="active-badge"
+                                            IsVisible="{Binding IsSlot2Active}">
+                                        <TextBlock Text="ACTIVE" 
+                                                   FontSize="9" 
+                                                   Foreground="White" 
+                                                   FontWeight="Bold"/>
                                     </Border>
                                 </Grid>
+                                
                                 <ComboBox ItemsSource="{Binding FlightModeOptions}"
                                           SelectedItem="{Binding SelectedMode2}"
                                           DisplayMemberBinding="{Binding Label}"/>
-                                <TextBlock Classes="PwmLabel" Text="{Binding PwmRange2}"/>
+                                
+                                <TextBlock Classes="pwm-range" Text="{Binding PwmRange2}"/>
                             </StackPanel>
                         </Border>
                         
                         <!-- Mode 3 -->
-                        <Border Grid.Column="4" Classes="ModeCard"
-                                Background="{Binding IsSlot3Active, Converter={StaticResource BoolToActiveBackgroundConverter}, FallbackValue=#F8FAFC}"
-                                BorderBrush="{Binding IsSlot3Active, Converter={StaticResource BoolToActiveBorderConverter}, FallbackValue=#E2E8F0}">
-                            <StackPanel Spacing="8">
+                        <Border Grid.Column="4" Classes="mode-card" Classes.active="{Binding IsSlot3Active}">
+                            <StackPanel Spacing="10">
                                 <Grid ColumnDefinitions="*,Auto">
-                                    <TextBlock Grid.Column="0" Text="Flight Mode 3" FontWeight="Bold" FontSize="14" Foreground="#0B5ED7"/>
-                                    <Border Grid.Column="1" IsVisible="{Binding IsSlot3Active}" 
-                                            Background="#1E9E6A" CornerRadius="10" Padding="8,4">
-                                        <TextBlock Text="ACTIVE" FontSize="10" Foreground="White" FontWeight="Bold"/>
+                                    <TextBlock Grid.Column="0" 
+                                               Text="Flight Mode 3" 
+                                               FontWeight="SemiBold" 
+                                               FontSize="13" 
+                                               Foreground="#1D1D1F"/>
+                                    <Border Grid.Column="1" 
+                                            Classes="active-badge"
+                                            IsVisible="{Binding IsSlot3Active}">
+                                        <TextBlock Text="ACTIVE" 
+                                                   FontSize="9" 
+                                                   Foreground="White" 
+                                                   FontWeight="Bold"/>
                                     </Border>
                                 </Grid>
+                                
                                 <ComboBox ItemsSource="{Binding FlightModeOptions}"
                                           SelectedItem="{Binding SelectedMode3}"
                                           DisplayMemberBinding="{Binding Label}"/>
-
-                                <TextBlock Classes="PwmLabel" Text="{Binding PwmRange3}"/>
+                                
+                                <TextBlock Classes="pwm-range" Text="{Binding PwmRange3}"/>
                             </StackPanel>
                         </Border>
                     </Grid>
 
                     <!-- Row 2: Modes 4-6 -->
-                    <Grid ColumnDefinitions="*,16,*,16,*">
+                    <Grid ColumnDefinitions="*,14,*,14,*">
                         
                         <!-- Mode 4 -->
-                        <Border Grid.Column="0" Classes="ModeCard"
-                                Background="{Binding IsSlot4Active, Converter={StaticResource BoolToActiveBackgroundConverter}, FallbackValue=#F8FAFC}"
-                                BorderBrush="{Binding IsSlot4Active, Converter={StaticResource BoolToActiveBorderConverter}, FallbackValue=#E2E8F0}">
-                            <StackPanel Spacing="8">
+                        <Border Grid.Column="0" Classes="mode-card" Classes.active="{Binding IsSlot4Active}">
+                            <StackPanel Spacing="10">
                                 <Grid ColumnDefinitions="*,Auto">
-                                    <TextBlock Grid.Column="0" Text="Flight Mode 4" FontWeight="Bold" FontSize="14" Foreground="#0B5ED7"/>
-                                    <Border Grid.Column="1" IsVisible="{Binding IsSlot4Active}" 
-                                            Background="#1E9E6A" CornerRadius="10" Padding="8,4">
-                                        <TextBlock Text="ACTIVE" FontSize="10" Foreground="White" FontWeight="Bold"/>
+                                    <TextBlock Grid.Column="0" 
+                                               Text="Flight Mode 4" 
+                                               FontWeight="SemiBold" 
+                                               FontSize="13" 
+                                               Foreground="#1D1D1F"/>
+                                    <Border Grid.Column="1" 
+                                            Classes="active-badge"
+                                            IsVisible="{Binding IsSlot4Active}">
+                                        <TextBlock Text="ACTIVE" 
+                                                   FontSize="9" 
+                                                   Foreground="White" 
+                                                   FontWeight="Bold"/>
                                     </Border>
                                 </Grid>
+                                
                                 <ComboBox ItemsSource="{Binding FlightModeOptions}"
                                           SelectedItem="{Binding SelectedMode4}"
                                           DisplayMemberBinding="{Binding Label}"/>
-                                <TextBlock Classes="PwmLabel" Text="{Binding PwmRange4}"/>
+                                
+                                <TextBlock Classes="pwm-range" Text="{Binding PwmRange4}"/>
                             </StackPanel>
                         </Border>
                         
                         <!-- Mode 5 -->
-                        <Border Grid.Column="2" Classes="ModeCard"
-                                Background="{Binding IsSlot5Active, Converter={StaticResource BoolToActiveBackgroundConverter}, FallbackValue=#F8FAFC}"
-                                BorderBrush="{Binding IsSlot5Active, Converter={StaticResource BoolToActiveBorderConverter}, FallbackValue=#E2E8F0}">
-                            <StackPanel Spacing="8">
+                        <Border Grid.Column="2" Classes="mode-card" Classes.active="{Binding IsSlot5Active}">
+                            <StackPanel Spacing="10">
                                 <Grid ColumnDefinitions="*,Auto">
-                                    <TextBlock Grid.Column="0" Text="Flight Mode 5" FontWeight="Bold" FontSize="14" Foreground="#0B5ED7"/>
-                                    <Border Grid.Column="1" IsVisible="{Binding IsSlot5Active}" 
-                                            Background="#1E9E6A" CornerRadius="10" Padding="8,4">
-                                        <TextBlock Text="ACTIVE" FontSize="10" Foreground="White" FontWeight="Bold"/>
+                                    <TextBlock Grid.Column="0" 
+                                               Text="Flight Mode 5" 
+                                               FontWeight="SemiBold" 
+                                               FontSize="13" 
+                                               Foreground="#1D1D1F"/>
+                                    <Border Grid.Column="1" 
+                                            Classes="active-badge"
+                                            IsVisible="{Binding IsSlot5Active}">
+                                        <TextBlock Text="ACTIVE" 
+                                                   FontSize="9" 
+                                                   Foreground="White" 
+                                                   FontWeight="Bold"/>
                                     </Border>
                                 </Grid>
+                                
                                 <ComboBox ItemsSource="{Binding FlightModeOptions}"
                                           SelectedItem="{Binding SelectedMode5}"
                                           DisplayMemberBinding="{Binding Label}"/>
-                                <TextBlock Classes="PwmLabel" Text="{Binding PwmRange5}"/>
+                                
+                                <TextBlock Classes="pwm-range" Text="{Binding PwmRange5}"/>
                             </StackPanel>
                         </Border>
                         
                         <!-- Mode 6 -->
-                        <Border Grid.Column="4" Classes="ModeCard"
-                                Background="{Binding IsSlot6Active, Converter={StaticResource BoolToActiveBackgroundConverter}, FallbackValue=#F8FAFC}"
-                                BorderBrush="{Binding IsSlot6Active, Converter={StaticResource BoolToActiveBorderConverter}, FallbackValue=#E2E8F0}">
-                            <StackPanel Spacing="8">
+                        <Border Grid.Column="4" Classes="mode-card" Classes.active="{Binding IsSlot6Active}">
+                            <StackPanel Spacing="10">
                                 <Grid ColumnDefinitions="*,Auto">
-                                    <TextBlock Grid.Column="0" Text="Flight Mode 6" FontWeight="Bold" FontSize="14" Foreground="#0B5ED7"/>
-                                    <Border Grid.Column="1" IsVisible="{Binding IsSlot6Active}" 
-                                            Background="#1E9E6A" CornerRadius="10" Padding="8,4">
-                                        <TextBlock Text="ACTIVE" FontSize="10" Foreground="White" FontWeight="Bold"/>
+                                    <TextBlock Grid.Column="0" 
+                                               Text="Flight Mode 6" 
+                                               FontWeight="SemiBold" 
+                                               FontSize="13" 
+                                               Foreground="#1D1D1F"/>
+                                    <Border Grid.Column="1" 
+                                            Classes="active-badge"
+                                            IsVisible="{Binding IsSlot6Active}">
+                                        <TextBlock Text="ACTIVE" 
+                                                   FontSize="9" 
+                                                   Foreground="White" 
+                                                   FontWeight="Bold"/>
                                     </Border>
                                 </Grid>
+                                
                                 <ComboBox ItemsSource="{Binding FlightModeOptions}"
                                           SelectedItem="{Binding SelectedMode6}"
                                           DisplayMemberBinding="{Binding Label}"/>
-                                <TextBlock Classes="PwmLabel" Text="{Binding PwmRange6}"/>
+                                
+                                <TextBlock Classes="pwm-range" Text="{Binding PwmRange6}"/>
                             </StackPanel>
                         </Border>
                     </Grid>
                 </StackPanel>
             </Border>
 
-            <!-- MODE DESCRIPTION / INFO -->
-            <Border Classes="SectionCard">
-                <StackPanel>
-                    <TextBlock Classes="SectionTitle" Text=" Mode Information"/>
-                    <TextBlock Classes="SectionSubtitle" Text="Details about the selected flight mode"/>
-                    
-                    <TextBlock Text="{Binding SelectedModeDescription}" 
-                               TextWrapping="Wrap"
-                               FontSize="14"
-                               Foreground="#1E293B"
-                               Margin="0,0,0,16"/>
-                    
-                    <!-- Legend -->
-                    <Border Background="#F1F5F9" CornerRadius="8" Padding="16">
-                        <StackPanel Spacing="8">
-                            <TextBlock Text="Mode Categories" FontWeight="Bold" FontSize="14" Foreground="#475569"/>
-                            <WrapPanel>
-                                <StackPanel Orientation="Horizontal" Margin="0,0,16,4">
-                                    <Border Background="#1E9E6A" CornerRadius="4" Padding="6,2" Margin="0,0,4,0">
-                                        <TextBlock Text="Safe" FontSize="11" Foreground="White" FontWeight="Bold"/>
-                                    </Border>
-                                    <TextBlock Text="Recommended for beginners" FontSize="12" VerticalAlignment="Center"/>
-                                </StackPanel>
-                                <StackPanel Orientation="Horizontal" Margin="0,0,16,4">
-                                    <Border Background="#3B82F6" CornerRadius="4" Padding="6,2" Margin="0,0,4,0">
-                                        <TextBlock Text="GPS" FontSize="11" Foreground="White" FontWeight="Bold"/>
-                                    </Border>
-                                    <TextBlock Text="Requires GPS lock" FontSize="12" VerticalAlignment="Center"/>
-                                </StackPanel>
-                                <StackPanel Orientation="Horizontal" Margin="0,0,16,4">
-                                    <Border Background="#F59E0B" CornerRadius="4" Padding="6,2" Margin="0,0,4,0">
-                                        <TextBlock Text="Auto" FontSize="11" Foreground="White" FontWeight="Bold"/>
-                                    </Border>
-                                    <TextBlock Text="Autonomous mode" FontSize="12" VerticalAlignment="Center"/>
-                                </StackPanel>
-                                <StackPanel Orientation="Horizontal" Margin="0,0,16,4">
-                                    <Border Background="#EF4444" CornerRadius="4" Padding="6,2" Margin="0,0,4,0">
-                                        <TextBlock Text="Adv" FontSize="11" Foreground="White" FontWeight="Bold"/>
-                                    </Border>
-                                    <TextBlock Text="Advanced / Expert only" FontSize="12" VerticalAlignment="Center"/>
-                                </StackPanel>
-                            </WrapPanel>
-                        </StackPanel>
-                    </Border>
-                </StackPanel>
+            <!-- RECOMMENDATION (Single Line) -->
+            <Border Classes="recommendation">
+                <TextBlock TextWrapping="Wrap" 
+                           FontSize="12" 
+                           Foreground="#1D1D1F">
+                    <Run FontWeight="SemiBold">Recommendation:</Run>
+                    <Run Text=" Configure at least one stabilized mode and one emergency mode such as RTL or Land"/>
+                </TextBlock>
             </Border>
 
-            <!-- FOOTER INFO -->
-            <Border Background="#E7F3FF" CornerRadius="8" Padding="16" Margin="0,8,0,0">
-                <StackPanel Orientation="Horizontal" Spacing="8">
-                    <TextBlock Text="" FontSize="16" VerticalAlignment="Center"/>
-                    <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="#0B5ED7">
-                        <Run Text="Recommendation:"/>
-                        <Run Text="Always have at least one stable mode (Stabilize/AltHold) and one emergency mode (RTL/Land) configured."/>
-                    </TextBlock>
-                </StackPanel>
-            </Border>
         </StackPanel>
     </ScrollViewer>
 </UserControl>

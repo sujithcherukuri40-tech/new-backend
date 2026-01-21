@@ -23,6 +23,7 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
         private CancellationTokenSource? _cts;
         private Task? _readTask;
         private Task? _heartbeatTask;
+        private Task? _watchdogTask;
         private bool _disposed;
 
         private readonly byte[] _rxBuffer = new byte[4096];
@@ -33,6 +34,13 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
         private byte _targetSystemId = 1;
         private byte _targetComponentId = 1;
         private byte _packetSequence;
+        
+        // Transaction management (production-grade reliability)
+        private readonly MavlinkTransactionManager _transactionManager;
+        
+        // Heartbeat watchdog
+        private DateTime _lastHeartbeatReceived = DateTime.MinValue;
+        private const int HEARTBEAT_TIMEOUT_SECONDS = 5;
 
         // MAVLink constants
         private const byte MAVLINK_STX_V1 = 0xFE;
@@ -83,11 +91,13 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
         public event EventHandler<HeartbeatData>? HeartbeatDataReceived;
         public event EventHandler<RcChannelsData>? RcChannelsReceived;
         public event EventHandler<RawImuData>? RawImuReceived;
+        public event EventHandler? ConnectionLost;
 
         public AsvMavlinkWrapper(ILogger logger, IMavLinkMessageLogger? mavLinkLogger = null)
         {
             _logger = logger;
             _mavLinkLogger = mavLinkLogger;
+            _transactionManager = new MavlinkTransactionManager(logger);
         }
 
         public void Initialize(Stream inputStream, Stream outputStream)
@@ -97,11 +107,52 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
             _outputStream = outputStream;
             _rxBufferPos = 0;
             _cts = new CancellationTokenSource();
+            _lastHeartbeatReceived = DateTime.UtcNow;
 
             _readTask = Task.Run(() => ReadLoopAsync(_cts.Token));
             _heartbeatTask = Task.Run(() => GcsHeartbeatLoopAsync(_cts.Token));
+            _watchdogTask = Task.Run(() => HeartbeatWatchdogAsync(_cts.Token));
 
-            _logger.LogInformation("MAVLink wrapper initialized with GCS heartbeat");
+            _logger.LogInformation("MAVLink wrapper initialized with transaction manager and watchdog");
+        }
+        
+        /// <summary>
+        /// Heartbeat watchdog - detects connection loss
+        /// </summary>
+        private async Task HeartbeatWatchdogAsync(CancellationToken token)
+        {
+            _logger.LogInformation("Heartbeat watchdog started");
+
+            while (!token.IsCancellationRequested)
+            {
+                try
+                {
+                    await Task.Delay(1000, token);
+
+                    if (_lastHeartbeatReceived != DateTime.MinValue)
+                    {
+                        var elapsed = DateTime.UtcNow - _lastHeartbeatReceived;
+                        if (elapsed.TotalSeconds > HEARTBEAT_TIMEOUT_SECONDS)
+                        {
+                            _logger.LogWarning("Heartbeat timeout: no heartbeat for {Elapsed}s", elapsed.TotalSeconds);
+                            ConnectionLost?.Invoke(this, EventArgs.Empty);
+                            
+                            // Reset to prevent spam
+                            _lastHeartbeatReceived = DateTime.MinValue;
+                        }
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Heartbeat watchdog error");
+                }
+            }
+
+            _logger.LogInformation("Heartbeat watchdog ended");
         }
 
         private async Task GcsHeartbeatLoopAsync(CancellationToken token)
@@ -289,20 +340,33 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
 
         private void ProcessMavlink1Frame(byte[] frame)
         {
+            // Strict validation before processing
+            if (!MavlinkProtocol.ValidateV1Frame(frame))
+            {
+                _logger.LogWarning("Invalid MAVLink v1 frame structure");
+                return;
+            }
+
             byte payloadLen = frame[1];
             byte seq = frame[2];
             byte sysId = frame[3];
             byte compId = frame[4];
             byte msgId = frame[5];
 
-            // Verify CRC
-            ushort crcCalc = CalculateCrc(frame, 1, payloadLen + 5, GetCrcExtra(msgId));
+            // Verify CRC with proper CRC_EXTRA
+            ushort crcCalc = CalculateCrc(frame, 1, payloadLen + 5, MavlinkProtocol.GetCrcExtra(msgId));
             ushort crcRecv = (ushort)(frame[6 + payloadLen] | (frame[7 + payloadLen] << 8));
 
             if (crcCalc != crcRecv)
             {
                 _logger.LogTrace("V1 CRC mismatch: msg={Msg} calc=0x{Calc:X4} recv=0x{Recv:X4}", msgId, crcCalc, crcRecv);
                 return;
+            }
+            
+            // Warn about unknown messages (CRC_EXTRA = 0)
+            if (!MavlinkProtocol.IsKnownMessage(msgId))
+            {
+                _logger.LogTrace("Unknown message ID: {MsgId} (CRC validation may be unreliable)", msgId);
             }
 
             // Extract payload
@@ -314,16 +378,30 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
 
         private void ProcessMavlink2Frame(byte[] frame)
         {
+            // Strict validation before processing
+            if (!MavlinkProtocol.ValidateV2Frame(frame))
+            {
+                _logger.LogWarning("Invalid MAVLink v2 frame structure or unsupported features");
+                return;
+            }
+
             byte payloadLen = frame[1];
             byte incompatFlags = frame[2];
             byte compatFlags = frame[3];
             byte seq = frame[4];
             byte sysId = frame[5];
             byte compId = frame[6];
-            int msgId = frame[7] | (frame[8] << 8) | (frame[9] << 16);
+            
+            // Use proper 24-bit message ID extraction
+            int msgId = MavlinkProtocol.GetV2MessageId(frame);
+            if (msgId < 0)
+            {
+                _logger.LogWarning("Failed to extract v2 message ID");
+                return;
+            }
 
             // Verify CRC (for v2, CRC is calculated over bytes 1 to 9+payloadLen)
-            ushort crcCalc = CalculateCrc(frame, 1, 9 + payloadLen, GetCrcExtra((byte)(msgId & 0xFF)));
+            ushort crcCalc = CalculateCrc(frame, 1, 9 + payloadLen, MavlinkProtocol.GetCrcExtra(msgId));
             int crcOffset = 10 + payloadLen;
             ushort crcRecv = (ushort)(frame[crcOffset] | (frame[crcOffset + 1] << 8));
 
@@ -331,6 +409,12 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
             {
                 _logger.LogTrace("V2 CRC mismatch: msg={Msg} calc=0x{Calc:X4} recv=0x{Recv:X4}", msgId, crcCalc, crcRecv);
                 return;
+            }
+            
+            // Warn about unknown messages
+            if (!MavlinkProtocol.IsKnownMessage(msgId))
+            {
+                _logger.LogTrace("Unknown v2 message ID: {MsgId}", msgId);
             }
 
             // Extract payload
@@ -382,6 +466,9 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
 
             _targetSystemId = sysId;
             _targetComponentId = compId;
+            
+            // Update watchdog timestamp
+            _lastHeartbeatReceived = DateTime.UtcNow;
 
             _logger.LogDebug("Heartbeat from FC: sysid={SysId} compid={CompId}", sysId, compId);
             
@@ -389,6 +476,9 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
             // _mavLinkLogger?.LogIncoming("HEARTBEAT", $"sysid={sysId}, compid={compId}");
             
             HeartbeatReceived?.Invoke(this, (sysId, compId));
+
+            // Update last heartbeat timestamp
+            _lastHeartbeatReceived = DateTime.UtcNow;
 
             // Parse heartbeat payload for flight mode info and vehicle type
             // HEARTBEAT payload:
@@ -450,6 +540,9 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
             _logger.LogDebug("PARAM_VALUE: {Name}={Value} [{Index}/{Count}] type={Type}",
                 name, value, paramIndex + 1, paramCount, paramType);
 
+            // Feed transaction manager
+            _transactionManager.HandleParameterValue(name, value);
+
             ParamValueReceived?.Invoke(this, (name, value, paramIndex, paramCount));
         }
 
@@ -476,6 +569,7 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
                 MAV_CMD_ACCELCAL_VEHICLE_POS => "MAV_CMD_ACCELCAL_VEHICLE_POS",
                 MAV_CMD_COMPONENT_ARM_DISARM => "MAV_CMD_COMPONENT_ARM_DISARM",
                 MAV_CMD_PREFLIGHT_REBOOT_SHUTDOWN => "MAV_CMD_PREFLIGHT_REBOOT_SHUTDOWN",
+                MAV_CMD_DO_MOTOR_TEST => "MAV_CMD_DO_MOTOR_TEST",
                 _ => command.ToString()
             };
             string resultName = result switch
@@ -489,6 +583,9 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
                 _ => result.ToString()
             };
             _mavLinkLogger?.LogIncoming("COMMAND_ACK", $"cmd={command} ({cmdName}), result={resultName}");
+            
+            // Feed transaction manager
+            _transactionManager.HandleCommandAck(command, result);
             
             CommandAckReceived?.Invoke(this, (command, result));
         }
@@ -691,6 +788,7 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
 
         /// <summary>
         /// Send DO_MOTOR_TEST command (MAV_CMD = 209)
+        /// Returns CommandResult to indicate success/failure
         /// </summary>
         /// <param name="motorInstance">Motor instance (1-based)</param>
         /// <param name="throttleType">Throttle type (0=percent, 1=PWM, 2=pilot)</param>
@@ -698,7 +796,7 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
         /// <param name="timeout">Timeout in seconds</param>
         /// <param name="motorCount">Motor count (0=single motor test)</param>
         /// <param name="testOrder">Test order (0=default, 1=sequence)</param>
-        public async Task SendMotorTestAsync(
+        public async Task<CommandResult> SendMotorTestAsync(
             int motorInstance,
             int throttleType,
             float throttleValue,
@@ -710,7 +808,7 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
             _logger.LogInformation("Sending DO_MOTOR_TEST: motor={Motor} throttle={Throttle} timeout={Timeout}s",
                 motorInstance, throttleValue, timeout);
 
-            await SendCommandLongAsync(
+            return await SendCommandLongAsync(
                 MAV_CMD_DO_MOTOR_TEST,
                 motorInstance,      // param1: motor instance
                 throttleType,       // param2: throttle type
@@ -864,14 +962,18 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
         }
 
         /// <summary>
-        /// Send COMMAND_LONG message
+        /// Send COMMAND_LONG message with transaction tracking and retry logic
+        /// Production-grade reliability
         /// </summary>
-        private async Task SendCommandLongAsync(
+        private async Task<CommandResult> SendCommandLongAsync(
             ushort command,
             float param1, float param2, float param3, float param4,
             float param5, float param6, float param7,
             CancellationToken ct = default)
         {
+            // Register transaction for ACK tracking
+            var resultTask = _transactionManager.RegisterCommandAsync(command, TimeSpan.FromSeconds(5), maxRetries: 3);
+
             // COMMAND_LONG payload (33 bytes):
             // [0-3]   param1 (float)
             // [4-7]   param2 (float)
@@ -899,7 +1001,26 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
             payload[31] = _targetComponentId != 0 ? _targetComponentId : (byte)1;
             payload[32] = 0; // confirmation
 
+            // Send command
             await SendMessageAsync(MAVLINK_MSG_ID_COMMAND_LONG, payload, ct);
+            
+            // Wait for ACK with retry logic
+            try
+            {
+                var result = await resultTask;
+                
+                if (result != CommandResult.Accepted)
+                {
+                    _logger.LogWarning("Command {Command} result: {Result}", command, result);
+                }
+                
+                return result;
+            }
+            catch (TimeoutException ex)
+            {
+                _logger.LogError("Command {Command} timed out: {Message}", command, ex.Message);
+                throw;
+            }
         }
 
         private async Task SendMessageAsync(byte msgId, byte[] payload, CancellationToken ct)
@@ -969,21 +1090,7 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
 
         private byte GetCrcExtra(byte msgId)
         {
-            return msgId switch
-            {
-                MAVLINK_MSG_ID_HEARTBEAT => CRC_EXTRA_HEARTBEAT,
-                MAVLINK_MSG_ID_PARAM_REQUEST_READ => CRC_EXTRA_PARAM_REQUEST_READ,
-                MAVLINK_MSG_ID_PARAM_REQUEST_LIST => CRC_EXTRA_PARAM_REQUEST_LIST,
-                MAVLINK_MSG_ID_PARAM_VALUE => CRC_EXTRA_PARAM_VALUE,
-                MAVLINK_MSG_ID_PARAM_SET => CRC_EXTRA_PARAM_SET,
-                MAVLINK_MSG_ID_RAW_IMU => CRC_EXTRA_RAW_IMU,
-                MAVLINK_MSG_ID_SCALED_IMU => CRC_EXTRA_SCALED_IMU,
-                MAVLINK_MSG_ID_COMMAND_LONG => CRC_EXTRA_COMMAND_LONG,
-                (byte)MAVLINK_MSG_ID_COMMAND_ACK => CRC_EXTRA_COMMAND_ACK,
-                MAVLINK_MSG_ID_STATUSTEXT => CRC_EXTRA_STATUSTEXT,
-                MAVLINK_MSG_ID_RC_CHANNELS => CRC_EXTRA_RC_CHANNELS,
-                _ => 0
-            };
+            return MavlinkProtocol.GetCrcExtra(msgId);
         }
 
         public void Dispose()
@@ -995,9 +1102,13 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
 
             try
             {
+                // Clear all pending transactions
+                _transactionManager.ClearAll();
+                
                 _cts?.Cancel();
                 _readTask?.Wait(TimeSpan.FromSeconds(2));
                 _heartbeatTask?.Wait(TimeSpan.FromSeconds(2));
+                _watchdogTask?.Wait(TimeSpan.FromSeconds(2));
             }
             catch (Exception ex)
             {
@@ -1005,9 +1116,11 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
             }
             finally
             {
+                _transactionManager.Dispose();
                 _cts?.Dispose();
                 _readTask?.Dispose();
                 _heartbeatTask?.Dispose();
+                _watchdogTask?.Dispose();
             }
 
             _logger.LogInformation("MAVLink wrapper disposed");

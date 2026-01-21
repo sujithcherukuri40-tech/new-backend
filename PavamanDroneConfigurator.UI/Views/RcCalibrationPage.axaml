@@ -178,8 +178,35 @@
             <!-- Not Connected Warning -->
             <Border Classes="status-required" IsVisible="{Binding !IsConnected}">
                 <StackPanel Orientation="Horizontal" Spacing="12">
-                    <TextBlock Text="Not Connected" FontWeight="SemiBold" Foreground="#92400E" VerticalAlignment="Center"/>
+                    <TextBlock Text="?" FontWeight="SemiBold" Foreground="#92400E" VerticalAlignment="Center"/>
                     <TextBlock Text="Connect to flight controller to calibrate radio" FontSize="13" Foreground="#A16207" VerticalAlignment="Center"/>
+                </StackPanel>
+            </Border>
+
+            <!-- RC Not Connected Warning -->
+            <Border Classes="status-required" IsVisible="{Binding !IsRcConnected}">
+                <Border.IsVisible>
+                    <Binding Path="IsConnectedButRcNotConnected"/>
+                </Border.IsVisible>
+                <StackPanel Orientation="Horizontal" Spacing="12">
+                    <TextBlock Text="?" FontWeight="SemiBold" Foreground="#92400E" VerticalAlignment="Center"/>
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="RC Receiver Not Connected" FontWeight="SemiBold" Foreground="#92400E"/>
+                        <TextBlock Text="{Binding RcConnectionStatus}" FontSize="13" Foreground="#A16207"/>
+                        <TextBlock Text="Turn on your transmitter and verify the receiver is properly connected to the flight controller" 
+                                   FontSize="12" Foreground="#A16207" TextWrapping="Wrap" MaxWidth="700"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- RC Connection OK Status -->
+            <Border Classes="status-complete" IsVisible="{Binding IsRcConnected}">
+                <StackPanel Orientation="Horizontal" Spacing="12">
+                    <TextBlock Text="?" FontWeight="SemiBold" Foreground="#047857" VerticalAlignment="Center"/>
+                    <StackPanel Spacing="2">
+                        <TextBlock Text="RC Receiver Connected" FontWeight="SemiBold" Foreground="#047857"/>
+                        <TextBlock Text="{Binding RcConnectionStatus}" FontSize="13" Foreground="#059669"/>
+                    </StackPanel>
                 </StackPanel>
             </Border>
 
