@@ -11,8 +11,8 @@ public static class BoardCompatibility
 {
     /// <summary>
     /// Known board IDs from ArduPilot - matches Mission Planner's BoardDetect.boards enum
-    /// Note: In the actual bootloader protocol, FMUv2 and FMUv3 both report board_id=9.
-    /// We use separate constants here for clarity but handle them as compatible in AreCompatible().
+    /// These are the actual board_id values reported by the bootloader.
+    /// Reference: https://github.com/ArduPilot/ardupilot/tree/master/libraries/AP_HAL_ChibiOS/hwdef
     /// </summary>
     public static class BoardIds
     {
@@ -23,30 +23,26 @@ public static class BoardCompatibility
         // PX4/Pixhawk family
         public const int PX4_FMUv1 = 5;
         public const int PX4_FMUv2 = 9;        // Pixhawk 1, Cube Black (bootloader reports 9)
-        // Note: FMUv3 boards also report board_id=9 in bootloader, but use fmuv3 firmware
-        // We use a logical constant for code clarity, but actual detection uses 9
-        public const int PX4_FMUv3_LOGICAL = 10; // Logical ID for FMUv3 (Cube/2MB flash variant)
+        public const int PX4_FMUv3_LOGICAL = 9; // FMUv3 also reports 9, uses different firmware
         public const int PX4_FMUv4 = 11;       // Pixracer
         public const int PX4_FMUv4_PRO = 13;   // Pixhawk 3 Pro
+        public const int AUAV_X2 = 33;         // Also compatible with fmuv2 (board_id 9)
         public const int PX4_FMUv5 = 50;       // Pixhawk 4
         public const int PX4_FMUv5X = 51;      // Pixhawk 5X
         public const int PX4_FMUv6 = 52;       // Pixhawk 6
         public const int PX4_FMUv6X = 53;      // Pixhawk 6X
         public const int PX4_FMUv6C = 55;      // Pixhawk 6C
 
-        // Cube variants
+        // Cube variants - CORRECT ArduPilot board IDs
         public const int CubeBlack = 9;        // Same as FMUv2 (bootloader reports 9)
         public const int CubeYellow = 120;
-        public const int CubeOrange = 140;
-        public const int CubeOrangePlus = 141;
+        public const int CubeOrange = 140;     // Original CubeOrange board_id in hwdef
+        public const int CubeOrangePlus = 1063; // CubeOrange+ has board_id 1063
         public const int CubePurple = 142;
 
         // Holybro
         public const int Durandal = 36;
         public const int Pix32v5 = 78;
-
-        // AUAV
-        public const int AUAV_X2 = 33;
 
         // mRo
         public const int mRo_X21 = 71;
@@ -69,7 +65,7 @@ public static class BoardCompatibility
         // Kakute
         public const int KakuteF4 = 1010;
         public const int KakuteF4_Mini = 1011;
-        public const int KakuteF7 = 1025;
+        public const int KakuteF7 = 1012;      // FIXED: Was incorrectly 1025
         public const int KakuteF7_Mini = 1041;
         public const int KakuteH7 = 1044;
         public const int KakuteH7_Mini = 1062;
@@ -100,6 +96,8 @@ public static class BoardCompatibility
 
     /// <summary>
     /// Compatibility groups - boards that can use the same firmware
+    /// NOTE: CubeOrange and CubeOrangePlus are NOT compatible - they have different MCUs!
+    /// CubeOrange uses STM32H753 (single-core), CubeOrangePlus uses STM32H757 (dual-core)
     /// </summary>
     private static readonly Dictionary<int, int[]> CompatibilityGroups = new()
     {
@@ -109,17 +107,16 @@ public static class BoardCompatibility
             BoardIds.PX4_FMUv2, new[]
             {
                 BoardIds.PX4_FMUv2,
-                BoardIds.PX4_FMUv3_LOGICAL,
                 BoardIds.CubeBlack
             }
         },
 
-        // Cube Orange family
+        // AUAV-X2 can use fmuv2 firmware
         {
-            BoardIds.CubeOrange, new[]
+            BoardIds.AUAV_X2, new[]
             {
-                BoardIds.CubeOrange,
-                BoardIds.CubeOrangePlus  // Orange+ can use Orange firmware
+                BoardIds.AUAV_X2,
+                BoardIds.PX4_FMUv2
             }
         },
 
@@ -186,24 +183,20 @@ public static class BoardCompatibility
 
         // Special cases for common compatibility patterns
 
-        // CubeOrangePlus can use CubeOrange firmware
-        if (detectedBoardId == BoardIds.CubeOrangePlus && firmwareBoardId == BoardIds.CubeOrange)
+        // AUAV-X2 (33) can use fmuv2 (9) firmware - Mission Planner exception
+        if (detectedBoardId == BoardIds.AUAV_X2 && firmwareBoardId == BoardIds.PX4_FMUv2)
         {
             return true;
         }
 
-        // FMUv3 (logical) can use FMUv2 firmware (same bootloader ID, different flash size)
-        if (detectedBoardId == BoardIds.PX4_FMUv3_LOGICAL && firmwareBoardId == BoardIds.PX4_FMUv2)
+        // Board ID 9 is compatible with fmuv2 and fmuv3 firmware
+        if (detectedBoardId == 9 && firmwareBoardId == 9)
         {
             return true;
         }
 
-        // Board ID 9 (detected) is compatible with both fmuv2 and fmuv3 firmware
-        // This handles the case where bootloader reports 9 for both variants
-        if (detectedBoardId == 9 && (firmwareBoardId == 9 || firmwareBoardId == BoardIds.PX4_FMUv3_LOGICAL))
-        {
-            return true;
-        }
+        // NOTE: CubeOrange (140) and CubeOrangePlus (1063) are NOT compatible!
+        // They have different MCUs and require different firmware.
 
         return false;
     }
@@ -211,13 +204,13 @@ public static class BoardCompatibility
     /// <summary>
     /// Gets the firmware platform name for a board ID.
     /// Used to select the correct firmware from the manifest.
+    /// This MUST return the exact platform name as it appears in the ArduPilot firmware manifest.
     /// </summary>
     public static string GetPlatformName(int boardId)
     {
         return boardId switch
         {
-            BoardIds.PX4_FMUv2 or BoardIds.CubeBlack => "fmuv2", // Both report ID 9
-            BoardIds.PX4_FMUv3_LOGICAL => "fmuv3",
+            BoardIds.PX4_FMUv2 or BoardIds.CubeBlack => "fmuv2",
             BoardIds.PX4_FMUv4 => "fmuv4",
             BoardIds.PX4_FMUv4_PRO => "fmuv4-pro",
             BoardIds.PX4_FMUv5 => "fmuv5",
@@ -227,10 +220,11 @@ public static class BoardCompatibility
             BoardIds.PX4_FMUv6C => "Pixhawk6C",
             BoardIds.CubeYellow => "CubeYellow",
             BoardIds.CubeOrange => "CubeOrange",
-            BoardIds.CubeOrangePlus => "CubeOrangePlus",
+            BoardIds.CubeOrangePlus => "CubeOrangePlus",  // CRITICAL: Must match exactly (board ID 1063)
             BoardIds.CubePurple => "CubePurple",
             BoardIds.Durandal => "Durandal",
             BoardIds.Pix32v5 => "Pix32v5",
+            BoardIds.AUAV_X2 => "fmuv2",  // AUAV-X2 uses fmuv2 firmware
             BoardIds.MatekF405 => "MatekF405",
             BoardIds.MatekF765 => "MatekF765-Wing",
             BoardIds.MatekH743 => "MatekH743",
@@ -255,7 +249,7 @@ public static class BoardCompatibility
         return lower switch
         {
             "fmuv2" or "pixhawk1" => BoardIds.PX4_FMUv2,
-            "fmuv3" => BoardIds.PX4_FMUv3_LOGICAL,
+            "fmuv3" => BoardIds.PX4_FMUv2, // fmuv3 also uses board_id 9
             "fmuv4" or "pixracer" => BoardIds.PX4_FMUv4,
             "fmuv4-pro" => BoardIds.PX4_FMUv4_PRO,
             "fmuv5" or "pixhawk4" => BoardIds.PX4_FMUv5,
@@ -265,7 +259,7 @@ public static class BoardCompatibility
             "pixhawk6c" or "fmuv6c" => BoardIds.PX4_FMUv6C,
             "cubeyellow" => BoardIds.CubeYellow,
             "cubeorange" => BoardIds.CubeOrange,
-            "cubeorangeplus" or "cubeorange+" => BoardIds.CubeOrangePlus,
+            "cubeorangeplus" or "cubeorange+" or "cubeorange-plus" => BoardIds.CubeOrangePlus,
             "cubepurple" => BoardIds.CubePurple,
             "durandal" => BoardIds.Durandal,
             "pix32v5" => BoardIds.Pix32v5,
@@ -284,17 +278,36 @@ public static class BoardCompatibility
     }
 
     /// <summary>
+    /// Gets the exact platform name to use for firmware download based on detected board ID.
+    /// This ensures we download the correct firmware variant.
+    /// </summary>
+    public static string GetExactPlatformName(int boardId)
+    {
+        // Return the exact platform name that matches the ArduPilot firmware manifest
+        return boardId switch
+        {
+            1063 => "CubeOrangePlus",  // CubeOrange+ requires CubeOrangePlus firmware
+            140 => "CubeOrange",        // Original CubeOrange
+            120 => "CubeYellow",
+            9 => "fmuv2",               // Pixhawk 1, Cube Black
+            50 => "fmuv5",              // Pixhawk 4
+            _ => GetPlatformName(boardId)
+        };
+    }
+
+    /// <summary>
     /// Gets compatible platform names for firmware search.
-    /// Returns the primary platform and any compatible alternatives.
+    /// Returns the primary platform ONLY - no fallbacks that could cause mismatches.
     /// </summary>
     public static string[] GetCompatiblePlatforms(int boardId)
     {
+        // IMPORTANT: CubeOrangePlus (1063) must ONLY return CubeOrangePlus
+        // It is NOT compatible with CubeOrange firmware!
         return boardId switch
         {
-            BoardIds.CubeOrangePlus => new[] { "CubeOrangePlus", "CubeOrange" },
-            BoardIds.CubeOrange => new[] { "CubeOrange" },
-            BoardIds.PX4_FMUv3_LOGICAL => new[] { "fmuv3", "fmuv2" },
-            BoardIds.PX4_FMUv2 or BoardIds.CubeBlack => new[] { "fmuv2" },
+            BoardIds.CubeOrangePlus or 1063 => new[] { "CubeOrangePlus" },
+            BoardIds.CubeOrange or 140 => new[] { "CubeOrange" },
+            BoardIds.PX4_FMUv2 or BoardIds.CubeBlack or 9 => new[] { "fmuv3", "fmuv2" },
             BoardIds.MatekH743_Mini => new[] { "MatekH743-mini", "MatekH743" },
             BoardIds.KakuteH7_Mini => new[] { "KakuteH7Mini", "KakuteH7" },
             _ => new[] { GetPlatformName(boardId) }
