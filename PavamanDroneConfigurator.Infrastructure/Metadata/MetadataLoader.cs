@@ -37,7 +37,7 @@ public static class MetadataLoader
                 Min = null,
                 Max = null,
                 StepSize = null,
-                DefaultValue = 0 // Default to 0 if not specified in XML
+                DefaultValue = 0 
             };
 
             foreach (var field in param.Elements("field"))
@@ -68,7 +68,7 @@ public static class MetadataLoader
                         break;
 
                     case "Increment":
-                        // Increment is STEP SIZE for editing, not default value!
+                    
                         if (fieldValue != null && float.TryParse(fieldValue, out float step))
                         {
                             if (!float.IsNaN(step) && !float.IsInfinity(step) && step > 0)
@@ -79,7 +79,7 @@ public static class MetadataLoader
                         break;
 
                     case "Default":
-                        // This is the actual default value
+                        
                         if (fieldValue != null && float.TryParse(fieldValue, out float def))
                         {
                             if (!float.IsNaN(def) && !float.IsInfinity(def))

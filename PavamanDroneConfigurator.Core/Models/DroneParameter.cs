@@ -20,6 +20,8 @@ public class DroneParameter : INotifyPropertyChanged
     private bool _isModified;
     private ObservableCollection<ParameterOption> _options = new();
     private ParameterOption? _selectedOption;
+    private bool _isBitmask;
+    private ObservableCollection<ParameterOption> _selectedBitmaskOptions = new();
     private string? _validationError;
     private string _optionsInputText = string.Empty;
 
@@ -45,7 +47,7 @@ public class DroneParameter : INotifyPropertyChanged
             // STRICT VALIDATION: Revert to DefaultValue if out of range
             float validatedValue = value;
             bool isOutOfRange = false;
-            
+
             if (MinValue.HasValue && value < MinValue.Value)
             {
                 validatedValue = DefaultValue;
@@ -62,7 +64,7 @@ public class DroneParameter : INotifyPropertyChanged
             {
                 ValidationError = null;
             }
-            
+
             if (System.Math.Abs(_value - validatedValue) > 0.0001f)
             {
                 _value = validatedValue;
@@ -70,7 +72,7 @@ public class DroneParameter : INotifyPropertyChanged
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(ValueDisplay));
                 UpdateSelectedOptionFromValue();
-                
+
                 // If we reverted to default, notify UI to clear invalid input
                 if (isOutOfRange)
                 {
@@ -191,13 +193,13 @@ public class DroneParameter : INotifyPropertyChanged
             isValid = false;
             return DefaultValue;
         }
-        
+
         if (MaxValue.HasValue && value > MaxValue.Value)
         {
             isValid = false;
             return DefaultValue;
         }
-        
+
         isValid = true;
         return value;
     }
@@ -294,16 +296,43 @@ public class DroneParameter : INotifyPropertyChanged
     public bool HasBitmaskOptions => IsBitmask;
 
     /// <summary>
-    /// Whether this parameter is a bitmask type.
+    /// Indicates if this parameter is a bitmask type.
     /// </summary>
-    public bool IsBitmask => HasOptions && (_name.Contains("_MASK") || _name.EndsWith("MASK") || _name.Contains("ENABLE"));
+    public bool IsBitmask
+    {
+        get => _isBitmask || (HasOptions && (_name.Contains("_MASK") || _name.EndsWith("MASK") || _name.Contains("ENABLE")));
+        set
+        {
+            if (_isBitmask != value)
+            {
+                _isBitmask = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(HasEnumOptions));
+                OnPropertyChanged(nameof(HasBitmaskOptions));
+            }
+        }
+    }
 
     /// <summary>
     /// Whether this parameter has no options (should show TextBox in OPTIONS column)
     /// </summary>
     public bool HasNoOptions => !HasOptions;
 
-    public ObservableCollection<ParameterOption> SelectedBitmaskOptions { get; set; } = new();
+    /// <summary>
+    /// Selected bitmask options for bitmask-type parameters.
+    /// </summary>
+    public ObservableCollection<ParameterOption> SelectedBitmaskOptions
+    {
+        get => _selectedBitmaskOptions;
+        set
+        {
+            if (_selectedBitmaskOptions != value)
+            {
+                _selectedBitmaskOptions = value;
+                OnPropertyChanged();
+            }
+        }
+    }
 
     public ParameterOption? SelectedOption
     {
@@ -314,7 +343,7 @@ public class DroneParameter : INotifyPropertyChanged
             {
                 _selectedOption = value;
                 OnPropertyChanged();
-                
+
                 if (value != null)
                 {
                     Value = value.Value;
@@ -350,10 +379,10 @@ public class DroneParameter : INotifyPropertyChanged
             {
                 return string.Empty;
             }
-            
+
             var minStr = MinValue.HasValue ? MinValue.Value.ToString("G") : "";
             var maxStr = MaxValue.HasValue ? MaxValue.Value.ToString("G") : "";
-            
+
             return $"{minStr} - {maxStr}";
         }
     }
@@ -369,45 +398,89 @@ public class DroneParameter : INotifyPropertyChanged
                     display += "\n...";
                 return display;
             }
-            
+
             if (MinValue.HasValue && MaxValue.HasValue)
             {
                 return $"{MinValue:G} {MaxValue:G}";
             }
-            
+
             return string.Empty;
         }
     }
 
+    /// <summary>
+    /// Gets the bitmask value from selected options.
+    /// Supports both direct bit values and bit positions (using bitshift).
+    /// </summary>
     public int GetBitmaskValue()
     {
         int result = 0;
         foreach (var opt in SelectedBitmaskOptions)
         {
-            result |= (1 << opt.Value);
+            // Check if the value is already a bitmask (power of 2) or needs bitshift
+            if (opt.Value > 0 && (opt.Value & (opt.Value - 1)) == 0)
+            {
+                // Value is already a power of 2, use it directly
+                result |= opt.Value;
+            }
+            else
+            {
+                // Value is a bit position, use bitshift
+                result |= (1 << opt.Value);
+            }
         }
         return result;
     }
 
+    /// <summary>
+    /// Updates the parameter value from the selected bitmask options.
+    /// </summary>
     public void UpdateValueFromBitmask()
     {
+        if (!IsBitmask)
+            return;
+
         Value = GetBitmaskValue();
     }
 
+    /// <summary>
+    /// Initializes the bitmask selection based on the current value.
+    /// Supports both direct bit values and bit positions.
+    /// </summary>
     public void InitializeBitmaskFromValue()
     {
+        if (!IsBitmask || Options.Count == 0)
+            return;
+
         SelectedBitmaskOptions.Clear();
         int intValue = (int)System.Math.Round(_value);
-        
+
         foreach (var opt in Options)
         {
-            if ((intValue & (1 << opt.Value)) != 0)
+            bool isSelected = false;
+
+            // Check if the value is already a bitmask (power of 2) or a bit position
+            if (opt.Value > 0 && (opt.Value & (opt.Value - 1)) == 0)
+            {
+                // Value is already a power of 2, check directly
+                isSelected = (intValue & opt.Value) != 0;
+            }
+            else
+            {
+                // Value is a bit position, use bitshift
+                isSelected = (intValue & (1 << opt.Value)) != 0;
+            }
+
+            if (isSelected)
             {
                 SelectedBitmaskOptions.Add(opt);
             }
         }
     }
 
+    /// <summary>
+    /// Updates the SelectedOption based on current Value.
+    /// </summary>
     private void UpdateSelectedOptionFromValue()
     {
         if (HasOptions && !IsBitmask)
