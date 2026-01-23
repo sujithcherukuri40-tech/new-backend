@@ -204,6 +204,7 @@ public sealed class Px4Uploader : IDisposable
         }
 
         // Step 3: Get board info - sync before each info request for reliability
+        // The bootloader-reported board_type is the AUTHORITATIVE source for board identification
         try
         {
             Sync();
@@ -237,6 +238,9 @@ public sealed class Px4Uploader : IDisposable
             FlashSize = 2048 * 1024; // Default to 2MB
         }
 
+        // CRITICAL: Log the bootloader-reported board_type - this is the authoritative source
+        // CubeOrange = 140, CubeOrangePlus = 1063 - they are NOT compatible!
+        Log($"Bootloader reported board_type: {BoardType}");
         Log($"Board type: {BoardType}, revision: {BoardRevision}");
         Log($"Flash size: {FlashSize} bytes ({FlashSize / 1024} KB)");
 
