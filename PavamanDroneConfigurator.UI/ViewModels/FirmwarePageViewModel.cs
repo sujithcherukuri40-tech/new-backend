@@ -6,6 +6,7 @@ using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 using PavamanDroneConfigurator.Core.Interfaces;
 using PavamanDroneConfigurator.Core.Models;
+using PavamanDroneConfigurator.Infrastructure.Services;
 using System;
 using System.Collections.ObjectModel;
 using System.IO;
@@ -92,6 +93,12 @@ public partial class FirmwarePageViewModel : ViewModelBase
     #region Reconnect Prompt Dialog
     [ObservableProperty] private bool _showReconnectPromptDialog;
     [ObservableProperty] private string _reconnectPromptMessage = string.Empty;
+    #endregion
+    
+    #region Bootloader Mode Dialog - Mission Planner equivalent "Please unplug and plug back in"
+    [ObservableProperty] private bool _showBootloaderModeDialog;
+    [ObservableProperty] private string _bootloaderModeMessage = string.Empty;
+    private TaskCompletionSource<bool>? _bootloaderDialogTcs;
     #endregion
 
     public FirmwarePageViewModel(
@@ -369,6 +376,49 @@ public partial class FirmwarePageViewModel : ViewModelBase
     {
         ShowReconnectPromptDialog = false;
     }
+    
+    /// <summary>
+    /// Shows a blocking dialog prompting the user to put the board in bootloader mode.
+    /// This is equivalent to Mission Planner's "Please unplug the board and plug back in" dialog.
+    /// </summary>
+    private async Task<bool> ShowBootloaderModePromptAsync(string message, CancellationToken ct)
+    {
+        _bootloaderDialogTcs = new TaskCompletionSource<bool>();
+        
+        await Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            BootloaderModeMessage = message;
+            ShowBootloaderModeDialog = true;
+        });
+        
+        // Wait for user response or cancellation
+        using var registration = ct.Register(() => 
+        {
+            _bootloaderDialogTcs?.TrySetResult(false);
+        });
+        
+        return await _bootloaderDialogTcs.Task;
+    }
+    
+    /// <summary>
+    /// User confirmed bootloader mode dialog - proceed with operation
+    /// </summary>
+    [RelayCommand]
+    private void ConfirmBootloaderMode()
+    {
+        ShowBootloaderModeDialog = false;
+        _bootloaderDialogTcs?.TrySetResult(true);
+    }
+    
+    /// <summary>
+    /// User cancelled bootloader mode dialog
+    /// </summary>
+    [RelayCommand]
+    private void CancelBootloaderMode()
+    {
+        ShowBootloaderModeDialog = false;
+        _bootloaderDialogTcs?.TrySetResult(false);
+    }
 
     #endregion
 
@@ -417,9 +467,28 @@ public partial class FirmwarePageViewModel : ViewModelBase
                 
                 if (board == null)
                 {
+                    // CRITICAL: Show blocking dialog like Mission Planner does
+                    // Mission Planner shows "Please unplug the board and plug back in" dialog
+                    AddLog("No running board found. Showing bootloader mode prompt...");
+                    
+                    var userConfirmed = await ShowBootloaderModePromptAsync(
+                        "No board detected.\n\n" +
+                        "Please unplug the board and plug back in while holding the BOOT button.\n\n" +
+                        "Click OK when ready, or Cancel to abort.",
+                        _operationCts.Token);
+                    
+                    if (!userConfirmed)
+                    {
+                        IsOperationInProgress = false;
+                        StatusMessage = "Installation cancelled";
+                        AddLog("User cancelled bootloader mode prompt");
+                        return;
+                    }
+                    
                     // Wait for bootloader with user feedback
-                    StatusMessage = "No running board found. Waiting for bootloader...";
-                    AddLog("Put your board in bootloader mode (hold BOOT button while connecting)");
+                    StatusMessage = "Waiting for bootloader...";
+                    DetailMessage = "Hold BOOT button while connecting";
+                    AddLog("Waiting for board in bootloader mode...");
                     
                     board = await _firmwareService.WaitForBootloaderAsync(
                         TimeSpan.FromSeconds(30), _operationCts.Token);
@@ -430,11 +499,33 @@ public partial class FirmwarePageViewModel : ViewModelBase
                     IsOperationInProgress = false;
                     IsError = true;
                     StatusMessage = "No board detected. Please connect your flight controller.";
+                    DetailMessage = "Try holding the BOOT button while connecting";
                     AddLog("Board detection timed out");
                     return;
                 }
                 
-                var basePlatform = board.BoardId ?? "fmuv2";
+                // CRITICAL: Use the bootloader-reported board ID (authoritative source)
+                // Never default to "fmuv2" - this prevents wrong firmware being flashed
+                string basePlatform;
+                if (board.BoardIdNumeric > 0)
+                {
+                    basePlatform = BoardCompatibility.GetPlatformName(board.BoardIdNumeric);
+                    AddLog($"Using bootloader-reported board_type {board.BoardIdNumeric} -> platform: {basePlatform}");
+                }
+                else if (!string.IsNullOrEmpty(board.BoardId))
+                {
+                    basePlatform = board.BoardId;
+                    AddLog($"Using USB-detected platform: {basePlatform}");
+                }
+                else
+                {
+                    IsOperationInProgress = false;
+                    IsError = true;
+                    StatusMessage = "Could not determine board type.";
+                    AddLog("ERROR: Could not determine board type - neither bootloader nor USB detection returned valid platform");
+                    return;
+                }
+                
                 AddLog($"Board detected: {board.BoardName} ({basePlatform}) on {board.SerialPort}");
                 StatusMessage = $"Detected: {board.BoardName}";
                 

@@ -275,6 +275,51 @@
                     </Border>
                 </Border>
                 
+                <!-- Bootloader Mode Dialog Overlay - Mission Planner equivalent "Please unplug and plug back in" -->
+                <Border Background="#80000000"
+                        IsVisible="{Binding ShowBootloaderModeDialog}"
+                        HorizontalAlignment="Stretch"
+                        VerticalAlignment="Stretch">
+                    <Border Background="#3E3E42"
+                            CornerRadius="8"
+                            Padding="24"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            MinWidth="450"
+                            MaxWidth="550">
+                        <StackPanel Spacing="16">
+                            <!-- Warning/Info icon instead of checkmark -->
+                            <PathIcon Data="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
+                                      Foreground="#FFA500" Width="48" Height="48"
+                                      HorizontalAlignment="Center"/>
+                            <TextBlock Text="Bootloader Mode Required"
+                                       Foreground="#FFFFFF"
+                                       FontSize="16"
+                                       FontWeight="SemiBold"
+                                       HorizontalAlignment="Center"/>
+                            <TextBlock Text="{Binding BootloaderModeMessage}"
+                                       Foreground="#CCCCCC"
+                                       FontSize="13"
+                                       TextWrapping="Wrap"
+                                       TextAlignment="Center"/>
+                            <StackPanel Orientation="Horizontal" 
+                                        HorizontalAlignment="Center" 
+                                        Spacing="16"
+                                        Margin="0,8,0,0">
+                                <Button Content="OK"
+                                        Width="100"
+                                        Background="#0E639C"
+                                        Foreground="White"
+                                        Command="{Binding ConfirmBootloaderModeCommand}"/>
+                                <Button Content="Cancel"
+                                        Width="100"
+                                        Classes="status-btn"
+                                        Command="{Binding CancelBootloaderModeCommand}"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+                </Border>
+                
                 <!-- Vehicle Type Grid (Mission Planner Style) -->
                 <ItemsControl ItemsSource="{Binding VehicleTypes}">
                     <ItemsControl.ItemsPanel>

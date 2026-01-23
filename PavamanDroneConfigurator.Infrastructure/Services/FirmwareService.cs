@@ -795,10 +795,66 @@ public sealed class FirmwareService : IFirmwareService, IDisposable
                 await Task.Delay(500, token);
             }
             
-            // Step 2: Detect board
+            // Step 2: Detect board - ALWAYS detect, never default to fmuv2!
             Log("Detecting board...");
             var board = CurrentBoard ?? await DetectBoardAsync(token);
-            var platformName = boardId ?? board?.BoardId ?? "fmuv2";
+            
+            // CRITICAL FIX: Never default to "fmuv2" - require explicit board detection
+            // This prevents wrong firmware being flashed (e.g., fmuv2 firmware to CubeOrangePlus)
+            if (board == null && string.IsNullOrEmpty(boardId))
+            {
+                Log("No board detected from USB. Waiting for board in bootloader mode...");
+                UpdateState(FirmwareFlashState.WaitingForBootloader, 0, 
+                    "No board detected. Please connect your flight controller or put it in bootloader mode.");
+                
+                // Try to get the board to enter bootloader
+                var rebootSuccess = await AttemptRebootToBootloaderAsync(token);
+                if (rebootSuccess)
+                {
+                    Log("Waiting for USB re-enumeration after reboot command...");
+                    await Task.Delay(USB_REENUMERATION_DELAY_MS, token);
+                }
+                
+                // Wait for bootloader with timeout
+                board = await WaitForBootloaderAsync(TimeSpan.FromSeconds(60), token);
+                
+                if (board == null)
+                {
+                    return CreateFailResult(
+                        "No board detected. Please connect a flight controller. " +
+                        "If the board is connected, try holding the BOOT button while connecting.", 
+                        sw.Elapsed);
+                }
+            }
+            
+            // Use bootloader-reported board ID as the authoritative source
+            // This is CRITICAL for differentiating CubeOrange (140) from CubeOrangePlus (1063)
+            string platformName;
+            if (!string.IsNullOrEmpty(boardId))
+            {
+                // User explicitly specified a board ID
+                platformName = boardId;
+                Log($"Using user-specified platform: {platformName}");
+            }
+            else if (board != null && board.BoardIdNumeric > 0)
+            {
+                // Use the actual board ID from bootloader (authoritative source)
+                platformName = BoardCompatibility.GetPlatformName(board.BoardIdNumeric);
+                Log($"Using bootloader-reported board_type {board.BoardIdNumeric} -> platform: {platformName}");
+            }
+            else if (board != null && !string.IsNullOrEmpty(board.BoardId))
+            {
+                // Fallback to board's platform name from USB detection
+                platformName = board.BoardId;
+                Log($"Using USB-detected platform: {platformName}");
+            }
+            else
+            {
+                // This should not happen if we require board detection above
+                return CreateFailResult(
+                    "Could not determine board type. Please ensure the board is properly connected.", 
+                    sw.Elapsed);
+            }
             
             // Step 3: Get firmware
             var versions = await GetAvailableFirmwareVersionsAsync(vehicleType.ArduPilotId, platformName, releaseType, token);
@@ -809,7 +865,7 @@ public sealed class FirmwareService : IFirmwareService, IDisposable
                 return CreateFailResult($"No firmware found for {vehicleType.Name} on {platformName}", sw.Elapsed);
             }
             
-            Log($"Selected firmware: {latestVersion.Version}");
+            Log($"Selected firmware: {latestVersion.Version} for platform: {platformName}");
             
             // Step 4: Download firmware
             var firmwarePath = await DownloadFirmwareAsync(latestVersion.DownloadUrl, null, token);
@@ -840,7 +896,37 @@ public sealed class FirmwareService : IFirmwareService, IDisposable
                 
                 if (board == null)
                 {
-                    return CreateFailResult("Failed to enter bootloader. Hold BOOT button while connecting.", sw.Elapsed);
+                    return CreateFailResult(
+                        "Failed to enter bootloader. Please unplug the board and plug back in while holding the BOOT button.", 
+                        sw.Elapsed);
+                }
+                
+                // IMPORTANT: After getting board from bootloader, verify/update platformName
+                // The bootloader board_type is the authoritative source
+                if (board.BoardIdNumeric > 0 && string.IsNullOrEmpty(boardId))
+                {
+                    var bootloaderPlatform = BoardCompatibility.GetPlatformName(board.BoardIdNumeric);
+                    if (!string.Equals(platformName, bootloaderPlatform, StringComparison.OrdinalIgnoreCase))
+                    {
+                        Log($"WARNING: Initial detection suggested '{platformName}' but bootloader reports board_type {board.BoardIdNumeric} -> '{bootloaderPlatform}'");
+                        Log($"Using authoritative bootloader board_type: {bootloaderPlatform}");
+                        
+                        // Re-download firmware for the correct platform if needed
+                        platformName = bootloaderPlatform;
+                        versions = await GetAvailableFirmwareVersionsAsync(vehicleType.ArduPilotId, platformName, releaseType, token);
+                        latestVersion = versions.FirstOrDefault(v => v.IsLatest) ?? versions.FirstOrDefault();
+                        
+                        if (latestVersion == null)
+                        {
+                            return CreateFailResult($"No firmware found for {vehicleType.Name} on {platformName}", sw.Elapsed);
+                        }
+                        
+                        firmwarePath = await DownloadFirmwareAsync(latestVersion.DownloadUrl, null, token);
+                        if (string.IsNullOrEmpty(firmwarePath))
+                        {
+                            return CreateFailResult("Failed to download firmware for correct platform", sw.Elapsed);
+                        }
+                    }
                 }
             }
             
