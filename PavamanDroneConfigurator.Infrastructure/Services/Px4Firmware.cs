@@ -205,7 +205,7 @@ public sealed class Px4Firmware
                 byte[] compressedData = Convert.FromBase64String(base64Image);
                 
                 // Calculate size with 4-byte alignment padding
-                int paddedSize = DeclaredImageSize + (DeclaredImageSize % 4 == 0 ? 0 : (4 - DeclaredImageSize % 4));
+                int paddedSize = CalculatePaddedSize(DeclaredImageSize);
                 
                 // Decompress using zlib
                 using var compressedStream = new MemoryStream(compressedData);
@@ -260,7 +260,7 @@ public sealed class Px4Firmware
                     byte[] compressedData = Convert.FromBase64String(base64ExtfImage);
                     
                     // Calculate size with 4-byte alignment padding
-                    int paddedSize = DeclaredExtFlashImageSize + (DeclaredExtFlashImageSize % 4 == 0 ? 0 : (4 - DeclaredExtFlashImageSize % 4));
+                    int paddedSize = CalculatePaddedSize(DeclaredExtFlashImageSize);
                     
                     // Pre-fill with 0xFF (unprogrammed flash state)
                     ExtFlashImage = new byte[paddedSize];
@@ -476,6 +476,15 @@ public sealed class Px4Firmware
             }
         }
         return -1;
+    }
+
+    /// <summary>
+    /// Calculates the padded size for 4-byte alignment
+    /// </summary>
+    private static int CalculatePaddedSize(int size)
+    {
+        int remainder = size % 4;
+        return remainder == 0 ? size : size + (4 - remainder);
     }
 
     private void InferBoardIdFromFilename(string filename)

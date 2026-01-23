@@ -1181,11 +1181,6 @@ public sealed class Px4Uploader : IDisposable
     }
 
     /// <summary>
-    /// Calculate CRC32 used by PX4 bootloader.
-    /// Uses CRC-32/MPEG-2 polynomial (0x04C11DB7).
-    /// Firmware is padded to flash size with 0xFF (unprogrammed flash state).
-    /// </summary>
-    /// <summary>
     /// CRC-32 lookup table (same as MissionPlanner)
     /// Standard CRC-32 polynomial (0xEDB88320 reversed)
     /// </summary>
