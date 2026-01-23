@@ -327,8 +327,8 @@ public static class BoardDetect
     {
         board = board.ToLowerInvariant();
         
-        // Log USB detection info for debugging
-        System.Diagnostics.Debug.WriteLine(
+        // Log USB detection info for debugging (using Trace for static context)
+        System.Diagnostics.Trace.WriteLine(
             $"[BoardDetect] USB Detection: VID={device.VendorId:X4}, PID={device.ProductId:X4}, Board string='{device.Board}'");
 
         // IMPORTANT: Check string matching FIRST for CubeOrange+ vs CubeOrange
@@ -338,14 +338,14 @@ public static class BoardDetect
         // Check for CubeOrange+ explicitly first (must check before checking for "orange")
         if (board.Contains("orange+") || board.Contains("orangeplus") || board.Contains("cubeplus"))
         {
-            System.Diagnostics.Debug.WriteLine("[BoardDetect] Detected CubeOrangePlus from board string");
+            System.Diagnostics.Trace.WriteLine("[BoardDetect] Detected CubeOrangePlus from board string");
             return Boards.cubeorangeplus;
         }
         
         // Now check by product ID (but be aware CubeOrange/CubeOrangePlus may share PIDs)
         if (device.ProductId == UsbIds.PROFICNC_CUBE_ORANGEPLUS_PID)  // 0x1059
         {
-            System.Diagnostics.Debug.WriteLine("[BoardDetect] Detected CubeOrangePlus from PID 0x1059");
+            System.Diagnostics.Trace.WriteLine("[BoardDetect] Detected CubeOrangePlus from PID 0x1059");
             return Boards.cubeorangeplus;
         }
         if (device.ProductId == UsbIds.PROFICNC_CUBE_YELLOW_PID)
@@ -359,7 +359,7 @@ public static class BoardDetect
         {
             // Could be either CubeOrange OR CubeOrangePlus - both may use this PID!
             // Default to cubeorange but the bootloader board_type will be authoritative
-            System.Diagnostics.Debug.WriteLine(
+            System.Diagnostics.Trace.WriteLine(
                 "[BoardDetect] PID 0x1058 detected - could be CubeOrange or CubeOrangePlus. " +
                 "Bootloader board_type will be used for final identification.");
             return Boards.cubeorange;
