@@ -264,10 +264,7 @@ public sealed class Px4Firmware
                     
                     // Pre-fill with 0xFF (unprogrammed flash state)
                     ExtFlashImage = new byte[paddedSize];
-                    for (int i = 0; i < ExtFlashImage.Length; i++)
-                    {
-                        ExtFlashImage[i] = 0xFF;
-                    }
+                    Array.Fill(ExtFlashImage, (byte)0xFF);
                     
                     // Decompress using zlib
                     using var compressedStream = new MemoryStream(compressedData);
