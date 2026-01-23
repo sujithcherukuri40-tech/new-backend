@@ -98,25 +98,37 @@ public static class BoardCompatibility
     /// Compatibility groups - boards that can use the same firmware
     /// NOTE: CubeOrange and CubeOrangePlus are NOT compatible - they have different MCUs!
     /// CubeOrange uses STM32H753 (single-core), CubeOrangePlus uses STM32H757 (dual-core)
+    /// 
+    /// Mission Planner board ID compatibility mappings from Uploader.cs:918-928
     /// </summary>
     private static readonly Dictionary<int, int[]> CompatibilityGroups = new()
     {
         // FMUv2/v3 compatibility group (Pixhawk 1, Cube Black, etc.)
         // Both report board_id=9 in bootloader
+        // Special case from Mission Planner: board_type 33 is compatible with fw.board_id 9
         {
             BoardIds.PX4_FMUv2, new[]
             {
                 BoardIds.PX4_FMUv2,
-                BoardIds.CubeBlack
+                BoardIds.CubeBlack,
+                BoardIds.AUAV_X2 // AUAV-X2 (33) can use fmuv2 (9) firmware
             }
         },
 
-        // AUAV-X2 can use fmuv2 firmware
+        // AUAV-X2 can use fmuv2 firmware - explicit mapping
         {
             BoardIds.AUAV_X2, new[]
             {
                 BoardIds.AUAV_X2,
                 BoardIds.PX4_FMUv2
+            }
+        },
+        
+        // FMUv5 group - Pixhawk 4 and variants
+        {
+            BoardIds.PX4_FMUv5, new[]
+            {
+                BoardIds.PX4_FMUv5
             }
         },
 
@@ -145,11 +157,28 @@ public static class BoardCompatibility
                 BoardIds.KakuteF7,
                 BoardIds.KakuteF7_Mini
             }
+        },
+        
+        // CubeOrange - standalone, NOT compatible with CubeOrangePlus
+        {
+            BoardIds.CubeOrange, new[]
+            {
+                BoardIds.CubeOrange
+            }
+        },
+        
+        // CubeOrangePlus - standalone, NOT compatible with CubeOrange
+        {
+            BoardIds.CubeOrangePlus, new[]
+            {
+                BoardIds.CubeOrangePlus
+            }
         }
     };
 
     /// <summary>
     /// Checks if two board IDs are compatible for firmware flashing.
+    /// Matches Mission Planner's board compatibility logic from Uploader.cs:918-928.
     /// </summary>
     /// <param name="detectedBoardId">The board ID detected from bootloader</param>
     /// <param name="firmwareBoardId">The board ID specified in the firmware file</param>
@@ -168,12 +197,29 @@ public static class BoardCompatibility
             return true;
         }
 
-        // Check compatibility groups
+        // Check compatibility groups - forward lookup
+        if (CompatibilityGroups.TryGetValue(detectedBoardId, out var compatibleBoards))
+        {
+            if (Array.IndexOf(compatibleBoards, firmwareBoardId) >= 0)
+            {
+                return true;
+            }
+        }
+        
+        // Check reverse mapping - firmware board might have a compatibility group
+        if (CompatibilityGroups.TryGetValue(firmwareBoardId, out var reverseCompatible))
+        {
+            if (Array.IndexOf(reverseCompatible, detectedBoardId) >= 0)
+            {
+                return true;
+            }
+        }
+
+        // Check if both boards are in the same compatibility group
         foreach (var group in CompatibilityGroups)
         {
             var groupBoards = group.Value;
 
-            // If both boards are in the same compatibility group
             if (Array.IndexOf(groupBoards, detectedBoardId) >= 0 &&
                 Array.IndexOf(groupBoards, firmwareBoardId) >= 0)
             {
@@ -182,9 +228,14 @@ public static class BoardCompatibility
         }
 
         // Special cases for common compatibility patterns
-
-        // AUAV-X2 (33) can use fmuv2 (9) firmware - Mission Planner exception
+        // Mission Planner exception: board_type 33 (AUAV-X2) is compatible with fw.board_id 9 (fmuv2)
         if (detectedBoardId == BoardIds.AUAV_X2 && firmwareBoardId == BoardIds.PX4_FMUv2)
+        {
+            return true;
+        }
+        
+        // Reverse: firmware expects board 33 but we have board 9
+        if (detectedBoardId == BoardIds.PX4_FMUv2 && firmwareBoardId == BoardIds.AUAV_X2)
         {
             return true;
         }

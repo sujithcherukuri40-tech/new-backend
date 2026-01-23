@@ -40,10 +40,14 @@ public sealed class Px4Uploader : IDisposable
     private const int SYNC_ATTEMPTS = 3;
     
     // Mission Planner compatible timeouts and delays
-    private const int PROGRAM_TIMEOUT = 2000;  // Timeout for program operations (was 1000ms)
-    private const int STABILIZATION_DELAY = 500; // USB stabilization delay after connect
-    private const int PROGRAM_CHUNK_DELAY = 5;   // Small delay between chunks to avoid USB overruns
-    private const int MAX_PROGRAM_RETRIES = 3;   // Retry failed program chunks
+    // Mission Planner uses short timeouts for initial sync (50-100ms), then increases after identification
+    private const int INITIAL_READ_TIMEOUT = 100;  // Short timeout for initial sync (Mission Planner uses 50ms)
+    private const int INITIAL_WRITE_TIMEOUT = 100; // Short timeout for initial sync
+    private const int PROGRAM_TIMEOUT = 2000;      // Timeout for program operations after identification
+    private const int WRITE_TIMEOUT = 500;         // Write timeout after identification (Mission Planner uses 500ms)
+    private const int STABILIZATION_DELAY = 500;   // USB stabilization delay after connect
+    private const int PROGRAM_CHUNK_DELAY = 5;     // Small delay between chunks to avoid USB overruns
+    private const int MAX_PROGRAM_RETRIES = 3;     // Retry failed program chunks
     private const int CRC_VERIFICATION_TIMEOUT = 30000; // CRC calculation can take up to 30 seconds
     private const double CRC_PROGRESS_DURATION_MS = 10000.0; // Duration for progress bar during CRC verification
     
@@ -77,6 +81,7 @@ public sealed class Px4Uploader : IDisposable
     /// <summary>
     /// Opens connection to the bootloader on specified port
     /// Implements Mission Planner's connection sequence with stabilization delay.
+    /// Uses SHORT timeouts initially for sync detection, then increases after identification.
     /// </summary>
     public void Open(string portName, int baudRate = 115200)
     {
@@ -87,9 +92,11 @@ public sealed class Px4Uploader : IDisposable
             DataBits = 8,
             Parity = Parity.None,
             StopBits = StopBits.One,
-            ReadTimeout = PROGRAM_TIMEOUT,   // Increased from 1000 for program reliability
-            WriteTimeout = PROGRAM_TIMEOUT,  // Increased from 1000 for program reliability
-            DtrEnable = false,
+            // Use SHORT timeouts initially for sync detection (Mission Planner uses 50ms)
+            // This allows faster identification and prevents long waits on non-bootloader ports
+            ReadTimeout = INITIAL_READ_TIMEOUT,
+            WriteTimeout = INITIAL_WRITE_TIMEOUT,
+            DtrEnable = false,   // Some boards need this FALSE
             RtsEnable = false
         };
 
@@ -150,6 +157,7 @@ public sealed class Px4Uploader : IDisposable
     /// <summary>
     /// Identifies the connected board by querying bootloader.
     /// This is the main entry point after opening the port.
+    /// After successful identification, increases timeouts for programming operations.
     /// </summary>
     public void Identify()
     {
@@ -187,10 +195,12 @@ public sealed class Px4Uploader : IDisposable
             throw new Exception($"Bootloader protocol revision {BootloaderRevision} not supported (expected {BL_REV_MIN}-{BL_REV_MAX})");
         }
 
-        // Increase timeout after successful identification
+        // CRITICAL: Increase timeouts after successful identification (Mission Planner pattern)
+        // This is important because programming operations take longer than sync
         if (_port != null)
         {
-            _port.WriteTimeout = 500;
+            _port.ReadTimeout = PROGRAM_TIMEOUT;  // 2000ms for program operations
+            _port.WriteTimeout = WRITE_TIMEOUT;   // 500ms like Mission Planner
         }
 
         // Step 3: Get board info - sync before each info request for reliability
