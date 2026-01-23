@@ -47,6 +47,10 @@ public sealed class FirmwareService : IFirmwareService, IDisposable
     // Bootloader detection timeout
     private const int BOOTLOADER_DETECT_TIMEOUT_SECONDS = 30;
     
+    // USB re-enumeration delay - CRITICAL: After reboot to bootloader, the FC will appear on a DIFFERENT port
+    // Mission Planner uses 500ms-3s for this. We use 2500ms for safety.
+    private const int USB_REENUMERATION_DELAY_MS = 2500;
+    
     // Manifest cache
     private FirmwareManifest? _cachedManifest;
     private DateTime _manifestCacheTime = DateTime.MinValue;
@@ -826,9 +830,8 @@ public sealed class FirmwareService : IFirmwareService, IDisposable
                 if (rebootSuccess)
                 {
                     // CRITICAL: Wait for USB re-enumeration - port will change!
-                    // Mission Planner uses 2+ seconds for this
                     Log("Waiting for USB re-enumeration after reboot command...");
-                    await Task.Delay(2500, token);
+                    await Task.Delay(USB_REENUMERATION_DELAY_MS, token);
                 }
                 
                 // Wait for bootloader with increased timeout (Mission Planner uses up to 60 seconds)
@@ -1375,10 +1378,10 @@ public sealed class FirmwareService : IFirmwareService, IDisposable
                 await _connectionService.DisconnectAsync();
                 Log("MAVLink reboot command sent, connection closed");
                 
-                // CRITICAL: Wait for USB re-enumeration (Mission Planner uses 500ms-3s)
+                // CRITICAL: Wait for USB re-enumeration
                 // The FC will appear on a DIFFERENT port after bootloader reboot!
-                Log("Waiting for USB re-enumeration (2 seconds)...");
-                await Task.Delay(2000, ct);
+                Log("Waiting for USB re-enumeration...");
+                await Task.Delay(USB_REENUMERATION_DELAY_MS, ct);
                 
                 return true;
             }
@@ -1402,8 +1405,8 @@ public sealed class FirmwareService : IFirmwareService, IDisposable
                     Log($"Reboot command sent successfully on {port}");
                     
                     // CRITICAL: Wait for USB re-enumeration - port will change!
-                    Log("Waiting for USB re-enumeration (2 seconds)...");
-                    await Task.Delay(2000, ct);
+                    Log("Waiting for USB re-enumeration...");
+                    await Task.Delay(USB_REENUMERATION_DELAY_MS, ct);
                     
                     return true;
                 }
