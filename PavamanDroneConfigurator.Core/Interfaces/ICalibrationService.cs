@@ -54,9 +54,16 @@ public interface ICalibrationService
     /// <summary>
     /// Start accelerometer calibration (6-axis).
     /// REQUIRED ORIENTATIONS: Level, Left, Right, NoseDown, NoseUp, Back
-    /// MAV_CMD_PREFLIGHT_CALIBRATION param5 = 4 (full 6-axis)
+    /// MAV_CMD_PREFLIGHT_CALIBRATION param5 = 1 (full 6-position calibration)
     /// </summary>
     Task<bool> StartAccelerometerCalibrationAsync(bool fullSixAxis = true);
+
+    /// <summary>
+    /// Start simple accelerometer calibration (automatic, no user positions).
+    /// Vehicle must be on level surface. FC performs automatic calibration.
+    /// MAV_CMD_PREFLIGHT_CALIBRATION param5 = 4
+    /// </summary>
+    Task<bool> StartSimpleAccelerometerCalibrationAsync();
 
     /// <summary>
     /// Start compass/magnetometer calibration.

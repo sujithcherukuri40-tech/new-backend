@@ -30,6 +30,7 @@ public interface IConnectionService
     event EventHandler<StatusTextEventArgs>? StatusTextReceived;
     event EventHandler<RcChannelsEventArgs>? RcChannelsReceived;
     event EventHandler<CommandAckEventArgs>? CommandAckReceived;
+    event EventHandler<CommandLongEventArgs>? CommandLongReceived;
     event EventHandler<RawImuEventArgs>? RawImuReceived;
     
     // MAVLink send methods for ParameterService to call
@@ -142,12 +143,30 @@ public class CommandAckEventArgs : EventArgs
 // Event args for RAW_IMU messages
 public class RawImuEventArgs : EventArgs
 {
-    public double AccelX { get; set; } // m/s²
-    public double AccelY { get; set; } // m/s²
-    public double AccelZ { get; set; } // m/s²
+    public double AccelX { get; set; } // m/sï¿½
+    public double AccelY { get; set; } // m/sï¿½
+    public double AccelZ { get; set; } // m/sï¿½
     public double GyroX { get; set; }  // rad/s
     public double GyroY { get; set; }  // rad/s
     public double GyroZ { get; set; }  // rad/s
     public ulong TimeUsec { get; set; }
-    public double Temperature { get; set; } // °C
+    public double Temperature { get; set; } // ï¿½C
+}
+
+// Event args for COMMAND_LONG messages
+public class CommandLongEventArgs : EventArgs
+{
+    public byte SystemId { get; set; }
+    public byte ComponentId { get; set; }
+    public ushort Command { get; set; }
+    public float Param1 { get; set; }
+    public float Param2 { get; set; }
+    public float Param3 { get; set; }
+    public float Param4 { get; set; }
+    public float Param5 { get; set; }
+    public float Param6 { get; set; }
+    public float Param7 { get; set; }
+    public byte TargetSystem { get; set; }
+    public byte TargetComponent { get; set; }
+    public byte Confirmation { get; set; }
 }
