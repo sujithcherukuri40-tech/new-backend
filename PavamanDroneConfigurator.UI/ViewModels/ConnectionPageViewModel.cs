@@ -38,6 +38,7 @@ public partial class ConnectionPageViewModel : ViewModelBase
 {
     private readonly IConnectionService _connectionService;
     private readonly IParameterService _parameterService;
+    private readonly IDroneInfoService _droneInfoService;
     private bool _downloadInProgress;
 
     [ObservableProperty]
@@ -111,6 +112,9 @@ public partial class ConnectionPageViewModel : ViewModelBase
     private int _componentId;
 
     [ObservableProperty]
+    private string _fcId = "N/A";
+
+    [ObservableProperty]
     private int _parameterCount;
 
     // Connection type radio button bindings
@@ -134,14 +138,18 @@ public partial class ConnectionPageViewModel : ViewModelBase
 
     public ConnectionPageViewModel(
         IConnectionService connectionService, 
-        IParameterService parameterService)
+        IParameterService parameterService,
+        IDroneInfoService droneInfoService)
     {
         _connectionService = connectionService;
         _parameterService = parameterService;
+        _droneInfoService = droneInfoService;
 
         _connectionService.ConnectionStateChanged += OnConnectionStateChanged;
         _connectionService.AvailableSerialPortsChanged += OnAvailableSerialPortsChanged;
+        _connectionService.HeartbeatDataReceived += OnHeartbeatDataReceived;
         _parameterService.ParameterDownloadProgressChanged += OnParameterDownloadProgressChanged;
+        _droneInfoService.DroneInfoUpdated += OnDroneInfoUpdated;
         _downloadInProgress = _parameterService.IsParameterDownloadInProgress;
 
         var ports = _connectionService.GetAvailableSerialPorts().ToList();
@@ -213,6 +221,12 @@ public partial class ConnectionPageViewModel : ViewModelBase
                         : "Disconnected";
                     _downloadInProgress = false;
                     IsDownloadingParameters = false;
+                    
+                    // Reset connection info on disconnect
+                    SystemId = 0;
+                    ComponentId = 0;
+                    FcId = "N/A";
+                    ParameterCount = 0;
                 }
             }
             catch (Exception ex)
@@ -226,6 +240,25 @@ public partial class ConnectionPageViewModel : ViewModelBase
     {
         ConnectionStatusText = text;
         ConnectionStatusBrush = brush;
+    }
+
+    private void OnHeartbeatDataReceived(object? sender, HeartbeatDataEventArgs e)
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            SystemId = e.SystemId;
+            ComponentId = e.ComponentId;
+        });
+    }
+
+    private void OnDroneInfoUpdated(object? sender, DroneInfo info)
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            SystemId = info.SystemId;
+            ComponentId = info.ComponentId;
+            FcId = info.FcId;
+        });
     }
 
     private void OnParameterDownloadProgressChanged(object? sender, EventArgs e)

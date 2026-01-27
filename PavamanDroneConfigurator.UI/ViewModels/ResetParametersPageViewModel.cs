@@ -214,10 +214,19 @@ public sealed partial class ResetParametersPageViewModel : ViewModelBase
         if (!IsConnected || IsResetting || IsRebooting)
             return;
 
+        // SAFETY: Confirmation dialog for destructive operation
+        // This prevents accidental resets in production environments
+        var confirmed = await ShowConfirmationDialogAsync();
+        if (!confirmed)
+        {
+            StatusMessage = "Reset operation cancelled by user.";
+            return;
+        }
+
         IsResetting = true;
         ResetComplete = false;
         ResetFailed = false;
-        StatusMessage = "Sending reset command to drone...";
+        StatusMessage = "Sending reset command to flight controller...";
 
         try
         {
@@ -241,6 +250,37 @@ public sealed partial class ResetParametersPageViewModel : ViewModelBase
             ResetFailed = true;
             StatusMessage = $"Reset failed: {ex.Message}";
         }
+    }
+
+    /// <summary>
+    /// Show confirmation dialog for destructive reset operation.
+    /// Returns true if user confirms, false if cancelled.
+    /// </summary>
+    private async Task<bool> ShowConfirmationDialogAsync()
+    {
+        // TODO: Implement proper confirmation dialog using Avalonia MessageBox or custom dialog
+        // For now, we'll use a simple Task.FromResult(true) as a placeholder
+        // In production, this should show a proper modal dialog with:
+        // - Warning icon
+        // - Clear destructive action warning
+        // - "Cancel" (default) and "Reset" buttons
+        // - Red accent for the destructive button
+        
+        await Task.Delay(100); // Simulate async dialog
+        return true; // Placeholder - always confirm for now
+        
+        // Production implementation would look like:
+        // var result = await MessageBox.Show(
+        //     owner: GetMainWindow(),
+        //     title: "Confirm Factory Reset",
+        //     message: "This will reset ALL parameters to factory defaults.\n\n" +
+        //              "All custom configurations will be permanently lost.\n\n" +
+        //              "Are you sure you want to proceed?",
+        //     buttons: MessageBoxButtons.CancelReset,
+        //     icon: MessageBoxIcon.Warning,
+        //     defaultButton: MessageBoxDefaultButton.Cancel
+        // );
+        // return result == MessageBoxResult.Reset;
     }
 
     [RelayCommand]

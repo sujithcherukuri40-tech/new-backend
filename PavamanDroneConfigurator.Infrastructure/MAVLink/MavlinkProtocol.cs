@@ -178,9 +178,7 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
             return true;
         }
 
-        /// <summary>
-        /// Extract 24-bit message ID from MAVLink v2 frame
-        /// </summary>
+       
         public static int GetV2MessageId(byte[] frame)
         {
             if (frame.Length < MIN_FRAME_LENGTH_V2)

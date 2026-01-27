@@ -276,15 +276,18 @@
                 <StackPanel Spacing="12">
                     <TextBlock Text="Connection Information" Classes="section-title"/>
                     
-                    <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="16" RowSpacing="8">
+                    <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto" ColumnSpacing="16" RowSpacing="8">
                         <TextBlock Grid.Row="0" Grid.Column="0" Text="System ID:" Foreground="#6B7280" FontSize="13"/>
                         <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding SystemId}" FontWeight="SemiBold" FontSize="13"/>
                         
                         <TextBlock Grid.Row="1" Grid.Column="0" Text="Component ID:" Foreground="#6B7280" FontSize="13"/>
                         <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding ComponentId}" FontWeight="SemiBold" FontSize="13"/>
                         
-                        <TextBlock Grid.Row="2" Grid.Column="0" Text="Parameters Loaded:" Foreground="#6B7280" FontSize="13"/>
-                        <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding ParameterCount}" FontWeight="SemiBold" FontSize="13"/>
+                        <TextBlock Grid.Row="2" Grid.Column="0" Text="FC ID:" Foreground="#6B7280" FontSize="13"/>
+                        <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding FcId}" FontWeight="SemiBold" FontSize="13"/>
+                        
+                        <TextBlock Grid.Row="3" Grid.Column="0" Text="Parameters Loaded:" Foreground="#6B7280" FontSize="13"/>
+                        <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding ParameterCount}" FontWeight="SemiBold" FontSize="13"/>
                     </Grid>
                 </StackPanel>
             </Border>

@@ -47,6 +47,13 @@ public sealed class FirmwareService : IFirmwareService, IDisposable
     // Bootloader detection timeout
     private const int BOOTLOADER_DETECT_TIMEOUT_SECONDS = 30;
     
+    // USB re-enumeration delay - CRITICAL: After reboot to bootloader, the FC will appear on a DIFFERENT port
+    // Mission Planner uses 500ms-3s for this. We use 2500ms for safety.
+    private const int USB_REENUMERATION_DELAY_MS = 2500;
+    
+    // Maximum number of firmware versions to log for debugging
+    private const int MAX_LOGGED_FIRMWARE_VERSIONS = 3;
+    
     // Manifest cache
     private FirmwareManifest? _cachedManifest;
     private DateTime _manifestCacheTime = DateTime.MinValue;
@@ -387,8 +394,9 @@ public sealed class FirmwareService : IFirmwareService, IDisposable
         UpdateState(FirmwareFlashState.WaitingForBootloader, 0, "Waiting for board in bootloader mode...");
         
         // Remember which ports existed before - used to detect USB re-enumeration
-        var existingPorts = new HashSet<string>(SerialPort.GetPortNames());
-        Log($"Existing ports: {string.Join(", ", existingPorts)}");
+        var initialPorts = new HashSet<string>(SerialPort.GetPortNames());
+        var checkedPorts = new HashSet<string>();
+        Log($"Initial ports: {string.Join(", ", initialPorts)}");
         
         var stopwatch = Stopwatch.StartNew();
         int scanCount = 0;
@@ -399,31 +407,68 @@ public sealed class FirmwareService : IFirmwareService, IDisposable
             
             try
             {
-                // Check for new ports (USB re-enumeration after reboot)
+                // Get FRESH port list each iteration (critical for USB re-enumeration)
                 var currentPorts = SerialPort.GetPortNames();
-                var newPorts = currentPorts.Except(existingPorts).ToList();
+                
+                // Check new ports first (most likely to be the bootloader after USB re-enumeration)
+                // This is CRITICAL - the bootloader will appear on a NEW port!
+                var newPorts = currentPorts.Where(p => !checkedPorts.Contains(p)).ToList();
                 
                 if (newPorts.Count > 0)
                 {
-                    Log($"New ports detected: {string.Join(", ", newPorts)}");
+                    Log($"New/unchecked ports detected: {string.Join(", ", newPorts)}");
                     
                     // Small delay to let port stabilize after USB re-enumeration
-                    // Mission Planner uses Thread.Sleep(20) before trying new ports
-                    await Task.Delay(50, ct);
+                    await Task.Delay(100, ct);
+                    
+                    // Try new ports first - these are most likely the bootloader
+                    foreach (var port in newPorts)
+                    {
+                        if (ct.IsCancellationRequested) break;
+                        checkedPorts.Add(port);
+                        
+                        try
+                        {
+                            _logger.LogDebug("Trying new port {Port} (scan {Scan})", port, scanCount);
+                            
+                            // Run bootloader detection on a background thread to avoid blocking UI
+                            var board = await Task.Run(() => TryDetectPx4BootloaderSync(port), ct);
+                            if (board != null)
+                            {
+                                CurrentBoard = board;
+                                Log($"Bootloader detected on {board.SerialPort} (board type: {board.BoardIdNumeric})");
+                                
+                                // CRITICAL: Ensure we're using the NEW port for flashing!
+                                Log($"Will use port {port} for flashing operations");
+                                
+                                // Mission Planner compatible: stabilization delay after detection
+                                await Task.Delay(500, ct);
+                                
+                                UpdateState(FirmwareFlashState.WaitingForBootloader, 100, $"Bootloader detected: {board.BoardName}");
+                                return board;
+                            }
+                        }
+                        catch (OperationCanceledException)
+                        {
+                            throw;
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogDebug(ex, "Failed to detect bootloader on {Port}", port);
+                        }
+                    }
                 }
                 
-                // Try new ports first (likely the bootloader), then all current ports
-                var portsToTry = newPorts.Concat(currentPorts).Distinct().ToList();
-                
-                foreach (var port in portsToTry)
+                // Also re-check known ports (might have just switched to bootloader mode)
+                foreach (var port in currentPorts)
                 {
                     if (ct.IsCancellationRequested) break;
+                    if (newPorts.Contains(port)) continue; // Already checked above
                     
                     try
                     {
-                        _logger.LogDebug("Trying port {Port} (scan {Scan})", port, scanCount);
+                        _logger.LogDebug("Re-checking port {Port} (scan {Scan})", port, scanCount);
                         
-                        // Run bootloader detection on a background thread to avoid blocking UI
                         var board = await Task.Run(() => TryDetectPx4BootloaderSync(port), ct);
                         if (board != null)
                         {
@@ -431,7 +476,6 @@ public sealed class FirmwareService : IFirmwareService, IDisposable
                             Log($"Bootloader detected on {board.SerialPort} (board type: {board.BoardIdNumeric})");
                             
                             // Mission Planner compatible: stabilization delay after detection
-                            // "test if pausing here stops - System.TimeoutException: The write timed out."
                             await Task.Delay(500, ct);
                             
                             UpdateState(FirmwareFlashState.WaitingForBootloader, 100, $"Bootloader detected: {board.BoardName}");
@@ -445,7 +489,6 @@ public sealed class FirmwareService : IFirmwareService, IDisposable
                     catch (Exception ex)
                     {
                         _logger.LogDebug(ex, "Failed to detect bootloader on {Port}", port);
-                        // Ignore - port may not be ready or may not be a bootloader
                     }
                 }
             }
@@ -458,8 +501,8 @@ public sealed class FirmwareService : IFirmwareService, IDisposable
                 _logger.LogDebug(ex, "Error during bootloader detection loop");
             }
             
-            // Shorter delay for faster detection
-            await Task.Delay(300, ct);
+            // Wait between scans - Mission Planner uses 200ms polling
+            await Task.Delay(200, ct);
             
             var remaining = timeout - stopwatch.Elapsed;
             if (remaining.TotalSeconds > 0)
@@ -622,6 +665,11 @@ public sealed class FirmwareService : IFirmwareService, IDisposable
                 }
             }
 
+            // Pre-calculate detected board ID to avoid repeated lookups in LINQ
+            var detectedBoardId = !string.IsNullOrWhiteSpace(boardId) 
+                ? BoardCompatibility.GetBoardId(boardId) 
+                : 0;
+
             var versions = query
                 .Select(f => new FirmwareVersion
                 {
@@ -636,11 +684,39 @@ public sealed class FirmwareService : IFirmwareService, IDisposable
                     Format = f.Format ?? ""
                 })
                 .Where(v => !string.IsNullOrEmpty(v.DownloadUrl)) // Must have a download URL
+                .Where(v => {
+                    // CRITICAL VALIDATION: Prevent incompatible firmware from being selected
+                    // Verify firmware board_id is compatible with detected board_id
+                    if (detectedBoardId > 0 && v.BoardId > 0)
+                    {
+                        var isCompatible = BoardCompatibility.AreCompatible(detectedBoardId, v.BoardId);
+                        if (!isCompatible)
+                        {
+                            _logger.LogDebug(
+                                "Rejecting incompatible firmware: board_id {FwBoardId} (platform={FwPlatform}) " +
+                                "is not compatible with detected board_id {DetectedBoardId} (platform={DetectedPlatform})",
+                                v.BoardId, v.Platform, detectedBoardId, boardId);
+                            return false;
+                        }
+                    }
+                    return true;
+                })
                 .OrderByDescending(v => v.IsLatest)
                 .ThenByDescending(v => v.Version)
                 .ToList();
             
-            Log($"Found {versions.Count} firmware versions");
+            Log($"Found {versions.Count} compatible firmware versions after board validation");
+            
+            // Log the URLs for debugging
+            if (versions.Any())
+            {
+                var firstFew = versions.Take(MAX_LOGGED_FIRMWARE_VERSIONS).ToList();
+                foreach (var ver in firstFew)
+                {
+                    Log($"  - {ver.Platform} v{ver.Version} ({ver.ReleaseType}): {ver.DownloadUrl}");
+                }
+            }
+            
             return versions.AsReadOnly();
         }
         catch (Exception ex)
@@ -755,10 +831,66 @@ public sealed class FirmwareService : IFirmwareService, IDisposable
                 await Task.Delay(500, token);
             }
             
-            // Step 2: Detect board
+            // Step 2: Detect board - ALWAYS detect, never default to fmuv2!
             Log("Detecting board...");
             var board = CurrentBoard ?? await DetectBoardAsync(token);
-            var platformName = boardId ?? board?.BoardId ?? "fmuv2";
+            
+            // CRITICAL FIX: Never default to "fmuv2" - require explicit board detection
+            // This prevents wrong firmware being flashed (e.g., fmuv2 firmware to CubeOrangePlus)
+            if (board == null && string.IsNullOrEmpty(boardId))
+            {
+                Log("No board detected from USB. Waiting for board in bootloader mode...");
+                UpdateState(FirmwareFlashState.WaitingForBootloader, 0, 
+                    "No board detected. Please connect your flight controller or put it in bootloader mode.");
+                
+                // Try to get the board to enter bootloader
+                var rebootSuccess = await AttemptRebootToBootloaderAsync(token);
+                if (rebootSuccess)
+                {
+                    Log("Waiting for USB re-enumeration after reboot command...");
+                    await Task.Delay(USB_REENUMERATION_DELAY_MS, token);
+                }
+                
+                // Wait for bootloader with timeout
+                board = await WaitForBootloaderAsync(TimeSpan.FromSeconds(60), token);
+                
+                if (board == null)
+                {
+                    return CreateFailResult(
+                        "No board detected. Please connect a flight controller. " +
+                        "If the board is connected, try holding the BOOT button while connecting.", 
+                        sw.Elapsed);
+                }
+            }
+            
+            // Use bootloader-reported board ID as the authoritative source
+            // This is CRITICAL for differentiating CubeOrange (140) from CubeOrangePlus (1063)
+            string platformName;
+            if (!string.IsNullOrEmpty(boardId))
+            {
+                // User explicitly specified a board ID
+                platformName = boardId;
+                Log($"Using user-specified platform: {platformName}");
+            }
+            else if (board != null && board.BoardIdNumeric > 0)
+            {
+                // Use the actual board ID from bootloader (authoritative source)
+                platformName = BoardCompatibility.GetPlatformName(board.BoardIdNumeric);
+                Log($"Using bootloader-reported board_type {board.BoardIdNumeric} -> platform: {platformName}");
+            }
+            else if (board != null && !string.IsNullOrEmpty(board.BoardId))
+            {
+                // Fallback to board's platform name from USB detection
+                platformName = board.BoardId;
+                Log($"Using USB-detected platform: {platformName}");
+            }
+            else
+            {
+                // This should not happen if we require board detection above
+                return CreateFailResult(
+                    "Could not determine board type. Please ensure the board is properly connected.", 
+                    sw.Elapsed);
+            }
             
             // Step 3: Get firmware
             var versions = await GetAvailableFirmwareVersionsAsync(vehicleType.ArduPilotId, platformName, releaseType, token);
@@ -769,7 +901,7 @@ public sealed class FirmwareService : IFirmwareService, IDisposable
                 return CreateFailResult($"No firmware found for {vehicleType.Name} on {platformName}", sw.Elapsed);
             }
             
-            Log($"Selected firmware: {latestVersion.Version}");
+            Log($"Selected firmware: {latestVersion.Version} for platform: {platformName}");
             
             // Step 4: Download firmware
             var firmwarePath = await DownloadFirmwareAsync(latestVersion.DownloadUrl, null, token);
@@ -789,15 +921,48 @@ public sealed class FirmwareService : IFirmwareService, IDisposable
                 
                 if (rebootSuccess)
                 {
-                    await Task.Delay(1500, token); // Wait for USB re-enumeration
+                    // CRITICAL: Wait for USB re-enumeration - port will change!
+                    Log("Waiting for USB re-enumeration after reboot command...");
+                    await Task.Delay(USB_REENUMERATION_DELAY_MS, token);
                 }
                 
-                // Wait for bootloader
-                board = await WaitForBootloaderAsync(TimeSpan.FromSeconds(30), token);
+                // Wait for bootloader with increased timeout (Mission Planner uses up to 60 seconds)
+                // CRITICAL: The board will appear on a NEW port after USB re-enumeration!
+                board = await WaitForBootloaderAsync(TimeSpan.FromSeconds(60), token);
                 
                 if (board == null)
                 {
-                    return CreateFailResult("Failed to enter bootloader. Hold BOOT button while connecting.", sw.Elapsed);
+                    return CreateFailResult(
+                        "Failed to enter bootloader. Please unplug the board and plug back in while holding the BOOT button.", 
+                        sw.Elapsed);
+                }
+                
+                // IMPORTANT: After getting board from bootloader, verify/update platformName
+                // The bootloader board_type is the authoritative source
+                if (board.BoardIdNumeric > 0 && string.IsNullOrEmpty(boardId))
+                {
+                    var bootloaderPlatform = BoardCompatibility.GetPlatformName(board.BoardIdNumeric);
+                    if (!string.Equals(platformName, bootloaderPlatform, StringComparison.OrdinalIgnoreCase))
+                    {
+                        Log($"WARNING: Initial detection suggested '{platformName}' but bootloader reports board_type {board.BoardIdNumeric} -> '{bootloaderPlatform}'");
+                        Log($"Using authoritative bootloader board_type: {bootloaderPlatform}");
+                        
+                        // Re-download firmware for the correct platform if needed
+                        platformName = bootloaderPlatform;
+                        versions = await GetAvailableFirmwareVersionsAsync(vehicleType.ArduPilotId, platformName, releaseType, token);
+                        latestVersion = versions.FirstOrDefault(v => v.IsLatest) ?? versions.FirstOrDefault();
+                        
+                        if (latestVersion == null)
+                        {
+                            return CreateFailResult($"No firmware found for {vehicleType.Name} on {platformName}", sw.Elapsed);
+                        }
+                        
+                        firmwarePath = await DownloadFirmwareAsync(latestVersion.DownloadUrl, null, token);
+                        if (string.IsNullOrEmpty(firmwarePath))
+                        {
+                            return CreateFailResult("Failed to download firmware for correct platform", sw.Elapsed);
+                        }
+                    }
                 }
             }
             
@@ -1274,9 +1439,9 @@ public sealed class FirmwareService : IFirmwareService, IDisposable
     /// <summary>
     /// Attempts to reboot the FC into bootloader mode - Mission Planner equivalent.
     /// This follows Mission Planner's AttemptRebootToBootloader() flow:
-    /// 1. Check if any port is already in bootloader mode
+    /// 1. Check if any port is already in bootloader mode (parallel check like Mission Planner)
     /// 2. Try MAVLink reboot command on all ports with ArduPilot firmware
-    /// 3. Wait for USB re-enumeration
+    /// 3. Wait for USB re-enumeration (CRITICAL: USB port will change!)
     /// </summary>
     public async Task<bool> AttemptRebootToBootloaderAsync(CancellationToken ct = default)
     {
@@ -1285,40 +1450,61 @@ public sealed class FirmwareService : IFirmwareService, IDisposable
         var allPorts = SerialPort.GetPortNames();
         Log($"Found {allPorts.Length} serial ports: {string.Join(", ", allPorts)}");
         
-        // Step 1: Check if already in bootloader mode on any port
-        foreach (var port in allPorts)
+        // Step 1: Check if ALREADY in bootloader mode on any port (parallel check like Mission Planner)
+        // Mission Planner uses Parallel.ForEach to check all ports simultaneously
+        var bootloaderCheckTasks = allPorts.Select(port => Task.Run(() =>
         {
-            if (ct.IsCancellationRequested) break;
-            
             try
             {
-                Log($"Checking if {port} is already in bootloader mode...");
+                _logger.LogDebug("Checking if {Port} is already in bootloader mode...", port);
                 var board = TryDetectPx4BootloaderSync(port);
-                if (board != null)
-                {
-                    Log($"Board already in bootloader mode on {port}");
-                    CurrentBoard = board;
-                    return true;
-                }
+                return (port, board, success: board != null);
             }
             catch (Exception ex)
             {
                 _logger.LogDebug(ex, "Port {Port} is not in bootloader", port);
+                return (port, board: (DetectedBoard?)null, success: false);
+            }
+        }, ct)).ToList();
+        
+        try
+        {
+            var results = await Task.WhenAll(bootloaderCheckTasks);
+            var bootloaderResult = results.FirstOrDefault(r => r.success);
+            if (bootloaderResult.success && bootloaderResult.board != null)
+            {
+                Log($"Board already in bootloader mode on {bootloaderResult.port}");
+                CurrentBoard = bootloaderResult.board;
+                return true;
             }
         }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Parallel bootloader check failed");
+        }
         
-        // Step 2: Try to use connection service to reboot if connected
+        // Step 2: Try to use connection service to reboot if connected (like MainV2.comPort)
+        // Mission Planner uses the existing MAVLink connection with proper heartbeat check
         if (_connectionService?.IsConnected == true)
         {
             try
             {
+                Log("Checking for heartbeat before reboot...");
+                
+                // Use proper MAVLink command - param1=3 for bootloader mode
                 Log("Sending MAVLink reboot-to-bootloader command via connection service...");
                 _connectionService.SendPreflightReboot(3, 0); // param1=3 for bootloader
-                await Task.Delay(500, ct);
                 
-                // Disconnect to release the port
+                // MUST close connection AFTER sending reboot - USB will disconnect!
+                await Task.Delay(200, ct); // Brief delay to ensure command is sent
                 await _connectionService.DisconnectAsync();
                 Log("MAVLink reboot command sent, connection closed");
+                
+                // CRITICAL: Wait for USB re-enumeration
+                // The FC will appear on a DIFFERENT port after bootloader reboot!
+                Log("Waiting for USB re-enumeration...");
+                await Task.Delay(USB_REENUMERATION_DELAY_MS, ct);
+                
                 return true;
             }
             catch (Exception ex)
@@ -1327,7 +1513,7 @@ public sealed class FirmwareService : IFirmwareService, IDisposable
             }
         }
         
-        // Step 3: Try MAVLink reboot command directly on each port
+        // Step 3: Try MAVLink reboot command directly on each port (with proper heartbeat check)
         foreach (var port in allPorts)
         {
             if (ct.IsCancellationRequested) break;
@@ -1339,6 +1525,11 @@ public sealed class FirmwareService : IFirmwareService, IDisposable
                 if (success)
                 {
                     Log($"Reboot command sent successfully on {port}");
+                    
+                    // CRITICAL: Wait for USB re-enumeration - port will change!
+                    Log("Waiting for USB re-enumeration...");
+                    await Task.Delay(USB_REENUMERATION_DELAY_MS, ct);
+                    
                     return true;
                 }
             }

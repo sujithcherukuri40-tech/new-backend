@@ -6,9 +6,12 @@ using Avalonia.Markup.Xaml;
 using Avalonia.Threading;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Configuration;
+using Microsoft.EntityFrameworkCore;
 using PavamanDroneConfigurator.Core.Interfaces;
 using PavamanDroneConfigurator.Infrastructure.Repositories;
 using PavamanDroneConfigurator.Infrastructure.Services;
+using PavamanDroneConfigurator.Infrastructure.Data;
 using PavamanDroneConfigurator.UI.ViewModels;
 using PavamanDroneConfigurator.UI.Views;
 using System;
@@ -21,16 +24,33 @@ namespace PavamanDroneConfigurator.UI;
 public partial class App : Application
 {
     public static ServiceProvider? Services { get; private set; }
+    public static IConfiguration? Configuration { get; private set; }
 
     public override void Initialize()
     {
         AvaloniaXamlLoader.Load(this);
+        BuildConfiguration();
         ConfigureServices();
+    }
+
+    private void BuildConfiguration()
+    {
+        var builder = new ConfigurationBuilder()
+            .SetBasePath(AppContext.BaseDirectory)
+            .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true);
+        
+        Configuration = builder.Build();
     }
 
     private void ConfigureServices()
     {
         var services = new ServiceCollection();
+
+        // Configuration
+        if (Configuration != null)
+        {
+            services.AddSingleton<IConfiguration>(Configuration);
+        }
 
         // Logging
         services.AddLogging(builder =>
@@ -38,6 +58,20 @@ public partial class App : Application
             builder.AddConsole();
             builder.SetMinimumLevel(LogLevel.Information);
         });
+
+        // Database - PostgreSQL with Entity Framework Core
+        if (Configuration != null)
+        {
+            var connectionString = Configuration.GetConnectionString("PostgresDb");
+            services.AddDbContext<DroneDbContext>(options =>
+                options.UseNpgsql(connectionString)
+                    .EnableSensitiveDataLogging() // Only for development
+                    .LogTo(Console.WriteLine, LogLevel.Information)
+            );
+        }
+
+        // Database Test Service (for Step 1 verification - can be removed later)
+        services.AddSingleton<DatabaseTestService>();
 
         // ArduPilot XML Integration Services (for parameter metadata)
         services.AddSingleton<ArduPilotXmlParser>();
@@ -93,6 +127,7 @@ public partial class App : Application
         // ViewModels (Presentation Layer)
         services.AddTransient<MainWindowViewModel>();
         services.AddTransient<ConnectionPageViewModel>();
+        services.AddTransient<DatabaseTestPageViewModel>(); // Database test page
         services.AddTransient<AirframePageViewModel>();
         services.AddTransient<ParametersPageViewModel>();
         services.AddTransient<SafetyPageViewModel>();

@@ -311,25 +311,62 @@ public static class BoardDetect
     }
 
     /// <summary>
-    /// Detects Cube board variant
+    /// Detects Cube board variant.
+    /// 
+    /// IMPORTANT: CubeOrange (board_id=140, STM32H753) and CubeOrangePlus (board_id=1063, STM32H757) 
+    /// are NOT compatible - they have different MCUs!
+    /// 
+    /// Note: USB PIDs can be unreliable for differentiating CubeOrange vs CubeOrangePlus as they
+    /// may share VID_2DAE&PID_1058. The authoritative source is the bootloader-reported board_type
+    /// which should be queried via Px4Uploader.Identify() after connecting.
+    /// 
+    /// This method provides initial detection from USB info; the bootloader board_type should be
+    /// used for final firmware selection validation.
     /// </summary>
     private static Boards DetectCubeBoard(string board, DeviceInfo device)
     {
         board = board.ToLowerInvariant();
+        
+        // Log USB detection info for debugging (using Trace for static context)
+        System.Diagnostics.Trace.WriteLine(
+            $"[BoardDetect] USB Detection: VID={device.VendorId:X4}, PID={device.ProductId:X4}, Board string='{device.Board}'");
 
-        // Check by product ID first (most reliable)
-        if (device.ProductId == UsbIds.PROFICNC_CUBE_ORANGEPLUS_PID)
+        // IMPORTANT: Check string matching FIRST for CubeOrange+ vs CubeOrange
+        // USB PIDs can be unreliable - CubeOrange and CubeOrangePlus may both use PID 0x1058
+        // The board string from USB descriptor is more reliable for differentiation
+        
+        // Check for CubeOrange+ explicitly first (must check before checking for "orange")
+        if (board.Contains("orange+") || board.Contains("orangeplus") || board.Contains("cubeplus"))
+        {
+            System.Diagnostics.Trace.WriteLine("[BoardDetect] Detected CubeOrangePlus from board string");
             return Boards.cubeorangeplus;
-        if (device.ProductId == UsbIds.PROFICNC_CUBE_ORANGE_PID)
-            return Boards.cubeorange;
+        }
+        
+        // Now check by product ID (but be aware CubeOrange/CubeOrangePlus may share PIDs)
+        if (device.ProductId == UsbIds.PROFICNC_CUBE_ORANGEPLUS_PID)  // 0x1059
+        {
+            System.Diagnostics.Trace.WriteLine("[BoardDetect] Detected CubeOrangePlus from PID 0x1059");
+            return Boards.cubeorangeplus;
+        }
         if (device.ProductId == UsbIds.PROFICNC_CUBE_YELLOW_PID)
             return Boards.cubeyellow;
         if (device.ProductId == UsbIds.PROFICNC_CUBE_PURPLE_PID)
             return Boards.cubepurple;
+            
+        // For PID 0x1058, default to CubeOrange but log warning
+        // The bootloader board_type should be used for final confirmation
+        if (device.ProductId == UsbIds.PROFICNC_CUBE_ORANGE_PID)      // 0x1058
+        {
+            // Could be either CubeOrange OR CubeOrangePlus - both may use this PID!
+            // Default to cubeorange but the bootloader board_type will be authoritative
+            System.Diagnostics.Trace.WriteLine(
+                "[BoardDetect] WARNING: PID 0x1058 detected - could be CubeOrange (board_id=140) or CubeOrangePlus (board_id=1063). " +
+                "USB detection is AMBIGUOUS. Bootloader board_type MUST be used for final identification. " +
+                "Defaulting to CubeOrange for now.");
+            return Boards.cubeorange;
+        }
 
-        // Fallback to string matching
-        if (board.Contains("orange+") || board.Contains("orangeplus"))
-            return Boards.cubeorangeplus;
+        // Fallback string matching for other variants
         if (board.Contains("orange"))
             return Boards.cubeorange;
         if (board.Contains("yellow"))
