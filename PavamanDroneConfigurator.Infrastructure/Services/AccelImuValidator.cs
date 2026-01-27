@@ -18,9 +18,18 @@ namespace PavamanDroneConfigurator.Infrastructure.Services;
 /// 
 /// Validation logic:
 /// - Checks gravity vector magnitude (~9.81 m/s² ±20%)
-/// - Checks gravity vector direction matches expected axis (?85% of magnitude)
-/// - Checks other axes are small (?30% of magnitude)
+/// - Checks gravity vector direction matches expected axis (?70% of magnitude)
+/// - Checks other axes are small (?40% of magnitude)
 /// - Rejects incorrect orientations with detailed diagnostic messages
+/// 
+/// TASK 4: RELAXED THRESHOLDS (configurable for tuning):
+/// - DOMINANT_AXIS_THRESHOLD: 0.70 (70%) - was 0.85 (85%)
+/// - OTHER_AXIS_THRESHOLD: 0.40 (40%) - was 0.30 (30%)
+/// - GRAVITY_TOLERANCE_PERCENT: 20% (±20% of 9.81 m/s²)
+/// 
+/// To adjust thresholds for your environment, modify the constants below.
+/// Lower DOMINANT_AXIS_THRESHOLD = more forgiving orientation detection
+/// Higher OTHER_AXIS_THRESHOLD = allows more tilt before rejection
 /// </summary>
 public class AccelImuValidator
 {
@@ -29,8 +38,21 @@ public class AccelImuValidator
     // Physical constants
     private const double GRAVITY = 9.81; // m/s²
     private const double GRAVITY_TOLERANCE_PERCENT = 20.0; // ±20% tolerance for sensor noise/calibration
-    private const double DOMINANT_AXIS_THRESHOLD = 0.85; // 85% of gravity must be on correct axis
-    private const double OTHER_AXIS_THRESHOLD = 0.30; // Other axes must be below 30% of gravity
+    
+    // TASK 4: TUNABLE THRESHOLDS - Adjust these for your calibration requirements
+    // RELAXED THRESHOLDS for improved reliability (was 0.85/0.30)
+    // Dominant axis: 85% ? 70% (more forgiving)
+    // Other axes: 30% ? 40% (allows more tilt)
+    private const double DOMINANT_AXIS_THRESHOLD = 0.70; // 70% of gravity must be on correct axis
+    private const double OTHER_AXIS_THRESHOLD = 0.40; // Other axes must be below 40% of gravity
+    
+    // To make thresholds even more relaxed (e.g., for field calibration with uneven surfaces):
+    // - DOMINANT_AXIS_THRESHOLD = 0.60 (60%) - very forgiving
+    // - OTHER_AXIS_THRESHOLD = 0.50 (50%) - allows significant tilt
+    // 
+    // To make thresholds stricter (e.g., for lab calibration with precision mounts):
+    // - DOMINANT_AXIS_THRESHOLD = 0.85 (85%) - strict
+    // - OTHER_AXIS_THRESHOLD = 0.30 (30%) - minimal tilt allowed
     
     public AccelImuValidator(ILogger<AccelImuValidator> logger)
     {
@@ -40,6 +62,7 @@ public class AccelImuValidator
     /// <summary>
     /// Validate position using IMU accelerometer data.
     /// Returns validation result with pass/fail and error message.
+    /// TASK 4: Relaxed thresholds (70%/40%) with detailed logging
     /// </summary>
     public AccelValidationResult ValidatePosition(int position, RawImuData imuData)
     {
@@ -55,11 +78,25 @@ public class AccelImuValidator
         // Convert raw IMU to m/s²
         var accel = imuData.GetAcceleration();
         
-        _logger.LogDebug("Validating position {Position}: raw=({XRaw}, {YRaw}, {ZRaw}), scaled=({X:F2}, {Y:F2}, {Z:F2}) m/s²",
-            position, imuData.XAcc, imuData.YAcc, imuData.ZAcc, accel.X, accel.Y, accel.Z);
-        
-        // Calculate gravity magnitude
+        // TASK 4: Calculate gravity magnitude FIRST for detailed logging
         var magnitude = Math.Sqrt(accel.X * accel.X + accel.Y * accel.Y + accel.Z * accel.Z);
+        
+        // TASK 4: Log calculated axis magnitudes and gravity vector
+        _logger.LogInformation("Position {Position} validation: raw=({XRaw}, {YRaw}, {ZRaw}), " +
+                              "accel=({X:F2}, {Y:F2}, {Z:F2}) m/s², magnitude={Mag:F2} m/s², " +
+                              "expected={Expected:F2} m/s²",
+            position, imuData.XAcc, imuData.YAcc, imuData.ZAcc, 
+            accel.X, accel.Y, accel.Z, magnitude, GRAVITY);
+        
+        // TASK 4: Log individual axis percentages of gravity
+        var xPercent = Math.Abs(accel.X) / magnitude * 100;
+        var yPercent = Math.Abs(accel.Y) / magnitude * 100;
+        var zPercent = Math.Abs(accel.Z) / magnitude * 100;
+        
+        _logger.LogInformation("Position {Position} axis breakdown: X={X:F1}%, Y={Y:F1}%, Z={Z:F1}% " +
+                              "(dominant threshold={Dom:F0}%, other threshold={Other:F0}%)",
+            position, xPercent, yPercent, zPercent,
+            DOMINANT_AXIS_THRESHOLD * 100, OTHER_AXIS_THRESHOLD * 100);
         
         // Check magnitude is approximately 1G (±20% tolerance)
         var expectedGravity = GRAVITY;
@@ -88,6 +125,15 @@ public class AccelImuValidator
             };
         }
         
+        // TASK 4: Log thresholds being used
+        var dominantThreshold = magnitude * DOMINANT_AXIS_THRESHOLD;
+        var otherThreshold = magnitude * OTHER_AXIS_THRESHOLD;
+        
+        _logger.LogDebug("Position {Position} thresholds: dominant?{Dom:F2} m/s² ({DomPct:F0}%), " +
+                        "other?{Other:F2} m/s² ({OtherPct:F0}%)",
+            position, dominantThreshold, DOMINANT_AXIS_THRESHOLD * 100,
+            otherThreshold, OTHER_AXIS_THRESHOLD * 100);
+        
         // Check axis alignment for this position
         var alignmentResult = CheckAxisAlignment(position, accel.X, accel.Y, accel.Z, magnitude);
         
@@ -113,8 +159,9 @@ public class AccelImuValidator
                             $"Orientation: {GetExpectedAxis(position)}";
         
         _logger.LogInformation("Position {Position} validation PASSED: mag={Mag:F2} m/s², " +
-                              "accel=({X:F2}, {Y:F2}, {Z:F2})",
-                              position, magnitude, accel.X, accel.Y, accel.Z);
+                              "accel=({X:F2}, {Y:F2}, {Z:F2}), axis breakdown=X:{XP:F1}% Y:{YP:F1}% Z:{ZP:F1}%",
+                              position, magnitude, accel.X, accel.Y, accel.Z,
+                              xPercent, yPercent, zPercent);
         
         return new AccelValidationResult
         {
@@ -129,7 +176,7 @@ public class AccelImuValidator
     
     /// <summary>
     /// Check that gravity vector is aligned with expected axis for this position.
-    /// Uses strict validation: dominant axis ?85%, other axes ?30%.
+    /// Uses strict validation: dominant axis ?70%, other axes ?40%.
     /// </summary>
     private AccelValidationResult CheckAxisAlignment(int position, double x, double y, double z, double magnitude)
     {
@@ -137,8 +184,8 @@ public class AccelImuValidator
         var absY = Math.Abs(y);
         var absZ = Math.Abs(z);
         
-        var dominantThreshold = magnitude * DOMINANT_AXIS_THRESHOLD; // 85% of measured gravity
-        var otherThreshold = magnitude * OTHER_AXIS_THRESHOLD;       // 30% of measured gravity
+        var dominantThreshold = magnitude * DOMINANT_AXIS_THRESHOLD; // 70% of measured gravity
+        var otherThreshold = magnitude * OTHER_AXIS_THRESHOLD;       // 40% of measured gravity
         
         // ArduPilot body-fixed NED coordinate system:
         // Expected orientations:
@@ -317,36 +364,36 @@ public class AccelImuValidator
     {
         return position switch
         {
-            1 => "? For LEVEL: Place vehicle flat on level surface.\n" +
+            1 => "• For LEVEL: Place vehicle flat on level surface.\n" +
                  "  • All four corners/legs must touch surface evenly\n" +
                  "  • Use bubble level or smartphone level app if available\n" +
                  "  • Vehicle must be completely still",
             
-            2 => "? For LEFT SIDE: Place vehicle on its left side.\n" +
+            2 => "• For LEFT SIDE: Place vehicle on its left side.\n" +
                  "  • Right side should point straight up\n" +
                  "  • Left side touching surface\n" +
                  "  • Nose should point forward (not tilted)\n" +
                  "  • Use foam or blocks to prevent rolling",
             
-            3 => "? For RIGHT SIDE: Place vehicle on its right side.\n" +
+            3 => "• For RIGHT SIDE: Place vehicle on its right side.\n" +
                  "  • Left side should point straight up\n" +
                  "  • Right side touching surface\n" +
                  "  • Nose should point forward (not tilted)\n" +
                  "  • Use foam or blocks to prevent rolling",
             
-            4 => "? For NOSE DOWN: Tilt vehicle forward 90 degrees.\n" +
+            4 => "• For NOSE DOWN: Tilt vehicle forward 90 degrees.\n" +
                  "  • Nose pointing straight down\n" +
                  "  • Tail pointing straight up\n" +
                  "  • Use box/stand to hold position without tilt\n" +
                  "  • Vehicle must not lean left or right",
             
-            5 => "? For NOSE UP: Tilt vehicle backward 90 degrees.\n" +
+            5 => "• For NOSE UP: Tilt vehicle backward 90 degrees.\n" +
                  "  • Nose pointing straight up\n" +
                  "  • Tail pointing straight down\n" +
                  "  • Use box/stand to hold position without tilt\n" +
                  "  • Vehicle must not lean left or right",
             
-            6 => "? For BACK (UPSIDE DOWN): Flip vehicle completely.\n" +
+            6 => "• For BACK (UPSIDE DOWN): Flip vehicle completely.\n" +
                  "  • Bottom facing up\n" +
                  "  • Top touching surface\n" +
                  "  • Must be flat (not tilted forward/back or left/right)\n" +

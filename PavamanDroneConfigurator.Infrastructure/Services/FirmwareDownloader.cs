@@ -257,7 +257,14 @@ public sealed class FirmwareDownloader : IDisposable
     }
     
     /// <summary>
-    /// Downloads a firmware file with progress reporting
+    /// Downloads a firmware file with progress reporting.
+    /// 
+    /// CRITICAL FIX (Issue 4): Uses board-specific cache paths to prevent wrong firmware being used.
+    /// Cache structure: {cacheRoot}/{vehicleType}/{platform}/{version}/{filename}
+    /// Example: FirmwareCache/Copter/CubeOrangePlus/stable-4.6.3/arducopter.apj
+    /// 
+    /// This prevents the issue where arducopter.apj for CubeOrange could be incorrectly used
+    /// for CubeOrangePlus (they have different board_ids and are NOT compatible).
     /// </summary>
     public async Task<string?> DownloadFirmwareAsync(
         string url,
@@ -269,10 +276,20 @@ public sealed class FirmwareDownloader : IDisposable
         try
         {
             var uri = new Uri(url);
-            var fileName = Path.GetFileName(uri.LocalPath);
-            var localPath = Path.Combine(_cacheDirectory, fileName);
             
-            // Check cache
+            // CRITICAL FIX: Use board-specific cache path derived from URL
+            // URL format: https://firmware.ardupilot.org/{VehicleType}/{Version}/{Platform}/{filename}
+            // Example: https://firmware.ardupilot.org/Copter/stable-4.6.3/CubeOrangePlus/arducopter.apj
+            var localPath = GetBoardSpecificCachePath(url);
+            
+            // Ensure cache directory exists
+            var cacheDir = Path.GetDirectoryName(localPath);
+            if (!string.IsNullOrEmpty(cacheDir) && !Directory.Exists(cacheDir))
+            {
+                Directory.CreateDirectory(cacheDir);
+            }
+            
+            // Check cache - use board-specific path
             if (File.Exists(localPath))
             {
                 var fileInfo = new FileInfo(localPath);
@@ -295,6 +312,7 @@ public sealed class FirmwareDownloader : IDisposable
             long totalBytesRead = 0;
             int bytesRead;
             var sw = System.Diagnostics.Stopwatch.StartNew();
+            var fileName = Path.GetFileName(uri.LocalPath);
             
             while ((bytesRead = await contentStream.ReadAsync(buffer, 0, buffer.Length, ct)) > 0)
             {
@@ -326,6 +344,49 @@ public sealed class FirmwareDownloader : IDisposable
         {
             _logger.LogError(ex, "Download failed: {Url}", url);
             return null;
+        }
+    }
+    
+    /// <summary>
+    /// Gets the board-specific cache path from a firmware URL.
+    /// 
+    /// This extracts the URL path structure and uses it for caching to prevent
+    /// wrong firmware being used for different boards with same filename.
+    /// 
+    /// URL format: https://firmware.ardupilot.org/{VehicleType}/{Version}/{Platform}/{filename}
+    /// Cache path: {cacheRoot}/{VehicleType}/{Version}/{Platform}/{filename}
+    /// </summary>
+    private string GetBoardSpecificCachePath(string url)
+    {
+        try
+        {
+            var uri = new Uri(url);
+            var pathSegments = uri.LocalPath.Split('/', StringSplitOptions.RemoveEmptyEntries);
+            
+            // Expected segments: [VehicleType, Version, Platform, Filename]
+            // e.g., ["Copter", "stable-4.6.3", "CubeOrangePlus", "arducopter.apj"]
+            if (pathSegments.Length >= 4)
+            {
+                // Use the last 4 segments for cache path structure
+                var relevantPath = string.Join(Path.DirectorySeparatorChar.ToString(), 
+                    pathSegments.Skip(pathSegments.Length - 4));
+                return Path.Combine(_cacheDirectory, relevantPath);
+            }
+            else if (pathSegments.Length >= 2)
+            {
+                // Fallback: use last 2 segments (platform/filename)
+                var relevantPath = string.Join(Path.DirectorySeparatorChar.ToString(), 
+                    pathSegments.Skip(pathSegments.Length - 2));
+                return Path.Combine(_cacheDirectory, relevantPath);
+            }
+            
+            // Fallback to just filename (legacy behavior)
+            return Path.Combine(_cacheDirectory, Path.GetFileName(uri.LocalPath));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to parse URL for cache path, using filename only");
+            return Path.Combine(_cacheDirectory, Path.GetFileName(new Uri(url).LocalPath));
         }
     }
     

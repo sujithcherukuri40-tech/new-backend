@@ -11,6 +11,7 @@ public interface IConnectionService
     Task<bool> ConnectAsync(ConnectionSettings settings);
     Task DisconnectAsync();
     bool IsConnected { get; }
+    bool IsArmed { get; } // Added: Track armed status from HEARTBEAT
     event EventHandler<bool>? ConnectionStateChanged;
     
     // Serial port methods
@@ -58,6 +59,14 @@ public interface IConnectionService
     
     // Reset all parameters to default (MAV_CMD_PREFLIGHT_STORAGE = 245, param1 = 2)
     void SendResetParameters();
+    
+    // Set message interval for specific MAVLink message (MAV_CMD_SET_MESSAGE_INTERVAL = 511)
+    // Used to force IMU messages at 50Hz during accelerometer calibration
+    void SendSetMessageInterval(int messageId, int intervalUs);
+    
+    // Request data stream (legacy fallback for older firmware)
+    // streamId: 1=RAW_SENSORS (includes IMU), rateHz: desired rate, startStop: 1=start, 0=stop
+    void SendRequestDataStream(int streamId, int rateHz, int startStop);
 }
 
 // Event args for PARAM_VALUE messages

@@ -69,8 +69,10 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
         private const ushort MAV_CMD_PREFLIGHT_CALIBRATION = 241;
         private const ushort MAV_CMD_PREFLIGHT_STORAGE = 245;
         private const ushort MAV_CMD_PREFLIGHT_REBOOT_SHUTDOWN = 246;
+        private const ushort MAV_CMD_SET_MESSAGE_INTERVAL = 511;
         private const ushort MAV_CMD_COMPONENT_ARM_DISARM = 400;
         private const ushort MAV_CMD_ACCELCAL_VEHICLE_POS = 42429;
+        private const ushort MAV_CMD_REQUEST_MESSAGE = 512;
 
         // CRC extras from MAVLink message definitions
         private const byte CRC_EXTRA_HEARTBEAT = 50;
@@ -1097,6 +1099,55 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
                 0,          // param6: unused
                 0,          // param7: unused
                 ct);
+        }
+
+        /// <summary>
+        /// Send MAV_CMD_SET_MESSAGE_INTERVAL to request specific message rate
+        /// Used to force IMU messages at 50Hz during accelerometer calibration
+        /// </summary>
+        /// <param name="messageId">MAVLink message ID (27=RAW_IMU, 26=SCALED_IMU)</param>
+        /// <param name="intervalUs">Interval in microseconds (20000 = 50Hz, -1 = default rate, 0 = stop)</param>
+        public async Task SendSetMessageIntervalAsync(int messageId, int intervalUs, CancellationToken ct = default)
+        {
+            _logger.LogInformation("Sending MAV_CMD_SET_MESSAGE_INTERVAL: msgId={MsgId} interval={Interval}us ({Hz}Hz)",
+                messageId, intervalUs, intervalUs > 0 ? 1000000.0 / intervalUs : 0);
+
+            await SendCommandLongAsync(
+                MAV_CMD_SET_MESSAGE_INTERVAL,
+                messageId,      // param1: message ID
+                intervalUs,     // param2: interval in microseconds
+                0, 0, 0, 0, 0,
+                ct);
+        }
+
+        /// <summary>
+        /// Send REQUEST_DATA_STREAM (legacy fallback for older firmware)
+        /// Used when SET_MESSAGE_INTERVAL is not supported
+        /// </summary>
+        /// <param name="streamId">Stream ID (1=RAW_SENSORS includes IMU)</param>
+        /// <param name="rateHz">Rate in Hz (50 = 50Hz)</param>
+        /// <param name="startStop">1=start, 0=stop</param>
+        public async Task SendRequestDataStreamAsync(int streamId, int rateHz, int startStop, CancellationToken ct = default)
+        {
+            _logger.LogInformation("Sending REQUEST_DATA_STREAM: streamId={StreamId} rate={Rate}Hz start={Start}",
+                streamId, rateHz, startStop);
+
+            // REQUEST_DATA_STREAM payload (6 bytes):
+            // [0]     target_system (uint8)
+            // [1]     target_component (uint8)
+            // [2]     req_stream_id (uint8)
+            // [3-4]   req_message_rate (uint16)
+            // [5]     start_stop (uint8)
+            const byte MAVLINK_MSG_ID_REQUEST_DATA_STREAM = 66;
+
+            var payload = new byte[6];
+            payload[0] = _targetSystemId != 0 ? _targetSystemId : (byte)1;
+            payload[1] = _targetComponentId != 0 ? _targetComponentId : (byte)1;
+            payload[2] = (byte)streamId;
+            BitConverter.GetBytes((ushort)rateHz).CopyTo(payload, 3);
+            payload[5] = (byte)startStop;
+
+            await SendMessageAsync(MAVLINK_MSG_ID_REQUEST_DATA_STREAM, payload, ct);
         }
 
         /// <summary>
