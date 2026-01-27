@@ -611,6 +611,12 @@ public sealed class FirmwareService : IFirmwareService, IDisposable
             IEnumerable<FirmwareEntry> boardScoped = baseQuery;
             if (!string.IsNullOrWhiteSpace(boardId))
             {
+                // CRITICAL FIX (Issue 3): For helicopter firmware, the platform in manifest
+                // includes "-heli" suffix (e.g., "CubeOrangePlus-heli")
+                // When user selects helicopter with board "CubeOrangePlus", we need to match "CubeOrangePlus-heli"
+                var isHelicopter = normalizedVehicleType.Contains("heli", StringComparison.OrdinalIgnoreCase);
+                var heliPlatform = isHelicopter ? $"{boardId}-heli" : null;
+                
                 // Debug: show sample platforms for this vehicle type
                 var samplePlatforms = baseQuery
                     .Where(f => !string.IsNullOrEmpty(f.Format) && f.Format.Equals("apj", StringComparison.OrdinalIgnoreCase))
@@ -621,29 +627,68 @@ public sealed class FirmwareService : IFirmwareService, IDisposable
                     .ToList();
                 Log($"Sample platforms for {normalizedVehicleType}: {string.Join(", ", samplePlatforms)}");
                 
+                if (isHelicopter)
+                {
+                    Log($"Helicopter mode: looking for platform '{heliPlatform}' (NOT standard '{boardId}')");
+                }
+                
                 // PRIORITY 1: Try exact platform match first (case-insensitive)
+                // For helicopter, try both the heli platform and exact match
                 var exactMatch = baseQuery.Where(f =>
                     !string.IsNullOrEmpty(f.Platform) &&
-                    f.Platform.Equals(boardId, StringComparison.OrdinalIgnoreCase));
+                    (f.Platform.Equals(boardId, StringComparison.OrdinalIgnoreCase) ||
+                     (isHelicopter && f.Platform.Equals(heliPlatform, StringComparison.OrdinalIgnoreCase))));
                 
                 var exactMatchCount = exactMatch.Count();
-                Log($"Found {exactMatchCount} exact matches for platform '{boardId}'");
+                Log($"Found {exactMatchCount} exact matches for platform '{boardId}'" + 
+                    (isHelicopter ? $" or '{heliPlatform}'" : ""));
                 
                 if (exactMatchCount > 0)
                 {
                     // Use exact matches only
-                    boardScoped = exactMatch;
+                    // For helicopter, prefer the -heli platform if available
+                    if (isHelicopter)
+                    {
+                        var heliMatches = exactMatch.Where(f => 
+                            f.Platform?.EndsWith("-heli", StringComparison.OrdinalIgnoreCase) == true);
+                        if (heliMatches.Any())
+                        {
+                            boardScoped = heliMatches;
+                            Log($"Using heli-specific platform matches");
+                        }
+                        else
+                        {
+                            boardScoped = exactMatch;
+                        }
+                    }
+                    else
+                    {
+                        boardScoped = exactMatch;
+                    }
                 }
                 else
                 {
                     // PRIORITY 2: Try variant matches (e.g., "CubeOrange" matches "CubeOrange-bdshot")
                     // Only if no exact match exists
-                    boardScoped = baseQuery.Where(f =>
-                        !string.IsNullOrEmpty(f.Platform) &&
-                        f.Platform.StartsWith(boardId, StringComparison.OrdinalIgnoreCase));
+                    // For helicopter, specifically look for -heli suffix variants
+                    if (isHelicopter)
+                    {
+                        boardScoped = baseQuery.Where(f =>
+                            !string.IsNullOrEmpty(f.Platform) &&
+                            f.Platform.StartsWith(boardId, StringComparison.OrdinalIgnoreCase) &&
+                            f.Platform.Contains("-heli", StringComparison.OrdinalIgnoreCase));
+                    }
+                    else
+                    {
+                        boardScoped = baseQuery.Where(f =>
+                            !string.IsNullOrEmpty(f.Platform) &&
+                            f.Platform.StartsWith(boardId, StringComparison.OrdinalIgnoreCase) &&
+                            !f.Platform.Contains("-heli", StringComparison.OrdinalIgnoreCase)); // Exclude heli variants for standard copter
+                    }
                         
                     var variantMatchCount = boardScoped.Count();
-                    Log($"Found {variantMatchCount} variant matches for board '{boardId}'");
+                    Log($"Found {variantMatchCount} variant matches for board '{boardId}'" +
+                        (isHelicopter ? " (heli variants)" : " (non-heli variants)"));
                 }
             }
 
@@ -1002,6 +1047,9 @@ public sealed class FirmwareService : IFirmwareService, IDisposable
     /// Uploads firmware using PX4/ChibiOS bootloader protocol.
     /// Matches Mission Planner's UploadPX4() method flow.
     /// Includes proper error handling for "lost communication" and timeout scenarios.
+    /// 
+    /// CRITICAL FIX (Issue 2): All blocking serial I/O operations are wrapped in Task.Run()
+    /// to prevent UI thread freezing. Progress events are marshaled back via IProgress<T>.
     /// </summary>
     private async Task<FirmwareFlashResult> UploadPx4FirmwareAsync(
         string portName, 
@@ -1010,6 +1058,17 @@ public sealed class FirmwareService : IFirmwareService, IDisposable
     {
         Log($"Opening PX4 bootloader on {portName}...");
         
+        // CRITICAL FIX (Issue 2): Run all blocking serial I/O on background thread
+        // to prevent UI thread freezing during firmware flash operations.
+        // Progress updates are marshaled back to the caller via the ProgressEvent callback.
+        return await Task.Run(() => ExecutePx4Upload(portName, firmwarePath, ct), ct);
+    }
+    
+    /// <summary>
+    /// Synchronous firmware upload execution - called from Task.Run() to avoid blocking UI thread.
+    /// </summary>
+    private FirmwareFlashResult ExecutePx4Upload(string portName, string firmwarePath, CancellationToken ct)
+    {
         using var uploader = new Px4Uploader(_logger);
         
         try
@@ -1312,10 +1371,19 @@ public sealed class FirmwareService : IFirmwareService, IDisposable
 
         try
         {
-            var fileName = Path.GetFileName(new Uri(downloadUrl).LocalPath);
-            var localPath = Path.Combine(_firmwareCacheDir, fileName);
+            // CRITICAL FIX (Issue 4): Use board-specific cache path to prevent wrong firmware
+            // URL format: https://firmware.ardupilot.org/{VehicleType}/{Version}/{Platform}/{filename}
+            // Cache path: {cacheRoot}/{VehicleType}/{Version}/{Platform}/{filename}
+            var localPath = GetBoardSpecificCachePath(downloadUrl);
+            
+            // Ensure cache directory exists
+            var cacheDir = Path.GetDirectoryName(localPath);
+            if (!string.IsNullOrEmpty(cacheDir) && !Directory.Exists(cacheDir))
+            {
+                Directory.CreateDirectory(cacheDir);
+            }
 
-            // Check if we already have this file cached
+            // Check if we already have this file cached (now board-specific)
             if (File.Exists(localPath))
             {
                 Log($"Using cached firmware: {localPath}");
@@ -1356,6 +1424,53 @@ public sealed class FirmwareService : IFirmwareService, IDisposable
             _logger.LogError(ex, "Firmware download failed");
             UpdateState(FirmwareFlashState.Failed, 0, $"Download failed: {ex.Message}");
             return null;
+        }
+    }
+    
+    /// <summary>
+    /// Gets the board-specific cache path from a firmware URL.
+    /// 
+    /// CRITICAL FIX (Issue 4): This prevents the bug where arducopter.apj for CubeOrange
+    /// could be incorrectly used for CubeOrangePlus (they have different board_ids 140 vs 1063).
+    /// 
+    /// URL format: https://firmware.ardupilot.org/{VehicleType}/{Version}/{Platform}/{filename}
+    /// Cache path: {cacheRoot}/{VehicleType}/{Version}/{Platform}/{filename}
+    /// 
+    /// Example:
+    ///   URL: https://firmware.ardupilot.org/Copter/stable-4.6.3/CubeOrangePlus/arducopter.apj
+    ///   Cache: FirmwareCache/Copter/stable-4.6.3/CubeOrangePlus/arducopter.apj
+    /// </summary>
+    private string GetBoardSpecificCachePath(string downloadUrl)
+    {
+        try
+        {
+            var uri = new Uri(downloadUrl);
+            var pathSegments = uri.LocalPath.Split('/', StringSplitOptions.RemoveEmptyEntries);
+            
+            // Expected segments: [VehicleType, Version, Platform, Filename]
+            // e.g., ["Copter", "stable-4.6.3", "CubeOrangePlus", "arducopter.apj"]
+            if (pathSegments.Length >= 4)
+            {
+                // Use the last 4 segments for cache path structure
+                var relevantPath = string.Join(Path.DirectorySeparatorChar.ToString(), 
+                    pathSegments.Skip(pathSegments.Length - 4));
+                return Path.Combine(_firmwareCacheDir, relevantPath);
+            }
+            else if (pathSegments.Length >= 2)
+            {
+                // Fallback: use last 2 segments (platform/filename)
+                var relevantPath = string.Join(Path.DirectorySeparatorChar.ToString(), 
+                    pathSegments.Skip(pathSegments.Length - 2));
+                return Path.Combine(_firmwareCacheDir, relevantPath);
+            }
+            
+            // Fallback to just filename (legacy behavior)
+            return Path.Combine(_firmwareCacheDir, Path.GetFileName(uri.LocalPath));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to parse download URL for cache path, using filename only");
+            return Path.Combine(_firmwareCacheDir, Path.GetFileName(new Uri(downloadUrl).LocalPath));
         }
     }
     
