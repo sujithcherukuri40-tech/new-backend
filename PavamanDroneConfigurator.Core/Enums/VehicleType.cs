@@ -2,12 +2,14 @@ namespace PavamanDroneConfigurator.Core.Enums;
 
 /// <summary>
 /// ArduPilot vehicle types for parameter metadata selection.
+/// Matches Mission Planner's MAV_TYPE differentiation.
 /// </summary>
 public enum VehicleType
 {
     /// <summary>
     /// Multicopter (quadcopter, hexacopter, octocopter, etc.)
     /// Uses apm.pdef.xml parameter definitions.
+    /// Downloads arducopter.apj from platform directory.
     /// </summary>
     Copter = 0,
 
@@ -34,6 +36,15 @@ public enum VehicleType
     /// Uses AntennaTracker.pdef.xml parameter definitions.
     /// </summary>
     Tracker = 4,
+
+    /// <summary>
+    /// Traditional helicopter with heli-specific firmware.
+    /// IMPORTANT: This is DIFFERENT from Copter! Heli firmware uses:
+    /// - URL: {platform}-heli/arducopter-heli.apj (NOT the standard copter firmware)
+    /// - Platform folder: e.g., CubeOrangePlus-heli instead of CubeOrangePlus
+    /// Uses Copter parameter definitions (same as standard copter).
+    /// </summary>
+    Helicopter = 5,
 
     /// <summary>
     /// Unknown or not yet detected vehicle type.
