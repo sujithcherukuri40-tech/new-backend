@@ -59,6 +59,7 @@ public sealed class ConnectionService : IConnectionService, IDisposable
     public event EventHandler<StatusTextEventArgs>? StatusTextReceived;
     public event EventHandler<RcChannelsEventArgs>? RcChannelsReceived;
     public event EventHandler<CommandAckEventArgs>? CommandAckReceived;
+    public event EventHandler<CommandLongEventArgs>? CommandLongReceived;
     public event EventHandler<RawImuEventArgs>? RawImuReceived;
 
     public ConnectionService(ILogger<ConnectionService> logger, IMavLinkMessageLogger mavLinkLogger)
@@ -393,6 +394,7 @@ public sealed class ConnectionService : IConnectionService, IDisposable
         _mavlink.StatusTextReceived += OnMavlinkStatusText;
         _mavlink.RcChannelsReceived += OnMavlinkRcChannels;
         _mavlink.CommandAckReceived += OnMavlinkCommandAck;
+        _mavlink.CommandLongReceived += OnMavlinkCommandLong;
         _mavlink.RawImuReceived += OnMavlinkRawImu;
         _mavlink.Initialize(_inputStream, _outputStream);
 
@@ -473,6 +475,27 @@ public sealed class ConnectionService : IConnectionService, IDisposable
         {
             Command = e.Command,
             Result = e.Result
+        });
+    }
+
+    private void OnMavlinkCommandLong(object? sender, CommandLongData e)
+    {
+        _lastDataReceivedTime = DateTime.UtcNow;
+        CommandLongReceived?.Invoke(this, new CommandLongEventArgs
+        {
+            SystemId = e.SystemId,
+            ComponentId = e.ComponentId,
+            Command = e.Command,
+            Param1 = e.Param1,
+            Param2 = e.Param2,
+            Param3 = e.Param3,
+            Param4 = e.Param4,
+            Param5 = e.Param5,
+            Param6 = e.Param6,
+            Param7 = e.Param7,
+            TargetSystem = e.TargetSystem,
+            TargetComponent = e.TargetComponent,
+            Confirmation = e.Confirmation
         });
     }
 

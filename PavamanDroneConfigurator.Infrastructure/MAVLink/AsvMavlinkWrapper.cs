@@ -96,6 +96,7 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
         public event EventHandler<RcChannelsData>? RcChannelsReceived;
         public event EventHandler<RawImuData>? RawImuReceived;
         public event EventHandler<AutopilotVersionData>? AutopilotVersionReceived;
+        public event EventHandler<CommandLongData>? CommandLongReceived;
         public event EventHandler? ConnectionLost;
 
         public AsvMavlinkWrapper(ILogger logger, IMavLinkMessageLogger? mavLinkLogger = null)
@@ -449,6 +450,10 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
                     HandleStatusText(payload);
                     break;
 
+                case MAVLINK_MSG_ID_COMMAND_LONG:
+                    HandleCommandLong(sysId, compId, payload);
+                    break;
+
                 case MAVLINK_MSG_ID_RC_CHANNELS:
                     HandleRcChannels(payload);
                     break;
@@ -597,6 +602,80 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
             _transactionManager.HandleCommandAck(command, result);
             
             CommandAckReceived?.Invoke(this, (command, result));
+        }
+
+        private void HandleCommandLong(byte sysId, byte compId, byte[] payload)
+        {
+            // COMMAND_LONG payload (33 bytes):
+            // [0-3]   param1 (float)
+            // [4-7]   param2 (float)
+            // [8-11]  param3 (float)
+            // [12-15] param4 (float)
+            // [16-19] param5 (float)
+            // [20-23] param6 (float)
+            // [24-27] param7 (float)
+            // [28-29] command (uint16)
+            // [30]    target_system (uint8)
+            // [31]    target_component (uint8)
+            // [32]    confirmation (uint8)
+            
+            if (payload.Length < 33)
+            {
+                _logger.LogWarning("COMMAND_LONG payload too short: {Len}", payload.Length);
+                return;
+            }
+
+            float param1 = BitConverter.ToSingle(payload, 0);
+            float param2 = BitConverter.ToSingle(payload, 4);
+            float param3 = BitConverter.ToSingle(payload, 8);
+            float param4 = BitConverter.ToSingle(payload, 12);
+            float param5 = BitConverter.ToSingle(payload, 16);
+            float param6 = BitConverter.ToSingle(payload, 20);
+            float param7 = BitConverter.ToSingle(payload, 24);
+            ushort command = BitConverter.ToUInt16(payload, 28);
+            byte targetSystem = payload[30];
+            byte targetComponent = payload[31];
+            byte confirmation = payload[32];
+
+            _logger.LogDebug("COMMAND_LONG: cmd={Command} param1={Param1} from sysid={SysId}", 
+                command, param1, sysId);
+            
+            // Log to MAVLink logger for specific commands we care about
+            if (command == MAV_CMD_ACCELCAL_VEHICLE_POS)
+            {
+                string posName = ((int)param1) switch
+                {
+                    1 => "LEVEL",
+                    2 => "LEFT",
+                    3 => "RIGHT",
+                    4 => "NOSEDOWN",
+                    5 => "NOSEUP",
+                    6 => "BACK",
+                    _ => param1.ToString()
+                };
+                _mavLinkLogger?.LogIncoming("COMMAND_LONG", 
+                    $"MAV_CMD_ACCELCAL_VEHICLE_POS: position={posName} (param1={param1})");
+            }
+            
+            // Raise event with parsed data
+            var commandLongData = new CommandLongData
+            {
+                SystemId = sysId,
+                ComponentId = compId,
+                Command = command,
+                Param1 = param1,
+                Param2 = param2,
+                Param3 = param3,
+                Param4 = param4,
+                Param5 = param5,
+                Param6 = param6,
+                Param7 = param7,
+                TargetSystem = targetSystem,
+                TargetComponent = targetComponent,
+                Confirmation = confirmation
+            };
+            
+            CommandLongReceived?.Invoke(this, commandLongData);
         }
 
         private void HandleStatusText(byte[] payload)
@@ -1498,5 +1577,26 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
             var hex = BitConverter.ToString(FlightCustomVersion).Replace("-", "").ToLowerInvariant();
             return hex;
         }
+    }
+
+    /// <summary>
+    /// COMMAND_LONG data from flight controller
+    /// Used to receive position requests during accelerometer calibration
+    /// </summary>
+    public class CommandLongData
+    {
+        public byte SystemId { get; set; }
+        public byte ComponentId { get; set; }
+        public ushort Command { get; set; }
+        public float Param1 { get; set; }
+        public float Param2 { get; set; }
+        public float Param3 { get; set; }
+        public float Param4 { get; set; }
+        public float Param5 { get; set; }
+        public float Param6 { get; set; }
+        public float Param7 { get; set; }
+        public byte TargetSystem { get; set; }
+        public byte TargetComponent { get; set; }
+        public byte Confirmation { get; set; }
     }
 }

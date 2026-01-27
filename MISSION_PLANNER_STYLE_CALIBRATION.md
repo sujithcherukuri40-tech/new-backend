@@ -1,21 +1,23 @@
-# Mission Planner-Style Accelerometer Calibration - NO HARDCODED VALUES
+# Mission Planner-Style Accelerometer Calibration - FC IS THE AUTHORITY
 
-## What Was Changed
+## What Was Implemented
 
-### **REMOVED:**
-1. ? `AccelImuValidator.cs` - NO client-side validation
-2. ? `AccelImuValidator_Improved.cs` - NO client-side validation  
-3. ? `AccelerometerCalibrationService.cs` - NO separate accel service
-4. ? `AccelStatusTextParser.cs` - NO separate parser
-5. ? ALL hardcoded thresholds (gravity tolerance, axis checks, etc.)
-6. ? ALL IMU magnitude validation
-7. ? ALL "50 sample" collection logic
+### **ADDED:**
+1. ✓ COMMAND_LONG message handler for MAV_CMD_ACCELCAL_VEHICLE_POS (42429)
+2. ✓ Position detection via both STATUSTEXT and COMMAND_LONG
+3. ✓ Correct position parameter mapping (1-6, matching Mission Planner)
+4. ✓ Level-only calibration mode (param5=2)
+5. ✓ Simple accelerometer calibration mode (param5=4)
+
+### **REMOVED FROM DOCS:**
+1. ✗ `AccelImuValidator.cs` references - NO client-side validation (matches Mission Planner)
+2. ✗ Hardcoded threshold documentation
 
 ### **KEPT:**
-1. ? `CalibrationService.cs` - Simplified to Mission Planner style
-2. ? FC-driven workflow via STATUSTEXT
-3. ? User confirmation via button clicks
-4. ? Position detection from FC messages (keyword matching)
+1. ✓ `CalibrationService.cs` - Mission Planner style workflow
+2. ✓ FC-driven workflow via STATUSTEXT and COMMAND_LONG
+3. ✓ User confirmation via button clicks
+4. ✓ Position detection from FC messages
 
 ---
 
@@ -24,27 +26,29 @@
 ### **1. User Starts Calibration**
 ```csharp
 // User clicks "Calibrate Accelerometer"
-// ? Send MAV_CMD_PREFLIGHT_CALIBRATION (param5=4)
-_connectionService.SendPreflightCalibration(gyro: 0, mag: 0, groundPressure: 0, airspeed: 0, accel: 4);
+// ✓ Send MAV_CMD_PREFLIGHT_CALIBRATION (param5=1 for 6-position)
+_connectionService.SendPreflightCalibration(gyro: 0, mag: 0, groundPressure: 0, airspeed: 0, accel: 1);
 ```
 
 ### **2. FC Drives Everything**
 ```csharp
 // FC sends STATUSTEXT: "Place vehicle level and press any key"
-// ? We detect keyword "level" ? Show position 1 image
-// ? Enable "Click When In Position" button
-// ? Wait for user
+// OR FC sends COMMAND_LONG: MAV_CMD_ACCELCAL_VEHICLE_POS param1=1 (LEVEL)
+// ✓ We detect position request → Show position 1 image
+// ✓ Enable "Click When In Position" button
+// ✓ Wait for user
 
 // NO validation on our end!
 // NO IMU checks!
 // NO threshold comparisons!
+// FC is the AUTHORITY - it validates everything
 ```
 
 ### **3. User Confirms Position**
 ```csharp
 // User clicks button
-// ? Send MAV_CMD_ACCELCAL_VEHICLE_POS(1)
-_connectionService.SendAccelCalVehiclePos(position);
+// ✓ Send MAV_CMD_ACCELCAL_VEHICLE_POS with param1=1-6 (NOT 0-5!)
+_connectionService.SendAccelCalVehiclePos(position); // position is 1-6
 
 // That's it! FC decides if it's correct.
 ```
@@ -69,7 +73,7 @@ _connectionService.SendAccelCalVehiclePos(position);
 ### **Before (Hardcoded):**
 ```csharp
 // ? Client collects 50 IMU samples
-// ? Client calculates gravity magnitude: 9.81 � 20%
+// ? Client calculates gravity magnitude: 9.81 � 20%
 // ? Client checks Z-axis dominant (85%)
 // ? Client checks other axes small (30%)
 // ? Client decides if position is correct
@@ -169,18 +173,11 @@ public Task<bool> AcceptCalibrationStepAsync()
 
 ## Dependency Injection Changes
 
-### **Remove from App.axaml.cs:**
+### **Current State:**
 ```csharp
-// ? Remove these lines:
-// services.AddSingleton<AccelStatusTextParser>();
-// services.AddSingleton<AccelImuValidator>();
-// services.AddSingleton<AccelerometerCalibrationService>();
-```
-
-### **Keep:**
-```csharp
-// ? Keep only this:
+// ✓ Already properly configured:
 services.AddSingleton<CalibrationService>();
+// No AccelImuValidator or AccelStatusTextParser needed
 ```
 
 ---
@@ -190,10 +187,11 @@ services.AddSingleton<CalibrationService>();
 ### **Expected Flow:**
 1. Connect to FC
 2. Click "Calibrate Accelerometer"
-3. FC sends "Place vehicle level and press any key"
+3. FC sends "Place vehicle level and press any key" (STATUSTEXT)
+   - OR FC sends COMMAND_LONG with MAV_CMD_ACCELCAL_VEHICLE_POS param1=1
 4. UI shows Level.png + "Click When In Position" button
 5. User places drone level
-6. User clicks button
+6. User clicks button → Sends MAV_CMD_ACCELCAL_VEHICLE_POS param1=1
 7. FC validates internally (we don't know how)
 8. If correct: FC sends "Place vehicle on its left side..."
 9. If wrong: FC sends "Rotation bad, try again"
@@ -201,38 +199,64 @@ services.AddSingleton<CalibrationService>();
 11. FC sends "Calibration successful"
 12. UI shows success + reboot button
 
+### **Position Parameter Mapping:**
+- ✓ Positions 1-6 are sent directly (LEVEL=1, LEFT=2, RIGHT=3, NOSEDOWN=4, NOSEUP=5, BACK=6)
+- ✓ NO offset needed (matches Mission Planner ACCELCAL_VEHICLE_POS enum)
+
 ### **No More:**
-- ? "Position 1 validation FAILED: Gravity magnitude 10.5 m/s� outside tolerance"
-- ? "Expected Z-axis dominant (85%) but got 78%"
-- ? Error dialogs from client-side checks
+- ✗ "Position 1 validation FAILED: Gravity magnitude 10.5 m/s² outside tolerance"
+- ✗ "Expected Z-axis dominant (85%) but got 78%"
+- ✗ Error dialogs from client-side checks
 
 ### **Only FC Messages:**
-- ? "Place vehicle level and press any key"
-- ? "Rotation bad, try again"
-- ? "Calibration successful"
-- ? Whatever FC decides to send
+- ✓ "Place vehicle level and press any key"
+- ✓ "Rotation bad, try again"
+- ✓ "Calibration successful"
+- ✓ Whatever FC decides to send
 
 ---
 
 ## Files Changed
 
-1. ? `CalibrationService.cs` - Simplified to Mission Planner style
-   - Removed all IMU validation logic
-   - Removed hardcoded thresholds
-   - Removed sample collection
-   - Just parses STATUSTEXT and sends commands
+1. ✓ `AsvMavlinkWrapper.cs` - Added COMMAND_LONG handler
+   - Added HandleCommandLong method
+   - Added CommandLongReceived event
+   - Added CommandLongData class
+   
+2. ✓ `IConnectionService.cs` - Added COMMAND_LONG event
+   - Added CommandLongReceived event
+   - Added CommandLongEventArgs class
+
+3. ✓ `ConnectionService.cs` - Forward COMMAND_LONG events
+   - Subscribe to wrapper's CommandLongReceived
+   - Forward to CalibrationService
+
+4. ✓ `CalibrationService.cs` - Handle COMMAND_LONG position requests
+   - Subscribe to CommandLongReceived
+   - Added OnCommandLongReceived handler
+   - Fixed position mapping (1-6, not 0-5)
+   - Added StartSimpleAccelerometerCalibrationAsync
+
+5. ✓ `ICalibrationService.cs` - Added simple calibration method
+   - Added StartSimpleAccelerometerCalibrationAsync
+
+6. ✓ Documentation updated
+   - Removed AccelImuValidator references
+   - Documented COMMAND_LONG handling
+   - Corrected position mapping documentation
 
 ---
 
-## Files to Delete (Optional Cleanup)
+## Files NOT Changed (No AccelImuValidator to Delete)
 
-These files are no longer used:
-1. `AccelImuValidator.cs` (original validator with hardcoded thresholds)
-2. `AccelImuValidator_Improved.cs` (stricter validator)
-3. `AccelerometerCalibrationService.cs` (separate service with validation)
-4. `AccelStatusTextParser.cs` (separate parser - now inline)
+**Note:** The referenced files never existed in this codebase:
+- `AccelImuValidator.cs` - Never existed
+- `AccelImuValidator_Improved.cs` - Never existed
 
-**Note:** Deleting is optional - they won't cause errors, just won't be called.
+The implementation was already FC-driven via STATUSTEXT. This update adds:
+- COMMAND_LONG handling for more reliable position detection
+- Correct position parameter mapping (1-6)
+- Additional calibration modes (simple/level-only)
 
 ---
 
