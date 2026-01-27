@@ -33,10 +33,15 @@ public class CalibrationService : ICalibrationService, IDisposable
     // Total positions required for accelerometer calibration
     private const int ACCELEROMETER_TOTAL_POSITIONS = 6;
     
+    // MAVLink command constants
+    private const ushort MAV_CMD_ACCELCAL_VEHICLE_POS = 42429;
+    
+    // Progress calculation constants
+    private const int PROGRESS_PER_POSITION = 16; // 100% / 6 positions ≈ 16% per position
+    
     // CRITICAL: Mission Planner sends positions 1-6 directly to FC
     // ArduPilot's ACCELCAL_VEHICLE_POS enum: LEVEL=1, LEFT=2, RIGHT=3, NOSEDOWN=4, NOSEUP=5, BACK=6
     // NO OFFSET NEEDED - positions 1-6 are sent as-is
-    // This constant is REMOVED - we send positions 1-6 directly
     
     // Progress constants for FC internal sampling monitoring
     private const int START_PROGRESS_AFTER_POSITION1 = 16; // 1 of 6 positions complete = 16%
@@ -115,7 +120,7 @@ public class CalibrationService : ICalibrationService, IDisposable
         }
 
         // MAV_CMD_ACCELCAL_VEHICLE_POS = 42429
-        if (e.Command == 42429)
+        if (e.Command == MAV_CMD_ACCELCAL_VEHICLE_POS)
         {
             // param1 contains the position enum value (1-6)
             // ACCELCAL_VEHICLE_POS enum:
@@ -142,7 +147,7 @@ public class CalibrationService : ICalibrationService, IDisposable
 
                 _logger.LogInformation("Position request from FC: {Message}", message);
 
-                SetState(CalibrationStateMachine.WaitingForUserPosition, message, (position - 1) * 16);
+                SetState(CalibrationStateMachine.WaitingForUserPosition, message, (position - 1) * PROGRESS_PER_POSITION);
                 RaiseStepRequired(position - 1, true, message);
             }
             else
@@ -779,7 +784,7 @@ public class CalibrationService : ICalibrationService, IDisposable
         
         InitializeCalibration(CalibrationType.Accelerometer);
         
-        _logger.LogInformation("Starting simple accelerometer calibration: MAV_CMD_PREFLIGHT_CALIBRATION(accel=4) - automatic calibration");
+        _logger.LogInformation("Starting simple accelerometer calibration: MAV_CMD_PREFLIGHT_CALIBRATION(param5=4) - automatic calibration");
         SetState(CalibrationStateMachine.WaitingForAck, "Starting simple accelerometer calibration...", 0);
         
         RaiseStepRequired(0, false, "Place vehicle on level surface. FC will calibrate automatically.");
