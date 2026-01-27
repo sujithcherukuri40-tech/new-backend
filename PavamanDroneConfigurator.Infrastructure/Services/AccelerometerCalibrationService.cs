@@ -49,6 +49,25 @@ public class AccelerometerCalibrationService : IDisposable
     private RawImuData? _latestImuData;
     private const int IMU_SAMPLES_REQUIRED = 50; // 1 second at 50Hz
     
+    // IMU streaming state
+    private bool _imuStreamingActive = false;
+    
+    // SCALED_IMU availability tracking
+    private bool _scaledImuReceived = false;
+    private DateTime _scaledImuCheckStartTime = DateTime.MinValue;
+    private const int SCALED_IMU_TIMEOUT_SECONDS = 2;
+    
+    // IMU message rate tracking
+    private DateTime _lastImuMessageTime = DateTime.MinValue;
+    private int _imuMessageCount = 0;
+    private int _scaledImuCount = 0;
+    private int _rawImuCount = 0;
+    private readonly List<double> _imuMessageIntervals = new();
+    
+    // FC Sampling fallback timer
+    private CancellationTokenSource? _fcSamplingTimeoutCts;
+    private const int FC_SAMPLING_TIMEOUT_SECONDS = 10; // 10 second fallback
+    
     // Diagnostics
     private DateTime _calibrationStartTime;
     private readonly List<string> _statusTextLog = new();
@@ -680,6 +699,34 @@ public class AccelerometerCalibrationService : IDisposable
     #endregion
     
     #region Diagnostics
+    
+    /// <summary>
+    /// Logs IMU message rate diagnostic information
+    /// </summary>
+    private void LogImuMessageRate()
+    {
+        if (_imuMessageIntervals.Count == 0)
+        {
+            _logger.LogWarning("?? No IMU message intervals recorded yet");
+            return;
+        }
+        
+        var avgInterval = _imuMessageIntervals.Average();
+        var avgRate = avgInterval > 0 ? 1000.0 / avgInterval : 0;
+        var minInterval = _imuMessageIntervals.Min();
+        var maxInterval = _imuMessageIntervals.Max();
+        
+        _logger.LogInformation("??????????????????????????????????????????????????");
+        _logger.LogInformation("?? IMU MESSAGE RATE DIAGNOSTICS");
+        _logger.LogInformation("   Total IMU messages: {Count}", _imuMessageCount);
+        _logger.LogInformation("   SCALED_IMU count: {Scaled}", _scaledImuCount);
+        _logger.LogInformation("   RAW_IMU count: {Raw}", _rawImuCount);
+        _logger.LogInformation("   Average interval: {Interval:F1} ms ({Rate:F1} Hz)", avgInterval, avgRate);
+        _logger.LogInformation("   Min interval: {Min:F1} ms", minInterval);
+        _logger.LogInformation("   Max interval: {Max:F1} ms", maxInterval);
+        _logger.LogInformation("   Interval samples: {Count}", _imuMessageIntervals.Count);
+        _logger.LogInformation("??????????????????????????????????????????????????");
+    }
     
     private void RecordPositionAttempt(int position, bool success, string message)
     {

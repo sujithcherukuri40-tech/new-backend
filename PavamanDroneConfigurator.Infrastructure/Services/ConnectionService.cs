@@ -38,6 +38,7 @@ public sealed class ConnectionService : IConnectionService, IDisposable
     private bool _disposed;
     private bool _isDisconnecting;
     private ConnectionType _currentConnectionType;
+    private bool _isArmed; // Track armed status from HEARTBEAT
 
     private readonly System.Timers.Timer _portScanTimer;
     private readonly System.Timers.Timer _connectionMonitorTimer;
@@ -48,6 +49,7 @@ public sealed class ConnectionService : IConnectionService, IDisposable
     private const int CONNECTION_TIMEOUT_SECONDS = 30;
 
     public bool IsConnected => _isConnected;
+    public bool IsArmed => _isArmed; // Expose armed status
 
     public event EventHandler<bool>? ConnectionStateChanged;
     public event EventHandler<IEnumerable<SerialPortInfo>>? AvailableSerialPortsChanged;
@@ -419,6 +421,10 @@ public sealed class ConnectionService : IConnectionService, IDisposable
     private void OnMavlinkHeartbeatData(object? sender, HeartbeatData e)
     {
         _lastDataReceivedTime = DateTime.UtcNow;
+        
+        // Track armed status from base_mode (bit 7 = MAV_MODE_FLAG_SAFETY_ARMED)
+        _isArmed = e.IsArmed;
+        
         HeartbeatDataReceived?.Invoke(this, new HeartbeatDataEventArgs
         {
             SystemId = e.SystemId,
@@ -760,6 +766,40 @@ public sealed class ConnectionService : IConnectionService, IDisposable
         }
 
         _ = _mavlink.SendResetParametersAsync();
+    }
+
+    public void SendSetMessageInterval(int messageId, int intervalUs)
+    {
+        if (_currentConnectionType == ConnectionType.Bluetooth && _bluetoothConnection != null)
+        {
+            _logger.LogWarning("SET_MESSAGE_INTERVAL not supported via Bluetooth");
+            return;
+        }
+
+        if (_mavlink == null)
+        {
+            _logger.LogWarning("Cannot send MAV_CMD_SET_MESSAGE_INTERVAL - not connected");
+            return;
+        }
+
+        _ = _mavlink.SendSetMessageIntervalAsync(messageId, intervalUs);
+    }
+
+    public void SendRequestDataStream(int streamId, int rateHz, int startStop)
+    {
+        if (_currentConnectionType == ConnectionType.Bluetooth && _bluetoothConnection != null)
+        {
+            _logger.LogWarning("REQUEST_DATA_STREAM not supported via Bluetooth");
+            return;
+        }
+
+        if (_mavlink == null)
+        {
+            _logger.LogWarning("Cannot send REQUEST_DATA_STREAM - not connected");
+            return;
+        }
+
+        _ = _mavlink.SendRequestDataStreamAsync(streamId, rateHz, startStop);
     }
 
     private void SetConnected(bool connected)
