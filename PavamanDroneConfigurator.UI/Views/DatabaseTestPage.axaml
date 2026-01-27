@@ -1,0 +1,116 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:PavamanDroneConfigurator.UI.ViewModels"
+             x:Class="PavamanDroneConfigurator.UI.Views.DatabaseTestPage"
+             x:DataType="vm:DatabaseTestPageViewModel">
+
+  <Design.DataContext>
+    <vm:DatabaseTestPageViewModel/>
+  </Design.DataContext>
+
+  <ScrollViewer>
+    <StackPanel Margin="20" Spacing="20">
+      
+      <!-- Header -->
+      <TextBlock Text="PostgreSQL Database Connection Test"
+                 FontSize="24"
+                 FontWeight="Bold"/>
+      
+      <TextBlock Text="Step 1: Verify .NET ? RDS Connection"
+                 FontSize="18"
+                 Foreground="#666"/>
+
+      <!-- Connection Info -->
+      <Border Background="#f5f5f5"
+              Padding="15"
+              CornerRadius="5">
+        <StackPanel Spacing="10">
+          <TextBlock Text="Connection Information:"
+                     FontWeight="SemiBold"
+                     FontSize="14"/>
+          <TextBlock Text="{Binding ConnectionInfo}"
+                     TextWrapping="Wrap"
+                     FontFamily="Consolas"
+                     FontSize="12"/>
+        </StackPanel>
+      </Border>
+
+      <!-- Test Button -->
+      <Button Content="Test Connection"
+              Command="{Binding TestConnectionCommand}"
+              IsEnabled="{Binding !IsTesting}"
+              HorizontalAlignment="Left"
+              Padding="20,10"
+              FontSize="14"/>
+
+      <!-- Loading Indicator -->
+      <StackPanel Orientation="Horizontal"
+                  Spacing="10"
+                  IsVisible="{Binding IsTesting}">
+        <TextBlock Text="?? Testing connection..."
+                   FontSize="14"/>
+      </StackPanel>
+
+      <!-- Status Message -->
+      <Border Background="{Binding IsConnected, Converter={x:Null}}"
+              Padding="15"
+              CornerRadius="5"
+              BorderThickness="2"
+              BorderBrush="{Binding IsConnected, Converter={x:Null}}">
+        <Border.Background>
+          <SolidColorBrush Color="{Binding IsConnected, Converter={x:Null}}"/>
+        </Border.Background>
+        <TextBlock Text="{Binding StatusMessage}"
+                   TextWrapping="Wrap"
+                   FontSize="14"
+                   LineHeight="20"/>
+      </Border>
+
+      <!-- Instructions -->
+      <Border Background="#fff3cd"
+              BorderBrush="#ffc107"
+              BorderThickness="1"
+              Padding="15"
+              CornerRadius="5">
+        <StackPanel Spacing="10">
+          <TextBlock Text="?? Instructions:"
+                     FontWeight="Bold"
+                     FontSize="14"/>
+          <TextBlock TextWrapping="Wrap"
+                     LineHeight="20">
+            <Run Text="1. Update the password in appsettings.json"/>
+            <LineBreak/>
+            <Run Text="2. Ensure your network can reach the RDS endpoint"/>
+            <LineBreak/>
+            <Run Text="3. Click 'Test Connection' to verify"/>
+            <LineBreak/>
+            <Run Text="4. Once successful, proceed to Step 2 (AWS Secrets Manager)"/>
+          </TextBlock>
+        </StackPanel>
+      </Border>
+
+      <!-- Next Steps -->
+      <Border Background="#d4edda"
+              BorderBrush="#28a745"
+              BorderThickness="1"
+              Padding="15"
+              CornerRadius="5"
+              IsVisible="{Binding IsConnected}">
+        <StackPanel Spacing="10">
+          <TextBlock Text="? Step 1 Complete!"
+                     FontWeight="Bold"
+                     FontSize="14"
+                     Foreground="#155724"/>
+          <TextBlock TextWrapping="Wrap"
+                     Foreground="#155724"
+                     LineHeight="20">
+            <Run Text="Next: Move connection string to AWS Secrets Manager"/>
+            <LineBreak/>
+            <Run Text="This will secure your database credentials."/>
+          </TextBlock>
+        </StackPanel>
+      </Border>
+
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>

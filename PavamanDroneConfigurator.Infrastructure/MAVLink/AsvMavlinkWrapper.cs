@@ -62,6 +62,7 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
         private const ushort MAVLINK_MSG_ID_COMMAND_ACK = 77;
         private const byte MAVLINK_MSG_ID_STATUSTEXT = 253;
         private const byte MAVLINK_MSG_ID_RC_CHANNELS = 65;
+        private const byte MAVLINK_MSG_ID_AUTOPILOT_VERSION = 148;
 
         // MAV_CMD IDs
         private const ushort MAV_CMD_DO_MOTOR_TEST = 209;
@@ -83,6 +84,7 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
         private const byte CRC_EXTRA_COMMAND_ACK = 143;
         private const byte CRC_EXTRA_STATUSTEXT = 83;
         private const byte CRC_EXTRA_RC_CHANNELS = 118;
+        private const byte CRC_EXTRA_AUTOPILOT_VERSION = 49;
 
         public event EventHandler<(byte SystemId, byte ComponentId)>? HeartbeatReceived;
         public event EventHandler<(string Name, float Value, ushort Index, ushort Count)>? ParamValueReceived;
@@ -91,6 +93,7 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
         public event EventHandler<HeartbeatData>? HeartbeatDataReceived;
         public event EventHandler<RcChannelsData>? RcChannelsReceived;
         public event EventHandler<RawImuData>? RawImuReceived;
+        public event EventHandler<AutopilotVersionData>? AutopilotVersionReceived;
         public event EventHandler? ConnectionLost;
 
         public AsvMavlinkWrapper(ILogger logger, IMavLinkMessageLogger? mavLinkLogger = null)
@@ -455,6 +458,10 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
                 case MAVLINK_MSG_ID_SCALED_IMU:
                     HandleScaledImu(payload);
                     break;
+                    
+                case MAVLINK_MSG_ID_AUTOPILOT_VERSION:
+                    HandleAutopilotVersion(sysId, compId, payload);
+                    break;
             }
         }
 
@@ -729,6 +736,137 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
                 imuData.Temperature = BitConverter.ToInt16(payload, 22);
 
             RawImuReceived?.Invoke(this, imuData);
+        }
+
+        private void HandleAutopilotVersion(byte sysId, byte compId, byte[] payload)
+        {
+            // AUTOPILOT_VERSION payload (60 bytes):
+            // [0-7]     capabilities (uint64)
+            // [8-11]    flight_sw_version (uint32)
+            // [12-15]   middleware_sw_version (uint32)
+            // [16-19]   os_sw_version (uint32)
+            // [20-23]   board_version (uint32)
+            // [24-31]   flight_custom_version (uint8[8])
+            // [32-39]   middleware_custom_version (uint8[8])
+            // [40-47]   os_custom_version (uint8[8])
+            // [48-49]   vendor_id (uint16)
+            // [50-51]   product_id (uint16)
+            // [52-59]   uid (uint64)
+            // [60-77]   uid2 (uint8[18]) - MAVLink v2 extension
+            
+            if (payload.Length < 60)
+            {
+                _logger.LogWarning("AUTOPILOT_VERSION payload too short: {Len}", payload.Length);
+                return;
+            }
+
+            // Only accept from autopilot component (compId = 1)
+            if (compId != 1)
+            {
+                _logger.LogDebug("Ignoring AUTOPILOT_VERSION from non-autopilot component {CompId}", compId);
+                return;
+            }
+
+            var versionData = new AutopilotVersionData
+            {
+                SystemId = sysId,
+                ComponentId = compId,
+                Capabilities = BitConverter.ToUInt64(payload, 0),
+                FlightSwVersion = BitConverter.ToUInt32(payload, 8),
+                MiddlewareSwVersion = BitConverter.ToUInt32(payload, 12),
+                OsSwVersion = BitConverter.ToUInt32(payload, 16),
+                BoardVersion = BitConverter.ToUInt32(payload, 20),
+                VendorId = BitConverter.ToUInt16(payload, 48),
+                ProductId = BitConverter.ToUInt16(payload, 50)
+            };
+
+            // Extract flight_custom_version (git hash)
+            versionData.FlightCustomVersion = new byte[8];
+            Array.Copy(payload, 24, versionData.FlightCustomVersion, 0, 8);
+
+            // Extract uid
+            versionData.Uid = new byte[8];
+            Array.Copy(payload, 52, versionData.Uid, 0, 8);
+
+            // Extract uid2 (MAVLink v2 extension) - THE FC ID SOURCE
+            if (payload.Length >= 78)
+            {
+                versionData.Uid2 = new byte[18];
+                Array.Copy(payload, 60, versionData.Uid2, 0, 18);
+            }
+
+            // Decode ArduPilot version
+            DecodeArduPilotVersion(versionData);
+
+            _logger.LogInformation("AUTOPILOT_VERSION: FW={Fw}, Board=0x{Board:X8}, FC_ID={FcId}",
+                versionData.FirmwareVersionString, versionData.BoardVersion, versionData.GetFcId());
+
+            AutopilotVersionReceived?.Invoke(this, versionData);
+        }
+
+        /// <summary>
+        /// Decode ArduPilot firmware version from flight_sw_version field
+        /// Format: MAJOR.MINOR.PATCH (RELEASE_TYPE)
+        /// </summary>
+        private void DecodeArduPilotVersion(AutopilotVersionData data)
+        {
+            // ArduPilot encoding (little-endian):
+            // Byte 0: patch version (0-255)
+            // Byte 1: minor version (0-255)
+            // Byte 2: major version (0-255)
+            // Byte 3: firmware type (0=stable, 64=beta, 255=dev)
+            
+            byte patch = (byte)(data.FlightSwVersion & 0xFF);
+            byte minor = (byte)((data.FlightSwVersion >> 8) & 0xFF);
+            byte major = (byte)((data.FlightSwVersion >> 16) & 0xFF);
+            byte firmwareType = (byte)((data.FlightSwVersion >> 24) & 0xFF);
+
+            data.FirmwareMajor = major;
+            data.FirmwareMinor = minor;
+            data.FirmwarePatch = patch;
+            data.FirmwareType = firmwareType;
+
+            string releaseType = firmwareType switch
+            {
+                0 => "Stable",
+                64 => "Beta",
+                255 => "Dev",
+                _ => $"Type{firmwareType}"
+            };
+
+            data.FirmwareVersionString = $"{major}.{minor}.{patch} ({releaseType})";
+        }
+
+        /// <summary>
+        /// Validate uid2 is not all zeros
+        /// </summary>
+        private static bool IsValidUid2(byte[] uid2)
+        {
+            if (uid2 == null || uid2.Length != 18)
+                return false;
+
+            // Check if all bytes are zero
+            foreach (byte b in uid2)
+            {
+                if (b != 0)
+                    return true;
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Convert uid2 to FC ID string
+        /// Format: FC-{UID2_HEX_UPPERCASE_NO_SEPARATORS}
+        /// Example: FC-4A9F3C01A2887E5500119C4D3A01FF88902B
+        /// </summary>
+        private static string ConvertUid2ToFcId(byte[] uid2)
+        {
+            if (!IsValidUid2(uid2))
+                return "FC-INVALID";
+
+            var hex = BitConverter.ToString(uid2).Replace("-", "").ToUpperInvariant();
+            return $"FC-{hex}";
         }
 
         public async Task SendParamRequestListAsync(CancellationToken ct = default)
@@ -1181,21 +1319,21 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
         public bool IsScaled { get; set; }
 
         /// <summary>
-        /// Get acceleration in m/s� (scaled)
+        /// Get acceleration in m/s² (scaled)
         /// </summary>
         public (double X, double Y, double Z) GetAcceleration()
         {
             if (IsScaled)
             {
-                // SCALED_IMU: values are in milli-g, convert to m/s�
-                const double MILLI_G_TO_MS2 = 0.00981; // 1 milli-g = 0.00981 m/s�
+                // SCALED_IMU: values are in milli-g, convert to m/s²
+                const double MILLI_G_TO_MS2 = 0.00981; // 1 milli-g = 0.00981 m/s²
                 return (XAcc * MILLI_G_TO_MS2, YAcc * MILLI_G_TO_MS2, ZAcc * MILLI_G_TO_MS2);
             }
             else
             {
                 // RAW_IMU: values are raw ADC, typical scale is 1/1000 g per LSB for most IMUs
-                // This varies by sensor, typical MPU6000/9250: 16-bit, �16g range = 32g / 65536 = 0.000488 g/LSB
-                const double RAW_TO_MS2 = 0.00478; // Approximate conversion for �16g range
+                // This varies by sensor, typical MPU6000/9250: 16-bit, ±16g range = 32g / 65536 = 0.000488 g/LSB
+                const double RAW_TO_MS2 = 0.00478; // Approximate conversion for ±16g range
                 return (XAcc * RAW_TO_MS2, YAcc * RAW_TO_MS2, ZAcc * RAW_TO_MS2);
             }
         }
@@ -1220,11 +1358,94 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
         }
 
         /// <summary>
-        /// Get temperature in �C
+        /// Get temperature in °C
         /// </summary>
         public double GetTemperature()
         {
             return Temperature / 100.0; // Temperature is in centi-degrees
+        }
+    }
+
+    /// <summary>
+    /// AUTOPILOT_VERSION data from vehicle
+    /// Contains FC ID (from uid2), firmware version, and board information
+    /// </summary>
+    public class AutopilotVersionData
+    {
+        public byte SystemId { get; set; }
+        public byte ComponentId { get; set; }
+        public ulong Capabilities { get; set; }
+        public uint FlightSwVersion { get; set; }
+        public uint MiddlewareSwVersion { get; set; }
+        public uint OsSwVersion { get; set; }
+        public uint BoardVersion { get; set; }
+        public byte[]? FlightCustomVersion { get; set; }
+        public ushort VendorId { get; set; }
+        public ushort ProductId { get; set; }
+        public byte[]? Uid { get; set; }
+        public byte[]? Uid2 { get; set; }
+        
+        // Decoded firmware version fields
+        public byte FirmwareMajor { get; set; }
+        public byte FirmwareMinor { get; set; }
+        public byte FirmwarePatch { get; set; }
+        public byte FirmwareType { get; set; }
+        public string FirmwareVersionString { get; set; } = "N/A";
+
+        /// <summary>
+        /// Get FC ID from uid2 field.
+        /// This is the ONLY reliable source for FC ID.
+        /// Format: FC-{UID2_HEX_UPPERCASE}
+        /// </summary>
+        public string GetFcId()
+        {
+            if (Uid2 == null || Uid2.Length != 18)
+                return "FC-UNAVAILABLE";
+
+            // Check if all zeros (invalid)
+            bool allZeros = true;
+            foreach (byte b in Uid2)
+            {
+                if (b != 0)
+                {
+                    allZeros = false;
+                    break;
+                }
+            }
+
+            if (allZeros)
+                return "FC-UNAVAILABLE";
+
+            var hex = BitConverter.ToString(Uid2).Replace("-", "").ToUpperInvariant();
+            return $"FC-{hex}";
+        }
+
+        /// <summary>
+        /// Get git hash from flight_custom_version field.
+        /// First 8 bytes of git commit hash.
+        /// </summary>
+        public string GetGitHash()
+        {
+            if (FlightCustomVersion == null || FlightCustomVersion.Length == 0)
+                return "N/A";
+
+            // Check if all zeros
+            bool allZeros = true;
+            foreach (byte b in FlightCustomVersion)
+            {
+                if (b != 0)
+                {
+                    allZeros = false;
+                    break;
+                }
+            }
+
+            if (allZeros)
+                return "N/A";
+
+            // Convert to hex string (first 8 bytes of git hash)
+            var hex = BitConverter.ToString(FlightCustomVersion).Replace("-", "").ToLowerInvariant();
+            return hex;
         }
     }
 }

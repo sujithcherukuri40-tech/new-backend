@@ -19,6 +19,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Update="appsettings.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Avalonia" Version="11.3.10" />
     <PackageReference Include="Avalonia.Controls.DataGrid" Version="11.3.10" />
     <PackageReference Include="Avalonia.Desktop" Version="11.3.10" />
@@ -33,9 +39,16 @@
     <PackageReference Include="HarfBuzzSharp" Version="8.3.1.1" />
     <PackageReference Include="HarfBuzzSharp.NativeAssets.WebAssembly" Version="8.3.1.1" />
     <PackageReference Include="Mapsui.Avalonia" Version="5.0.0-beta.1" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.0" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.0">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="9.0.0" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.0" />
     <PackageReference Include="Microsoft.Extensions.Logging" Version="9.0.0" />
     <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="9.0.0" />
+    <PackageReference Include="Npgsql" Version="10.0.1" />
     <PackageReference Include="ScottPlot.Avalonia" Version="5.0.47" />
   </ItemGroup>
 
@@ -48,10 +61,9 @@
 	<Target Name="ForceCopyAssets" AfterTargets="Build">
 		<Message Text="Copying XML metadata file..." Importance="high" />
 		<MakeDir Directories="$(OutDir)Assets" />
-		<Copy
-			SourceFiles="Assets\ParameterMetadata.xml"
-			DestinationFolder="$(OutDir)Assets"
-			SkipUnchangedFiles="false" />
+		<Copy SourceFiles="Assets\ParameterMetadata.xml" DestinationFolder="$(OutDir)Assets" SkipUnchangedFiles="false" />
+		<Message Text="Copying appsettings.json..." Importance="high" />
+		<Copy SourceFiles="appsettings.json" DestinationFolder="$(OutDir)" SkipUnchangedFiles="false" />
 	</Target>
 
 </Project>
