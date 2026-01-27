@@ -676,11 +676,45 @@ public sealed class FirmwareService : IFirmwareService, IDisposable
                     Format = f.Format ?? ""
                 })
                 .Where(v => !string.IsNullOrEmpty(v.DownloadUrl)) // Must have a download URL
+                .Where(v => {
+                    // CRITICAL VALIDATION: Prevent incompatible firmware from being selected
+                    // Get the detected board ID if we're filtering by board
+                    if (!string.IsNullOrWhiteSpace(boardId))
+                    {
+                        var detectedBoardId = BoardCompatibility.GetBoardId(boardId);
+                        
+                        // Verify firmware board_id is compatible with detected board_id
+                        if (detectedBoardId > 0 && v.BoardId > 0)
+                        {
+                            var isCompatible = BoardCompatibility.AreCompatible(detectedBoardId, v.BoardId);
+                            if (!isCompatible)
+                            {
+                                _logger.LogDebug(
+                                    "Rejecting incompatible firmware: board_id {FwBoardId} (platform={FwPlatform}) " +
+                                    "is not compatible with detected board_id {DetectedBoardId} (platform={DetectedPlatform})",
+                                    v.BoardId, v.Platform, detectedBoardId, boardId);
+                                return false;
+                            }
+                        }
+                    }
+                    return true;
+                })
                 .OrderByDescending(v => v.IsLatest)
                 .ThenByDescending(v => v.Version)
                 .ToList();
             
-            Log($"Found {versions.Count} firmware versions");
+            Log($"Found {versions.Count} compatible firmware versions after board validation");
+            
+            // Log the URLs for debugging
+            if (versions.Any())
+            {
+                var firstFew = versions.Take(3).ToList();
+                foreach (var ver in firstFew)
+                {
+                    Log($"  - {ver.Platform} v{ver.Version} ({ver.ReleaseType}): {ver.DownloadUrl}");
+                }
+            }
+            
             return versions.AsReadOnly();
         }
         catch (Exception ex)

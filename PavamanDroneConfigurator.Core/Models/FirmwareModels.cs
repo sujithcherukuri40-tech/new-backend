@@ -417,7 +417,7 @@ public static class CommonBoards
             BootloaderProtocol = "px4",
             FlashSize = 2048,
             SupportsBootloaderUpdate = true,
-            BoardId = 141,
+            BoardId = 1063,
             VendorId = 0x2DAE,
             ProductId = 0x1059
         },
@@ -548,7 +548,7 @@ public static class CommonBoards
             Id = "octa",
             Name = "Copter",
             Description = "Octocopter",
-            ImagePath = "avares://PavamanDroneConfigurator.UI/Assets/Images/Vehicle/Octa.png",
+            ImagePath = "avares://PavamanDroneConfigurator.UI/Assets/Images/Vehicle/Hexa.png", // Fallback to Hexa image
             VehicleClass = VehicleClass.Copter,
             ArduPilotId = "Copter",
             MavType = 14,
@@ -559,7 +559,7 @@ public static class CommonBoards
             Id = "y6",
             Name = "Copter",
             Description = "Y6 configuration",
-            ImagePath = "avares://PavamanDroneConfigurator.UI/Assets/Images/Vehicle/Y6.png",
+            ImagePath = "avares://PavamanDroneConfigurator.UI/Assets/Images/Vehicle/Hexa.png", // Fallback to Hexa image
             VehicleClass = VehicleClass.Copter,
             ArduPilotId = "Copter",
             MavType = 2,
@@ -570,7 +570,7 @@ public static class CommonBoards
             Id = "sub",
             Name = "Sub",
             Description = "Underwater vehicle (ROV)",
-            ImagePath = "avares://PavamanDroneConfigurator.UI/Assets/Images/Vehicle/Sub.png",
+            ImagePath = "avares://PavamanDroneConfigurator.UI/Assets/Images/Vehicle/Quad.png", // Fallback to Quad image
             VehicleClass = VehicleClass.Sub,
             ArduPilotId = "Sub",
             MavType = 12,
@@ -582,7 +582,7 @@ public static class CommonBoards
             Id = "antennatracker",
             Name = "AntennaTracker",
             Description = "Antenna Tracker",
-            ImagePath = "avares://PavamanDroneConfigurator.UI/Assets/Images/Vehicle/AntennaTracker.png",
+            ImagePath = "avares://PavamanDroneConfigurator.UI/Assets/Images/Vehicle/Rover.png", // Fallback to Rover image
             VehicleClass = VehicleClass.AntennaTracker,
             ArduPilotId = "AntennaTracker",
             MavType = 5,
@@ -604,7 +604,7 @@ public static class CommonBoards
             Id = "tri",
             Name = "Copter",
             Description = "Tricopter",
-            ImagePath = "avares://PavamanDroneConfigurator.UI/Assets/Images/Vehicle/Tri.png",
+            ImagePath = "avares://PavamanDroneConfigurator.UI/Assets/Images/Vehicle/Quad.png", // Fallback to Quad image
             VehicleClass = VehicleClass.Copter,
             ArduPilotId = "Copter",
             MavType = 15,
@@ -615,7 +615,7 @@ public static class CommonBoards
             Id = "octaquad",
             Name = "Copter",
             Description = "OctaQuad (X8)",
-            ImagePath = "avares://PavamanDroneConfigurator.UI/Assets/Images/Vehicle/OctaQuad.png",
+            ImagePath = "avares://PavamanDroneConfigurator.UI/Assets/Images/Vehicle/Hexa.png", // Fallback to Hexa image
             VehicleClass = VehicleClass.Copter,
             ArduPilotId = "Copter",
             MavType = 14,
@@ -626,7 +626,7 @@ public static class CommonBoards
             Id = "single",
             Name = "Copter",
             Description = "SingleCopter",
-            ImagePath = "avares://PavamanDroneConfigurator.UI/Assets/Images/Vehicle/Single.png",
+            ImagePath = "avares://PavamanDroneConfigurator.UI/Assets/Images/Vehicle/Quad.png", // Fallback to Quad image
             VehicleClass = VehicleClass.Copter,
             ArduPilotId = "Copter",
             MavType = 2,
@@ -637,7 +637,7 @@ public static class CommonBoards
             Id = "coax",
             Name = "Copter",
             Description = "CoaxCopter",
-            ImagePath = "avares://PavamanDroneConfigurator.UI/Assets/Images/Vehicle/Coax.png",
+            ImagePath = "avares://PavamanDroneConfigurator.UI/Assets/Images/Vehicle/Quad.png", // Fallback to Quad image
             VehicleClass = VehicleClass.Copter,
             ArduPilotId = "Copter",
             MavType = 2,
@@ -648,7 +648,7 @@ public static class CommonBoards
             Id = "deca",
             Name = "Copter",
             Description = "DecaCopter (10 motors)",
-            ImagePath = "avares://PavamanDroneConfigurator.UI/Assets/Images/Vehicle/Deca.png",
+            ImagePath = "avares://PavamanDroneConfigurator.UI/Assets/Images/Vehicle/Hexa.png", // Fallback to Hexa image
             VehicleClass = VehicleClass.Copter,
             ArduPilotId = "Copter",
             MavType = 2,
