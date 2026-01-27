@@ -360,8 +360,9 @@ public static class BoardDetect
             // Could be either CubeOrange OR CubeOrangePlus - both may use this PID!
             // Default to cubeorange but the bootloader board_type will be authoritative
             System.Diagnostics.Trace.WriteLine(
-                "[BoardDetect] PID 0x1058 detected - could be CubeOrange or CubeOrangePlus. " +
-                "Bootloader board_type will be used for final identification.");
+                "[BoardDetect] WARNING: PID 0x1058 detected - could be CubeOrange (board_id=140) or CubeOrangePlus (board_id=1063). " +
+                "USB detection is AMBIGUOUS. Bootloader board_type MUST be used for final identification. " +
+                "Defaulting to CubeOrange for now.");
             return Boards.cubeorange;
         }
 
