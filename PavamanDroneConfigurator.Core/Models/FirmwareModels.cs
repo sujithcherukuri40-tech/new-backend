@@ -488,6 +488,19 @@ public static class CommonBoards
             FlashSize = 1024,
             SupportsBootloaderUpdate = true,
             BoardId = 1015
+        },
+        new BoardInfo
+        {
+            Id = "SKYH743",
+            Name = "SKYH743",
+            Manufacturer = "SKY",
+            Description = "SKY H743 STM32H743xx",
+            BootloaderProtocol = "px4",
+            FlashSize = 2048,  // 2MB internal flash
+            SupportsBootloaderUpdate = true,
+            BoardId = 190,
+            VendorId = 0x1209,   // From APJ: "USBID": "0x1209/0x5740"
+            ProductId = 0x5740
         }
     };
     
