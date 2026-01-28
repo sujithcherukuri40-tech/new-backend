@@ -804,28 +804,55 @@ public partial class FirmwarePageViewModel : ViewModelBase
             using var detectCts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
             var board = await _firmwareService.DetectBoardAsync(detectCts.Token);
 
-            if (board == null)
+            // Step 3: If no board detected OR board is not in bootloader, try to enter bootloader
+            if (board == null || !board.IsInBootloader)
             {
-                // Step 3: Show bootloader mode prompt if no board detected (like Mission Planner)
-                AddLog("No running board found. Showing bootloader mode prompt...");
-
-                var userConfirmed = await ShowBootloaderModePromptAsync(
-                    "No board detected.\n\n" +
-                    "Please unplug the board and plug back in while holding the BOOT button.\n\n" +
-                    "Click OK when ready, or Cancel to abort.",
-                    _operationCts.Token);
-
-                if (!userConfirmed)
+                if (board != null)
                 {
-                    IsOperationInProgress = false;
-                    StatusMessage = "Installation cancelled";
-                    AddLog("User cancelled bootloader mode prompt");
-                    return;
+                    AddLog($"Board detected but not in bootloader: {board.BoardName}");
+                }
+                else
+                {
+                    AddLog("No running board found. Attempting to reboot to bootloader...");
+                }
+                
+                // CRITICAL FIX: Send reboot command before showing dialog
+                // This matches the behavior of online firmware flashing
+                StatusMessage = "Rebooting to bootloader...";
+                AddLog("Sending reboot-to-bootloader command...");
+                
+                var rebootSuccess = await _firmwareService.AttemptRebootToBootloaderAsync(_operationCts.Token);
+                
+                if (rebootSuccess)
+                {
+                    AddLog("Reboot command sent. Waiting for USB re-enumeration...");
+                    StatusMessage = "Waiting for USB re-enumeration...";
+                    await Task.Delay(2500, _operationCts.Token); // USB_REENUMERATION_DELAY_MS
+                }
+                else
+                {
+                    // Reboot command failed - board may not be connected or not responding
+                    // Show user prompt to manually enter bootloader
+                    AddLog("Automatic reboot failed. Showing manual bootloader mode prompt...");
+                    
+                    var userConfirmed = await ShowBootloaderModePromptAsync(
+                        "Could not automatically reboot to bootloader.\n\n" +
+                        "Please unplug the board and plug back in while holding the BOOT button.\n\n" +
+                        "Click OK when ready, or Cancel to abort.",
+                        _operationCts.Token);
+
+                    if (!userConfirmed)
+                    {
+                        IsOperationInProgress = false;
+                        StatusMessage = "Installation cancelled";
+                        AddLog("User cancelled bootloader mode prompt");
+                        return;
+                    }
                 }
 
                 // Wait for bootloader with user feedback
                 StatusMessage = "Waiting for bootloader...";
-                DetailMessage = "Hold BOOT button while connecting";
+                DetailMessage = "Looking for board in bootloader mode...";
                 AddLog("Waiting for board in bootloader mode...");
 
                 board = await _firmwareService.WaitForBootloaderAsync(
@@ -836,14 +863,14 @@ public partial class FirmwarePageViewModel : ViewModelBase
             {
                 IsOperationInProgress = false;
                 IsError = true;
-                StatusMessage = "No board detected. Please connect your flight controller.";
+                StatusMessage = "No board detected in bootloader mode.";
                 DetailMessage = "Try holding the BOOT button while connecting";
                 AddLog("Board detection timed out");
                 return;
             }
 
             // Step 4: Update UI with detected board info
-            AddLog($"Board detected: {board.BoardName} on {board.SerialPort}");
+            AddLog($"Board detected in bootloader: {board.BoardName} (board_type={board.BoardIdNumeric}) on {board.SerialPort}");
             StatusMessage = $"Detected: {board.BoardName}";
 
             await Dispatcher.UIThread.InvokeAsync(() =>
