@@ -91,6 +91,9 @@ public static class BoardCompatibility
         public const int BeastF7 = 1021;
         public const int iFlight_BeastF7_V2 = 1089;
 
+        // SKY boards
+        public const int SKYH743 = 190;
+
         // More boards can be added as needed
     }
 
@@ -172,6 +175,14 @@ public static class BoardCompatibility
             BoardIds.CubeOrangePlus, new[]
             {
                 BoardIds.CubeOrangePlus
+            }
+        },
+
+        // SKYH743 - standalone board
+        {
+            BoardIds.SKYH743, new[]
+            {
+                BoardIds.SKYH743
             }
         }
     };
@@ -286,6 +297,7 @@ public static class BoardCompatibility
             BoardIds.KakuteH7_Mini => "KakuteH7Mini",
             BoardIds.SpeedyBeeF4 => "speedybeef4",
             BoardIds.FlywooF745 => "FlywooF745",
+            BoardIds.SKYH743 => "SKYH743",
             _ => $"board_{boardId}"
         };
     }
@@ -324,6 +336,7 @@ public static class BoardCompatibility
             "kakuteh7mini" => BoardIds.KakuteH7_Mini,
             "speedybeef4" => BoardIds.SpeedyBeeF4,
             "flywooh745" or "flywoof745" => BoardIds.FlywooF745,
+            "skyh743" => BoardIds.SKYH743,
             _ => 0
         };
     }

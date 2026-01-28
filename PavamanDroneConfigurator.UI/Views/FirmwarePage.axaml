@@ -405,7 +405,7 @@
                 <Border Background="#3E3E42"
                         CornerRadius="8"
                         Padding="16"
-                        Margin="8,16,8,0"
+                        Margin="8,16,8,16"
                         IsVisible="{Binding IsManualMode}">
                     <StackPanel Spacing="12">
                         <TextBlock Text="Load Custom Firmware"
@@ -436,7 +436,7 @@
                                 HorizontalAlignment="Left"
                                 Command="{Binding FlashCustomFirmwareCommand}"
                                 IsEnabled="{Binding SelectedFilePath, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
-                                Margin="0,8,0,0"/>
+                                Margin="0,8,0,8"/>
                     </StackPanel>
                 </Border>
                 
