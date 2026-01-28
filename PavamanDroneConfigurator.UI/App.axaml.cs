@@ -94,12 +94,26 @@ public partial class App : Application
             Console.WriteLine($"?? Auth API URL: {authApiUrl}");
         });
         
+        // Register admin service with same HTTP client configuration
+        services.AddHttpClient<Core.Interfaces.IAdminService, AdminApiService>(client =>
+        {
+            var authApiUrl = Environment.GetEnvironmentVariable("AUTH_API_URL")
+                ?? Configuration?.GetValue<string>("Auth:ApiUrl") 
+                ?? "http://localhost:5000";
+            
+            client.BaseAddress = new Uri(authApiUrl);
+            client.DefaultRequestHeaders.Add("Accept", "application/json");
+            client.Timeout = TimeSpan.FromSeconds(30);
+        });
+        
         services.AddSingleton<AuthSessionViewModel>();
         
         services.AddTransient<LoginViewModel>();
         services.AddTransient<RegisterViewModel>();
         services.AddTransient<PendingApprovalViewModel>();
         services.AddTransient<AuthShellViewModel>();
+        
+        services.AddTransient<UI.ViewModels.Admin.AdminPanelViewModel>();
 
         if (Configuration != null)
         {

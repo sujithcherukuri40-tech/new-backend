@@ -1,7 +1,9 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:PavamanDroneConfigurator.UI.ViewModels"
+        xmlns:adminVm="using:PavamanDroneConfigurator.UI.ViewModels.Admin"
         xmlns:views="using:PavamanDroneConfigurator.UI.Views"
+        xmlns:adminViews="using:PavamanDroneConfigurator.UI.Views.Admin"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d" d:DesignWidth="1280" d:DesignHeight="800"
@@ -205,6 +207,16 @@
                                 CommandParameter="{Binding ResetParametersPage}"
                                 Click="NavButton_Click" />
 
+						<!-- Admin Panel (Admin Only) -->
+						<TextBlock Text="ADMIN" 
+                                   Classes="nav-group-title"
+                                   IsVisible="{Binding IsAdmin}"/>
+						<Button Content="👥  User Management"
+                                Classes="nav-button"
+                                CommandParameter="{Binding AdminPanelPage}"
+                                Click="NavButton_Click"
+                                IsVisible="{Binding IsAdmin}" />
+
 					</StackPanel>
 				</ScrollViewer>
 
@@ -281,6 +293,9 @@
 					</DataTemplate>
 					<DataTemplate DataType="vm:FirmwarePageViewModel">
 						<views:FirmwarePage />
+					</DataTemplate>
+					<DataTemplate DataType="adminVm:AdminPanelViewModel">
+						<adminViews:AdminPanelView />
 					</DataTemplate>
 				</ContentControl.DataTemplates>
 			</ContentControl>

@@ -183,6 +183,16 @@
                     </Panel>
                 </Button>
 
+                <!-- Direct Login (Dev Only) -->
+                <Button Classes="auth-primary"
+                        Command="{Binding DirectLoginCommand}"
+                        Margin="0,12,0,0"
+                        IsVisible="{Binding ShowDirectLogin}"
+                        Background="#10B981">
+                    <TextBlock Text="? Quick Login (Dev)"
+                               HorizontalAlignment="Center"/>
+                </Button>
+
                 <!-- Register Link -->
                 <StackPanel Orientation="Horizontal" 
                             Spacing="4"

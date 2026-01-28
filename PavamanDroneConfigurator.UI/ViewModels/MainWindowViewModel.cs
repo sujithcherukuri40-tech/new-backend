@@ -2,6 +2,7 @@ using System;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using PavamanDroneConfigurator.Core.Interfaces;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace PavamanDroneConfigurator.UI.ViewModels;
 
@@ -49,9 +50,12 @@ public partial class MainWindowViewModel : ViewModelBase
     public SprayingConfigPageViewModel SprayingConfigPage { get; }
     public AdvancedSettingsPageViewModel AdvancedSettingsPage { get; }
     public FirmwarePageViewModel FirmwarePage { get; }
+    public Admin.AdminPanelViewModel? AdminPanelPage { get; private set; }
 
     private readonly IParameterService _parameterService;
     private readonly IConnectionService _connectionService;
+    
+    public bool IsAdmin { get; }
 
     private bool _navigatedAfterConnect;
 
@@ -75,7 +79,8 @@ public partial class MainWindowViewModel : ViewModelBase
         AdvancedSettingsPageViewModel advancedSettingsPage,
         FirmwarePageViewModel firmwarePage,
         IParameterService parameterService,
-        IConnectionService connectionService)
+        IConnectionService connectionService,
+        Auth.AuthSessionViewModel authSession)
     {
         ConnectionPage = connectionPage;
         DroneDetailsPage = droneDetailsPage;
@@ -97,6 +102,27 @@ public partial class MainWindowViewModel : ViewModelBase
         FirmwarePage = firmwarePage;
         _parameterService = parameterService;
         _connectionService = connectionService;
+
+        // Determine if user is admin from auth session
+        IsAdmin = authSession.CurrentState.User?.IsAdmin ?? false;
+
+        // Create admin panel only if user is admin
+        if (IsAdmin && App.Services != null)
+        {
+            try
+            {
+                AdminPanelPage = App.Services.GetService<Admin.AdminPanelViewModel>();
+                if (AdminPanelPage != null)
+                {
+                    _ = AdminPanelPage.InitializeAsync();
+                }
+            }
+            catch
+            {
+                // Admin panel not available - gracefully degrade
+                AdminPanelPage = null;
+            }
+        }
 
         _parameterService.ParameterDownloadStarted += OnParameterDownloadStarted;
         _parameterService.ParameterDownloadCompleted += OnParameterDownloadCompleted;

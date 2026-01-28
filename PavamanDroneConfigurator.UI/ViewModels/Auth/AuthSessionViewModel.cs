@@ -212,6 +212,18 @@ public sealed partial class AuthSessionViewModel : ViewModelBase
         }
     }
 
+#if DEBUG
+    /// <summary>
+    /// Set authentication state directly (DEBUG only).
+    /// Used for quick login during development.
+    /// </summary>
+    public void SetDevAuthState(AuthState state)
+    {
+        UpdateState(state);
+        _logger.LogWarning("DEV: Auth state set manually to {Status}", state.Status);
+    }
+#endif
+
     private void UpdateState(AuthState newState)
     {
         var oldState = CurrentState;

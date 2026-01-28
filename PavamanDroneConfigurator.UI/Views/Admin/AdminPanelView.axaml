@@ -1,0 +1,151 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:PavamanDroneConfigurator.UI.ViewModels.Admin"
+             x:Class="PavamanDroneConfigurator.UI.Views.Admin.AdminPanelView"
+             x:DataType="vm:AdminPanelViewModel">
+
+    <Design.DataContext>
+        <vm:AdminPanelViewModel/>
+    </Design.DataContext>
+
+    <Grid RowDefinitions="Auto,*" Margin="32">
+        <!-- Header -->
+        <StackPanel Grid.Row="0" Spacing="8" Margin="0,0,0,24">
+            <TextBlock Text="Admin Panel" 
+                      FontSize="28"
+                      FontWeight="Light"/>
+            <TextBlock Text="User Management" 
+                      FontSize="14"
+                      Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+        </StackPanel>
+
+        <!-- Content -->
+        <Border Grid.Row="1" 
+                Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+                BorderThickness="1"
+                CornerRadius="8"
+                BoxShadow="0 2 8 0 #10000000">
+            
+            <Grid RowDefinitions="Auto,*,Auto" Margin="24">
+                <!-- Toolbar -->
+                <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="16" Margin="0,0,0,16">
+                    <Button Content="Refresh" 
+                           Command="{Binding RefreshCommand}"
+                           IsEnabled="{Binding !IsBusy}"/>
+                    <TextBlock Text="{Binding StatusMessage}"
+                              VerticalAlignment="Center"
+                              Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                </StackPanel>
+
+                <!-- Users DataGrid -->
+                <ScrollViewer Grid.Row="1">
+                    <DataGrid ItemsSource="{Binding Users}"
+                             IsReadOnly="True"
+                             AutoGenerateColumns="False"
+                             GridLinesVisibility="Horizontal"
+                             BorderThickness="0"
+                             CanUserReorderColumns="False"
+                             CanUserResizeColumns="True"
+                             CanUserSortColumns="True">
+                        <DataGrid.Columns>
+                            <!-- Full Name -->
+                            <DataGridTextColumn Header="Name" 
+                                              Binding="{Binding FullName}"
+                                              Width="200"/>
+                            
+                            <!-- Email -->
+                            <DataGridTextColumn Header="Email" 
+                                              Binding="{Binding Email}"
+                                              Width="250"/>
+                            
+                            <!-- Status -->
+                            <DataGridTemplateColumn Header="Status" Width="120">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <Border Background="{Binding IsApproved, Converter={StaticResource BoolToColorConverter}}"
+                                               CornerRadius="4"
+                                               Padding="8,4"
+                                               HorizontalAlignment="Center">
+                                            <TextBlock Text="{Binding IsApproved, Converter={StaticResource BoolToStringConverter}, ConverterParameter='Approved|Pending'}"
+                                                      Foreground="White"
+                                                      FontSize="12"
+                                                      FontWeight="Medium"/>
+                                        </Border>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            
+                            <!-- Role -->
+                            <DataGridTextColumn Header="Role" 
+                                              Binding="{Binding Role}"
+                                              Width="100"/>
+                            
+                            <!-- Created Date -->
+                            <DataGridTemplateColumn Header="Registered" Width="150">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding CreatedAt, StringFormat='{}{0:MMM dd, yyyy}'}"
+                                                  FontSize="12"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            
+                            <!-- Actions -->
+                            <DataGridTemplateColumn Header="Actions" Width="*">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <!-- Approve/Disapprove Button -->
+                                            <Button Content="{Binding IsApproved, Converter={StaticResource BoolToStringConverter}, ConverterParameter='Disapprove|Approve'}"
+                                                   Command="{Binding $parent[DataGrid].((vm:AdminPanelViewModel)DataContext).ToggleApprovalCommand}"
+                                                   CommandParameter="{Binding}"
+                                                   IsEnabled="{Binding $parent[DataGrid].((vm:AdminPanelViewModel)DataContext).IsBusy, Converter={x:Static BoolConverters.Not}}"
+                                                   Classes.success="{Binding !IsApproved}"
+                                                   Classes.warning="{Binding IsApproved}"
+                                                   Padding="12,6"
+                                                   FontSize="12"/>
+                                            
+                                            <!-- Change Role Button -->
+                                            <Button Content="Change Role"
+                                                   Command="{Binding $parent[DataGrid].((vm:AdminPanelViewModel)DataContext).ChangeRoleCommand}"
+                                                   CommandParameter="{Binding}"
+                                                   IsEnabled="{Binding $parent[DataGrid].((vm:AdminPanelViewModel)DataContext).IsBusy, Converter={x:Static BoolConverters.Not}}"
+                                                   Padding="12,6"
+                                                   FontSize="12"/>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </ScrollViewer>
+
+                <!-- Loading Indicator -->
+                <ProgressBar Grid.Row="2"
+                            IsIndeterminate="True"
+                            IsVisible="{Binding IsBusy}"
+                            Margin="0,16,0,0"/>
+            </Grid>
+        </Border>
+    </Grid>
+
+    <!-- Styles -->
+    <UserControl.Styles>
+        <Style Selector="Button.success">
+            <Setter Property="Background" Value="#10B981"/>
+            <Setter Property="Foreground" Value="White"/>
+        </Style>
+        <Style Selector="Button.success:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="#059669"/>
+        </Style>
+        
+        <Style Selector="Button.warning">
+            <Setter Property="Background" Value="#F59E0B"/>
+            <Setter Property="Foreground" Value="White"/>
+        </Style>
+        <Style Selector="Button.warning:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="#D97706"/>
+        </Style>
+    </UserControl.Styles>
+</UserControl>
