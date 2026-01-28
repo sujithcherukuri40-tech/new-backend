@@ -2,122 +2,211 @@
 
 A Windows-only Avalonia-based drone configurator application with Clean Architecture layout.
 
-## Project Structure
+## Quick Start Guide
 
-- **PavamanDroneConfigurator.Core** - Domain layer with interfaces and models (no dependencies)
-- **PavamanDroneConfigurator.Infrastructure** - Implementation layer with service implementations
-- **PavamanDroneConfigurator.UI** - Avalonia UI layer with MVVM pattern using CommunityToolkit.Mvvm
+### ?? How to Run (Single Command)
 
-## Requirements
-
-- .NET 9.0 SDK
-- Windows OS (Windows 10 or later)
-
-## Building the Application
-
-From the repository root, run:
-
-```bash
-dotnet build PavamanDroneConfigurator.sln
+#### From UI Directory:
+```powershell
+cd C:\Pavaman\config\PavamanDroneConfigurator.UI
+.\start-both.ps1
 ```
 
-## Running the Application
+This will:
+1. ? Build the solution
+2. ? Apply database migrations
+3. ? Start API server (background)
+4. ? Start UI application (foreground)
+5. ? Auto-cleanup when you close the UI
 
-```bash
-dotnet run --project PavamanDroneConfigurator.UI/PavamanDroneConfigurator.UI.csproj
+#### Options:
+```powershell
+# Skip build (faster startup after first build)
+.\start-both.ps1 -SkipBuild
+
+# Production mode
+.\start-both.ps1 -Production
 ```
 
-Or build and run the executable:
+---
 
-```bash
-dotnet build -c Release
-cd PavamanDroneConfigurator.UI/bin/Release/net9.0-windows
-./PavamanDroneConfigurator.UI.exe
+## ?? Project Structure
+
+```
+C:\Pavaman\config\
+??? PavamanDroneConfigurator.API\          # Backend API Server
+?   ??? .env                               # Local secrets (gitignored)
+?   ??? .env.example                       # Template
+?   ??? appsettings.json                   # Configuration
+?   ??? Program.cs                         # API entry point
+?
+??? PavamanDroneConfigurator.UI\           # Desktop Application
+?   ??? start-both.ps1                     # ?? START HERE!
+?   ??? appsettings.json                   # UI configuration
+?   ??? App.axaml.cs                       # UI entry point
+?   ??? Views\Auth\                        # Login/Register views
+?   ??? ViewModels\Auth\                   # MVVM ViewModels
+?
+??? PavamanDroneConfigurator.Core\         # Domain models
+?   ??? Models\Auth\                       # Auth data models
+?
+??? PavamanDroneConfigurator.Infrastructure\ # Services
+    ??? Services\Auth\                     # Auth business logic
 ```
 
-## Features
+---
 
-### Core Layer
-- **Enums**: ConnectionType, CalibrationType, CalibrationState, FailsafeAction, FlightMode
-- **Models**: ConnectionSettings, DroneParameter, SafetySettings, CalibrationStateModel
-- **Interfaces**: IConnectionService, IParameterService, ICalibrationService, ISafetyService, IPersistenceService
+## ?? Configuration
 
-### Infrastructure Layer
-- ConnectionService - Handles Serial and TCP connections
-- ParameterService - Manages drone parameters
-- CalibrationService - Handles sensor calibration (Accelerometer, Compass, Gyroscope)
-- SafetyService - Manages safety settings (battery failsafe, geofencing, RTL)
-- PersistenceService - JSON-based profile save/load
+### Environment Variables (.env file)
 
-### UI Layer
-- **Connection Page** - Configure and establish drone connections (Serial/TCP)
-- **Parameters Page** - Read and write drone parameters
-- **Calibration Page** - Perform sensor calibrations
-- **Safety Page** - Configure safety settings
-- **Profile Page** - Save and load configuration profiles
+The API uses `.env` file for local development:
 
-## Accelerometer Calibration
+**Location:** `PavamanDroneConfigurator.API\.env`
 
-The application implements Mission Planner-compatible accelerometer calibration with comprehensive validation and error handling.
+```sh
+# Database
+DB_HOST=drone-configurator-db.cxa0c8wu0du4.ap-south-1.rds.amazonaws.com
+DB_PORT=5432
+DB_NAME=drone_configurator
+DB_USER=new_app_user
+DB_PASSWORD=Sujith2007
+DB_SSL_MODE=Require
 
-### Documentation
-- **[PDRL Configuration Guide](PDRL_CONFIGURATION_GUIDE.md)** - Complete reference for accelerometer calibration following PDRL standards
-- **[Troubleshooting Guide](ACCELEROMETER_CALIBRATION_TROUBLESHOOTING.md)** - Quick reference for diagnosing and fixing common calibration failures
-- **[Implementation Summary](IMPLEMENTATION_SUMMARY.md)** - Technical overview of calibration validation implementation
+# JWT
+JWT_SECRET_KEY=kZx9mP2qR7tY4wV8nB3cF6hJ1lN5oS0uA9dG2kM5pQ8rT7vW4xE1yH6jL3nP0sU
+JWT_ISSUER=DroneConfigurator
+JWT_AUDIENCE=DroneConfiguratorClient
 
-### Quick Start
-1. Connect to flight controller via Serial or TCP
-2. Navigate to Calibration page
-3. Click "Calibrate Accelerometer"
-4. **IMPORTANT:** Vehicle MUST be disarmed (90% of calibration failures are due to armed status)
-5. Follow on-screen instructions to position vehicle
-6. Wait for FC to complete calibration
+# AWS (optional)
+AWS_REGION=ap-south-1
+AWS_SECRETS_MANAGER_DB_SECRET=drone-configurator/postgres
+AWS_SECRETS_MANAGER_JWT_SECRET=drone-configurator/jwt-secret
+```
 
-### Common Issues
-- **Position validation fails:** Check vehicle is disarmed (most common cause)
-- **Calibration times out:** Ensure 2-second settle delay after each position request
-- **Position rejected:** Vehicle may have moved during sampling - keep completely still
+### Configuration Priority
 
-See [Troubleshooting Guide](ACCELEROMETER_CALIBRATION_TROUBLESHOOTING.md) for detailed solutions.
+1. **Environment variables** (`.env` file or system)
+2. **AWS Secrets Manager** (production)
+3. **appsettings.json** (fallback)
 
-## Architecture
+---
 
-The application follows Clean Architecture principles:
+## ?? Documentation
 
-1. **Core** layer contains pure contracts (interfaces, models, enums) with no external dependencies
-2. **Infrastructure** layer implements Core interfaces using external libraries
-3. **UI** layer depends only on Core interfaces, with dependency injection providing Infrastructure implementations
+- **[PRODUCTION_DEPLOYMENT.md](./PRODUCTION_DEPLOYMENT.md)** - Production deployment guide
+- **[AWS_SECRETS_MANAGER_SETUP.md](./AWS_SECRETS_MANAGER_SETUP.md)** - AWS Secrets Manager integration
 
-## Dependency Injection
+---
 
-Services are configured in `App.axaml.cs` using Microsoft.Extensions.DependencyInjection. All ViewModels receive their dependencies through constructor injection.
+## ??? Manual Startup (If Script Fails)
 
-## Technology Stack
+### Step 1: Start API
+```powershell
+cd C:\Pavaman\config\PavamanDroneConfigurator.API
+dotnet run
+```
+**Keep this terminal open!**
 
-- **UI Framework**: Avalonia 11.3.10
-- **MVVM**: CommunityToolkit.Mvvm 8.2.1
-- **Dependency Injection**: Microsoft.Extensions.DependencyInjection 9.0.0
-- **Logging**: Microsoft.Extensions.Logging 9.0.0
-- **Serialization**: Newtonsoft.Json 13.0.4
-- **Target Framework**: .NET 9.0 (Windows-only)
+### Step 2: Start UI (New Terminal)
+```powershell
+cd C:\Pavaman\config\PavamanDroneConfigurator.UI
+dotnet run
+```
 
-## Development Notes
+---
 
-- The application is configured for Windows-only deployment
-- Supports multiple Windows architectures: x64, x86, ARM64
-- All async operations use proper async/await patterns
-- Services include error handling and logging
+## ? First Time Setup
 
-## Next Steps for Production
+1. **Clone repository**
+   ```powershell
+   git clone https://github.com/sujithcherukuri40-tech/drone-config
+   cd drone-config
+   ```
 
-- Integrate real MAVLink protocol communication (Asv.Mavlink library)
-- Add real-time parameter validation
-- Implement advanced calibration procedures
-- Add mission planning capabilities
-- Enhance UI with charts and graphs for telemetry visualization
-- Add firmware update functionality
-- Implement log file download and analysis
+2. **Create .env file**
+   ```powershell
+   cd PavamanDroneConfigurator.API
+   Copy-Item .env.example .env
+   # Edit .env with your credentials
+   ```
 
-## License
+3. **Run application**
+   ```powershell
+   cd ..\PavamanDroneConfigurator.UI
+   .\start-both.ps1
+   ```
 
-[Add your license here]
+---
+
+## ?? Troubleshooting
+
+### "Unable to connect to server"
+- ? Ensure API is running (check terminal output)
+- ? Verify API URL: `http://localhost:5000/health`
+- ? Check `.env` file exists in API directory
+
+### Database migration errors
+- ? Verify database credentials in `.env`
+- ? Check network access to AWS RDS
+- ? Run manually: `dotnet ef database update`
+
+### Build errors
+- ? Restore packages: `dotnet restore`
+- ? Clean build: `dotnet clean && dotnet build`
+
+---
+
+## ?? Architecture (MVVM)
+
+This project follows **Clean Architecture** with **MVVM pattern**:
+
+| Layer | Purpose | Location |
+|-------|---------|----------|
+| **Presentation** | UI, Views, ViewModels | `UI/` |
+| **Domain** | Business models | `Core/Models/` |
+| **Application** | Interfaces, DTOs | `Core/Interfaces/` |
+| **Infrastructure** | Services, Data Access | `Infrastructure/` |
+| **API** | REST endpoints | `API/` |
+
+### MVVM Components
+
+- **Model**: `Core/Models/Auth/` (AuthState, UserInfo)
+- **View**: `UI/Views/Auth/` (LoginView.axaml)
+- **ViewModel**: `UI/ViewModels/Auth/` (LoginViewModel.cs)
+- **Service**: `Infrastructure/Services/Auth/` (AuthApiService.cs)
+
+---
+
+## ?? Key Features
+
+? **Authentication**
+- User registration (pending approval)
+- Login with JWT tokens
+- Token refresh mechanism
+- Secure token storage
+
+? **Security**
+- BCrypt password hashing
+- JWT-based authentication
+- Environment variable configuration
+- AWS Secrets Manager support
+
+? **Database**
+- PostgreSQL on AWS RDS
+- Entity Framework Core migrations
+- User and token management
+
+---
+
+## ?? Support
+
+For issues, check:
+1. Terminal output for error messages
+2. API logs in first terminal
+3. UI logs in second terminal
+4. Database connectivity
+
+---
+
+**Ready to fly! ??**

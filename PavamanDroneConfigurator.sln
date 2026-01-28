@@ -1,4 +1,5 @@
-﻿Microsoft Visual Studio Solution File, Format Version 12.00
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
@@ -7,6 +8,8 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PavamanDroneConfigurator.Infrastructure", "PavamanDroneConfigurator.Infrastructure\PavamanDroneConfigurator.Infrastructure.csproj", "{D2E186DA-D696-4558-A280-7D02B1559AFA}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PavamanDroneConfigurator.UI", "PavamanDroneConfigurator.UI\PavamanDroneConfigurator.UI.csproj", "{03FE0D0E-0B2D-402A-B4F2-F45DA6462D8D}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PavamanDroneConfigurator.API", "PavamanDroneConfigurator.API\PavamanDroneConfigurator.API.csproj", "{C6CD4AE7-C422-4602-8461-600BD1EC92F9}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -54,6 +57,18 @@ Global
 		{03FE0D0E-0B2D-402A-B4F2-F45DA6462D8D}.Release|x64.Build.0 = Release|Any CPU
 		{03FE0D0E-0B2D-402A-B4F2-F45DA6462D8D}.Release|x86.ActiveCfg = Release|Any CPU
 		{03FE0D0E-0B2D-402A-B4F2-F45DA6462D8D}.Release|x86.Build.0 = Release|Any CPU
+		{C6CD4AE7-C422-4602-8461-600BD1EC92F9}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C6CD4AE7-C422-4602-8461-600BD1EC92F9}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C6CD4AE7-C422-4602-8461-600BD1EC92F9}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{C6CD4AE7-C422-4602-8461-600BD1EC92F9}.Debug|x64.Build.0 = Debug|Any CPU
+		{C6CD4AE7-C422-4602-8461-600BD1EC92F9}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{C6CD4AE7-C422-4602-8461-600BD1EC92F9}.Debug|x86.Build.0 = Debug|Any CPU
+		{C6CD4AE7-C422-4602-8461-600BD1EC92F9}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C6CD4AE7-C422-4602-8461-600BD1EC92F9}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C6CD4AE7-C422-4602-8461-600BD1EC92F9}.Release|x64.ActiveCfg = Release|Any CPU
+		{C6CD4AE7-C422-4602-8461-600BD1EC92F9}.Release|x64.Build.0 = Release|Any CPU
+		{C6CD4AE7-C422-4602-8461-600BD1EC92F9}.Release|x86.ActiveCfg = Release|Any CPU
+		{C6CD4AE7-C422-4602-8461-600BD1EC92F9}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

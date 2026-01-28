@@ -747,7 +747,8 @@ public partial class FirmwarePageViewModel : ViewModelBase
         }
     }
 
-    [RelayCommand] private Task BrowseFirmwareFileAsync() => Task.CompletedTask; // implemented in code-behind
+    // BrowseFirmwareFile is implemented in code-behind (FirmwarePage.axaml.cs) via Click handler
+    // No command needed here
 
     public async Task SetFirmwareFileAsync(string filePath)
     {

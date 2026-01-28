@@ -11,13 +11,17 @@ using Microsoft.EntityFrameworkCore;
 using PavamanDroneConfigurator.Core.Interfaces;
 using PavamanDroneConfigurator.Infrastructure.Repositories;
 using PavamanDroneConfigurator.Infrastructure.Services;
+using PavamanDroneConfigurator.Infrastructure.Services.Auth;
 using PavamanDroneConfigurator.Infrastructure.Data;
 using PavamanDroneConfigurator.UI.ViewModels;
+using PavamanDroneConfigurator.UI.ViewModels.Auth;
 using PavamanDroneConfigurator.UI.Views;
+using PavamanDroneConfigurator.UI.Views.Auth;
 using System;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using DotNetEnv;
 
 namespace PavamanDroneConfigurator.UI;
 
@@ -25,10 +29,23 @@ public partial class App : Application
 {
     public static ServiceProvider? Services { get; private set; }
     public static IConfiguration? Configuration { get; private set; }
+    private static bool _isShuttingDown;
 
     public override void Initialize()
     {
         AvaloniaXamlLoader.Load(this);
+        
+        var envPath = Path.Combine(AppContext.BaseDirectory, ".env");
+        if (File.Exists(envPath))
+        {
+            Env.Load(envPath);
+            Console.WriteLine("? Loaded environment variables from .env file");
+        }
+        else
+        {
+            Console.WriteLine("??  No .env file found, using system environment variables");
+        }
+        
         BuildConfiguration();
         ConfigureServices();
     }
@@ -37,7 +54,7 @@ public partial class App : Application
     {
         var builder = new ConfigurationBuilder()
             .SetBasePath(AppContext.BaseDirectory)
-            .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true);
+            .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true);
         
         Configuration = builder.Build();
     }
@@ -46,45 +63,67 @@ public partial class App : Application
     {
         var services = new ServiceCollection();
 
-        // Configuration
         if (Configuration != null)
         {
             services.AddSingleton<IConfiguration>(Configuration);
         }
 
-        // Logging
         services.AddLogging(builder =>
         {
             builder.AddConsole();
             builder.SetMinimumLevel(LogLevel.Information);
         });
 
-        // Database - PostgreSQL with Entity Framework Core
+        services.AddSingleton<ITokenStorage, SecureTokenStorage>();
+        
+        services.AddHttpClient<IAuthService, AuthApiService>(client =>
+        {
+            var authApiUrl = Environment.GetEnvironmentVariable("AUTH_API_URL")
+                ?? Configuration?.GetValue<string>("Auth:ApiUrl") 
+                ?? "http://localhost:5000";
+            
+            client.BaseAddress = new Uri(authApiUrl);
+            client.DefaultRequestHeaders.Add("Accept", "application/json");
+            
+            var timeoutSeconds = int.TryParse(
+                Environment.GetEnvironmentVariable("API_TIMEOUT_SECONDS"), 
+                out var timeout) ? timeout : 30;
+            
+            client.Timeout = TimeSpan.FromSeconds(timeoutSeconds);
+            
+            Console.WriteLine($"?? Auth API URL: {authApiUrl}");
+        });
+        
+        services.AddSingleton<AuthSessionViewModel>();
+        
+        services.AddTransient<LoginViewModel>();
+        services.AddTransient<RegisterViewModel>();
+        services.AddTransient<PendingApprovalViewModel>();
+        services.AddTransient<AuthShellViewModel>();
+
         if (Configuration != null)
         {
             var connectionString = Configuration.GetConnectionString("PostgresDb");
-            services.AddDbContext<DroneDbContext>(options =>
-                options.UseNpgsql(connectionString)
-                    .EnableSensitiveDataLogging() // Only for development
-                    .LogTo(Console.WriteLine, LogLevel.Information)
-            );
+            if (!string.IsNullOrEmpty(connectionString))
+            {
+                services.AddDbContext<DroneDbContext>(options =>
+                    options.UseNpgsql(connectionString)
+                        .EnableSensitiveDataLogging()
+                        .LogTo(Console.WriteLine, LogLevel.Information)
+                );
+            }
         }
 
-        // Database Test Service (for Step 1 verification - can be removed later)
         services.AddSingleton<DatabaseTestService>();
 
-        // ArduPilot XML Integration Services (for parameter metadata)
         services.AddSingleton<ArduPilotXmlParser>();
         services.AddSingleton<ArduPilotMetadataDownloader>();
         services.AddSingleton<VehicleTypeDetector>();
 
-        // ArduPilot JSON Metadata Loader (for Advanced Settings)
         services.AddSingleton<IArduPilotMetadataLoader, ArduPilotMetadataLoader>();
 
-        // MAVLink Message Logger (for diagnostics and debugging)
         services.AddSingleton<IMavLinkMessageLogger, MavLinkMessageLogger>();
 
-        // Calibration Services (Mission Planner-equivalent strict validation)
         services.AddSingleton<CalibrationPreConditionChecker>();
         services.AddSingleton<CalibrationAbortMonitor>();
         services.AddSingleton<CalibrationValidationHelper>();
@@ -92,15 +131,12 @@ public partial class App : Application
         services.AddSingleton<AccelImuValidator>();
         services.AddSingleton<AccelerometerCalibrationService>();
 
-        // Firmware Services (Mission Planner-equivalent firmware flashing)
         services.AddSingleton<Stm32Bootloader>();
         services.AddSingleton<FirmwareDownloader>();
         services.AddSingleton<IFirmwareService, FirmwareService>();
 
-        // Repositories (Data Layer)
         services.AddSingleton<IParameterMetadataRepository, ParameterMetadataRepository>();
 
-        // Core services (Business Logic Layer)
         services.AddSingleton<IConnectionService, ConnectionService>();
         services.AddSingleton<IParameterService, ParameterService>();
         services.AddSingleton<ICalibrationService, CalibrationService>();
@@ -117,17 +153,15 @@ public partial class App : Application
         services.AddSingleton<ISensorConfigService, SensorConfigService>();
         services.AddSingleton<IParameterMetadataService, ParameterMetadataService>();
         services.AddSingleton<IDroneInfoService, DroneInfoService>();
-        // Log Analyzer Services
         services.AddSingleton<ILogAnalyzerService, LogAnalyzerService>();
         services.AddSingleton<ILogEventDetector, LogEventDetector>();
         services.AddSingleton<ILogQueryEngine, LogQueryEngine>();
         services.AddSingleton<ILogExportService, LogExportService>();
         services.AddSingleton<IDerivedChannelProvider, DerivedChannelProvider>();
 
-        // ViewModels (Presentation Layer)
         services.AddTransient<MainWindowViewModel>();
         services.AddTransient<ConnectionPageViewModel>();
-        services.AddTransient<DatabaseTestPageViewModel>(); // Database test page
+        services.AddTransient<DatabaseTestPageViewModel>();
         services.AddTransient<AirframePageViewModel>();
         services.AddTransient<ParametersPageViewModel>();
         services.AddTransient<SafetyPageViewModel>();
@@ -153,51 +187,97 @@ public partial class App : Application
 
     public override void OnFrameworkInitializationCompleted()
     {
-        string xmlPath = Path.Combine(AppContext.BaseDirectory, "Assets", "ParameterMetadata.xml");
-        System.Diagnostics.Debug.WriteLine("OUTPUT PATH => " + AppContext.BaseDirectory);
-        System.Diagnostics.Debug.WriteLine("XML PATH => " + xmlPath);
-        System.Diagnostics.Debug.WriteLine("Exists? " + File.Exists(xmlPath));
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             DisableAvaloniaDataAnnotationValidation();
-
-            var splashScreen = new SplashScreenWindow
-            {
-                DataContext = Services!.GetRequiredService<SplashScreenViewModel>()
-            };
-
-            splashScreen.Show();
-
-            Task.Run(async () =>
-            {
-                try
-                {
-                    var splashViewModel = (SplashScreenViewModel)splashScreen.DataContext!;
-                    await splashViewModel.InitializeAsync();
-                }
-                catch (Exception ex)
-                {
-                    // Minimal fallback logging
-                    Console.WriteLine($"Splash initialization failed: {ex.Message}");
-                }
-                finally
-                {
-                    await Dispatcher.UIThread.InvokeAsync(() =>
-                    {
-                        desktop.MainWindow = new MainWindow
-                        {
-                            DataContext = Services!.GetRequiredService<MainWindowViewModel>(),
-                        };
-                        desktop.MainWindow.Show();
-                        splashScreen.Close();
-                    });
-                }
-            });
-
-            desktop.Exit += (_, _) => Services?.Dispose();
+            ShowAuthShell(desktop);
         }
 
         base.OnFrameworkInitializationCompleted();
+    }
+
+    private void ShowAuthShell(IClassicDesktopStyleApplicationLifetime desktop)
+    {
+        if (_isShuttingDown || Services == null) return;
+
+        try
+        {
+            var authShellViewModel = Services.GetRequiredService<AuthShellViewModel>();
+            
+            authShellViewModel.AuthenticationCompleted += (_, _) =>
+            {
+                if (_isShuttingDown) return;
+                
+                Dispatcher.UIThread.Post(() =>
+                {
+                    try
+                    {
+                        if (desktop.MainWindow != null)
+                        {
+                            var oldWindow = desktop.MainWindow;
+                            ShowMainWindow(desktop);
+                            oldWindow.Close();
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"Error transitioning to main window: {ex.Message}");
+                        ShowMainWindow(desktop);
+                    }
+                });
+            };
+
+            authShellViewModel.AuthenticationCancelled += (_, _) =>
+            {
+                _isShuttingDown = true;
+                Dispatcher.UIThread.Post(() => desktop.Shutdown());
+            };
+
+            var authShell = new AuthShell
+            {
+                DataContext = authShellViewModel
+            };
+
+            desktop.MainWindow = authShell;
+            
+            authShell.Opened += async (_, _) =>
+            {
+                try
+                {
+                    await authShell.InitializeAsync();
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Auth shell initialization error: {ex.Message}");
+                }
+            };
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Auth initialization failed: {ex.Message}");
+            ShowMainWindow(desktop);
+        }
+    }
+
+    private void ShowMainWindow(IClassicDesktopStyleApplicationLifetime desktop)
+    {
+        if (_isShuttingDown || Services == null) return;
+
+        try
+        {
+            var mainWindow = new MainWindow
+            {
+                DataContext = Services.GetRequiredService<MainWindowViewModel>(),
+            };
+            desktop.MainWindow = mainWindow;
+            mainWindow.Show();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Failed to show main window: {ex.Message}");
+            _isShuttingDown = true;
+            desktop.Shutdown();
+        }
     }
 
     private void DisableAvaloniaDataAnnotationValidation()
@@ -210,5 +290,4 @@ public partial class App : Application
             BindingPlugins.DataValidators.Remove(plugin);
         }
     }
-    
 }

@@ -1,0 +1,75 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="using:PavamanDroneConfigurator.UI.ViewModels.Auth"
+        xmlns:views="using:PavamanDroneConfigurator.UI.Views.Auth"
+        mc:Ignorable="d" d:DesignWidth="520" d:DesignHeight="700"
+        x:Class="PavamanDroneConfigurator.UI.Views.Auth.AuthShell"
+        x:DataType="vm:AuthShellViewModel"
+        Title="Pavaman Drone Configurator - Sign In"
+        Width="520"
+        Height="700"
+        MinWidth="480"
+        MinHeight="600"
+        CanResize="False"
+        WindowStartupLocation="CenterScreen"
+        Icon="avares://PavamanDroneConfigurator.UI/Assets/Images/logo.ico"
+        Background="#F9FAFB">
+
+    <Window.Styles>
+        <!-- Subtle macOS-like window appearance -->
+        <Style Selector="Window">
+            <Setter Property="FontFamily" Value="Segoe UI, San Francisco, Helvetica Neue, Arial"/>
+        </Style>
+    </Window.Styles>
+
+    <Grid>
+        <!-- Loading Overlay -->
+        <Border Background="#F9FAFB"
+                IsVisible="{Binding IsInitializing}"
+                ZIndex="100">
+            <StackPanel HorizontalAlignment="Center" 
+                        VerticalAlignment="Center"
+                        Spacing="24">
+                <Border Width="72"
+                        Height="72"
+                        CornerRadius="18"
+                        Background="#EEF2FF"
+                        HorizontalAlignment="Center">
+                    <Image Source="avares://PavamanDroneConfigurator.UI/Assets/Images/logo.ico"
+                           Stretch="Uniform"
+                           Margin="12"/>
+                </Border>
+                
+                <StackPanel Spacing="12" HorizontalAlignment="Center">
+                    <ProgressBar IsIndeterminate="True"
+                                 Width="200"
+                                 Height="4"
+                                 Foreground="#3B82F6"
+                                 Background="#E5E7EB"/>
+                    <TextBlock Text="{Binding InitializingMessage}"
+                               FontSize="14"
+                               Foreground="#6B7280"
+                               HorizontalAlignment="Center"/>
+                </StackPanel>
+            </StackPanel>
+        </Border>
+
+        <!-- Main Content -->
+        <ContentControl Content="{Binding CurrentView}"
+                        IsVisible="{Binding !IsInitializing}">
+            <ContentControl.DataTemplates>
+                <DataTemplate DataType="vm:LoginViewModel">
+                    <views:LoginView />
+                </DataTemplate>
+                <DataTemplate DataType="vm:RegisterViewModel">
+                    <views:RegisterView />
+                </DataTemplate>
+                <DataTemplate DataType="vm:PendingApprovalViewModel">
+                    <views:PendingApprovalView />
+                </DataTemplate>
+            </ContentControl.DataTemplates>
+        </ContentControl>
+    </Grid>
+</Window>

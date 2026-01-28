@@ -1,0 +1,238 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:PavamanDroneConfigurator.UI.ViewModels.Auth"
+             mc:Ignorable="d" d:DesignWidth="480" d:DesignHeight="600"
+             x:Class="PavamanDroneConfigurator.UI.Views.Auth.PendingApprovalView"
+             x:DataType="vm:PendingApprovalViewModel">
+
+    <UserControl.Styles>
+        <!-- Primary Button -->
+        <Style Selector="Button.auth-primary">
+            <Setter Property="Background" Value="#3B82F6"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Padding" Value="24,14"/>
+            <Setter Property="CornerRadius" Value="10"/>
+            <Setter Property="FontSize" Value="15"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="HorizontalAlignment" Value="Stretch"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="MinHeight" Value="48"/>
+        </Style>
+
+        <Style Selector="Button.auth-primary:pointerover">
+            <Setter Property="Background" Value="#2563EB"/>
+        </Style>
+
+        <Style Selector="Button.auth-primary:pressed">
+            <Setter Property="Background" Value="#1D4ED8"/>
+        </Style>
+
+        <Style Selector="Button.auth-primary:disabled">
+            <Setter Property="Background" Value="#9CA3AF"/>
+            <Setter Property="Opacity" Value="0.7"/>
+            <Setter Property="Cursor" Value="Arrow"/>
+        </Style>
+
+        <!-- Secondary Button -->
+        <Style Selector="Button.auth-secondary">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="#6B7280"/>
+            <Setter Property="BorderBrush" Value="#D1D5DB"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="24,14"/>
+            <Setter Property="CornerRadius" Value="10"/>
+            <Setter Property="FontSize" Value="15"/>
+            <Setter Property="FontWeight" Value="Medium"/>
+            <Setter Property="HorizontalAlignment" Value="Stretch"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="MinHeight" Value="48"/>
+        </Style>
+
+        <Style Selector="Button.auth-secondary:pointerover">
+            <Setter Property="Background" Value="#F9FAFB"/>
+            <Setter Property="BorderBrush" Value="#9CA3AF"/>
+        </Style>
+
+        <Style Selector="Button.auth-secondary:pressed">
+            <Setter Property="Background" Value="#F3F4F6"/>
+        </Style>
+    </UserControl.Styles>
+
+    <Grid>
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <StackPanel Spacing="0" 
+                        HorizontalAlignment="Center" 
+                        VerticalAlignment="Center"
+                        Width="400"
+                        Margin="40">
+
+                <!-- Success Icon -->
+                <Border Width="96"
+                        Height="96"
+                        CornerRadius="48"
+                        Background="#ECFDF5"
+                        HorizontalAlignment="Center"
+                        Margin="0,0,0,32">
+                    <TextBlock Text="?"
+                               FontSize="48"
+                               Foreground="#10B981"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"/>
+                </Border>
+
+                <!-- Title -->
+                <TextBlock Text="Account Created Successfully"
+                           FontSize="28"
+                           FontWeight="Bold"
+                           Foreground="#111827"
+                           HorizontalAlignment="Center"
+                           TextAlignment="Center"
+                           Margin="0,0,0,16"/>
+
+                <!-- Main Message -->
+                <TextBlock Text="Your account has been created successfully."
+                           FontSize="16"
+                           Foreground="#374151"
+                           HorizontalAlignment="Center"
+                           TextAlignment="Center"
+                           Margin="0,0,0,8"/>
+
+                <TextBlock Text="An administrator will verify your details and grant access shortly."
+                           FontSize="16"
+                           Foreground="#374151"
+                           HorizontalAlignment="Center"
+                           TextAlignment="Center"
+                           TextWrapping="Wrap"
+                           LineHeight="24"
+                           Margin="0,0,0,32"/>
+
+                <!-- User Info Card -->
+                <Border Background="#F9FAFB"
+                        BorderBrush="#E5E7EB"
+                        BorderThickness="1"
+                        CornerRadius="12"
+                        Padding="24"
+                        Margin="0,0,0,32">
+                    <StackPanel Spacing="16">
+                        <TextBlock Text="Account Details"
+                                   FontSize="14"
+                                   FontWeight="SemiBold"
+                                   Foreground="#6B7280"/>
+                        
+                        <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto" RowSpacing="12" ColumnSpacing="16">
+                            <TextBlock Grid.Row="0" Grid.Column="0" 
+                                       Text="Name:" 
+                                       FontSize="14" 
+                                       Foreground="#6B7280"/>
+                            <TextBlock Grid.Row="0" Grid.Column="1" 
+                                       Text="{Binding UserName}" 
+                                       FontSize="14" 
+                                       FontWeight="SemiBold"
+                                       Foreground="#111827"/>
+                            
+                            <TextBlock Grid.Row="1" Grid.Column="0" 
+                                       Text="Email:" 
+                                       FontSize="14" 
+                                       Foreground="#6B7280"/>
+                            <TextBlock Grid.Row="1" Grid.Column="1" 
+                                       Text="{Binding UserEmail}" 
+                                       FontSize="14"
+                                       FontWeight="SemiBold"
+                                       Foreground="#111827"/>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <!-- Status Message - Info (non-error) -->
+                <Border Background="#EFF6FF"
+                        BorderBrush="#BFDBFE"
+                        BorderThickness="1"
+                        CornerRadius="10"
+                        Padding="16,12"
+                        Margin="0,0,0,24"
+                        IsVisible="{Binding HasStatusMessage}">
+                    <Border.Styles>
+                        <Style Selector="Border[Tag=error]">
+                            <Setter Property="Background" Value="#FEF2F2"/>
+                            <Setter Property="BorderBrush" Value="#FECACA"/>
+                        </Style>
+                    </Border.Styles>
+                    <Panel>
+                        <!-- Info message (not error) -->
+                        <TextBlock Text="{Binding StatusMessage}"
+                                   FontSize="14"
+                                   Foreground="#1E40AF"
+                                   TextWrapping="Wrap"
+                                   TextAlignment="Center"
+                                   IsVisible="{Binding !IsStatusError}"/>
+                        <!-- Error message -->
+                        <TextBlock Text="{Binding StatusMessage}"
+                                   FontSize="14"
+                                   Foreground="#DC2626"
+                                   TextWrapping="Wrap"
+                                   TextAlignment="Center"
+                                   IsVisible="{Binding IsStatusError}"/>
+                    </Panel>
+                </Border>
+
+                <!-- Action Buttons -->
+                <StackPanel Spacing="12">
+                    <Button Classes="auth-primary"
+                            Command="{Binding CheckStatusCommand}">
+                        <Panel>
+                            <TextBlock Text="Check Approval Status"
+                                       IsVisible="{Binding !IsCheckingStatus}"
+                                       HorizontalAlignment="Center"/>
+                            <StackPanel Orientation="Horizontal" 
+                                        Spacing="8"
+                                        IsVisible="{Binding IsCheckingStatus}"
+                                        HorizontalAlignment="Center">
+                                <ProgressBar IsIndeterminate="True"
+                                             Width="16"
+                                             Height="16"
+                                             Foreground="White"/>
+                                <TextBlock Text="Checking..."
+                                           Foreground="White"/>
+                            </StackPanel>
+                        </Panel>
+                    </Button>
+
+                    <Button Classes="auth-secondary"
+                            Content="Back to Login"
+                            Command="{Binding LogoutCommand}"
+                            IsEnabled="{Binding !IsCheckingStatus}"/>
+                </StackPanel>
+
+                <!-- Info Note -->
+                <Border Background="#FEF3C7"
+                        BorderBrush="#FCD34D"
+                        BorderThickness="1"
+                        CornerRadius="10"
+                        Padding="16"
+                        Margin="0,32,0,0">
+                    <StackPanel Spacing="8">
+                        <TextBlock Text="? What happens next?"
+                                   FontSize="13"
+                                   FontWeight="SemiBold"
+                                   Foreground="#92400E"/>
+                        <TextBlock FontSize="12"
+                                   Foreground="#92400E"
+                                   TextWrapping="Wrap"
+                                   LineHeight="18">
+                            <Run Text="• An administrator will review your registration"/>
+                            <LineBreak/>
+                            <Run Text="• You can check your approval status anytime"/>
+                            <LineBreak/>
+                            <Run Text="• Once approved, you'll have full access to the app"/>
+                        </TextBlock>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</UserControl>
