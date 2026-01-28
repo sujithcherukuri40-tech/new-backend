@@ -104,6 +104,7 @@ builder.Services.AddAuthorization();
 
 builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IAdminService, AdminService>();
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
@@ -189,6 +190,9 @@ using (var scope = app.Services.CreateScope())
     {
         await dbContext.Database.MigrateAsync();
         app.Logger.LogInformation("Database migrations applied successfully");
+        
+        // Seed default admin user
+        await DatabaseSeeder.SeedAsync(dbContext, app.Logger);
     }
     catch (Exception ex)
     {

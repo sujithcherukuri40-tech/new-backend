@@ -72,18 +72,8 @@ artifacts/
 # ==============================================
 # SECURITY: Sensitive Configuration Files
 # ==============================================
-**/appsettings.json
-**/appsettings.Development.json
-**/appsettings.Production.json
-**/appsettings.*.json
 
-# Keep templates
-!**/appsettings.json.template
-
-# User secrets
-**/secrets.json
-
-# Environment files
+# Environment files (NEVER commit these - they contain secrets)
 .env
 .env.local
 .env.*.local
@@ -91,6 +81,9 @@ artifacts/
 # AWS credentials
 **/.aws/credentials
 **/.aws/config
+
+# User secrets
+**/secrets.json
 
 # Certificate files
 **/*.pfx

@@ -278,6 +278,7 @@ public sealed class AuthApiService : IAuthService
                     Email = authResponse.User.Email,
                     FullName = authResponse.User.FullName,
                     IsApproved = authResponse.User.IsApproved,
+                    Role = authResponse.User.Role,
                     CreatedAt = authResponse.User.CreatedAt
                 };
 
@@ -370,6 +371,7 @@ public sealed class AuthApiService : IAuthService
         public string Email { get; set; } = string.Empty;
         public string FullName { get; set; } = string.Empty;
         public bool IsApproved { get; set; }
+        public string Role { get; set; } = "User";
         public DateTimeOffset CreatedAt { get; set; }
     }
 

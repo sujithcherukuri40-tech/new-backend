@@ -27,6 +27,16 @@ public sealed record UserInfo
     public bool IsApproved { get; init; }
 
     /// <summary>
+    /// User's role (User or Admin).
+    /// </summary>
+    public string Role { get; init; } = "User";
+
+    /// <summary>
+    /// Whether the user is an administrator.
+    /// </summary>
+    public bool IsAdmin => Role?.Equals("Admin", StringComparison.OrdinalIgnoreCase) == true;
+
+    /// <summary>
     /// When the user's account was created.
     /// </summary>
     public DateTimeOffset CreatedAt { get; init; }
