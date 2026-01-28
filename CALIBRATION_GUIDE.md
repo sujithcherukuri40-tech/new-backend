@@ -9,11 +9,11 @@ This document provides comprehensive information about the accelerometer calibra
 
 ### Core Components
 
-1. **AccelerometerCalibrationService** - Main calibration service
+1. **CalibrationService** - Main calibration service
    - Handles 6-position accelerometer calibration workflow
    - Implements fire-and-forget pattern for position commands
    - Manages state machine with strict FC-driven transitions
-   - Validates IMU data before sending positions to FC
+   - Trusts FC entirely for position validation (matches Mission Planner)
 
 2. **AsvMavlinkWrapper** - MAVLink protocol implementation
    - Implements MAVLink v1/v2 frame parsing
@@ -21,13 +21,9 @@ This document provides comprehensive information about the accelerometer calibra
    - Provides command sending methods:
      - `SendPreflightCalibrationAsync()` - MAV_CMD_PREFLIGHT_CALIBRATION (241)
      - `SendAccelCalVehiclePosAsync()` - MAV_CMD_ACCELCAL_VEHICLE_POS (42429)
+   - Receives COMMAND_LONG messages for position requests
 
-3. **AccelImuValidator** - IMU data validation
-   - Validates gravity magnitude (~9.81 m/s² ±20%)
-   - Checks gravity vector direction (≥85% on correct axis)
-   - Rejects incorrect orientations with diagnostic messages
-
-4. **AccelStatusTextParser** - STATUSTEXT message parsing
+3. **AccelStatusTextParser** - STATUSTEXT message parsing
    - Detects position requests from FC
    - Identifies completion/failure messages
    - Parses sampling progress updates
@@ -45,9 +41,9 @@ Used to start various sensor calibrations:
 - param4: Radio/airspeed calibration (0=skip, 1=calibrate)
 - param5: Accelerometer calibration:
   - 0 = skip
-  - 1 = simple calibration
-  - 2 = level-only (AHRS trims)
-  - 4 = full 6-axis calibration
+  - 1 = full 6-position calibration (RECOMMENDED - matches Mission Planner)
+  - 2 = level-only calibration (AHRS trims)
+  - 4 = simple automatic calibration
 - param6: Compass motor compensation (0=skip, 1=calibrate)
 - param7: Reserved
 

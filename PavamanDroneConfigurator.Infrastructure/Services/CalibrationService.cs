@@ -27,15 +27,21 @@ public class CalibrationService : ICalibrationService, IDisposable
     private CalibrationStateModel _currentState = new();
     
     // Position display names - ONLY for UI display, not for validation
-    // UI positions are 1-6, MAVLink positions are 0-5
+    // Mission Planner ACCELCAL_VEHICLE_POS enum values: LEVEL=1, LEFT=2, RIGHT=3, NOSEDOWN=4, NOSEUP=5, BACK=6
     private static readonly string[] PositionNames = { "LEVEL", "LEFT", "RIGHT", "NOSE DOWN", "NOSE UP", "BACK" };
     
     // Total positions required for accelerometer calibration
     private const int ACCELEROMETER_TOTAL_POSITIONS = 6;
     
-    // CRITICAL: UI uses positions 1-6 internally, but ArduPilot expects 0-5 for MAV_CMD_ACCELCAL_VEHICLE_POS
-    // This constant documents the mapping: mavlinkPosition = uiPosition - 1
-    private const int UI_POSITION_TO_MAVLINK_OFFSET = 1;
+    // MAVLink command constants
+    private const ushort MAV_CMD_ACCELCAL_VEHICLE_POS = 42429;
+    
+    // Progress calculation constants
+    private const int PROGRESS_PER_POSITION = 16; // 100% / 6 positions ≈ 16% per position
+    
+    // CRITICAL: Mission Planner sends positions 1-6 directly to FC
+    // ArduPilot's ACCELCAL_VEHICLE_POS enum: LEVEL=1, LEFT=2, RIGHT=3, NOSEDOWN=4, NOSEUP=5, BACK=6
+    // NO OFFSET NEEDED - positions 1-6 are sent as-is
     
     // Progress constants for FC internal sampling monitoring
     private const int START_PROGRESS_AFTER_POSITION1 = 16; // 1 of 6 positions complete = 16%
@@ -73,6 +79,7 @@ public class CalibrationService : ICalibrationService, IDisposable
         
         _connectionService.StatusTextReceived += OnStatusTextReceived;
         _connectionService.CommandAckReceived += OnCommandAckReceived;
+        _connectionService.CommandLongReceived += OnCommandLongReceived;
         _connectionService.ConnectionStateChanged += OnConnectionStateChanged;
     }
 
@@ -89,6 +96,63 @@ public class CalibrationService : ICalibrationService, IDisposable
                     _logger.LogWarning("Connection lost during calibration");
                     AbortCalibration("Connection lost");
                 }
+            }
+        }
+    }
+
+    #endregion
+
+    #region COMMAND_LONG Handler - FC Position Requests
+
+    /// <summary>
+    /// Handle incoming COMMAND_LONG messages from FC.
+    /// Mission Planner subscribes to COMMAND_LONG during calibration to detect
+    /// MAV_CMD_ACCELCAL_VEHICLE_POS (42429) position requests from FC.
+    /// This is more reliable than keyword parsing of STATUSTEXT.
+    /// </summary>
+    private void OnCommandLongReceived(object? sender, CommandLongEventArgs e)
+    {
+        // Only process during accelerometer calibration
+        lock (_lock)
+        {
+            if (!_isCalibrating || _currentType != CalibrationType.Accelerometer)
+                return;
+        }
+
+        // MAV_CMD_ACCELCAL_VEHICLE_POS = 42429
+        if (e.Command == MAV_CMD_ACCELCAL_VEHICLE_POS)
+        {
+            // param1 contains the position enum value (1-6)
+            // ACCELCAL_VEHICLE_POS enum:
+            // 1 = LEVEL
+            // 2 = LEFT
+            // 3 = RIGHT
+            // 4 = NOSEDOWN
+            // 5 = NOSEUP
+            // 6 = BACK
+            int position = (int)e.Param1;
+
+            _logger.LogInformation("FC requesting position via COMMAND_LONG: MAV_CMD_ACCELCAL_VEHICLE_POS param1={Position}", position);
+
+            if (position >= 1 && position <= 6)
+            {
+                lock (_lock)
+                {
+                    _currentPosition = position;
+                    _waitingForUserClick = true;
+                }
+
+                string positionName = GetPositionName(position);
+                string message = $"Please place vehicle {positionName}";
+
+                _logger.LogInformation("Position request from FC: {Message}", message);
+
+                SetState(CalibrationStateMachine.WaitingForUserPosition, message, (position - 1) * PROGRESS_PER_POSITION);
+                RaiseStepRequired(position - 1, true, message);
+            }
+            else
+            {
+                _logger.LogWarning("Invalid position in COMMAND_LONG: {Position}", position);
             }
         }
     }
@@ -427,15 +491,14 @@ public class CalibrationService : ICalibrationService, IDisposable
         int pos;
         lock (_lock) { pos = _currentPosition; }
         
-        // Convert UI position (1-6) to MAVLink position (0-5) for logging clarity
-        int mavlinkPos = pos - UI_POSITION_TO_MAVLINK_OFFSET;
+        // Position values 1-6 are sent directly (no offset)
         
         if (result == MavResult.Accepted || result == MavResult.InProgress)
         {
             // CRITICAL: After position 1 is accepted, FC samples ALL positions internally!
             // This matches Mission Planner's actual behavior - FC does not request positions 2-6.
             // Instead, FC uses internal IMU to detect when user moves vehicle through all orientations.
-            _logger.LogInformation("FC accepted position command (UI pos {UiPos}, MAVLink pos {MavPos}) - FC will now sample all positions internally", pos, mavlinkPos);
+            _logger.LogInformation("FC accepted position command (pos {Pos}) - FC will now sample all positions internally", pos);
             
             lock (_lock) { _waitingForUserClick = false; }
             
@@ -461,8 +524,8 @@ public class CalibrationService : ICalibrationService, IDisposable
             // Get detailed PDRL-compliant error explanation
             string detailedError = AccelCalibrationPreflightValidator.GetCommandAckExplanation(42429, (byte)result);
             
-            _logger.LogWarning("FC rejected position command (UI pos {UiPos}, MAVLink pos {MavPos}): result={Result}\n{DetailedError}", 
-                pos, mavlinkPos, result, detailedError);
+            _logger.LogWarning("FC rejected position command (pos {Pos}): result={Result}\n{DetailedError}", 
+                pos, result, detailedError);
             
             // CRITICAL: Disable button - user cannot click until FC re-requests via STATUSTEXT
             lock (_lock) { _waitingForUserClick = false; }
@@ -715,6 +778,22 @@ public class CalibrationService : ICalibrationService, IDisposable
         return Task.FromResult(true);
     }
 
+    public Task<bool> StartSimpleAccelerometerCalibrationAsync()
+    {
+        if (!CanStart()) return Task.FromResult(false);
+        
+        InitializeCalibration(CalibrationType.Accelerometer);
+        
+        _logger.LogInformation("Starting simple accelerometer calibration: MAV_CMD_PREFLIGHT_CALIBRATION(param5=4) - automatic calibration");
+        SetState(CalibrationStateMachine.WaitingForAck, "Starting simple accelerometer calibration...", 0);
+        
+        RaiseStepRequired(0, false, "Place vehicle on level surface. FC will calibrate automatically.");
+        
+        _connectionService.SendPreflightCalibration(gyro: 0, mag: 0, groundPressure: 0, airspeed: 0, accel: 4);
+        
+        return Task.FromResult(true);
+    }
+
     public Task<bool> StartCompassCalibrationAsync(bool onboardCalibration = false)
     {
         if (!CanStart()) return Task.FromResult(false);
@@ -786,16 +865,17 @@ public class CalibrationService : ICalibrationService, IDisposable
     /// Send MAV_CMD_ACCELCAL_VEHICLE_POS command to FC for the current position.
     /// 
     /// CRITICAL POSITION MAPPING:
-    /// - UI/internal logic uses positions 1..6 (Level=1, Left=2, etc.)
-    /// - ArduPilot expects param1 = 0..5 for MAV_CMD_ACCELCAL_VEHICLE_POS
-    /// - Mapping is done HERE at the MAVLink send boundary: mavlinkPosition = uiPosition - 1
+    /// - Internal logic uses positions 1..6 (Level=1, Left=2, etc.)
+    /// - Mission Planner sends ACCELCAL_VEHICLE_POS enum values 1..6 directly
+    /// - ArduPilot expects param1 = 1..6 (LEVEL=1, LEFT=2, RIGHT=3, NOSEDOWN=4, NOSEUP=5, BACK=6)
+    /// - NO offset/mapping needed - send positions 1-6 as-is
     /// 
     /// Mission Planner sends this command for ALL 6 positions (not just position 1).
-    /// The FC tells us which position it wants via STATUSTEXT.
+    /// The FC tells us which position it wants via STATUSTEXT and COMMAND_LONG.
     /// </summary>
     public Task<bool> AcceptCalibrationStepAsync()
     {
-        int uiPosition;
+        int position;
         bool waitingForClick;
         
         lock (_lock)
@@ -806,21 +886,21 @@ public class CalibrationService : ICalibrationService, IDisposable
                 return Task.FromResult(false);
             }
             
-            uiPosition = _currentPosition;
+            position = _currentPosition;
             waitingForClick = _waitingForUserClick;
         }
         
-        // RULE 2: Only allow if FC requested this position via STATUSTEXT
+        // RULE 2: Only allow if FC requested this position via STATUSTEXT or COMMAND_LONG
         if (!waitingForClick)
         {
             _logger.LogWarning("AcceptCalibrationStepAsync: Not waiting for user click (FC has not requested position confirmation)");
             return Task.FromResult(false);
         }
         
-        // Validate position range (UI positions 1-6)
-        if (uiPosition < 1 || uiPosition > ACCELEROMETER_TOTAL_POSITIONS)
+        // Validate position range (positions 1-6)
+        if (position < 1 || position > ACCELEROMETER_TOTAL_POSITIONS)
         {
-            _logger.LogError("AcceptCalibrationStepAsync: Invalid UI position {Pos} (expected 1-6)", uiPosition);
+            _logger.LogError("AcceptCalibrationStepAsync: Invalid position {Pos} (expected 1-6)", position);
             return Task.FromResult(false);
         }
         
@@ -830,28 +910,22 @@ public class CalibrationService : ICalibrationService, IDisposable
             return Task.FromResult(false);
         }
         
-        // CRITICAL: Map UI position (1-6) to MAVLink position (0-5)
-        // ArduPilot expects param1 = 0..5 for MAV_CMD_ACCELCAL_VEHICLE_POS
-        // UI uses 1..6 internally for display purposes
-        // This mapping MUST only happen at the MAVLink send boundary
-        int mavlinkPosition = uiPosition - UI_POSITION_TO_MAVLINK_OFFSET;
-        
-        _logger.LogInformation("User confirmed position {UiPos} ({Name}) - sending MAV_CMD_ACCELCAL_VEHICLE_POS({MavPos}) to FC",
-            uiPosition, GetPositionName(uiPosition), mavlinkPosition);
+        _logger.LogInformation("User confirmed position {Pos} ({Name}) - sending MAV_CMD_ACCELCAL_VEHICLE_POS({Pos}) to FC",
+            position, GetPositionName(position), position);
         
         // Disable button until FC responds via STATUSTEXT
         lock (_lock) { _waitingForUserClick = false; }
         
         SetState(CalibrationStateMachine.WaitingForSampling,
-            $"Sending position {uiPosition} ({GetPositionName(uiPosition)}) to FC...",
+            $"Sending position {position} ({GetPositionName(position)}) to FC...",
             GetProgress());
         
         // Send position command to FC
-        // CRITICAL: Send mavlinkPosition (0-5), NOT uiPosition (1-6)
+        // CRITICAL: Send position 1-6 directly (Mission Planner behavior)
         try
         {
-            _connectionService.SendAccelCalVehiclePos(mavlinkPosition);
-            _logger.LogInformation("Successfully sent MAV_CMD_ACCELCAL_VEHICLE_POS({MavPos}) - waiting for FC COMMAND_ACK and STATUSTEXT", mavlinkPosition);
+            _connectionService.SendAccelCalVehiclePos(position);
+            _logger.LogInformation("Successfully sent MAV_CMD_ACCELCAL_VEHICLE_POS({Pos}) - waiting for FC COMMAND_ACK and STATUSTEXT", position);
         }
         catch (Exception ex)
         {
@@ -864,7 +938,7 @@ public class CalibrationService : ICalibrationService, IDisposable
                 $"Error sending command: {ex.Message}. Please try again.",
                 GetProgress());
             
-            RaiseStepRequired(uiPosition, true, $"Error sending command. Click to retry.");
+            RaiseStepRequired(position, true, $"Error sending command. Click to retry.");
             return Task.FromResult(false);
         }
         

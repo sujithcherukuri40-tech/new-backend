@@ -7,10 +7,36 @@ namespace PavamanDroneConfigurator.Infrastructure.Services;
 /// 
 /// CRITICAL: This parser detects position requests, completion, and failure messages.
 /// FC controls the calibration workflow entirely via STATUSTEXT.
+/// 
+/// TASK 1: Filters out EKF/PreArm/GPS warnings that interfere with calibration flow.
+/// These messages are normal during accel calibration and must NOT affect state progression.
 /// </summary>
 public class AccelStatusTextParser
 {
     private readonly ILogger<AccelStatusTextParser> _logger;
+    
+    // TASK 1: Interference patterns to IGNORE during accelerometer calibration
+    // These messages are normal side-effects and must NOT affect calibration flow
+    private static readonly string[] InterferenceKeywords =
+    {
+        "ekf",
+        "ekf3",
+        "ekf2",
+        "prearm",
+        "ahrs",
+        "yaw",
+        "gps",
+        "waiting for gps",
+        "no gps",
+        "bad ahrs",
+        "compass",
+        "mag",
+        "gyro",
+        "velocity",
+        "position",
+        "home",
+        "fence"
+    };
     
     // Keywords for position detection (case-insensitive)
     private const string PLACE = "place";
@@ -34,15 +60,14 @@ public class AccelStatusTextParser
         "accel offsets"
     };
     
-    // Keywords for failure detection
+    // Keywords for failure detection (calibration-specific only)
     private static readonly string[] FailureKeywords =
     {
-        "calibration failed",
+        "accel calibration failed",
+        "accel cal failed",
         "calibration cancelled",
         "calibration timeout",
-        "accel cal failed",
-        "failed",
-        "error"
+        "rotation bad"
     };
     
     // Keywords for sampling detection
@@ -61,6 +86,7 @@ public class AccelStatusTextParser
     
     /// <summary>
     /// Parse STATUSTEXT message to detect position requests, completion, or failure.
+    /// TASK 1: Filters out EKF/PreArm/GPS warnings during calibration.
     /// </summary>
     public StatusTextParseResult Parse(string statusText)
     {
@@ -68,6 +94,17 @@ public class AccelStatusTextParser
             return new StatusTextParseResult();
         
         var lowerText = statusText.ToLowerInvariant();
+        
+        // TASK 1: FILTER OUT EKF/PreArm/GPS interference FIRST
+        if (IsInterferenceMessage(lowerText))
+        {
+            _logger.LogDebug("Filtered interference message during calibration: {Text}", statusText);
+            return new StatusTextParseResult
+            {
+                IsInterference = true,
+                OriginalText = statusText
+            };
+        }
         
         // Check for completion FIRST (highest priority)
         if (IsCompletionMessage(lowerText))
@@ -80,7 +117,7 @@ public class AccelStatusTextParser
             };
         }
         
-        // Check for failure
+        // Check for failure (calibration-specific only)
         if (IsFailureMessage(lowerText))
         {
             _logger.LogWarning("Detected failure message: {Text}", statusText);
@@ -124,6 +161,24 @@ public class AccelStatusTextParser
         };
     }
     
+    /// <summary>
+    /// TASK 1: Check if message is EKF/PreArm/GPS interference.
+    /// These messages are normal during accelerometer calibration and should be ignored.
+    /// </summary>
+    private bool IsInterferenceMessage(string lowerText)
+    {
+        // Check against interference patterns
+        foreach (var keyword in InterferenceKeywords)
+        {
+            if (lowerText.Contains(keyword))
+            {
+                return true;
+            }
+        }
+        
+        return false;
+    }
+    
     private bool IsCompletionMessage(string lowerText)
     {
         return CompletionKeywords.Any(keyword => lowerText.Contains(keyword));
@@ -131,12 +186,9 @@ public class AccelStatusTextParser
     
     private bool IsFailureMessage(string lowerText)
     {
-        // Check if contains failure keyword but NOT "not failed" or "didn't fail"
-        if (FailureKeywords.Any(keyword => lowerText.Contains(keyword)))
-        {
-            return !lowerText.Contains("not failed") && !lowerText.Contains("didn't fail");
-        }
-        return false;
+        // TASK 1: Only check calibration-specific failure keywords
+        // Generic "failed" or "error" are NOT treated as calibration failures
+        return FailureKeywords.Any(keyword => lowerText.Contains(keyword));
     }
     
     private bool IsSamplingMessage(string lowerText)
@@ -219,6 +271,9 @@ public class StatusTextParseResult
     
     /// <summary>FC is sampling position</summary>
     public bool IsSampling { get; set; }
+    
+    /// <summary>TASK 1: Message is EKF/PreArm/GPS interference (should be ignored)</summary>
+    public bool IsInterference { get; set; }
     
     /// <summary>Original STATUSTEXT message</summary>
     public string OriginalText { get; set; } = "";

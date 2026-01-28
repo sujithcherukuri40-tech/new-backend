@@ -69,8 +69,10 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
         private const ushort MAV_CMD_PREFLIGHT_CALIBRATION = 241;
         private const ushort MAV_CMD_PREFLIGHT_STORAGE = 245;
         private const ushort MAV_CMD_PREFLIGHT_REBOOT_SHUTDOWN = 246;
+        private const ushort MAV_CMD_SET_MESSAGE_INTERVAL = 511;
         private const ushort MAV_CMD_COMPONENT_ARM_DISARM = 400;
         private const ushort MAV_CMD_ACCELCAL_VEHICLE_POS = 42429;
+        private const ushort MAV_CMD_REQUEST_MESSAGE = 512;
 
         // CRC extras from MAVLink message definitions
         private const byte CRC_EXTRA_HEARTBEAT = 50;
@@ -94,6 +96,7 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
         public event EventHandler<RcChannelsData>? RcChannelsReceived;
         public event EventHandler<RawImuData>? RawImuReceived;
         public event EventHandler<AutopilotVersionData>? AutopilotVersionReceived;
+        public event EventHandler<CommandLongData>? CommandLongReceived;
         public event EventHandler? ConnectionLost;
 
         public AsvMavlinkWrapper(ILogger logger, IMavLinkMessageLogger? mavLinkLogger = null)
@@ -447,6 +450,10 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
                     HandleStatusText(payload);
                     break;
 
+                case MAVLINK_MSG_ID_COMMAND_LONG:
+                    HandleCommandLong(sysId, compId, payload);
+                    break;
+
                 case MAVLINK_MSG_ID_RC_CHANNELS:
                     HandleRcChannels(payload);
                     break;
@@ -595,6 +602,80 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
             _transactionManager.HandleCommandAck(command, result);
             
             CommandAckReceived?.Invoke(this, (command, result));
+        }
+
+        private void HandleCommandLong(byte sysId, byte compId, byte[] payload)
+        {
+            // COMMAND_LONG payload (33 bytes):
+            // [0-3]   param1 (float)
+            // [4-7]   param2 (float)
+            // [8-11]  param3 (float)
+            // [12-15] param4 (float)
+            // [16-19] param5 (float)
+            // [20-23] param6 (float)
+            // [24-27] param7 (float)
+            // [28-29] command (uint16)
+            // [30]    target_system (uint8)
+            // [31]    target_component (uint8)
+            // [32]    confirmation (uint8)
+            
+            if (payload.Length < 33)
+            {
+                _logger.LogWarning("COMMAND_LONG payload too short: {Len}", payload.Length);
+                return;
+            }
+
+            float param1 = BitConverter.ToSingle(payload, 0);
+            float param2 = BitConverter.ToSingle(payload, 4);
+            float param3 = BitConverter.ToSingle(payload, 8);
+            float param4 = BitConverter.ToSingle(payload, 12);
+            float param5 = BitConverter.ToSingle(payload, 16);
+            float param6 = BitConverter.ToSingle(payload, 20);
+            float param7 = BitConverter.ToSingle(payload, 24);
+            ushort command = BitConverter.ToUInt16(payload, 28);
+            byte targetSystem = payload[30];
+            byte targetComponent = payload[31];
+            byte confirmation = payload[32];
+
+            _logger.LogDebug("COMMAND_LONG: cmd={Command} param1={Param1} from sysid={SysId}", 
+                command, param1, sysId);
+            
+            // Log to MAVLink logger for specific commands we care about
+            if (command == MAV_CMD_ACCELCAL_VEHICLE_POS)
+            {
+                string posName = ((int)param1) switch
+                {
+                    1 => "LEVEL",
+                    2 => "LEFT",
+                    3 => "RIGHT",
+                    4 => "NOSEDOWN",
+                    5 => "NOSEUP",
+                    6 => "BACK",
+                    _ => param1.ToString()
+                };
+                _mavLinkLogger?.LogIncoming("COMMAND_LONG", 
+                    $"MAV_CMD_ACCELCAL_VEHICLE_POS: position={posName} (param1={param1})");
+            }
+            
+            // Raise event with parsed data
+            var commandLongData = new CommandLongData
+            {
+                SystemId = sysId,
+                ComponentId = compId,
+                Command = command,
+                Param1 = param1,
+                Param2 = param2,
+                Param3 = param3,
+                Param4 = param4,
+                Param5 = param5,
+                Param6 = param6,
+                Param7 = param7,
+                TargetSystem = targetSystem,
+                TargetComponent = targetComponent,
+                Confirmation = confirmation
+            };
+            
+            CommandLongReceived?.Invoke(this, commandLongData);
         }
 
         private void HandleStatusText(byte[] payload)
@@ -1100,6 +1181,55 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
         }
 
         /// <summary>
+        /// Send MAV_CMD_SET_MESSAGE_INTERVAL to request specific message rate
+        /// Used to force IMU messages at 50Hz during accelerometer calibration
+        /// </summary>
+        /// <param name="messageId">MAVLink message ID (27=RAW_IMU, 26=SCALED_IMU)</param>
+        /// <param name="intervalUs">Interval in microseconds (20000 = 50Hz, -1 = default rate, 0 = stop)</param>
+        public async Task SendSetMessageIntervalAsync(int messageId, int intervalUs, CancellationToken ct = default)
+        {
+            _logger.LogInformation("Sending MAV_CMD_SET_MESSAGE_INTERVAL: msgId={MsgId} interval={Interval}us ({Hz}Hz)",
+                messageId, intervalUs, intervalUs > 0 ? 1000000.0 / intervalUs : 0);
+
+            await SendCommandLongAsync(
+                MAV_CMD_SET_MESSAGE_INTERVAL,
+                messageId,      // param1: message ID
+                intervalUs,     // param2: interval in microseconds
+                0, 0, 0, 0, 0,
+                ct);
+        }
+
+        /// <summary>
+        /// Send REQUEST_DATA_STREAM (legacy fallback for older firmware)
+        /// Used when SET_MESSAGE_INTERVAL is not supported
+        /// </summary>
+        /// <param name="streamId">Stream ID (1=RAW_SENSORS includes IMU)</param>
+        /// <param name="rateHz">Rate in Hz (50 = 50Hz)</param>
+        /// <param name="startStop">1=start, 0=stop</param>
+        public async Task SendRequestDataStreamAsync(int streamId, int rateHz, int startStop, CancellationToken ct = default)
+        {
+            _logger.LogInformation("Sending REQUEST_DATA_STREAM: streamId={StreamId} rate={Rate}Hz start={Start}",
+                streamId, rateHz, startStop);
+
+            // REQUEST_DATA_STREAM payload (6 bytes):
+            // [0]     target_system (uint8)
+            // [1]     target_component (uint8)
+            // [2]     req_stream_id (uint8)
+            // [3-4]   req_message_rate (uint16)
+            // [5]     start_stop (uint8)
+            const byte MAVLINK_MSG_ID_REQUEST_DATA_STREAM = 66;
+
+            var payload = new byte[6];
+            payload[0] = _targetSystemId != 0 ? _targetSystemId : (byte)1;
+            payload[1] = _targetComponentId != 0 ? _targetComponentId : (byte)1;
+            payload[2] = (byte)streamId;
+            BitConverter.GetBytes((ushort)rateHz).CopyTo(payload, 3);
+            payload[5] = (byte)startStop;
+
+            await SendMessageAsync(MAVLINK_MSG_ID_REQUEST_DATA_STREAM, payload, ct);
+        }
+
+        /// <summary>
         /// Send COMMAND_LONG message with transaction tracking and retry logic
         /// Production-grade reliability
         /// </summary>
@@ -1447,5 +1577,26 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
             var hex = BitConverter.ToString(FlightCustomVersion).Replace("-", "").ToLowerInvariant();
             return hex;
         }
+    }
+
+    /// <summary>
+    /// COMMAND_LONG data from flight controller
+    /// Used to receive position requests during accelerometer calibration
+    /// </summary>
+    public class CommandLongData
+    {
+        public byte SystemId { get; set; }
+        public byte ComponentId { get; set; }
+        public ushort Command { get; set; }
+        public float Param1 { get; set; }
+        public float Param2 { get; set; }
+        public float Param3 { get; set; }
+        public float Param4 { get; set; }
+        public float Param5 { get; set; }
+        public float Param6 { get; set; }
+        public float Param7 { get; set; }
+        public byte TargetSystem { get; set; }
+        public byte TargetComponent { get; set; }
+        public byte Confirmation { get; set; }
     }
 }

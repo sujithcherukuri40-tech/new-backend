@@ -552,6 +552,13 @@ public sealed class FirmwareService : IFirmwareService, IDisposable
             var normalizedVehicleType = NormalizeVehicleType(vehicleType);
             Log($"Normalized vehicle type: '{vehicleType}' -> '{normalizedVehicleType}'");
             
+            // CRITICAL: Determine if this is a helicopter request
+            // Helicopters use "Copter-heli" as normalized type, standard copters use "Copter"
+            bool isHelicopter = normalizedVehicleType.Equals("Copter-heli", StringComparison.OrdinalIgnoreCase);
+            
+            // For helicopter requests, we need to match against "Copter" vehicle type but filter for heli platforms
+            var manifestVehicleType = isHelicopter ? "Copter" : normalizedVehicleType;
+            
             // Debug: Check what unique vehicle types exist in manifest
             var uniqueVehicleTypes = manifest.Firmware
                 .Select(f => f.VehicleType)
@@ -565,12 +572,12 @@ public sealed class FirmwareService : IFirmwareService, IDisposable
             IEnumerable<FirmwareEntry> baseQuery = manifest.Firmware
                 .Where(f => 
                     // Match on vehicletype field (case-insensitive)
-                    (!string.IsNullOrEmpty(f.VehicleType) && f.VehicleType.Equals(normalizedVehicleType, StringComparison.OrdinalIgnoreCase)) ||
+                    (!string.IsNullOrEmpty(f.VehicleType) && f.VehicleType.Equals(manifestVehicleType, StringComparison.OrdinalIgnoreCase)) ||
                     // Also check URL path for vehicle type (e.g., /Copter/, /Plane/)
-                    (!string.IsNullOrEmpty(f.Url) && f.Url.Contains($"/{normalizedVehicleType}/", StringComparison.OrdinalIgnoreCase)));
+                    (!string.IsNullOrEmpty(f.Url) && f.Url.Contains($"/{manifestVehicleType}/", StringComparison.OrdinalIgnoreCase)));
             
             var vehicleMatchCount = baseQuery.Count();
-            Log($"Found {vehicleMatchCount} entries matching vehicle type '{normalizedVehicleType}'");
+            Log($"Found {vehicleMatchCount} entries matching vehicle type '{manifestVehicleType}'");
 
             // Apply release/format filters
             IEnumerable<FirmwareEntry> ApplyCommonFilters(IEnumerable<FirmwareEntry> query)
@@ -604,6 +611,29 @@ public sealed class FirmwareService : IFirmwareService, IDisposable
                     (f.Format.Equals("apj", StringComparison.OrdinalIgnoreCase) || 
                      f.Format.Equals("px4", StringComparison.OrdinalIgnoreCase)));
 
+                // CRITICAL FIX: Filter helicopter vs non-helicopter firmware
+                // For standard copters (quadcopter, hexacopter, etc.), EXCLUDE heli firmware
+                // For helicopters, ONLY include heli firmware
+                if (isHelicopter)
+                {
+                    // Helicopter: only include platforms/URLs with "-heli"
+                    filtered = filtered.Where(f =>
+                        (!string.IsNullOrEmpty(f.Platform) && f.Platform.EndsWith("-heli", StringComparison.OrdinalIgnoreCase)) ||
+                        (!string.IsNullOrEmpty(f.Url) && (f.Url.Contains("-heli/", StringComparison.OrdinalIgnoreCase) || 
+                                                          f.Url.Contains("arducopter-heli", StringComparison.OrdinalIgnoreCase))));
+                }
+                else if (manifestVehicleType.Equals("Copter", StringComparison.OrdinalIgnoreCase))
+                {
+                    // Standard Copter (quad, hexa, octa, etc.): EXCLUDE heli firmware
+                    filtered = filtered.Where(f =>
+                        // Exclude platforms ending with "-heli"
+                        (string.IsNullOrEmpty(f.Platform) || !f.Platform.EndsWith("-heli", StringComparison.OrdinalIgnoreCase)) &&
+                        // Exclude URLs containing heli paths
+                        (string.IsNullOrEmpty(f.Url) || 
+                         (!f.Url.Contains("-heli/", StringComparison.OrdinalIgnoreCase) && 
+                          !f.Url.Contains("arducopter-heli", StringComparison.OrdinalIgnoreCase))));
+                }
+
                 return filtered;
             }
 
@@ -611,6 +641,12 @@ public sealed class FirmwareService : IFirmwareService, IDisposable
             IEnumerable<FirmwareEntry> boardScoped = baseQuery;
             if (!string.IsNullOrWhiteSpace(boardId))
             {
+                // CRITICAL FIX (Issue 3): For helicopter firmware, the platform in manifest
+                // includes "-heli" suffix (e.g., "CubeOrangePlus-heli")
+                // When user selects helicopter with board "CubeOrangePlus", we need to match "CubeOrangePlus-heli"
+                // Note: isHelicopter is already defined in outer scope
+                var heliPlatform = isHelicopter ? $"{boardId}-heli" : null;
+                
                 // Debug: show sample platforms for this vehicle type
                 var samplePlatforms = baseQuery
                     .Where(f => !string.IsNullOrEmpty(f.Format) && f.Format.Equals("apj", StringComparison.OrdinalIgnoreCase))
@@ -619,31 +655,71 @@ public sealed class FirmwareService : IFirmwareService, IDisposable
                     .Distinct()
                     .Take(15)
                     .ToList();
-                Log($"Sample platforms for {normalizedVehicleType}: {string.Join(", ", samplePlatforms)}");
+                Log($"Sample platforms for {manifestVehicleType}: {string.Join(", ", samplePlatforms)}");
+                
+                if (isHelicopter)
+                {
+                    Log($"Helicopter mode: looking for platform '{heliPlatform}' (NOT standard '{boardId}')");
+                }
                 
                 // PRIORITY 1: Try exact platform match first (case-insensitive)
+                // For helicopter, try both the heli platform and exact match
                 var exactMatch = baseQuery.Where(f =>
                     !string.IsNullOrEmpty(f.Platform) &&
-                    f.Platform.Equals(boardId, StringComparison.OrdinalIgnoreCase));
+                    (f.Platform.Equals(boardId, StringComparison.OrdinalIgnoreCase) ||
+                     (isHelicopter && f.Platform.Equals(heliPlatform, StringComparison.OrdinalIgnoreCase))));
                 
                 var exactMatchCount = exactMatch.Count();
-                Log($"Found {exactMatchCount} exact matches for platform '{boardId}'");
+                Log($"Found {exactMatchCount} exact matches for platform '{boardId}'" + 
+                    (isHelicopter ? $" or '{heliPlatform}'" : ""));
                 
                 if (exactMatchCount > 0)
                 {
                     // Use exact matches only
-                    boardScoped = exactMatch;
+                    // For helicopter, prefer the -heli platform if available
+                    if (isHelicopter)
+                    {
+                        var heliMatches = exactMatch.Where(f => 
+                            f.Platform?.EndsWith("-heli", StringComparison.OrdinalIgnoreCase) == true);
+                        if (heliMatches.Any())
+                        {
+                            boardScoped = heliMatches;
+                            Log($"Using heli-specific platform matches");
+                        }
+                        else
+                        {
+                            boardScoped = exactMatch;
+                        }
+                    }
+                    else
+                    {
+                        boardScoped = exactMatch;
+                    }
                 }
                 else
                 {
                     // PRIORITY 2: Try variant matches (e.g., "CubeOrange" matches "CubeOrange-bdshot")
                     // Only if no exact match exists
-                    boardScoped = baseQuery.Where(f =>
-                        !string.IsNullOrEmpty(f.Platform) &&
-                        f.Platform.StartsWith(boardId, StringComparison.OrdinalIgnoreCase));
+                    // For helicopter, specifically look for -heli suffix variants
+                    // NOTE: The heli filtering in ApplyCommonFilters will also handle excluding heli variants
+                    if (isHelicopter)
+                    {
+                        boardScoped = baseQuery.Where(f =>
+                            !string.IsNullOrEmpty(f.Platform) &&
+                            f.Platform.StartsWith(boardId, StringComparison.OrdinalIgnoreCase) &&
+                            f.Platform.Contains("-heli", StringComparison.OrdinalIgnoreCase));
+                    }
+                    else
+                    {
+                        boardScoped = baseQuery.Where(f =>
+                            !string.IsNullOrEmpty(f.Platform) &&
+                            f.Platform.StartsWith(boardId, StringComparison.OrdinalIgnoreCase) &&
+                            !f.Platform.Contains("-heli", StringComparison.OrdinalIgnoreCase)); // Exclude heli variants for standard copter
+                    }
                         
                     var variantMatchCount = boardScoped.Count();
-                    Log($"Found {variantMatchCount} variant matches for board '{boardId}'");
+                    Log($"Found {variantMatchCount} variant matches for board '{boardId}'" +
+                        (isHelicopter ? " (heli variants)" : " (non-heli variants)"));
                 }
             }
 
@@ -701,8 +777,29 @@ public sealed class FirmwareService : IFirmwareService, IDisposable
                     }
                     return true;
                 })
+                // CRITICAL FIX: Additional URL-based filtering as final safety check
+                // This ensures we never select heli firmware for standard copters
+                .Where(v => {
+                    if (isHelicopter)
+                    {
+                        // Helicopter: prefer URLs with heli
+                        return v.DownloadUrl.Contains("-heli", StringComparison.OrdinalIgnoreCase) ||
+                               v.DownloadUrl.Contains("arducopter-heli", StringComparison.OrdinalIgnoreCase);
+                    }
+                    else if (manifestVehicleType.Equals("Copter", StringComparison.OrdinalIgnoreCase))
+                    {
+                        // Standard copter: MUST NOT have heli in URL
+                        return !v.DownloadUrl.Contains("-heli/", StringComparison.OrdinalIgnoreCase) &&
+                               !v.DownloadUrl.Contains("arducopter-heli", StringComparison.OrdinalIgnoreCase);
+                    }
+                    return true;
+                })
                 .OrderByDescending(v => v.IsLatest)
                 .ThenByDescending(v => v.Version)
+                // CRITICAL FIX: Prefer exact platform match over variants
+                // This ensures CubeOrangePlus firmware is selected over CubeOrangePlus-bdshot
+                .ThenBy(v => v.Platform.Equals(boardId, StringComparison.OrdinalIgnoreCase) ? 0 : 1)
+                .ThenBy(v => v.Platform.Length) // Shorter platform names first (base variants)
                 .ToList();
             
             Log($"Found {versions.Count} compatible firmware versions after board validation");
@@ -1002,6 +1099,9 @@ public sealed class FirmwareService : IFirmwareService, IDisposable
     /// Uploads firmware using PX4/ChibiOS bootloader protocol.
     /// Matches Mission Planner's UploadPX4() method flow.
     /// Includes proper error handling for "lost communication" and timeout scenarios.
+    /// 
+    /// CRITICAL FIX (Issue 2): All blocking serial I/O operations are wrapped in Task.Run()
+    /// to prevent UI thread freezing. Progress events are marshaled back via IProgress<T>.
     /// </summary>
     private async Task<FirmwareFlashResult> UploadPx4FirmwareAsync(
         string portName, 
@@ -1010,6 +1110,17 @@ public sealed class FirmwareService : IFirmwareService, IDisposable
     {
         Log($"Opening PX4 bootloader on {portName}...");
         
+        // CRITICAL FIX (Issue 2): Run all blocking serial I/O on background thread
+        // to prevent UI thread freezing during firmware flash operations.
+        // Progress updates are marshaled back to the caller via the ProgressEvent callback.
+        return await Task.Run(() => ExecutePx4Upload(portName, firmwarePath, ct), ct);
+    }
+    
+    /// <summary>
+    /// Synchronous firmware upload execution - called from Task.Run() to avoid blocking UI thread.
+    /// </summary>
+    private FirmwareFlashResult ExecutePx4Upload(string portName, string firmwarePath, CancellationToken ct)
+    {
         using var uploader = new Px4Uploader(_logger);
         
         try
@@ -1029,13 +1140,38 @@ public sealed class FirmwareService : IFirmwareService, IDisposable
             
             Log($"Bootloader: rev={uploader.BootloaderRevision}, board={uploader.BoardType}, flash={uploader.FlashSize / 1024}KB");
             
-            // Validate board compatibility
+            // CRITICAL PRE-FLASH VALIDATION: Validate board compatibility with detailed logging
             if (!BoardCompatibility.AreCompatible(uploader.BoardType, firmware.BoardId))
             {
+                var detectedPlatform = BoardCompatibility.GetPlatformName(uploader.BoardType);
+                var firmwarePlatform = BoardCompatibility.GetPlatformName(firmware.BoardId);
+                
+                Log($"? BOARD ID MISMATCH DETECTED!");
+                Log($"   Connected Hardware: board_id={uploader.BoardType} ({detectedPlatform})");
+                Log($"   Firmware File:      board_id={firmware.BoardId} ({firmwarePlatform})");
+                Log($"   This firmware is for {firmwarePlatform}, but your board is {detectedPlatform}.");
+                
+                // CRITICAL: Delete the incompatible cached firmware to prevent reuse
+                try
+                {
+                    Log($"??? Deleting incompatible cached firmware: {firmwarePath}");
+                    File.Delete(firmwarePath);
+                    Log("? Incompatible firmware deleted. Please retry to download correct firmware.");
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to delete incompatible cached firmware");
+                }
+                
                 return CreateFailResult(
-                    $"Firmware not suitable for this board. Board ID: {uploader.BoardType}, Firmware expects: {firmware.BoardId}", 
+                    $"Firmware not suitable for this board.\n" +
+                    $"Board ID: {uploader.BoardType} ({detectedPlatform})\n" +
+                    $"Firmware expects: {firmware.BoardId} ({firmwarePlatform})\n\n" +
+                    $"The cached firmware was for a different board. Please try flashing again - the correct firmware will be downloaded.", 
                     TimeSpan.Zero);
             }
+            
+            Log($"? Board ID validation passed: {uploader.BoardType} == {firmware.BoardId}");
             
             // Check if same firmware is already installed
             // Mission Planner compatible: handles IOException and TimeoutException
@@ -1312,15 +1448,54 @@ public sealed class FirmwareService : IFirmwareService, IDisposable
 
         try
         {
-            var fileName = Path.GetFileName(new Uri(downloadUrl).LocalPath);
-            var localPath = Path.Combine(_firmwareCacheDir, fileName);
+            // CRITICAL FIX: Create unique cache filename based on URL path to prevent board_id conflicts
+            // Example: Copter_stable-4.6.3_CubeOrangePlus_arducopter.apj
+            var uri = new Uri(downloadUrl);
+            var pathParts = uri.LocalPath.Split('/', StringSplitOptions.RemoveEmptyEntries);
+            var uniqueCacheName = string.Join("_", pathParts.TakeLast(4)); // e.g., Copter_stable-4.6.3_CubeOrangePlus_arducopter.apj
+            
+            // Sanitize filename
+            foreach (var c in Path.GetInvalidFileNameChars())
+            {
+                uniqueCacheName = uniqueCacheName.Replace(c, '_');
+            }
+            
+            var localPath = Path.Combine(_firmwareCacheDir, uniqueCacheName);
 
-            // Check if we already have this file cached
+            // Check if we already have this specific firmware cached
             if (File.Exists(localPath))
             {
-                Log($"Using cached firmware: {localPath}");
-                return localPath;
+                // CRITICAL: Validate cached firmware board_id before using it
+                try
+                {
+                    var cachedFirmware = Px4Firmware.FromFile(localPath);
+                    Log($"Cached firmware found: {localPath} (board_id={cachedFirmware.BoardId})");
+                    
+                    // Extract expected platform from URL to validate
+                    var expectedPlatform = pathParts.Length >= 2 ? pathParts[^2] : ""; // e.g., "CubeOrangePlus"
+                    var expectedBoardId = BoardCompatibility.GetBoardId(expectedPlatform);
+                    
+                    if (expectedBoardId > 0 && !BoardCompatibility.AreCompatible(expectedBoardId, cachedFirmware.BoardId))
+                    {
+                        Log($"?? Cached firmware board_id mismatch! Expected: {expectedBoardId} ({expectedPlatform}), Got: {cachedFirmware.BoardId}");
+                        Log($"Deleting invalid cached firmware and re-downloading...");
+                        File.Delete(localPath);
+                    }
+                    else
+                    {
+                        Log($"? Using validated cached firmware: {localPath} (board_id={cachedFirmware.BoardId})");
+                        return localPath;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to validate cached firmware, re-downloading");
+                    try { File.Delete(localPath); } catch { }
+                }
             }
+
+            // Also clean up any old-style generic cached files that could cause confusion
+            CleanupGenericCachedFirmware();
 
             using var response = await _httpClient.GetAsync(downloadUrl, HttpCompletionOption.ResponseHeadersRead, ct);
             response.EnsureSuccessStatusCode();
@@ -1347,6 +1522,21 @@ public sealed class FirmwareService : IFirmwareService, IDisposable
                         $"Downloading... {totalBytesRead / 1024}KB / {totalBytes / 1024}KB");
                 }
             }
+            
+            fileStream.Close();
+
+            // Validate downloaded firmware
+            try
+            {
+                var firmware = Px4Firmware.FromFile(localPath);
+                Log($"? Downloaded firmware: {localPath} (board_id={firmware.BoardId}, size={firmware.ImageSize / 1024}KB)");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Downloaded firmware validation failed");
+                try { File.Delete(localPath); } catch { }
+                return null;
+            }
 
             Log($"Download complete: {localPath} ({totalBytesRead / 1024}KB)");
             return localPath;
@@ -1356,6 +1546,78 @@ public sealed class FirmwareService : IFirmwareService, IDisposable
             _logger.LogError(ex, "Firmware download failed");
             UpdateState(FirmwareFlashState.Failed, 0, $"Download failed: {ex.Message}");
             return null;
+        }
+    }
+
+    /// <summary>
+    /// Cleans up old-style generic cached firmware files (e.g., "arducopter.apj")
+    /// that could cause board_id conflicts.
+    /// </summary>
+    private void CleanupGenericCachedFirmware()
+    {
+        try
+        {
+            var genericNames = new[] { "arducopter.apj", "arduplane.apj", "ardurover.apj", "ardusub.apj" };
+            foreach (var name in genericNames)
+            {
+                var path = Path.Combine(_firmwareCacheDir, name);
+                if (File.Exists(path))
+                {
+                    Log($"??? Removing generic cached firmware: {path}");
+                    File.Delete(path);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to cleanup generic cached firmware");
+        }
+    }
+    
+    /// <summary>
+    /// Gets the board-specific cache path from a firmware URL.
+    /// 
+    /// CRITICAL FIX (Issue 4): This prevents the bug where arducopter.apj for CubeOrange
+    /// could be incorrectly used for CubeOrangePlus (they have different board_ids 140 vs 1063).
+    /// 
+    /// URL format: https://firmware.ardupilot.org/{VehicleType}/{Version}/{Platform}/{filename}
+    /// Cache path: {cacheRoot}/{VehicleType}/{Version}/{Platform}/{filename}
+    /// 
+    /// Example:
+    ///   URL: https://firmware.ardupilot.org/Copter/stable-4.6.3/CubeOrangePlus/arducopter.apj
+    ///   Cache: FirmwareCache/Copter/stable-4.6.3/CubeOrangePlus/arducopter.apj
+    /// </summary>
+    private string GetBoardSpecificCachePath(string downloadUrl)
+    {
+        try
+        {
+            var uri = new Uri(downloadUrl);
+            var pathSegments = uri.LocalPath.Split('/', StringSplitOptions.RemoveEmptyEntries);
+            
+            // Expected segments: [VehicleType, Version, Platform, Filename]
+            // e.g., ["Copter", "stable-4.6.3", "CubeOrangePlus", "arducopter.apj"]
+            if (pathSegments.Length >= 4)
+            {
+                // Use the last 4 segments for cache path structure
+                var relevantPath = string.Join(Path.DirectorySeparatorChar.ToString(), 
+                    pathSegments.Skip(pathSegments.Length - 4));
+                return Path.Combine(_firmwareCacheDir, relevantPath);
+            }
+            else if (pathSegments.Length >= 2)
+            {
+                // Fallback: use last 2 segments (platform/filename)
+                var relevantPath = string.Join(Path.DirectorySeparatorChar.ToString(), 
+                    pathSegments.Skip(pathSegments.Length - 2));
+                return Path.Combine(_firmwareCacheDir, relevantPath);
+            }
+            
+            // Fallback to just filename (legacy behavior)
+            return Path.Combine(_firmwareCacheDir, Path.GetFileName(uri.LocalPath));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to parse download URL for cache path, using filename only");
+            return Path.Combine(_firmwareCacheDir, Path.GetFileName(new Uri(downloadUrl).LocalPath));
         }
     }
     
