@@ -1,6 +1,6 @@
-# ? AWS CONNECTION VERIFIED - Ready to Use!
+# ? AWS CONNECTION VERIFIED - Production Ready!
 
-## ?? Good News!
+## ?? Server Status
 
 Your **EC2 API server is ONLINE** and responding:
 - **IP**: `43.205.128.248`
@@ -9,41 +9,24 @@ Your **EC2 API server is ONLINE** and responding:
 
 ---
 
-## ?? Two Ways to Login
+## ?? Production Login
 
-### Option 1: Quick Login (Instant - No Server Needed)
+### AWS Login (Production Authentication)
 ```powershell
 cd C:\Pavaman\config\PavamanDroneConfigurator.UI
 dotnet run
 ```
-Click **"?? Quick Login (Dev)"** ? Main window appears instantly!
-
-**Perfect for development when:**
-- Server is down
-- Testing UI changes
-- Working offline
-
-### Option 2: AWS Login (Production Authentication)
-```powershell
-cd C:\Pavaman\config\PavamanDroneConfigurator.UI
-dotnet run
-```
-Enter credentials ? Authenticates via AWS ? Full admin access
+Enter credentials ? Authenticates via AWS ? Full access based on role
 
 **Current Status:**
 - ? Server is reachable
-- ?? Admin user needs to be created first
+- ?? Admin user needs to be created first (see below)
 
 ---
 
-## ?? Admin User Setup Needed
+## ?? Admin User Setup
 
-The server is working but returned:
-```
-401 Unauthorized - "Invalid email or password"
-```
-
-This means the **admin user doesn't exist yet in the database**.
+The server is working but the admin user doesn't exist yet in the database.
 
 ### To Fix: Restart EC2 API (Auto-Creates User)
 
@@ -64,6 +47,8 @@ Look for this line:
    Email: admin@droneconfig.local
    Password: Admin@123
 ```
+
+**?? IMPORTANT:** Change this default password immediately after first login!
 
 ---
 
@@ -95,39 +80,14 @@ curl http://43.205.128.248:5000/health
 {"status":"healthy","timestamp":"2026-01-28T11:44:35Z"}
 ```
 
-### ?? Login Check (Expected - User Doesn't Exist Yet)
+### After Admin User Creation
 ```powershell
-curl -X POST http://43.205.128.248:5000/auth/login ...
-```
-**Response**:
-```json
-{
-  "message": "Invalid email or password",
-  "code": "INVALID_CREDENTIALS"
-}
+# Test login
+$body = '{"email":"admin@droneconfig.local","password":"Admin@123"}'
+Invoke-WebRequest -Uri "http://43.205.128.248:5000/auth/login" -Method POST -Body $body -ContentType "application/json" -UseBasicParsing
 ```
 
-This is **correct behavior** - the admin user hasn't been created yet!
-
----
-
-## ?? What to Do Now
-
-### Immediate: Use Quick Login
-```powershell
-cd C:\Pavaman\config\PavamanDroneConfigurator.UI
-dotnet run
-```
-Click green "?? Quick Login (Dev)" button ? Start using the app now!
-
-### Soon: Enable AWS Login
-1. SSH into EC2: `ssh -i key.pem ec2-user@43.205.128.248`
-2. Restart API: `sudo systemctl restart drone-configurator-api`
-3. Check logs: `journalctl -u drone-configurator-api -f`
-4. Look for: "? Default admin user created"
-5. Then use regular "Sign In" with:
-   - Email: `admin@droneconfig.local`
-   - Password: `Admin@123`
+**Expected Response:** JWT tokens and user info
 
 ---
 
@@ -140,41 +100,49 @@ Click green "?? Quick Login (Dev)" button ? Start using the app now!
 | Database Connection | ? Working | API connects to RDS |
 | Admin User | ?? Not Created | Auto-creates on API restart |
 | UI Configuration | ? Complete | Points to AWS |
-| Quick Login | ? Working | Bypass server entirely |
+| Authentication | ? Production | Real authentication only |
 
 ---
 
-## ?? Security Note
+## ?? Security Notes
 
-Your current setup:
+**Current Setup:**
 - ? Database password: Strong (Sujith2007)
 - ? JWT secret: Configured
-- ? HTTPS: Not yet (HTTP only)
-- ?? Security Group: Check if restricted to your IP
+- ? BCrypt password hashing
+- ?? HTTPS: Not yet (HTTP only)
+- ?? Security Group: Should be restricted to your IP
+- ?? Default password: Must be changed after first login
 
-**For production**: Enable HTTPS and restrict security group!
+**For Production Deployment:**
+1. ? Enable HTTPS with SSL certificate
+2. ? Restrict security group to specific IPs
+3. ? Change default admin password
+4. ? Use strong, unique passwords for all users
+5. ? Enable AWS Secrets Manager
+6. ? Set up monitoring and logging
 
 ---
 
-## ?? Pro Tip
+## ?? Configuration Toggle
 
-You can **toggle between AWS and local** by changing one line:
+You can toggle between AWS and local API:
 
-**Use AWS**:
+**Use AWS (Production)**:
 ```json
 "UseAwsApi": true
 ```
 
-**Use Local**:
+**Use Local (Development)**:
 ```json
 "UseAwsApi": false
 ```
 
-Both configurations are already in your `appsettings.json`!
+Both configurations are in your `appsettings.json`.
 
 ---
 
-## ?? Need Help?
+## ?? Troubleshooting
 
 **Check connection**:
 ```powershell
@@ -191,12 +159,41 @@ cat C:\Pavaman\config\PavamanDroneConfigurator.UI\appsettings.json
 curl http://43.205.128.248:5000/health
 ```
 
+**Create admin user manually:**
+```powershell
+cd C:\Pavaman\config
+.\create-admin-user.ps1
+```
+
 ---
 
-**?? Everything is configured correctly! Use Quick Login now, enable AWS login soon!**
+## ?? First Login Steps
+
+1. **Start the application:**
+   ```powershell
+   cd C:\Pavaman\config\PavamanDroneConfigurator.UI
+   dotnet run
+   ```
+
+2. **Login with default admin:**
+   - Email: `admin@droneconfig.local`
+   - Password: `Admin@123`
+
+3. **?? IMMEDIATELY change password:**
+   - Go to Profile page
+   - Update your password to something secure
+
+4. **Create additional users:**
+   - Register new users via the app
+   - Approve them in User Management panel
+
+---
+
+**?? Production-ready authentication system!**
 
 ---
 
 **Last Updated:** January 28, 2026  
 **Server Status:** ? ONLINE  
-**Next Step:** Create admin user OR use Quick Login
+**Mode:** ?? **PRODUCTION** (No development shortcuts)
+**Next Step:** Create admin user and secure it

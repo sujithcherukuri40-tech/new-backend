@@ -290,9 +290,32 @@ public partial class App : Application
 
         try
         {
+            var mainViewModel = Services.GetRequiredService<MainWindowViewModel>();
+            
+            // Subscribe to logout event from profile page
+            if (mainViewModel.ProfilePage != null)
+            {
+                mainViewModel.ProfilePage.LogoutRequested += (_, _) =>
+                {
+                    Dispatcher.UIThread.Post(() =>
+                    {
+                        try
+                        {
+                            var oldWindow = desktop.MainWindow;
+                            ShowAuthShell(desktop);
+                            oldWindow?.Close();
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"Error during logout: {ex.Message}");
+                        }
+                    });
+                };
+            }
+            
             var mainWindow = new MainWindow
             {
-                DataContext = Services.GetRequiredService<MainWindowViewModel>(),
+                DataContext = mainViewModel,
             };
             desktop.MainWindow = mainWindow;
             mainWindow.Show();

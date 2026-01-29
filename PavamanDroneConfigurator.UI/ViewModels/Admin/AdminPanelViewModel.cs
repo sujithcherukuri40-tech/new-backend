@@ -27,6 +27,11 @@ public sealed partial class AdminPanelViewModel : ViewModelBase
     [ObservableProperty]
     private string _statusMessage = "Ready";
 
+    /// <summary>
+    /// Count of users pending approval.
+    /// </summary>
+    public int PendingCount => Users.Count(u => !u.IsApproved);
+
     public AdminPanelViewModel(
         IAdminService adminService,
         ILogger<AdminPanelViewModel> logger)
@@ -66,14 +71,17 @@ public sealed partial class AdminPanelViewModel : ViewModelBase
                         Email = user.Email,
                         IsApproved = user.IsApproved,
                         Role = user.Role,
+                        SelectedRole = user.Role, // Set initial selected role
                         CreatedAt = user.CreatedAt,
                         LastLoginAt = user.LastLoginAt
                     });
                 }
+
+                OnPropertyChanged(nameof(PendingCount));
             });
 
-            StatusMessage = $"Loaded {Users.Count} users";
-            _logger.LogInformation("Loaded {Count} users in admin panel", Users.Count);
+            StatusMessage = $"Loaded {Users.Count} users ({PendingCount} pending approval)";
+            _logger.LogInformation("Loaded {Count} users in admin panel ({Pending} pending)", Users.Count, PendingCount);
         }
         catch (Exception ex)
         {
@@ -87,7 +95,7 @@ public sealed partial class AdminPanelViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    private async Task ToggleApprovalAsync(UserListItem user)
+    private async Task ApproveUserAsync(UserListItem user)
     {
         if (IsBusy || user == null) return;
 
@@ -97,6 +105,17 @@ public sealed partial class AdminPanelViewModel : ViewModelBase
 
         try
         {
+            // If approving a new user, update their role first if it was changed
+            if (newApprovalState && user.SelectedRole != user.Role)
+            {
+                var roleSuccess = await _adminService.ChangeUserRoleAsync(user.Id, user.SelectedRole);
+                if (!roleSuccess)
+                {
+                    StatusMessage = "Failed to update role";
+                    return;
+                }
+            }
+
             var success = await _adminService.ApproveUserAsync(user.Id, newApprovalState);
 
             if (success)
@@ -104,10 +123,19 @@ public sealed partial class AdminPanelViewModel : ViewModelBase
                 await Dispatcher.UIThread.InvokeAsync(() =>
                 {
                     user.IsApproved = newApprovalState;
+                    if (newApprovalState)
+                    {
+                        user.Role = user.SelectedRole; // Update displayed role
+                    }
+                    OnPropertyChanged(nameof(PendingCount));
                 });
 
-                StatusMessage = $"{user.FullName} {(newApprovalState ? "approved" : "disapproved")} successfully";
-                _logger.LogInformation("User {UserId} approval set to {Approved}", user.Id, newApprovalState);
+                StatusMessage = newApprovalState 
+                    ? $"? {user.FullName} approved as {user.SelectedRole}" 
+                    : $"? {user.FullName}'s access revoked";
+                
+                _logger.LogInformation("User {UserId} approval set to {Approved} with role {Role}", 
+                    user.Id, newApprovalState, user.SelectedRole);
             }
             else
             {
@@ -126,44 +154,65 @@ public sealed partial class AdminPanelViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    private async Task ChangeRoleAsync(UserListItem user)
+    private async Task UpdateRoleAsync(UserListItem user)
     {
         if (IsBusy || user == null) return;
 
-        // Toggle between User and Admin
-        var newRole = user.Role == "Admin" ? "User" : "Admin";
+        // Check if role was actually changed
+        if (user.SelectedRole == user.Role)
+        {
+            StatusMessage = $"{user.FullName} already has {user.Role} role";
+            return;
+        }
 
         IsBusy = true;
-        StatusMessage = $"Changing {user.FullName}'s role to {newRole}...";
+        StatusMessage = $"Changing {user.FullName}'s role to {user.SelectedRole}...";
 
         try
         {
-            var success = await _adminService.ChangeUserRoleAsync(user.Id, newRole);
+            var success = await _adminService.ChangeUserRoleAsync(user.Id, user.SelectedRole);
 
             if (success)
             {
                 await Dispatcher.UIThread.InvokeAsync(() =>
                 {
-                    user.Role = newRole;
+                    user.Role = user.SelectedRole;
                 });
 
-                StatusMessage = $"{user.FullName} is now {newRole}";
-                _logger.LogInformation("User {UserId} role changed to {Role}", user.Id, newRole);
+                StatusMessage = $"? {user.FullName} is now {user.SelectedRole}";
+                _logger.LogInformation("User {UserId} role changed to {Role}", user.Id, user.SelectedRole);
             }
             else
             {
+                // Revert selection on failure
+                await Dispatcher.UIThread.InvokeAsync(() =>
+                {
+                    user.SelectedRole = user.Role;
+                });
                 StatusMessage = "Role change failed";
             }
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to change role for user {UserId}", user.Id);
+            
+            // Revert selection on error
+            await Dispatcher.UIThread.InvokeAsync(() =>
+            {
+                user.SelectedRole = user.Role;
+            });
+            
             StatusMessage = $"Failed to change role for {user.FullName}";
         }
         finally
         {
             IsBusy = false;
         }
+    }
+
+    partial void OnUsersChanged(ObservableCollection<UserListItem> value)
+    {
+        OnPropertyChanged(nameof(PendingCount));
     }
 }
 
@@ -184,7 +233,37 @@ public sealed partial class UserListItem : ObservableObject
     [ObservableProperty]
     private string _role = "User";
 
+    [ObservableProperty]
+    private string _selectedRole = "User";
+
     public DateTimeOffset CreatedAt { get; init; }
 
     public DateTimeOffset? LastLoginAt { get; init; }
+
+    /// <summary>
+    /// Available roles for selection.
+    /// </summary>
+    public string[] AvailableRoles { get; } = new[] { "User", "Admin" };
+
+    /// <summary>
+    /// Status text for display.
+    /// </summary>
+    public string StatusText => IsApproved ? "Approved" : "Pending";
+
+    /// <summary>
+    /// Status color for display.
+    /// </summary>
+    public string StatusColor => IsApproved ? "#16A34A" : "#F59E0B";
+
+    /// <summary>
+    /// Approval button text.
+    /// </summary>
+    public string ApprovalButtonText => IsApproved ? "? Revoke" : "? Approve";
+
+    partial void OnIsApprovedChanged(bool value)
+    {
+        OnPropertyChanged(nameof(StatusText));
+        OnPropertyChanged(nameof(StatusColor));
+        OnPropertyChanged(nameof(ApprovalButtonText));
+    }
 }

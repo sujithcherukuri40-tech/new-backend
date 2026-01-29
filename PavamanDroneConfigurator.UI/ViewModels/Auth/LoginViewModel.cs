@@ -31,16 +31,6 @@ public sealed partial class LoginViewModel : ViewModelBase
     private bool _isLoading;
 
     /// <summary>
-    /// Whether to show the direct login button (development only).
-    /// </summary>
-    public bool ShowDirectLogin => 
-#if DEBUG
-        true;
-#else
-        false;
-#endif
-
-    /// <summary>
     /// Event raised when user wants to navigate to registration.
     /// </summary>
     public event EventHandler? NavigateToRegisterRequested;
@@ -101,51 +91,6 @@ public sealed partial class LoginViewModel : ViewModelBase
     {
         ClearError();
         NavigateToRegisterRequested?.Invoke(this, EventArgs.Empty);
-    }
-
-    [RelayCommand(CanExecute = nameof(CanDirectLogin))]
-    private async Task DirectLoginAsync()
-    {
-        ClearError();
-
-        IsLoading = true;
-        try
-        {
-            // Create a fake authenticated state for development
-            var fakeUserInfo = new Core.Models.Auth.UserInfo
-            {
-                Id = "dev-admin-id",
-                Email = "admin@droneconfig.local",
-                FullName = "Dev Admin",
-                IsApproved = true,
-                Role = "Admin",
-                CreatedAt = DateTimeOffset.UtcNow
-            };
-
-            var authState = Core.Models.Auth.AuthState.CreateAuthenticated(fakeUserInfo);
-            
-#if DEBUG
-            // Update the auth session with the fake state (DEBUG only)
-            _authSession.SetDevAuthState(authState);
-#endif
-            
-            // Trigger the login success event
-            await Task.Delay(100); // Small delay to show loading state
-            LoginSucceeded?.Invoke(this, authState);
-        }
-        catch (Exception ex)
-        {
-            ShowError($"Quick login failed: {ex.Message}");
-        }
-        finally
-        {
-            IsLoading = false;
-        }
-    }
-
-    private bool CanDirectLogin()
-    {
-        return !IsLoading;
     }
 
     private bool ValidateInputs()

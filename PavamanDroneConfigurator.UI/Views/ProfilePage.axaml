@@ -1,25 +1,280 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:PavamanDroneConfigurator.UI.ViewModels"
+             xmlns:converters="using:PavamanDroneConfigurator.UI.Converters"
              x:Class="PavamanDroneConfigurator.UI.Views.ProfilePage"
              x:DataType="vm:ProfilePageViewModel">
 
-    <Grid RowDefinitions="Auto,*,Auto" Margin="20">
-        <StackPanel Grid.Row="0" Spacing="10" Margin="0,0,0,15">
-            <TextBlock Text="Profiles" FontSize="24" FontWeight="Bold" />
-            <Button Content="Refresh Profiles" Command="{Binding LoadProfilesCommand}" />
-            <TextBlock Text="{Binding StatusMessage}" />
-        </StackPanel>
+    <UserControl.Styles>
+        <!-- Profile Card Styles -->
+        <Style Selector="Border.profile-card">
+            <Setter Property="Background" Value="White"/>
+            <Setter Property="CornerRadius" Value="12"/>
+            <Setter Property="BoxShadow" Value="0 2 8 0 #10000000"/>
+            <Setter Property="Padding" Value="24"/>
+        </Style>
 
-        <ListBox Grid.Row="1" ItemsSource="{Binding Profiles}" SelectedItem="{Binding SelectedProfile}" Margin="0,0,0,15" />
+        <Style Selector="TextBlock.profile-header">
+            <Setter Property="FontSize" Value="28"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="Foreground" Value="#111827"/>
+        </Style>
 
-        <StackPanel Grid.Row="2" Spacing="10">
-            <TextBlock Text="New Profile Name:" />
-            <TextBox Text="{Binding NewProfileName}" />
-            <StackPanel Orientation="Horizontal" Spacing="10">
-                <Button Content="Save Profile" Command="{Binding SaveProfileCommand}" />
-                <Button Content="Load Selected" Command="{Binding LoadProfileCommand}" />
+        <Style Selector="TextBlock.profile-label">
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Foreground" Value="#6B7280"/>
+        </Style>
+
+        <Style Selector="TextBlock.profile-value">
+            <Setter Property="FontSize" Value="16"/>
+            <Setter Property="Foreground" Value="#111827"/>
+            <Setter Property="Margin" Value="0,4,0,0"/>
+        </Style>
+
+        <Style Selector="Border.status-badge">
+            <Setter Property="CornerRadius" Value="6"/>
+            <Setter Property="Padding" Value="12,6"/>
+            <Setter Property="HorizontalAlignment" Value="Left"/>
+        </Style>
+
+        <Style Selector="Border.status-approved">
+            <Setter Property="Background" Value="#DCFCE7"/>
+        </Style>
+
+        <Style Selector="Border.status-pending">
+            <Setter Property="Background" Value="#FEF3C7"/>
+        </Style>
+
+        <Style Selector="Border.role-badge">
+            <Setter Property="CornerRadius" Value="6"/>
+            <Setter Property="Padding" Value="12,6"/>
+            <Setter Property="HorizontalAlignment" Value="Left"/>
+        </Style>
+
+        <Style Selector="Border.role-admin">
+            <Setter Property="Background" Value="#DBEAFE"/>
+        </Style>
+
+        <Style Selector="Border.role-user">
+            <Setter Property="Background" Value="#F3F4F6"/>
+        </Style>
+
+        <Style Selector="Button.logout-button">
+            <Setter Property="Background" Value="#EF4444"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Padding" Value="24,12"/>
+            <Setter Property="FontSize" Value="15"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+        </Style>
+
+        <Style Selector="Button.logout-button:pointerover">
+            <Setter Property="Background" Value="#DC2626"/>
+        </Style>
+
+        <Style Selector="Button.logout-button:disabled">
+            <Setter Property="Background" Value="#9CA3AF"/>
+            <Setter Property="Cursor" Value="Default"/>
+        </Style>
+    </UserControl.Styles>
+
+    <ScrollViewer>
+        <Grid RowDefinitions="Auto,Auto,Auto,*" Margin="24" MaxWidth="1200">
+            <!-- Header -->
+            <StackPanel Grid.Row="0" Spacing="8" Margin="0,0,0,32">
+                <TextBlock Text="?? Profile &amp; Settings"
+                           Classes="profile-header"/>
+                <TextBlock Text="Manage your account and preferences"
+                           FontSize="14"
+                           Foreground="#6B7280"/>
             </StackPanel>
-        </StackPanel>
-    </Grid>
+
+            <!-- User Profile Card -->
+            <Border Grid.Row="1" Classes="profile-card" Margin="0,0,0,24">
+                <Grid RowDefinitions="Auto,Auto,Auto" ColumnDefinitions="*,Auto">
+                    <!-- Profile Header with Avatar -->
+                    <StackPanel Grid.Row="0" Grid.Column="0" Orientation="Horizontal" Spacing="16" Margin="0,0,0,24">
+                        <!-- Avatar Circle -->
+                        <Border Width="80" Height="80" 
+                                CornerRadius="40" 
+                                Background="#3B82F6"
+                                VerticalAlignment="Center">
+                            <TextBlock Text="{Binding UserFullName, Converter={x:Static converters:InitialsConverter.Instance}}"
+                                       FontSize="32"
+                                       FontWeight="Bold"
+                                       Foreground="White"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center"/>
+                        </Border>
+
+                        <!-- Name and Email -->
+                        <StackPanel VerticalAlignment="Center" Spacing="4">
+                            <TextBlock Text="{Binding UserFullName}"
+                                       FontSize="24"
+                                       FontWeight="Bold"
+                                       Foreground="#111827"/>
+                            <TextBlock Text="{Binding UserEmail}"
+                                       FontSize="14"
+                                       Foreground="#6B7280"/>
+                        </StackPanel>
+                    </StackPanel>
+
+                    <!-- Logout Button -->
+                    <Button Grid.Row="0" Grid.Column="1"
+                            Classes="logout-button"
+                            Content="?? Logout"
+                            Command="{Binding LogoutCommand}"
+                            IsEnabled="{Binding !IsLoggingOut}"
+                            VerticalAlignment="Top"/>
+
+                    <!-- Divider -->
+                    <Border Grid.Row="1" Grid.ColumnSpan="2" 
+                            Height="1" 
+                            Background="#E5E7EB" 
+                            Margin="0,0,0,24"/>
+
+                    <!-- User Details Grid -->
+                    <Grid Grid.Row="2" Grid.ColumnSpan="2" 
+                          RowDefinitions="Auto,Auto,Auto,Auto"
+                          ColumnDefinitions="*,*,*">
+                        
+                        <!-- Role -->
+                        <StackPanel Grid.Row="0" Grid.Column="0" Spacing="8" Margin="0,0,16,24">
+                            <TextBlock Text="Role" Classes="profile-label"/>
+                            <Border Classes="role-badge"
+                                    Classes.role-admin="{Binding IsAdmin}"
+                                    Classes.role-user="{Binding !IsAdmin}">
+                                <TextBlock Text="{Binding UserRole}"
+                                           FontSize="14"
+                                           FontWeight="SemiBold"
+                                           Foreground="#111827"/>
+                            </Border>
+                        </StackPanel>
+
+                        <!-- Status -->
+                        <StackPanel Grid.Row="0" Grid.Column="1" Spacing="8" Margin="0,0,16,24">
+                            <TextBlock Text="Account Status" Classes="profile-label"/>
+                            <Border Classes="status-badge"
+                                    Classes.status-approved="{Binding UserStatus, Converter={x:Static converters:StringContainsConverter.Instance}, ConverterParameter=Approved}"
+                                    Classes.status-pending="{Binding UserStatus, Converter={x:Static converters:StringContainsConverter.Instance}, ConverterParameter=Pending}">
+                                <TextBlock Text="{Binding UserStatus}"
+                                           FontSize="14"
+                                           FontWeight="SemiBold"
+                                           Foreground="{Binding UserStatus, Converter={x:Static converters:StatusColorConverter.Instance}}"/>
+                            </Border>
+                        </StackPanel>
+
+                        <!-- Account Created -->
+                        <StackPanel Grid.Row="0" Grid.Column="2" Spacing="8" Margin="0,0,0,24">
+                            <TextBlock Text="Member Since" Classes="profile-label"/>
+                            <TextBlock Text="{Binding AccountCreatedDate}"
+                                       Classes="profile-value"/>
+                        </StackPanel>
+                    </Grid>
+                </Grid>
+            </Border>
+
+            <!-- Configuration Profiles Section -->
+            <Border Grid.Row="2" Classes="profile-card" Margin="0,0,0,24">
+                <Grid RowDefinitions="Auto,Auto,*,Auto">
+                    <!-- Section Header -->
+                    <StackPanel Grid.Row="0" Spacing="8" Margin="0,0,0,20">
+                        <TextBlock Text="?? Configuration Profiles"
+                                   FontSize="20"
+                                   FontWeight="Bold"
+                                   Foreground="#111827"/>
+                        <TextBlock Text="Save and manage drone configuration profiles"
+                                   FontSize="13"
+                                   Foreground="#6B7280"/>
+                    </StackPanel>
+
+                    <!-- Toolbar -->
+                    <Border Grid.Row="1"
+                            Background="#F9FAFB"
+                            Padding="12"
+                            CornerRadius="8"
+                            Margin="0,0,0,16">
+                        <StackPanel Orientation="Horizontal" Spacing="12">
+                            <Button Content="?? Refresh Profiles" 
+                                    Command="{Binding LoadProfilesCommand}"
+                                    Background="#3B82F6"
+                                    Foreground="White"
+                                    CornerRadius="6"
+                                    Padding="12,8"
+                                    BorderThickness="0"
+                                    Cursor="Hand"/>
+                            <TextBlock Text="{Binding StatusMessage}" 
+                                       VerticalAlignment="Center"
+                                       Foreground="#6B7280"
+                                       FontSize="13"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Profiles List -->
+                    <ListBox Grid.Row="2" 
+                             ItemsSource="{Binding Profiles}" 
+                             SelectedItem="{Binding SelectedProfile}"
+                             Background="Transparent"
+                             BorderThickness="1"
+                             BorderBrush="#E5E7EB"
+                             CornerRadius="8"
+                             Padding="8"
+                             MinHeight="200"
+                             Margin="0,0,0,16">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <Border Padding="12,8"
+                                        CornerRadius="6"
+                                        Background="Transparent">
+                                    <TextBlock Text="{Binding}"
+                                               FontSize="14"
+                                               Foreground="#111827"/>
+                                </Border>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+
+                    <!-- New Profile Section -->
+                    <Border Grid.Row="3"
+                            Background="#F9FAFB"
+                            Padding="16"
+                            CornerRadius="8">
+                        <StackPanel Spacing="12">
+                            <TextBlock Text="Create New Profile" 
+                                       FontSize="14"
+                                       FontWeight="SemiBold"
+                                       Foreground="#111827"/>
+                            <TextBox Text="{Binding NewProfileName}"
+                                     Watermark="Enter profile name..."
+                                     Padding="12"
+                                     CornerRadius="6"
+                                     BorderBrush="#D1D5DB"
+                                     BorderThickness="1"/>
+                            <StackPanel Orientation="Horizontal" Spacing="12">
+                                <Button Content="?? Save Profile" 
+                                        Command="{Binding SaveProfileCommand}"
+                                        Background="#10B981"
+                                        Foreground="White"
+                                        CornerRadius="6"
+                                        Padding="16,10"
+                                        BorderThickness="0"
+                                        Cursor="Hand"/>
+                                <Button Content="?? Load Selected" 
+                                        Command="{Binding LoadProfileCommand}"
+                                        Background="#3B82F6"
+                                        Foreground="White"
+                                        CornerRadius="6"
+                                        Padding="16,10"
+                                        BorderThickness="0"
+                                        Cursor="Hand"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </Border>
+        </Grid>
+    </ScrollViewer>
 </UserControl>
