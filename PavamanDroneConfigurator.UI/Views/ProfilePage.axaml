@@ -275,6 +275,341 @@
                     </Border>
                 </Grid>
             </Border>
+
+            <!-- CRM-Style Admin Panel Section (Only visible for admins) -->
+            <Border Grid.Row="3" 
+                    IsVisible="{Binding IsAdmin}"
+                    Background="White"
+                    CornerRadius="16"
+                    BoxShadow="0 4 16 0 #10000000"
+                    Padding="32"
+                    Margin="0,0,0,24">
+                <Grid RowDefinitions="Auto,Auto,Auto,*">
+                    <!-- CRM Header -->
+                    <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,24">
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Text="👥 User Management CRM"
+                                       FontSize="24"
+                                       FontWeight="Bold"
+                                       Foreground="#111827"
+                                       Margin="0,0,0,4"/>
+                            <TextBlock Text="Manage users, roles, and access control"
+                                       FontSize="14"
+                                       Foreground="#6B7280"/>
+                        </StackPanel>
+                        
+                        <!-- Action Buttons -->
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="12">
+                            <Button Content="🔄 Refresh"
+                                    Command="{Binding AdminPanel.RefreshCommand}"
+                                    Background="#3B82F6"
+                                    Foreground="White"
+                                    CornerRadius="8"
+                                    Padding="16,10"
+                                    FontSize="14"
+                                    FontWeight="SemiBold"
+                                    BorderThickness="0"
+                                    Cursor="Hand"/>
+                        </StackPanel>
+                    </Grid>
+
+                    <!-- CRM Statistics Cards -->
+                    <Grid Grid.Row="1" ColumnDefinitions="*,*,*" Margin="0,0,0,24">
+                        <!-- Total Users Card -->
+                        <Border Grid.Column="0" 
+                                Background="#F0F9FF"
+                                CornerRadius="12"
+                                Padding="20"
+                                Margin="0,0,8,0">
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="👤 TOTAL USERS"
+                                           FontSize="12"
+                                           FontWeight="SemiBold"
+                                           Foreground="#0369A1"/>
+                                <TextBlock Text="{Binding AdminPanel.TotalCount}"
+                                           FontSize="32"
+                                           FontWeight="Bold"
+                                           Foreground="#0C4A6E"/>
+                                <TextBlock Text="registered accounts"
+                                           FontSize="12"
+                                           Foreground="#0369A1"/>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Pending Approvals Card -->
+                        <Border Grid.Column="1" 
+                                Background="#FEF3C7"
+                                CornerRadius="12"
+                                Padding="20"
+                                Margin="4,0">
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="⏳ PENDING APPROVAL"
+                                           FontSize="12"
+                                           FontWeight="SemiBold"
+                                           Foreground="#D97706"/>
+                                <TextBlock Text="{Binding AdminPanel.PendingCount}"
+                                           FontSize="32"
+                                           FontWeight="Bold"
+                                           Foreground="#92400E"/>
+                                <TextBlock Text="awaiting review"
+                                           FontSize="12"
+                                           Foreground="#D97706"/>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Active Users Card -->
+                        <Border Grid.Column="2" 
+                                Background="#DCFCE7"
+                                CornerRadius="12"
+                                Padding="20"
+                                Margin="8,0,0,0">
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="✓ ACTIVE USERS"
+                                           FontSize="12"
+                                           FontWeight="SemiBold"
+                                           Foreground="#16A34A"/>
+                                <TextBlock FontSize="32"
+                                           FontWeight="Bold"
+                                           Foreground="#166534">
+                                    <Run Text="{Binding AdminPanel.TotalCount}"/>
+                                    <Run Text="-" FontSize="24"/>
+                                    <Run Text="{Binding AdminPanel.PendingCount}"/>
+                                </TextBlock>
+                                <TextBlock Text="approved accounts"
+                                           FontSize="12"
+                                           Foreground="#16A34A"/>
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+
+                    <!-- Status Bar -->
+                    <Border Grid.Row="2"
+                            Background="#F9FAFB"
+                            CornerRadius="8"
+                            Padding="16,12"
+                            Margin="0,0,0,16">
+                        <Grid ColumnDefinitions="Auto,*">
+                            <TextBlock Grid.Column="0"
+                                       Text="📊 Status:"
+                                       FontSize="13"
+                                       FontWeight="SemiBold"
+                                       Foreground="#374151"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,12,0"/>
+                            <TextBlock Grid.Column="1"
+                                       Text="{Binding AdminPanel.StatusMessage}"
+                                       FontSize="13"
+                                       Foreground="#6B7280"
+                                       VerticalAlignment="Center"/>
+                        </Grid>
+                    </Border>
+
+                    <!-- CRM Data Table -->
+                    <Border Grid.Row="3"
+                            BorderBrush="#E5E7EB"
+                            BorderThickness="1"
+                            CornerRadius="12"
+                            Background="#FAFAFA"
+                            ClipToBounds="True">
+                        <Grid RowDefinitions="Auto,*">
+                            <!-- Table Header (Fixed) -->
+                            <Border Grid.Row="0"
+                                    Background="#F3F4F6"
+                                    BorderBrush="#E5E7EB"
+                                    BorderThickness="0,0,0,2">
+                                <Grid ColumnDefinitions="40,200,260,120,140,140,*"
+                                      Height="48"
+                                      Margin="0">
+                                    <TextBlock Grid.Column="0" 
+                                               Text="#" 
+                                               FontSize="11"
+                                               FontWeight="Bold"
+                                               Foreground="#6B7280"
+                                               VerticalAlignment="Center"
+                                               HorizontalAlignment="Center"/>
+                                    <TextBlock Grid.Column="1" 
+                                               Text="FULL NAME" 
+                                               FontSize="11"
+                                               FontWeight="Bold"
+                                               Foreground="#6B7280"
+                                               VerticalAlignment="Center"
+                                               Margin="16,0"/>
+                                    <TextBlock Grid.Column="2" 
+                                               Text="EMAIL ADDRESS" 
+                                               FontSize="11"
+                                               FontWeight="Bold"
+                                               Foreground="#6B7280"
+                                               VerticalAlignment="Center"
+                                               Margin="16,0"/>
+                                    <TextBlock Grid.Column="3" 
+                                               Text="STATUS" 
+                                               FontSize="11"
+                                               FontWeight="Bold"
+                                               Foreground="#6B7280"
+                                               VerticalAlignment="Center"
+                                               Margin="16,0"/>
+                                    <TextBlock Grid.Column="4" 
+                                               Text="ROLE" 
+                                               FontSize="11"
+                                               FontWeight="Bold"
+                                               Foreground="#6B7280"
+                                               VerticalAlignment="Center"
+                                               Margin="16,0"/>
+                                    <TextBlock Grid.Column="5" 
+                                               Text="CREATED" 
+                                               FontSize="11"
+                                               FontWeight="Bold"
+                                               Foreground="#6B7280"
+                                               VerticalAlignment="Center"
+                                               Margin="16,0"/>
+                                    <TextBlock Grid.Column="6" 
+                                               Text="ACTIONS" 
+                                               FontSize="11"
+                                               FontWeight="Bold"
+                                               Foreground="#6B7280"
+                                               VerticalAlignment="Center"
+                                               Margin="16,0"/>
+                                </Grid>
+                            </Border>
+
+                            <!-- Scrollable User List -->
+                            <ScrollViewer Grid.Row="1" 
+                                          MaxHeight="500"
+                                          VerticalScrollBarVisibility="Auto"
+                                          HorizontalScrollBarVisibility="Disabled">
+                                <ItemsControl ItemsSource="{Binding AdminPanel.Users}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Background="White"
+                                                    BorderBrush="#E5E7EB"
+                                                    BorderThickness="0,0,0,1">
+                                                <Border.Styles>
+                                                    <Style Selector="Border:pointerover">
+                                                        <Setter Property="Background" Value="#F9FAFB"/>
+                                                    </Style>
+                                                </Border.Styles>
+                                                <Grid ColumnDefinitions="40,200,260,120,140,140,*"
+                                                      MinHeight="64"
+                                                      Margin="0">
+                                                    
+                                                    <!-- Row Number -->
+                                                    <TextBlock Grid.Column="0"
+                                                               Text="{Binding Id}"
+                                                               FontSize="12"
+                                                               Foreground="#9CA3AF"
+                                                               VerticalAlignment="Center"
+                                                               HorizontalAlignment="Center"/>
+
+                                                    <!-- Full Name with Avatar -->
+                                                    <StackPanel Grid.Column="1" 
+                                                                Orientation="Horizontal" 
+                                                                Spacing="12"
+                                                                VerticalAlignment="Center"
+                                                                Margin="16,0">
+                                                        <Border Width="36" Height="36"
+                                                                CornerRadius="18"
+                                                                Background="#3B82F6">
+                                                            <TextBlock Text="{Binding FullName, Converter={x:Static converters:InitialsConverter.Instance}}"
+                                                                       FontSize="12"
+                                                                       FontWeight="Bold"
+                                                                       Foreground="White"
+                                                                       HorizontalAlignment="Center"
+                                                                       VerticalAlignment="Center"/>
+                                                        </Border>
+                                                        <TextBlock Text="{Binding FullName}"
+                                                                   FontSize="14"
+                                                                   FontWeight="SemiBold"
+                                                                   Foreground="#111827"
+                                                                   VerticalAlignment="Center"/>
+                                                    </StackPanel>
+
+                                                    <!-- Email -->
+                                                    <TextBlock Grid.Column="2"
+                                                               Text="{Binding Email}"
+                                                               FontSize="13"
+                                                               Foreground="#6B7280"
+                                                               VerticalAlignment="Center"
+                                                               Margin="16,0"/>
+
+                                                    <!-- Status Badge -->
+                                                    <Border Grid.Column="3"
+                                                            CornerRadius="6"
+                                                            Padding="10,6"
+                                                            Margin="16,0,0,0"
+                                                            Width="100"
+                                                            HorizontalAlignment="Left"
+                                                            VerticalAlignment="Center"
+                                                            Background="{Binding IsApproved, Converter={x:Static converters:AdminPanelConverters.StatusBackgroundConverter}}">
+                                                        <TextBlock Text="{Binding StatusText}"
+                                                                   FontSize="11"
+                                                                   FontWeight="Bold"
+                                                                   Foreground="{Binding StatusColor}"
+                                                                   HorizontalAlignment="Center"/>
+                                                    </Border>
+
+                                                    <!-- Role Dropdown -->
+                                                    <ComboBox Grid.Column="4"
+                                                              ItemsSource="{Binding AvailableRoles}"
+                                                              SelectedItem="{Binding SelectedRole}"
+                                                              VerticalAlignment="Center"
+                                                              Margin="16,0"
+                                                              Padding="10,6"
+                                                              FontSize="13"
+                                                              BorderBrush="#D1D5DB"
+                                                              Background="White"/>
+
+                                                    <!-- Created Date -->
+                                                    <TextBlock Grid.Column="5"
+                                                               Text="{Binding CreatedAt, StringFormat='{}{0:MMM dd, yyyy}'}"
+                                                               FontSize="13"
+                                                               Foreground="#6B7280"
+                                                               VerticalAlignment="Center"
+                                                               Margin="16,0"/>
+
+                                                    <!-- Action Buttons -->
+                                                    <StackPanel Grid.Column="6"
+                                                                Orientation="Horizontal"
+                                                                Spacing="8"
+                                                                VerticalAlignment="Center"
+                                                                Margin="16,0">
+                                                        <!-- Approve/Revoke Button -->
+                                                        <Button Content="{Binding ApprovalButtonText}"
+                                                                Command="{Binding $parent[ItemsControl].((vm:ProfilePageViewModel)DataContext).AdminPanel.ApproveUserCommand}"
+                                                                CommandParameter="{Binding}"
+                                                                Padding="12,8"
+                                                                FontSize="12"
+                                                                FontWeight="SemiBold"
+                                                                CornerRadius="6"
+                                                                BorderThickness="0"
+                                                                Cursor="Hand"
+                                                                MinWidth="85"
+                                                                Background="{Binding IsApproved, Converter={x:Static converters:AdminPanelConverters.ApprovalButtonColorConverter}}"
+                                                                Foreground="White"/>
+
+                                                        <!-- Update Role Button -->
+                                                        <Button Content="💾 Save"
+                                                                Command="{Binding $parent[ItemsControl].((vm:ProfilePageViewModel)DataContext).AdminPanel.UpdateRoleCommand}"
+                                                                CommandParameter="{Binding}"
+                                                                Background="#2196F3"
+                                                                Foreground="White"
+                                                                Padding="12,8"
+                                                                FontSize="12"
+                                                                FontWeight="SemiBold"
+                                                                CornerRadius="6"
+                                                                BorderThickness="0"
+                                                                Cursor="Hand"
+                                                                MinWidth="75"/>
+                                                    </StackPanel>
+                                                </Grid>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
+                        </Grid>
+                    </Border>
+                </Grid>
+            </Border>
         </Grid>
     </ScrollViewer>
 </UserControl>

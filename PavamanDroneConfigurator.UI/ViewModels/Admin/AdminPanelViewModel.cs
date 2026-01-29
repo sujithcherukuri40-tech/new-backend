@@ -32,6 +32,11 @@ public sealed partial class AdminPanelViewModel : ViewModelBase
     /// </summary>
     public int PendingCount => Users.Count(u => !u.IsApproved);
 
+    /// <summary>
+    /// Total count of users.
+    /// </summary>
+    public int TotalCount => Users.Count;
+
     public AdminPanelViewModel(
         IAdminService adminService,
         ILogger<AdminPanelViewModel> logger)
@@ -213,6 +218,7 @@ public sealed partial class AdminPanelViewModel : ViewModelBase
     partial void OnUsersChanged(ObservableCollection<UserListItem> value)
     {
         OnPropertyChanged(nameof(PendingCount));
+        OnPropertyChanged(nameof(TotalCount));
     }
 }
 

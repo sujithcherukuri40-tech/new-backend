@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 using PavamanDroneConfigurator.Core.Interfaces;
 using PavamanDroneConfigurator.UI.ViewModels.Auth;
+using PavamanDroneConfigurator.UI.ViewModels.Admin;
 using System.Collections.ObjectModel;
 
 namespace PavamanDroneConfigurator.UI.ViewModels;
@@ -12,6 +13,8 @@ public partial class ProfilePageViewModel : ViewModelBase
     private readonly IPersistenceService _persistenceService;
     private readonly AuthSessionViewModel _authSession;
     private readonly ILogger<ProfilePageViewModel> _logger;
+    private readonly IAdminService _adminService;
+    private readonly ILogger<AdminPanelViewModel> _adminPanelLogger;
 
     [ObservableProperty]
     private ObservableCollection<string> _profiles = new();
@@ -48,6 +51,12 @@ public partial class ProfilePageViewModel : ViewModelBase
     private bool _isLoggingOut;
 
     /// <summary>
+    /// Admin panel view model for user management.
+    /// Only initialized when user is an admin.
+    /// </summary>
+    public AdminPanelViewModel? AdminPanel { get; private set; }
+
+    /// <summary>
     /// Event raised when user requests logout and needs to navigate back to login
     /// </summary>
     public event EventHandler? LogoutRequested;
@@ -55,14 +64,25 @@ public partial class ProfilePageViewModel : ViewModelBase
     public ProfilePageViewModel(
         IPersistenceService persistenceService,
         AuthSessionViewModel authSession,
-        ILogger<ProfilePageViewModel> logger)
+        ILogger<ProfilePageViewModel> logger,
+        IAdminService adminService,
+        ILogger<AdminPanelViewModel> adminPanelLogger)
     {
         _persistenceService = persistenceService;
         _authSession = authSession;
         _logger = logger;
+        _adminService = adminService;
+        _adminPanelLogger = adminPanelLogger;
 
         // Load user details from auth session
         LoadUserDetails();
+
+        // Initialize admin panel if user is admin
+        if (IsAdmin)
+        {
+            AdminPanel = new AdminPanelViewModel(_adminService, _adminPanelLogger);
+            _ = AdminPanel.InitializeAsync();
+        }
 
         // Subscribe to auth state changes
         _authSession.StateChanged += OnAuthStateChanged;
@@ -86,9 +106,24 @@ public partial class ProfilePageViewModel : ViewModelBase
             UserFullName = user.FullName;
             UserEmail = user.Email;
             UserRole = user.Role;
+            var wasAdmin = IsAdmin;
             IsAdmin = user.IsAdmin;
             UserStatus = user.IsApproved ? "Approved" : "Pending Approval";
-            AccountCreatedDate = user.CreatedAt.ToString("MMMM dd, yyyy 'at' hh:mm tt");
+            AccountCreatedDate = $"Member since: {user.CreatedAt:MMMM dd, yyyy}";
+
+            // Initialize admin panel if user became an admin and panel doesn't exist
+            if (IsAdmin && !wasAdmin && AdminPanel == null)
+            {
+                AdminPanel = new AdminPanelViewModel(_adminService, _adminPanelLogger);
+                _ = AdminPanel.InitializeAsync();
+                OnPropertyChanged(nameof(AdminPanel));
+            }
+            // Dispose admin panel if user is no longer an admin
+            else if (!IsAdmin && wasAdmin && AdminPanel != null)
+            {
+                AdminPanel = null;
+                OnPropertyChanged(nameof(AdminPanel));
+            }
 
             _logger.LogDebug("Loaded user profile: {Email} ({Role})", user.Email, user.Role);
         }
