@@ -109,7 +109,7 @@ public partial class ProfilePageViewModel : ViewModelBase
             var wasAdmin = IsAdmin;
             IsAdmin = user.IsAdmin;
             UserStatus = user.IsApproved ? "Approved" : "Pending Approval";
-            AccountCreatedDate = user.CreatedAt.ToString("MMMM dd, yyyy 'at' hh:mm tt");
+            AccountCreatedDate = $"Member since: {user.CreatedAt:MMMM dd, yyyy}";
 
             // Initialize admin panel if user became an admin and panel doesn't exist
             if (IsAdmin && !wasAdmin && AdminPanel == null)
