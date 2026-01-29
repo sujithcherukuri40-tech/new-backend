@@ -154,7 +154,7 @@
                     <StackPanel Spacing="0">
                         <TextBlock Text="Password" Classes="field-label"/>
                         <TextBox Classes="auth-input"
-                                 PasswordChar="•"
+                                 PasswordChar="?"
                                  Text="{Binding Password, Mode=TwoWay}"
                                  Watermark="Enter your password"
                                  IsEnabled="{Binding !IsLoading}"/>

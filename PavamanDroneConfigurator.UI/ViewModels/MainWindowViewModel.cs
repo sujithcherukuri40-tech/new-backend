@@ -106,8 +106,14 @@ public partial class MainWindowViewModel : ViewModelBase
         // Determine if user is admin from auth session
         IsAdmin = authSession.CurrentState.User?.IsAdmin ?? false;
 
-        // Create admin panel only if user is admin
+        // Create admin panel only if user is admin AND not using dev login
+        // Dev login (no server) should skip admin panel initialization
+#if DEBUG
+        var isDevLogin = authSession.CurrentState.User?.Id == "dev-admin-id";
+        if (IsAdmin && !isDevLogin && App.Services != null)
+#else
         if (IsAdmin && App.Services != null)
+#endif
         {
             try
             {

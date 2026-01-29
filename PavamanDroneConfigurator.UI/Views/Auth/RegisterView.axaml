@@ -182,7 +182,7 @@
                     <StackPanel Spacing="0">
                         <TextBlock Text="Password" Classes="field-label"/>
                         <TextBox Classes="auth-input"
-                                 PasswordChar="•"
+                                 PasswordChar="?"
                                  Text="{Binding Password, Mode=TwoWay}"
                                  Watermark="Minimum 8 characters"
                                  IsEnabled="{Binding !IsLoading}"/>
@@ -195,7 +195,7 @@
                     <StackPanel Spacing="0">
                         <TextBlock Text="Confirm Password" Classes="field-label"/>
                         <TextBox Classes="auth-input"
-                                 PasswordChar="•"
+                                 PasswordChar="?"
                                  Text="{Binding ConfirmPassword, Mode=TwoWay}"
                                  Watermark="Re-enter your password"
                                  IsEnabled="{Binding !IsLoading}"/>

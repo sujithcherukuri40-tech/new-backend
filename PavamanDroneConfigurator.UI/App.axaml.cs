@@ -78,9 +78,14 @@ public partial class App : Application
         
         services.AddHttpClient<IAuthService, AuthApiService>(client =>
         {
-            var authApiUrl = Environment.GetEnvironmentVariable("AUTH_API_URL")
-                ?? Configuration?.GetValue<string>("Auth:ApiUrl") 
-                ?? "http://localhost:5000";
+            var useAwsApi = Configuration?.GetValue<bool>("Auth:UseAwsApi") ?? false;
+            var authApiUrl = useAwsApi
+                ? (Environment.GetEnvironmentVariable("AWS_API_URL") 
+                   ?? Configuration?.GetValue<string>("Auth:AwsApiUrl")
+                   ?? "http://localhost:5000")
+                : (Environment.GetEnvironmentVariable("AUTH_API_URL")
+                   ?? Configuration?.GetValue<string>("Auth:ApiUrl") 
+                   ?? "http://localhost:5000");
             
             client.BaseAddress = new Uri(authApiUrl);
             client.DefaultRequestHeaders.Add("Accept", "application/json");
@@ -92,14 +97,20 @@ public partial class App : Application
             client.Timeout = TimeSpan.FromSeconds(timeoutSeconds);
             
             Console.WriteLine($"?? Auth API URL: {authApiUrl}");
+            Console.WriteLine($"?? Using AWS API: {useAwsApi}");
         });
         
         // Register admin service with same HTTP client configuration
         services.AddHttpClient<Core.Interfaces.IAdminService, AdminApiService>(client =>
         {
-            var authApiUrl = Environment.GetEnvironmentVariable("AUTH_API_URL")
-                ?? Configuration?.GetValue<string>("Auth:ApiUrl") 
-                ?? "http://localhost:5000";
+            var useAwsApi = Configuration?.GetValue<bool>("Auth:UseAwsApi") ?? false;
+            var authApiUrl = useAwsApi
+                ? (Environment.GetEnvironmentVariable("AWS_API_URL")
+                   ?? Configuration?.GetValue<string>("Auth:AwsApiUrl")
+                   ?? "http://localhost:5000")
+                : (Environment.GetEnvironmentVariable("AUTH_API_URL")
+                   ?? Configuration?.GetValue<string>("Auth:ApiUrl") 
+                   ?? "http://localhost:5000");
             
             client.BaseAddress = new Uri(authApiUrl);
             client.DefaultRequestHeaders.Add("Accept", "application/json");
