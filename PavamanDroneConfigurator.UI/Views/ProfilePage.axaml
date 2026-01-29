@@ -275,6 +275,220 @@
                     </Border>
                 </Grid>
             </Border>
+
+            <!-- Admin Panel Section (Only visible for admins) -->
+            <Border Grid.Row="3" 
+                    Classes="profile-card" 
+                    IsVisible="{Binding IsAdmin}"
+                    Margin="0,0,0,24">
+                <Grid RowDefinitions="Auto,Auto,*">
+                    <!-- Admin Panel Header -->
+                    <StackPanel Grid.Row="0" Spacing="8" Margin="0,0,0,20">
+                        <TextBlock Text="👥 User Management"
+                                   FontSize="20"
+                                   FontWeight="Bold"
+                                   Foreground="#111827"/>
+                        <TextBlock Text="Manage user access requests and roles"
+                                   FontSize="13"
+                                   Foreground="#6B7280"/>
+                    </StackPanel>
+
+                    <!-- Toolbar with Refresh and Statistics -->
+                    <Border Grid.Row="1"
+                            Background="#F9FAFB"
+                            Padding="12"
+                            CornerRadius="8"
+                            Margin="0,0,0,16">
+                        <Grid ColumnDefinitions="Auto,*,Auto">
+                            <!-- Refresh Button -->
+                            <Button Grid.Column="0"
+                                    Content="🔄 Refresh"
+                                    Command="{Binding AdminPanel.RefreshCommand}"
+                                    Background="#3B82F6"
+                                    Foreground="White"
+                                    CornerRadius="6"
+                                    Padding="12,8"
+                                    BorderThickness="0"
+                                    Cursor="Hand"
+                                    Margin="0,0,12,0"/>
+
+                            <!-- Statistics -->
+                            <StackPanel Grid.Column="1" 
+                                        Orientation="Horizontal" 
+                                        Spacing="16"
+                                        VerticalAlignment="Center">
+                                <TextBlock VerticalAlignment="Center" 
+                                           Foreground="#6B7280"
+                                           FontSize="13">
+                                    <Run Text="Total Users: "/>
+                                    <Run Text="{Binding AdminPanel.TotalCount}" FontWeight="SemiBold" Foreground="#111827"/>
+                                </TextBlock>
+                                <TextBlock VerticalAlignment="Center" 
+                                           Foreground="#6B7280"
+                                           FontSize="13">
+                                    <Run Text="Pending: "/>
+                                    <Run Text="{Binding AdminPanel.PendingCount}" FontWeight="SemiBold" Foreground="#F59E0B"/>
+                                </TextBlock>
+                            </StackPanel>
+
+                            <!-- Status Message -->
+                            <TextBlock Grid.Column="2"
+                                       Text="{Binding AdminPanel.StatusMessage}"
+                                       VerticalAlignment="Center"
+                                       Foreground="#6B7280"
+                                       FontSize="13"/>
+                        </Grid>
+                    </Border>
+
+                    <!-- User List Table -->
+                    <ScrollViewer Grid.Row="2" 
+                                  MaxHeight="600"
+                                  HorizontalScrollBarVisibility="Auto"
+                                  VerticalScrollBarVisibility="Auto">
+                        <Border BorderBrush="#E5E7EB"
+                                BorderThickness="1"
+                                CornerRadius="8"
+                                Background="White">
+                            <Grid>
+                                <!-- Table Header -->
+                                <Grid ColumnDefinitions="*,*,Auto,Auto,Auto"
+                                      Background="#F9FAFB"
+                                      Height="40">
+                                    <TextBlock Grid.Column="0" 
+                                               Text="Full Name" 
+                                               FontSize="12"
+                                               FontWeight="SemiBold"
+                                               Foreground="#6B7280"
+                                               VerticalAlignment="Center"
+                                               Margin="16,0"/>
+                                    <TextBlock Grid.Column="1" 
+                                               Text="Email Address" 
+                                               FontSize="12"
+                                               FontWeight="SemiBold"
+                                               Foreground="#6B7280"
+                                               VerticalAlignment="Center"
+                                               Margin="16,0"/>
+                                    <TextBlock Grid.Column="2" 
+                                               Text="Status" 
+                                               FontSize="12"
+                                               FontWeight="SemiBold"
+                                               Foreground="#6B7280"
+                                               VerticalAlignment="Center"
+                                               Margin="16,0"
+                                               Width="120"/>
+                                    <TextBlock Grid.Column="3" 
+                                               Text="Role" 
+                                               FontSize="12"
+                                               FontWeight="SemiBold"
+                                               Foreground="#6B7280"
+                                               VerticalAlignment="Center"
+                                               Margin="16,0"
+                                               Width="140"/>
+                                    <TextBlock Grid.Column="4" 
+                                               Text="Actions" 
+                                               FontSize="12"
+                                               FontWeight="SemiBold"
+                                               Foreground="#6B7280"
+                                               VerticalAlignment="Center"
+                                               Margin="16,0"
+                                               Width="320"/>
+                                </Grid>
+
+                                <!-- User List -->
+                                <ItemsControl ItemsSource="{Binding AdminPanel.Users}"
+                                              Margin="0,40,0,0">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border BorderBrush="#E5E7EB"
+                                                    BorderThickness="0,1,0,0"
+                                                    Padding="0,12"
+                                                    Background="Transparent">
+                                                <Grid ColumnDefinitions="*,*,Auto,Auto,Auto">
+                                                    <!-- Full Name -->
+                                                    <TextBlock Grid.Column="0"
+                                                               Text="{Binding FullName}"
+                                                               FontSize="14"
+                                                               Foreground="#111827"
+                                                               VerticalAlignment="Center"
+                                                               Margin="16,0"/>
+
+                                                    <!-- Email -->
+                                                    <TextBlock Grid.Column="1"
+                                                               Text="{Binding Email}"
+                                                               FontSize="14"
+                                                               Foreground="#6B7280"
+                                                               VerticalAlignment="Center"
+                                                               Margin="16,0"/>
+
+                                                    <!-- Status Badge -->
+                                                    <Border Grid.Column="2"
+                                                            CornerRadius="6"
+                                                            Padding="8,4"
+                                                            Margin="16,0"
+                                                            Width="120"
+                                                            HorizontalAlignment="Left"
+                                                            Background="{Binding IsApproved, Converter={x:Static converters:AdminPanelConverters.StatusBackgroundConverter}}">
+                                                        <TextBlock Text="{Binding StatusText}"
+                                                                   FontSize="12"
+                                                                   FontWeight="SemiBold"
+                                                                   Foreground="{Binding StatusColor}"
+                                                                   HorizontalAlignment="Center"/>
+                                                    </Border>
+
+                                                    <!-- Role Dropdown -->
+                                                    <ComboBox Grid.Column="3"
+                                                              ItemsSource="{Binding AvailableRoles}"
+                                                              SelectedItem="{Binding SelectedRole}"
+                                                              Width="140"
+                                                              Margin="16,0"
+                                                              VerticalAlignment="Center"
+                                                              Padding="8,6"
+                                                              FontSize="13"/>
+
+                                                    <!-- Action Buttons -->
+                                                    <StackPanel Grid.Column="4"
+                                                                Orientation="Horizontal"
+                                                                Spacing="8"
+                                                                Margin="16,0"
+                                                                Width="320">
+                                                        <!-- Approve/Revoke Button -->
+                                                        <Button Content="{Binding ApprovalButtonText}"
+                                                                Command="{Binding $parent[ItemsControl].((vm:ProfilePageViewModel)DataContext).AdminPanel.ApproveUserCommand}"
+                                                                CommandParameter="{Binding}"
+                                                                Padding="12,6"
+                                                                FontSize="12"
+                                                                FontWeight="SemiBold"
+                                                                CornerRadius="6"
+                                                                BorderThickness="0"
+                                                                Cursor="Hand"
+                                                                MinWidth="90"
+                                                                Background="{Binding IsApproved, Converter={x:Static converters:AdminPanelConverters.ApprovalButtonColorConverter}}"
+                                                                Foreground="White"/>
+
+                                                        <!-- Update Role Button -->
+                                                        <Button Content="🔄 Update Role"
+                                                                Command="{Binding $parent[ItemsControl].((vm:ProfilePageViewModel)DataContext).AdminPanel.UpdateRoleCommand}"
+                                                                CommandParameter="{Binding}"
+                                                                Background="#2196F3"
+                                                                Foreground="White"
+                                                                Padding="12,6"
+                                                                FontSize="12"
+                                                                FontWeight="SemiBold"
+                                                                CornerRadius="6"
+                                                                BorderThickness="0"
+                                                                Cursor="Hand"
+                                                                MinWidth="120"/>
+                                                    </StackPanel>
+                                                </Grid>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </Grid>
+                        </Border>
+                    </ScrollViewer>
+                </Grid>
+            </Border>
         </Grid>
     </ScrollViewer>
 </UserControl>
