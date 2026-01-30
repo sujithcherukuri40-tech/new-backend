@@ -1,0 +1,572 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:PavamanDroneConfigurator.UI.ViewModels"
+             x:Class="PavamanDroneConfigurator.UI.Views.CameraConfigPage"
+             x:DataType="vm:CameraConfigPageViewModel">
+
+    <UserControl.Styles>
+        <!-- Modern Blue Theme -->
+        <Style Selector="TextBlock.PageTitle">
+            <Setter Property="FontSize" Value="24"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Foreground" Value="#29ABE2"/>
+            <Setter Property="LetterSpacing" Value="1"/>
+        </Style>
+
+        <Style Selector="TextBlock.SectionTitle">
+            <Setter Property="FontSize" Value="16"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Foreground" Value="#29ABE2"/>
+            <Setter Property="Margin" Value="0,0,0,24"/>
+        </Style>
+
+        <Style Selector="TextBlock.FieldLabel">
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="FontWeight" Value="Normal"/>
+            <Setter Property="Foreground" Value="#64748B"/>
+            <Setter Property="Margin" Value="0,0,0,8"/>
+        </Style>
+
+        <Style Selector="TextBlock.HintText">
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="Foreground" Value="#94A3B8"/>
+            <Setter Property="Margin" Value="0,4,0,0"/>
+            <Setter Property="TextAlignment" Value="Right"/>
+        </Style>
+
+        <Style Selector="TextBlock.ErrorText">
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="Foreground" Value="#DC2626"/>
+            <Setter Property="Margin" Value="0,4,0,0"/>
+        </Style>
+
+        <Style Selector="Border.SectionCard">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="Margin" Value="0,0,0,40"/>
+        </Style>
+
+        <Style Selector="TextBox.CameraInput">
+            <Setter Property="Background" Value="White"/>
+            <Setter Property="BorderBrush" Value="#CBD5E1"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Padding" Value="12,10"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="Height" Value="44"/>
+        </Style>
+
+        <Style Selector="TextBox.CameraInput:focus">
+            <Setter Property="BorderBrush" Value="#29ABE2"/>
+        </Style>
+
+        <Style Selector="TextBox.CameraInput:error">
+            <Setter Property="BorderBrush" Value="#DC2626"/>
+        </Style>
+
+        <Style Selector="ComboBox.CameraCombo">
+            <Setter Property="Background" Value="White"/>
+            <Setter Property="BorderBrush" Value="#CBD5E1"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Padding" Value="12,8"/>
+            <Setter Property="Height" Value="44"/>
+            <Setter Property="HorizontalAlignment" Value="Stretch"/>
+        </Style>
+
+        <Style Selector="Button.Primary">
+            <Setter Property="Background" Value="#29ABE2"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Padding" Value="16,10"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="FontSize" Value="13"/>
+        </Style>
+
+        <Style Selector="Button.Primary:pointerover">
+            <Setter Property="Background" Value="#1E96C8"/>
+        </Style>
+
+        <Style Selector="Button.Primary:disabled">
+            <Setter Property="Background" Value="#CBD5E1"/>
+            <Setter Property="Foreground" Value="#94A3B8"/>
+        </Style>
+
+        <Style Selector="Button.Secondary">
+            <Setter Property="Background" Value="#E2E8F0"/>
+            <Setter Property="Foreground" Value="#475569"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Padding" Value="16,10"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="FontSize" Value="13"/>
+        </Style>
+
+        <Style Selector="Button.Secondary:pointerover">
+            <Setter Property="Background" Value="#CBD5E1"/>
+        </Style>
+
+        <Style Selector="Button.Secondary:disabled">
+            <Setter Property="Background" Value="#F1F5F9"/>
+            <Setter Property="Foreground" Value="#CBD5E1"/>
+        </Style>
+    </UserControl.Styles>
+
+    <Grid RowDefinitions="*,Auto" Background="#F8FAFC">
+        <!-- Main Content -->
+        <ScrollViewer Grid.Row="0" 
+                      VerticalScrollBarVisibility="Auto"
+                      Margin="60,40,60,16">
+            <StackPanel>
+                <!-- Camera Settings Section -->
+                <Border Classes="SectionCard">
+                    <StackPanel Spacing="24">
+                        <TextBlock Classes="SectionTitle" Text="CAMERA SETTINGS"/>
+
+                        <!-- First Row: Camera Relay, Camera Servo On, Camera Servo Off -->
+                        <Grid ColumnDefinitions="*,16,*,16,*" RowDefinitions="Auto">
+                            <!-- Camera Relay -->
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Classes="FieldLabel" Text="Camera Relay"/>
+                                <ComboBox Classes="CameraCombo"
+                                          ItemsSource="{Binding CameraRelayOptions}"
+                                          SelectedItem="{Binding SelectedCameraRelay}">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding Label}"/>
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
+                            </StackPanel>
+
+                            <!-- Camera Servo On -->
+                            <StackPanel Grid.Column="2">
+                                <TextBlock Classes="FieldLabel" Text="Camera Servo On"/>
+                                <Grid>
+                                    <TextBox Classes="CameraInput"
+                                             Text="{Binding CameraServoOn}"
+                                             Watermark="0"
+                                             Padding="12,10,60,10"/>
+                                    <TextBlock Text="PWM"
+                                               Foreground="#94A3B8"
+                                               FontSize="13"
+                                               VerticalAlignment="Center"
+                                               HorizontalAlignment="Right"
+                                               Margin="0,0,12,0"
+                                               IsHitTestVisible="False"/>
+                                </Grid>
+                                <TextBlock Classes="HintText" 
+                                           Text="[Min 1000 - Max 2000]"
+                                           IsVisible="{Binding !CameraServoOnError}"/>
+                                <TextBlock Classes="ErrorText"
+                                           Text="{Binding CameraServoOnError}"
+                                           IsVisible="{Binding CameraServoOnError}"/>
+                            </StackPanel>
+
+                            <!-- Camera Servo Off -->
+                            <StackPanel Grid.Column="4">
+                                <TextBlock Classes="FieldLabel" Text="Camera Servo Off"/>
+                                <Grid>
+                                    <TextBox Classes="CameraInput"
+                                             Text="{Binding CameraServoOff}"
+                                             Watermark="0"
+                                             Padding="12,10,60,10"/>
+                                    <TextBlock Text="PWM"
+                                               Foreground="#94A3B8"
+                                               FontSize="13"
+                                               VerticalAlignment="Center"
+                                               HorizontalAlignment="Right"
+                                               Margin="0,0,12,0"
+                                               IsHitTestVisible="False"/>
+                                </Grid>
+                                <TextBlock Classes="HintText" 
+                                           Text="[Min 1000 - Max 2000]"
+                                           IsVisible="{Binding !CameraServoOffError}"/>
+                                <TextBlock Classes="ErrorText"
+                                           Text="{Binding CameraServoOffError}"
+                                           IsVisible="{Binding CameraServoOffError}"/>
+                            </StackPanel>
+                        </Grid>
+
+                        <!-- Second Row: Camera Trigger Type, Camera Trigger Distance, Camera Trigger Duration -->
+                        <Grid ColumnDefinitions="*,16,*,16,*" RowDefinitions="Auto">
+                            <!-- Camera Trigger Type -->
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Classes="FieldLabel" Text="Camera Trigger Type"/>
+                                <ComboBox Classes="CameraCombo"
+                                          ItemsSource="{Binding CameraTriggerTypeOptions}"
+                                          SelectedItem="{Binding SelectedCameraTriggerType}">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding Label}"/>
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
+                            </StackPanel>
+
+                            <!-- Camera Trigger Distance -->
+                            <StackPanel Grid.Column="2">
+                                <TextBlock Classes="FieldLabel" Text="Camera Trigger Distance"/>
+                                <Grid>
+                                    <TextBox Classes="CameraInput"
+                                             Text="{Binding CameraTriggerDistance}"
+                                             Watermark="0"
+                                             Padding="12,10,80,10"/>
+                                    <TextBlock Text="Meters"
+                                               Foreground="#94A3B8"
+                                               FontSize="13"
+                                               VerticalAlignment="Center"
+                                               HorizontalAlignment="Right"
+                                               Margin="0,0,12,0"
+                                               IsHitTestVisible="False"/>
+                                </Grid>
+                                <TextBlock Classes="HintText" 
+                                           Text="[Min 0 - Max 1000]"
+                                           IsVisible="{Binding !CameraTriggerDistanceError}"/>
+                                <TextBlock Classes="ErrorText"
+                                           Text="{Binding CameraTriggerDistanceError}"
+                                           IsVisible="{Binding CameraTriggerDistanceError}"/>
+                            </StackPanel>
+
+                            <!-- Camera Trigger Duration -->
+                            <StackPanel Grid.Column="4">
+                                <TextBlock Classes="FieldLabel" Text="Camera Trigger Duration"/>
+                                <Grid>
+                                    <TextBox Classes="CameraInput"
+                                             Text="{Binding CameraTriggerDuration}"
+                                             Watermark="0"
+                                             Padding="12,10,110,10"/>
+                                    <TextBlock Text="Deciseconds"
+                                               Foreground="#94A3B8"
+                                               FontSize="13"
+                                               VerticalAlignment="Center"
+                                               HorizontalAlignment="Right"
+                                               Margin="0,0,12,0"
+                                               IsHitTestVisible="False"/>
+                                </Grid>
+                                <TextBlock Classes="HintText" 
+                                           Text="[Min 0 - Max 50]"
+                                           IsVisible="{Binding !CameraTriggerDurationError}"/>
+                                <TextBlock Classes="ErrorText"
+                                           Text="{Binding CameraTriggerDurationError}"
+                                           IsVisible="{Binding CameraTriggerDurationError}"/>
+                            </StackPanel>
+                        </Grid>
+
+                        <!-- Third Row: Camera Relay Pin -->
+                        <Grid ColumnDefinitions="*,16,*,16,*" RowDefinitions="Auto">
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Classes="FieldLabel" Text="Camera Relay Pin"/>
+                                <TextBox Classes="CameraInput"
+                                         Text="{Binding CameraRelayPin}"
+                                         Watermark="-1"/>
+                                <TextBlock Classes="HintText" 
+                                           Text="[Min 0 - Max 50]"
+                                           IsVisible="{Binding !CameraRelayPinError}"/>
+                                <TextBlock Classes="ErrorText"
+                                           Text="{Binding CameraRelayPinError}"
+                                           IsVisible="{Binding CameraRelayPinError}"/>
+                            </StackPanel>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <!-- Gimbal Settings Section -->
+                <Border Classes="SectionCard">
+                    <StackPanel Spacing="24">
+                        <TextBlock Classes="SectionTitle" Text="GIMBAL TILT"/>
+
+                        <!-- First Row: Control Mode, Fixed Tilt Angle, RC Tilt Channel -->
+                        <Grid ColumnDefinitions="*,16,*,16,*" RowDefinitions="Auto">
+                            <!-- Control Mode -->
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Classes="FieldLabel" Text="Control Mode"/>
+                                <ComboBox Classes="CameraCombo"
+                                          ItemsSource="{Binding GimbalControlModeOptions}"
+                                          SelectedItem="{Binding SelectedGimbalControlMode}">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding Label}"/>
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
+                            </StackPanel>
+
+                            <!-- Fixed Tilt Angle (visible only in Fixed Angle or Mission Controlled mode) -->
+                            <StackPanel Grid.Column="2" IsVisible="{Binding IsFixedAngleMode}">
+                                <TextBlock Classes="FieldLabel" Text="Fixed Tilt Angle"/>
+                                <Grid>
+                                    <TextBox Classes="CameraInput"
+                                             Text="{Binding FixedTiltAngle}"
+                                             Watermark="-45"
+                                             Padding="12,10,80,10"
+                                             IsEnabled="{Binding IsGimbalEnabled}"/>
+                                    <TextBlock Text="Degrees"
+                                               Foreground="#94A3B8"
+                                               FontSize="13"
+                                               VerticalAlignment="Center"
+                                               HorizontalAlignment="Right"
+                                               Margin="0,0,12,0"
+                                               IsHitTestVisible="False"/>
+                                </Grid>
+                                <TextBlock Classes="HintText" 
+                                           Text="[Min -90 - Max 0]"
+                                           IsVisible="{Binding !FixedTiltAngleError}"/>
+                                <TextBlock Classes="ErrorText"
+                                           Text="{Binding FixedTiltAngleError}"
+                                           IsVisible="{Binding FixedTiltAngleError}"/>
+                            </StackPanel>
+
+                            <!-- RC Tilt Channel (visible only in RC Controlled mode) -->
+                            <StackPanel Grid.Column="2" IsVisible="{Binding IsRcControlledMode}">
+                                <TextBlock Classes="FieldLabel" Text="RC Tilt Channel"/>
+                                <ComboBox Classes="CameraCombo"
+                                          ItemsSource="{Binding RcChannelOptions}"
+                                          SelectedItem="{Binding SelectedRcTiltChannel}"
+                                          IsEnabled="{Binding IsGimbalEnabled}">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding Label}"/>
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
+                            </StackPanel>
+                        </Grid>
+
+                        <!-- Second Row: Tilt Limits (Min and Max) -->
+                        <Grid ColumnDefinitions="*,16,*,16,*" RowDefinitions="Auto">
+                            <!-- Min Tilt Angle -->
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Classes="FieldLabel" Text="Min Tilt Angle"/>
+                                <Grid>
+                                    <TextBox Classes="CameraInput"
+                                             Text="{Binding GimbalTiltMin}"
+                                             Watermark="-90"
+                                             Padding="12,10,80,10"
+                                             IsEnabled="{Binding IsGimbalEnabled}"/>
+                                    <TextBlock Text="Degrees"
+                                               Foreground="#94A3B8"
+                                               FontSize="13"
+                                               VerticalAlignment="Center"
+                                               HorizontalAlignment="Right"
+                                               Margin="0,0,12,0"
+                                               IsHitTestVisible="False"/>
+                                </Grid>
+                                <TextBlock Classes="HintText" 
+                                           Text="[Min -90 - Max 0]"
+                                           IsVisible="{Binding !GimbalTiltMinError}"/>
+                                <TextBlock Classes="ErrorText"
+                                           Text="{Binding GimbalTiltMinError}"
+                                           IsVisible="{Binding GimbalTiltMinError}"/>
+                            </StackPanel>
+
+                            <!-- Max Tilt Angle -->
+                            <StackPanel Grid.Column="2">
+                                <TextBlock Classes="FieldLabel" Text="Max Tilt Angle"/>
+                                <Grid>
+                                    <TextBox Classes="CameraInput"
+                                             Text="{Binding GimbalTiltMax}"
+                                             Watermark="0"
+                                             Padding="12,10,80,10"
+                                             IsEnabled="{Binding IsGimbalEnabled}"/>
+                                    <TextBlock Text="Degrees"
+                                               Foreground="#94A3B8"
+                                               FontSize="13"
+                                               VerticalAlignment="Center"
+                                               HorizontalAlignment="Right"
+                                               Margin="0,0,12,0"
+                                               IsHitTestVisible="False"/>
+                                </Grid>
+                                <TextBlock Classes="HintText" 
+                                           Text="[Min -90 - Max 0]"
+                                           IsVisible="{Binding !GimbalTiltMaxError}"/>
+                                <TextBlock Classes="ErrorText"
+                                           Text="{Binding GimbalTiltMaxError}"
+                                           IsVisible="{Binding GimbalTiltMaxError}"/>
+                            </StackPanel>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <!-- Output Channel Section -->
+                <Border Classes="SectionCard">
+                    <StackPanel Spacing="24">
+                        <TextBlock Classes="SectionTitle" Text="OUTPUT CHANNEL"/>
+
+                        <!-- First Row: Output Channel Number, Output Type -->
+                        <Grid ColumnDefinitions="*,16,*,16,*" RowDefinitions="Auto">
+                            <!-- Output Channel Number -->
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Classes="FieldLabel" Text="Output Channel"/>
+                                <ComboBox Classes="CameraCombo"
+                                          ItemsSource="{Binding OutputChannelOptions}"
+                                          SelectedItem="{Binding SelectedOutputChannel}">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding Label}"/>
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
+                            </StackPanel>
+
+                            <!-- Output Type -->
+                            <StackPanel Grid.Column="2">
+                                <TextBlock Classes="FieldLabel" Text="Output Type"/>
+                                <ComboBox Classes="CameraCombo"
+                                          ItemsSource="{Binding OutputTypeOptions}"
+                                          SelectedItem="{Binding SelectedOutputType}">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding Label}"/>
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
+                            </StackPanel>
+
+                            <!-- Reverse Output Toggle -->
+                            <StackPanel Grid.Column="4">
+                                <TextBlock Classes="FieldLabel" Text="Reverse Output"/>
+                                <CheckBox Content="Reverse"
+                                          IsChecked="{Binding ReverseOutput}"
+                                          VerticalAlignment="Center"
+                                          Margin="0,8,0,0"/>
+                            </StackPanel>
+                        </Grid>
+
+                        <!-- Second Row: PWM Configuration (visible only when Output Type = PWM Servo) -->
+                        <Grid ColumnDefinitions="*,16,*,16,*" RowDefinitions="Auto" IsVisible="{Binding IsPwmServoMode}">
+                            <!-- PWM Min -->
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Classes="FieldLabel" Text="PWM Min"/>
+                                <Grid>
+                                    <TextBox Classes="CameraInput"
+                                             Text="{Binding PwmMin}"
+                                             Watermark="1000"
+                                             Padding="12,10,60,10"/>
+                                    <TextBlock Text="PWM"
+                                               Foreground="#94A3B8"
+                                               FontSize="13"
+                                               VerticalAlignment="Center"
+                                               HorizontalAlignment="Right"
+                                               Margin="0,0,12,0"
+                                               IsHitTestVisible="False"/>
+                                </Grid>
+                                <TextBlock Classes="HintText" 
+                                           Text="[Min 1000 - Max 2000]"
+                                           IsVisible="{Binding !PwmMinError}"/>
+                                <TextBlock Classes="ErrorText"
+                                           Text="{Binding PwmMinError}"
+                                           IsVisible="{Binding PwmMinError}"/>
+                            </StackPanel>
+
+                            <!-- PWM Max -->
+                            <StackPanel Grid.Column="2">
+                                <TextBlock Classes="FieldLabel" Text="PWM Max"/>
+                                <Grid>
+                                    <TextBox Classes="CameraInput"
+                                             Text="{Binding PwmMax}"
+                                             Watermark="2000"
+                                             Padding="12,10,60,10"/>
+                                    <TextBlock Text="PWM"
+                                               Foreground="#94A3B8"
+                                               FontSize="13"
+                                               VerticalAlignment="Center"
+                                               HorizontalAlignment="Right"
+                                               Margin="0,0,12,0"
+                                               IsHitTestVisible="False"/>
+                                </Grid>
+                                <TextBlock Classes="HintText" 
+                                           Text="[Min 1000 - Max 2000]"
+                                           IsVisible="{Binding !PwmMaxError}"/>
+                                <TextBlock Classes="ErrorText"
+                                           Text="{Binding PwmMaxError}"
+                                           IsVisible="{Binding PwmMaxError}"/>
+                            </StackPanel>
+
+                            <!-- PWM Neutral -->
+                            <StackPanel Grid.Column="4">
+                                <TextBlock Classes="FieldLabel" Text="PWM Neutral"/>
+                                <Grid>
+                                    <TextBox Classes="CameraInput"
+                                             Text="{Binding PwmNeutral}"
+                                             Watermark="1500"
+                                             Padding="12,10,60,10"/>
+                                    <TextBlock Text="PWM"
+                                               Foreground="#94A3B8"
+                                               FontSize="13"
+                                               VerticalAlignment="Center"
+                                               HorizontalAlignment="Right"
+                                               Margin="0,0,12,0"
+                                               IsHitTestVisible="False"/>
+                                </Grid>
+                                <TextBlock Classes="HintText" 
+                                           Text="[Min 1000 - Max 2000]"
+                                           IsVisible="{Binding !PwmNeutralError}"/>
+                                <TextBlock Classes="ErrorText"
+                                           Text="{Binding PwmNeutralError}"
+                                           IsVisible="{Binding PwmNeutralError}"/>
+                            </StackPanel>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- Footer with Action Buttons -->
+        <Border Grid.Row="1" 
+                Background="White"
+                BorderBrush="#E2E8F0"
+                BorderThickness="0,1,0,0"
+                Padding="32,16">
+            <Grid ColumnDefinitions="*,Auto,Auto,Auto">
+                <!-- Status Message -->
+                <TextBlock Grid.Column="0" 
+                           Text="{Binding StatusMessage}"
+                           Foreground="#64748B"
+                           VerticalAlignment="Center"/>
+
+                <!-- Action Buttons -->
+                <Button Grid.Column="1" 
+                        Classes="Secondary"
+                        Content="Refresh"
+                        Command="{Binding RefreshCommand}"
+                        IsEnabled="{Binding IsPageEnabled}"
+                        Margin="0,0,8,0"/>
+
+                <Button Grid.Column="2" 
+                        Classes="Secondary"
+                        Content="Reset to Defaults"
+                        Command="{Binding ResetToDefaultsCommand}"
+                        IsEnabled="{Binding IsPageEnabled}"
+                        Margin="0,0,8,0"/>
+
+                <Button Grid.Column="3" 
+                        Classes="Primary"
+                        Content="Save Parameters"
+                        Command="{Binding SaveParametersCommand}"
+                        IsEnabled="{Binding IsPageEnabled}"/>
+            </Grid>
+        </Border>
+
+        <!-- Loading Overlay -->
+        <Border Grid.RowSpan="2"
+                Background="#CC000000"
+                IsVisible="{Binding IsBusy}"
+                IsHitTestVisible="{Binding IsBusy}">
+            <Border Background="White"
+                    Padding="32"
+                    CornerRadius="12"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    BoxShadow="0 4 20 0 #40000000">
+                <StackPanel Spacing="16" HorizontalAlignment="Center">
+                    <ProgressBar IsIndeterminate="True" Width="200"/>
+                    <TextBlock Text="{Binding StatusMessage}"
+                               HorizontalAlignment="Center"
+                               Foreground="#64748B"/>
+                </StackPanel>
+            </Border>
+        </Border>
+    </Grid>
+</UserControl>

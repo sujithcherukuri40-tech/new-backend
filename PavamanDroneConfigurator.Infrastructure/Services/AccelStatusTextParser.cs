@@ -8,7 +8,22 @@ namespace PavamanDroneConfigurator.Infrastructure.Services;
 /// CRITICAL: This parser detects position requests, completion, and failure messages.
 /// FC controls the calibration workflow entirely via STATUSTEXT.
 /// 
-/// TASK 1: Filters out EKF/PreArm/GPS warnings that interfere with calibration flow.
+/// MISSION PLANNER COMPATIBILITY (REFERENCE BEHAVIOR):
+/// - ALL "PreArm:" messages are NON-BLOCKING during accelerometer calibration
+/// - PreArm messages include:
+///   - "PreArm: RC not found"
+///   - "PreArm: Hardware safety switch"
+///   - "PreArm: Compass not calibrated"
+///   - "PreArm: EKF / GPS / AHRS" warnings
+/// - These are informational ONLY during IMU calibration
+/// - Safety/PreArm only blocks motor-related operations (arming, motor test, ESC calibration)
+/// - Accelerometer calibration proceeds normally even when:
+///   - RC is not connected
+///   - Safety switch is enabled
+///   - Compass is not calibrated
+///   - GPS is not available
+/// 
+/// TASK 1: Filters out EKF/PreArm/GPS/RC warnings that interfere with calibration flow.
 /// These messages are normal during accel calibration and must NOT affect state progression.
 /// </summary>
 public class AccelStatusTextParser
@@ -17,12 +32,24 @@ public class AccelStatusTextParser
     
     // TASK 1: Interference patterns to IGNORE during accelerometer calibration
     // These messages are normal side-effects and must NOT affect calibration flow
+    // 
+    // CRITICAL - MISSION PLANNER BEHAVIOR:
+    // ALL PreArm messages are treated as INTERFERENCE (non-blocking) during IMU calibration
+    // This includes:
+    //   - "PreArm: RC not found"
+    //   - "PreArm: Hardware safety switch"
+    //   - "PreArm: Compass not calibrated"
+    //   - "PreArm: EKF / GPS / AHRS" warnings
+    //   - Any other PreArm warning
+    // 
+    // These ONLY block motor operations (arming, motor test, ESC cal)
+    // They do NOT block sensor calibrations (accelerometer, gyro, compass, baro)
     private static readonly string[] InterferenceKeywords =
     {
+        "prearm",           // CRITICAL: Catches ALL PreArm messages (RC, safety, compass, etc.)
         "ekf",
         "ekf3",
         "ekf2",
-        "prearm",
         "ahrs",
         "yaw",
         "gps",
@@ -31,11 +58,17 @@ public class AccelStatusTextParser
         "bad ahrs",
         "compass",
         "mag",
+        "magnetometer",
         "gyro",
         "velocity",
         "position",
         "home",
-        "fence"
+        "fence",
+        "safety",           // Hardware safety switch messages
+        "hardware safety",  // Explicit match for safety switch
+        "rc not",           // RC not found / not connected
+        "radio",            // Radio/RC failsafe messages
+        "failsafe"          // Failsafe warnings during calibration
     };
     
     // Keywords for position detection (case-insensitive)
@@ -61,6 +94,7 @@ public class AccelStatusTextParser
     };
     
     // Keywords for failure detection (calibration-specific only)
+    // CRITICAL: Generic "failed" or "denied" are NOT here - only calibration-specific failures
     private static readonly string[] FailureKeywords =
     {
         "accel calibration failed",
@@ -86,7 +120,15 @@ public class AccelStatusTextParser
     
     /// <summary>
     /// Parse STATUSTEXT message to detect position requests, completion, or failure.
-    /// TASK 1: Filters out EKF/PreArm/GPS warnings during calibration.
+    /// TASK 1: Filters out ALL PreArm/EKF/GPS/RC/Safety warnings during calibration.
+    /// 
+    /// MISSION PLANNER BEHAVIOR (REFERENCE):
+    /// - ALL "PreArm:" messages ? Filtered as interference (non-blocking)
+    /// - "RC not found" ? Filtered as interference (non-blocking)
+    /// - "Hardware safety switch" ? Filtered as interference (non-blocking)
+    /// - "Compass not calibrated" ? Filtered as interference (non-blocking)
+    /// - PreArm warnings do NOT prevent accelerometer calibration
+    /// - They ONLY block motor operations (arming, motor test, ESC cal)
     /// </summary>
     public StatusTextParseResult Parse(string statusText)
     {
@@ -95,13 +137,44 @@ public class AccelStatusTextParser
         
         var lowerText = statusText.ToLowerInvariant();
         
-        // TASK 1: FILTER OUT EKF/PreArm/GPS interference FIRST
+        // TASK 1: FILTER OUT ALL PreArm/EKF/GPS/RC/Safety interference FIRST
+        // This must happen BEFORE checking for completion/failure to avoid false positives
         if (IsInterferenceMessage(lowerText))
         {
-            _logger.LogDebug("Filtered interference message during calibration: {Text}", statusText);
+            // Determine the type of interference for better logging
+            bool isPreArmMessage = lowerText.Contains("prearm");
+            bool isSafetyMessage = lowerText.Contains("safety");
+            bool isRcMessage = lowerText.Contains("rc not") || lowerText.Contains("radio");
+            bool isCompassMessage = lowerText.Contains("compass");
+            
+            if (isPreArmMessage)
+            {
+                _logger.LogDebug("PreArm message during calibration (NON-BLOCKING - Mission Planner compatible): {Text}", statusText);
+            }
+            else if (isSafetyMessage)
+            {
+                _logger.LogDebug("Safety switch message during calibration (NON-BLOCKING): {Text}", statusText);
+            }
+            else if (isRcMessage)
+            {
+                _logger.LogDebug("RC/Radio message during calibration (NON-BLOCKING): {Text}", statusText);
+            }
+            else if (isCompassMessage)
+            {
+                _logger.LogDebug("Compass message during calibration (NON-BLOCKING): {Text}", statusText);
+            }
+            else
+            {
+                _logger.LogDebug("Filtered interference message during calibration: {Text}", statusText);
+            }
+            
             return new StatusTextParseResult
             {
                 IsInterference = true,
+                IsPreArmWarning = isPreArmMessage,
+                IsSafetyWarning = isSafetyMessage,
+                IsRcWarning = isRcMessage,
+                IsCompassWarning = isCompassMessage,
                 OriginalText = statusText
             };
         }
@@ -162,8 +235,18 @@ public class AccelStatusTextParser
     }
     
     /// <summary>
-    /// TASK 1: Check if message is EKF/PreArm/GPS interference.
+    /// TASK 1: Check if message is PreArm/EKF/GPS/RC/Safety interference.
     /// These messages are normal during accelerometer calibration and should be ignored.
+    /// 
+    /// CRITICAL - MISSION PLANNER COMPATIBILITY:
+    /// ALL "PreArm:" messages are treated as INTERFERENCE (non-blocking) during IMU calibration.
+    /// This includes:
+    ///   - "PreArm: RC not found"
+    ///   - "PreArm: Hardware safety switch"
+    ///   - "PreArm: Compass not calibrated"
+    ///   - "PreArm: EKF / GPS / AHRS" warnings
+    /// 
+    /// These ONLY block motor operations, NOT sensor calibrations.
     /// </summary>
     private bool IsInterferenceMessage(string lowerText)
     {
@@ -272,8 +355,36 @@ public class StatusTextParseResult
     /// <summary>FC is sampling position</summary>
     public bool IsSampling { get; set; }
     
-    /// <summary>TASK 1: Message is EKF/PreArm/GPS interference (should be ignored)</summary>
+    /// <summary>TASK 1: Message is EKF/PreArm/GPS/RC/Safety interference (should be ignored)</summary>
     public bool IsInterference { get; set; }
+    
+    /// <summary>
+    /// MISSION PLANNER COMPATIBILITY:
+    /// True if message is a PreArm warning (e.g., "PreArm: RC not found", "PreArm: Hardware safety switch").
+    /// ALL PreArm messages are NON-BLOCKING during accelerometer calibration.
+    /// PreArm only blocks motor operations (arming, motor test, ESC calibration).
+    /// </summary>
+    public bool IsPreArmWarning { get; set; }
+    
+    /// <summary>
+    /// MISSION PLANNER COMPATIBILITY:
+    /// True if message is a safety-related warning (e.g., "PreArm: Hardware safety switch").
+    /// These are NON-BLOCKING during accelerometer calibration.
+    /// Safety only blocks motor operations (arming, motor test, ESC calibration).
+    /// </summary>
+    public bool IsSafetyWarning { get; set; }
+    
+    /// <summary>
+    /// True if message is an RC/Radio warning (e.g., "RC not found", "Radio failsafe").
+    /// These are NON-BLOCKING during accelerometer calibration.
+    /// </summary>
+    public bool IsRcWarning { get; set; }
+    
+    /// <summary>
+    /// True if message is a compass warning (e.g., "Compass not calibrated").
+    /// These are NON-BLOCKING during accelerometer calibration.
+    /// </summary>
+    public bool IsCompassWarning { get; set; }
     
     /// <summary>Original STATUSTEXT message</summary>
     public string OriginalText { get; set; } = "";

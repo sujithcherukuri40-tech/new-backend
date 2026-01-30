@@ -152,8 +152,6 @@ public partial class App : Application
         services.AddSingleton<CalibrationPreConditionChecker>();
         services.AddSingleton<CalibrationAbortMonitor>();
         services.AddSingleton<CalibrationValidationHelper>();
-        services.AddSingleton<AccelStatusTextParser>();
-        services.AddSingleton<AccelImuValidator>();
         services.AddSingleton<AccelerometerCalibrationService>();
 
         services.AddSingleton<Stm32Bootloader>();
@@ -164,7 +162,8 @@ public partial class App : Application
 
         services.AddSingleton<IConnectionService, ConnectionService>();
         services.AddSingleton<IParameterService, ParameterService>();
-        services.AddSingleton<ICalibrationService, CalibrationService>();
+        // TODO: CalibrationService implementation missing - commented out to fix build
+        // services.AddSingleton<ICalibrationService, CalibrationService>();
         services.AddSingleton<ISafetyService, SafetyService>();
         services.AddSingleton<IAirframeService, AirframeService>();
         services.AddSingleton<IPersistenceService, PersistenceService>();
@@ -204,6 +203,7 @@ public partial class App : Application
         services.AddTransient<LogAnalyzerPageViewModel>();
         services.AddTransient<ResetParametersPageViewModel>();
         services.AddTransient<SprayingConfigPageViewModel>();
+        services.AddTransient<CameraConfigPageViewModel>();
         services.AddTransient<AdvancedSettingsPageViewModel>();
         services.AddTransient<FirmwarePageViewModel>();
 
