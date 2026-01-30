@@ -22,6 +22,18 @@ public sealed partial class AdminPanelViewModel : ViewModelBase
     private ObservableCollection<UserListItem> _users = new();
 
     [ObservableProperty]
+    private ObservableCollection<UserListItem> _filteredUsers = new();
+
+    [ObservableProperty]
+    private string _searchText = string.Empty;
+
+    [ObservableProperty]
+    private int _statusFilter = 0; // 0 = All, 1 = Approved, 2 = Pending
+
+    [ObservableProperty]
+    private int _roleFilter = 0; // 0 = All, 1 = Admin, 2 = User
+
+    [ObservableProperty]
     private bool _isBusy;
 
     [ObservableProperty]
@@ -30,7 +42,7 @@ public sealed partial class AdminPanelViewModel : ViewModelBase
     /// <summary>
     /// Count of users pending approval.
     /// </summary>
-    public int PendingCount => Users.Count(u => !u.IsApproved);
+    public int PendingCount => FilteredUsers.Count(u => !u.IsApproved);
 
     /// <summary>
     /// Total count of users.
@@ -50,6 +62,17 @@ public sealed partial class AdminPanelViewModel : ViewModelBase
     /// </summary>
     public async Task InitializeAsync()
     {
+        // Set up property changed event for filters
+        PropertyChanged += (s, e) =>
+        {
+            if (e.PropertyName == nameof(SearchText) || 
+                e.PropertyName == nameof(StatusFilter) || 
+                e.PropertyName == nameof(RoleFilter))
+            {
+                ApplyFilters();
+            }
+        };
+
         await RefreshAsync();
     }
 
@@ -82,7 +105,7 @@ public sealed partial class AdminPanelViewModel : ViewModelBase
                     });
                 }
 
-                OnPropertyChanged(nameof(PendingCount));
+                ApplyFilters();
             });
 
             StatusMessage = $"Loaded {Users.Count} users ({PendingCount} pending approval)";
@@ -215,6 +238,57 @@ public sealed partial class AdminPanelViewModel : ViewModelBase
         }
     }
 
+    [RelayCommand]
+    private void ClearFilters()
+    {
+        SearchText = string.Empty;
+        StatusFilter = 0;
+        RoleFilter = 0;
+        StatusMessage = "Filters cleared";
+    }
+
+    private void ApplyFilters()
+    {
+        var filtered = Users.AsEnumerable();
+
+        // Apply search filter
+        if (!string.IsNullOrWhiteSpace(SearchText))
+        {
+            var searchLower = SearchText.ToLowerInvariant();
+            filtered = filtered.Where(u => 
+                u.FullName.ToLowerInvariant().Contains(searchLower) ||
+                u.Email.ToLowerInvariant().Contains(searchLower));
+        }
+
+        // Apply status filter
+        if (StatusFilter == 1) // Approved
+        {
+            filtered = filtered.Where(u => u.IsApproved);
+        }
+        else if (StatusFilter == 2) // Pending
+        {
+            filtered = filtered.Where(u => !u.IsApproved);
+        }
+
+        // Apply role filter
+        if (RoleFilter == 1) // Admin
+        {
+            filtered = filtered.Where(u => u.Role == "Admin");
+        }
+        else if (RoleFilter == 2) // User
+        {
+            filtered = filtered.Where(u => u.Role == "User");
+        }
+
+        FilteredUsers.Clear();
+        foreach (var user in filtered)
+        {
+            FilteredUsers.Add(user);
+        }
+
+        OnPropertyChanged(nameof(PendingCount));
+    }
+
     partial void OnUsersChanged(ObservableCollection<UserListItem> value)
     {
         OnPropertyChanged(nameof(PendingCount));
@@ -264,12 +338,19 @@ public sealed partial class UserListItem : ObservableObject
     /// <summary>
     /// Approval button text.
     /// </summary>
-    public string ApprovalButtonText => IsApproved ? "Revoke" : "Approve";
+    public string ApprovalButtonText => IsApproved 
+        ? "🚫 Revoke Access" 
+        : $"✅ Approve as {SelectedRole}";
 
     partial void OnIsApprovedChanged(bool value)
     {
         OnPropertyChanged(nameof(StatusText));
         OnPropertyChanged(nameof(StatusColor));
+        OnPropertyChanged(nameof(ApprovalButtonText));
+    }
+
+    partial void OnSelectedRoleChanged(string value)
+    {
         OnPropertyChanged(nameof(ApprovalButtonText));
     }
 }
