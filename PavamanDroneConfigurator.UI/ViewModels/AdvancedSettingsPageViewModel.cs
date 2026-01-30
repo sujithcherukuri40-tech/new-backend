@@ -133,6 +133,11 @@ public partial class AdvancedSettingsPageViewModel : ViewModelBase
 
     #endregion
 
+    /// <summary>
+    /// Whether to show the empty state message (no parameters found).
+    /// </summary>
+    public bool ShowEmptyState => !IsLoading && FilteredParameters.Count == 0 && IsLoaded;
+
     public AdvancedSettingsPageViewModel(IArduPilotMetadataLoader metadataLoader)
     {
         _metadataLoader = metadataLoader;
@@ -236,6 +241,22 @@ public partial class AdvancedSettingsPageViewModel : ViewModelBase
     }
 
     /// <summary>
+    /// Notifies when IsLoading changes to update empty state visibility.
+    /// </summary>
+    partial void OnIsLoadingChanged(bool value)
+    {
+        OnPropertyChanged(nameof(ShowEmptyState));
+    }
+
+    /// <summary>
+    /// Notifies when IsLoaded changes to update empty state visibility.
+    /// </summary>
+    partial void OnIsLoadedChanged(bool value)
+    {
+        OnPropertyChanged(nameof(ShowEmptyState));
+    }
+
+    /// <summary>
     /// Applies the filter when search text changes.
     /// </summary>
     partial void OnSearchTextChanged(string value)
@@ -283,6 +304,7 @@ public partial class AdvancedSettingsPageViewModel : ViewModelBase
         }
 
         FilteredParameterCount = FilteredParameters.Count;
+        OnPropertyChanged(nameof(ShowEmptyState));
         
         // Update status message
         if (!string.IsNullOrWhiteSpace(SearchText) || !SelectedGroup.Equals("All", StringComparison.OrdinalIgnoreCase))

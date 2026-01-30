@@ -194,7 +194,8 @@
                               GridLinesVisibility="Horizontal"
                               HeadersVisibility="Column"
                               BorderThickness="0"
-                              Background="Transparent">
+                              Background="Transparent"
+                              MinHeight="400">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="Parameter" 
                                                 Binding="{Binding Name}" 
@@ -217,6 +218,56 @@
                                                 Width="*"/>
                         </DataGrid.Columns>
                     </DataGrid>
+
+                    <!-- Empty State Overlay -->
+                    <Border Grid.Row="2"
+                            Background="White"
+                            IsVisible="{Binding ShowEmptyState}">
+                        <StackPanel VerticalAlignment="Center" 
+                                    HorizontalAlignment="Center"
+                                    Spacing="16"
+                                    Margin="40">
+                            <TextBlock Text="🔍"
+                                       FontSize="48"
+                                       HorizontalAlignment="Center"
+                                       Opacity="0.3"/>
+                            <TextBlock Text="No Parameters Found"
+                                       FontSize="20"
+                                       FontWeight="SemiBold"
+                                       Foreground="#6B7280"
+                                       HorizontalAlignment="Center"/>
+                            <TextBlock Text="No parameters match your current search or filter. Try adjusting your criteria or clearing filters."
+                                       FontSize="14"
+                                       Foreground="#9CA3AF"
+                                       HorizontalAlignment="Center"
+                                       TextAlignment="Center"
+                                       MaxWidth="400"
+                                       TextWrapping="Wrap"/>
+                            <Button Content="Clear Filters"
+                                    Command="{Binding ClearFiltersCommand}"
+                                    Classes="Secondary"
+                                    HorizontalAlignment="Center"
+                                    Margin="0,8,0,0"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Loading Overlay -->
+                    <Border Grid.Row="2"
+                            Background="#F8FAFC"
+                            IsVisible="{Binding IsLoading}">
+                        <StackPanel VerticalAlignment="Center" 
+                                    HorizontalAlignment="Center"
+                                    Spacing="16">
+                            <ProgressBar IsIndeterminate="True"
+                                         Width="200"
+                                         Height="4"
+                                         Foreground="#29ABE2"/>
+                            <TextBlock Text="Loading parameter metadata..."
+                                       FontSize="14"
+                                       Foreground="#6B7280"
+                                       HorizontalAlignment="Center"/>
+                        </StackPanel>
+                    </Border>
 
                     <!-- Status Bar -->
                     <Border Grid.Row="3" Background="#F8FAFC" CornerRadius="8" Padding="12" Margin="0,16,0,0">
