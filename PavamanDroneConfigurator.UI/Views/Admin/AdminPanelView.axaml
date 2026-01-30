@@ -102,7 +102,7 @@
     <Grid RowDefinitions="Auto,*" Margin="24">
         <!-- Header -->
         <StackPanel Grid.Row="0" Spacing="8" Margin="0,0,0,24">
-            <TextBlock Text="?? User Management"
+            <TextBlock Text="User Management"
                        FontSize="28"
                        FontWeight="Bold"
                        Foreground="#111827"/>
@@ -123,28 +123,22 @@
                         BorderBrush="#E5E7EB"
                         BorderThickness="0,0,0,1">
                     <StackPanel Orientation="Horizontal" Spacing="12">
-                        <Button Content="?? Refresh"
+                        <Button Content="Refresh"
                                 Classes="action-secondary"
                                 Command="{Binding RefreshCommand}"/>
                         
                         <Border Width="1" Background="#E5E7EB" Margin="4,0"/>
                         
                         <StackPanel Orientation="Horizontal" Spacing="8">
-                            <TextBlock Text="??" FontSize="16" VerticalAlignment="Center"/>
-                            <TextBlock VerticalAlignment="Center" Foreground="#6B7280">
-                                <Run Text="Total Users:"/>
-                                <Run Text="{Binding Users.Count}" FontWeight="SemiBold" Foreground="#111827"/>
-                            </TextBlock>
+                            <TextBlock Text="Total Users:" VerticalAlignment="Center" Foreground="#6B7280"/>
+                            <TextBlock Text="{Binding Users.Count}" FontWeight="SemiBold" Foreground="#111827" VerticalAlignment="Center"/>
                         </StackPanel>
 
                         <Border Width="1" Background="#E5E7EB" Margin="4,0"/>
 
                         <StackPanel Orientation="Horizontal" Spacing="8">
-                            <TextBlock Text="?" FontSize="16" VerticalAlignment="Center"/>
-                            <TextBlock VerticalAlignment="Center" Foreground="#6B7280">
-                                <Run Text="Pending Approval:"/>
-                                <Run Text="{Binding PendingCount}" FontWeight="SemiBold" Foreground="#F59E0B"/>
-                            </TextBlock>
+                            <TextBlock Text="Pending Approval:" VerticalAlignment="Center" Foreground="#6B7280"/>
+                            <TextBlock Text="{Binding PendingCount}" FontWeight="SemiBold" Foreground="#F59E0B" VerticalAlignment="Center"/>
                         </StackPanel>
                     </StackPanel>
                 </Border>
@@ -249,7 +243,7 @@
                                                 CommandParameter="{Binding}"/>
                                    
                                         <!-- Update Role Button -->
-                                        <Button Content="?? Update Role"
+                                        <Button Content="Update Role"
                                                 Classes="action-secondary"
                                                 Command="{Binding $parent[UserControl].((vm:AdminPanelViewModel)DataContext).UpdateRoleCommand}"
                                                 CommandParameter="{Binding}"/>
@@ -286,7 +280,7 @@
                         BorderBrush="#E5E7EB"
                         BorderThickness="0,1,0,0">
                     <TextBlock FontSize="12" Foreground="#6B7280">
-                        <Run Text="?? Tip:"/>
+                        <Run Text="Tip:"/>
                         <Run Text="Select a role before approving new users. Approved users can login immediately with their assigned role."/>
                     </TextBlock>
                 </Border>

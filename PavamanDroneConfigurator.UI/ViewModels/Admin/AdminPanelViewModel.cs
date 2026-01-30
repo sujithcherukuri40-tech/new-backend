@@ -264,7 +264,7 @@ public sealed partial class UserListItem : ObservableObject
     /// <summary>
     /// Approval button text.
     /// </summary>
-    public string ApprovalButtonText => IsApproved ? "? Revoke" : "? Approve";
+    public string ApprovalButtonText => IsApproved ? "Revoke" : "Approve";
 
     partial void OnIsApprovedChanged(bool value)
     {

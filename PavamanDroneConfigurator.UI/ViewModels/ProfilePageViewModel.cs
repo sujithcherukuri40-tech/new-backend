@@ -3,7 +3,6 @@ using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 using PavamanDroneConfigurator.Core.Interfaces;
 using PavamanDroneConfigurator.UI.ViewModels.Auth;
-using PavamanDroneConfigurator.UI.ViewModels.Admin;
 using System.Collections.ObjectModel;
 
 namespace PavamanDroneConfigurator.UI.ViewModels;
@@ -13,8 +12,6 @@ public partial class ProfilePageViewModel : ViewModelBase
     private readonly IPersistenceService _persistenceService;
     private readonly AuthSessionViewModel _authSession;
     private readonly ILogger<ProfilePageViewModel> _logger;
-    private readonly IAdminService _adminService;
-    private readonly ILogger<AdminPanelViewModel> _adminPanelLogger;
 
     [ObservableProperty]
     private ObservableCollection<string> _profiles = new();
@@ -45,16 +42,26 @@ public partial class ProfilePageViewModel : ViewModelBase
     private string _accountCreatedDate = string.Empty;
 
     [ObservableProperty]
+    private string _lastLoginDate = string.Empty;
+
+    [ObservableProperty]
+    private string _userId = string.Empty;
+
+    [ObservableProperty]
     private bool _isAdmin;
 
     [ObservableProperty]
     private bool _isLoggingOut;
 
     /// <summary>
-    /// Admin panel view model for user management.
-    /// Only initialized when user is an admin.
+    /// Whether the user can logout (inverse of IsLoggingOut for binding)
     /// </summary>
-    public AdminPanelViewModel? AdminPanel { get; private set; }
+    public bool CanLogout => !IsLoggingOut;
+
+    /// <summary>
+    /// Whether the user is a regular user (not admin)
+    /// </summary>
+    public bool IsUser => !IsAdmin;
 
     /// <summary>
     /// Event raised when user requests logout and needs to navigate back to login
@@ -64,29 +71,18 @@ public partial class ProfilePageViewModel : ViewModelBase
     public ProfilePageViewModel(
         IPersistenceService persistenceService,
         AuthSessionViewModel authSession,
-        ILogger<ProfilePageViewModel> logger,
-        IAdminService adminService,
-        ILogger<AdminPanelViewModel> adminPanelLogger)
+        ILogger<ProfilePageViewModel> logger)
     {
         _persistenceService = persistenceService;
         _authSession = authSession;
         _logger = logger;
-        _adminService = adminService;
-        _adminPanelLogger = adminPanelLogger;
 
         // Load user details from auth session
         LoadUserDetails();
 
-        // Initialize admin panel if user is admin
-        if (IsAdmin)
-        {
-            AdminPanel = new AdminPanelViewModel(_adminService, _adminPanelLogger);
-            _ = AdminPanel.InitializeAsync();
-        }
-
         // Subscribe to auth state changes
         _authSession.StateChanged += OnAuthStateChanged;
-        
+
         _logger.LogInformation("ProfilePageViewModel initialized");
     }
 
@@ -98,46 +94,41 @@ public partial class ProfilePageViewModel : ViewModelBase
     private void LoadUserDetails()
     {
         var user = _authSession.CurrentState.User;
-        
-        _logger.LogInformation("Loading user details. User is null: {IsNull}", user == null);
-        
+
+        _logger.LogInformation("=== ProfilePage: Loading user details ===");
+        _logger.LogInformation("User is null: {IsNull}", user == null);
+        _logger.LogInformation("AuthSession CurrentState: {@State}", _authSession.CurrentState);
+
         if (user != null)
         {
+            _logger.LogInformation("User found: {Email}, Role: {Role}, IsAdmin: {IsAdmin}",
+                user.Email, user.Role, user.IsAdmin);
+
+            UserId = user.Id;
             UserFullName = user.FullName;
             UserEmail = user.Email;
             UserRole = user.Role;
-            var wasAdmin = IsAdmin;
             IsAdmin = user.IsAdmin;
             UserStatus = user.IsApproved ? "Approved" : "Pending Approval";
-            AccountCreatedDate = $"Member since: {user.CreatedAt:MMMM dd, yyyy}";
+            AccountCreatedDate = user.CreatedAt.ToString("MMMM dd, yyyy 'at' hh:mm tt");
+            LastLoginDate = user.LastLoginAt?.ToString("MMMM dd, yyyy 'at' hh:mm tt") ?? "Never";
 
-            // Initialize admin panel if user became an admin and panel doesn't exist
-            if (IsAdmin && !wasAdmin && AdminPanel == null)
-            {
-                AdminPanel = new AdminPanelViewModel(_adminService, _adminPanelLogger);
-                _ = AdminPanel.InitializeAsync();
-                OnPropertyChanged(nameof(AdminPanel));
-            }
-            // Dispose admin panel if user is no longer an admin
-            else if (!IsAdmin && wasAdmin && AdminPanel != null)
-            {
-                AdminPanel = null;
-                OnPropertyChanged(nameof(AdminPanel));
-            }
-
-            _logger.LogDebug("Loaded user profile: {Email} ({Role})", user.Email, user.Role);
+            _logger.LogInformation("Successfully loaded user profile: {Email} ({Role})", user.Email, user.Role);
         }
         else
         {
+            _logger.LogWarning("No user found in auth session - using fallback values");
+            UserId = string.Empty;
             UserFullName = "Guest User";
             UserEmail = "Not logged in";
             UserRole = "User";
             UserStatus = "Not authenticated";
             AccountCreatedDate = DateTime.Now.ToString("MMMM dd, yyyy 'at' hh:mm tt");
+            LastLoginDate = "Never";
             IsAdmin = false;
-            
-            _logger.LogWarning("No user found in auth session");
         }
+
+        _logger.LogInformation("=== ProfilePage: User details loaded successfully ===");
     }
 
     [RelayCommand]
@@ -151,9 +142,9 @@ public partial class ProfilePageViewModel : ViewModelBase
         try
         {
             _logger.LogInformation("User requested logout from profile page");
-            
+
             await _authSession.LogoutAsync();
-            
+
             StatusMessage = "Logged out successfully";
             _logger.LogInformation("User logged out successfully");
 
@@ -219,6 +210,16 @@ public partial class ProfilePageViewModel : ViewModelBase
 
         var data = await _persistenceService.LoadProfileAsync(SelectedProfile);
         StatusMessage = data != null ? $"Profile '{SelectedProfile}' loaded" : "Failed to load profile";
+    }
+
+    partial void OnIsLoggingOutChanged(bool value)
+    {
+        OnPropertyChanged(nameof(CanLogout));
+    }
+
+    partial void OnIsAdminChanged(bool value)
+    {
+        OnPropertyChanged(nameof(IsUser));
     }
 
     protected override void Dispose(bool disposing)
