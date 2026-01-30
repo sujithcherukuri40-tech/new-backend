@@ -220,11 +220,6 @@
                                 CommandParameter="{Binding AdminDashboardPage}"
                                 Click="NavButton_Click"
                                 IsVisible="{Binding IsAdmin}" />
-						<Button Content="👥  User Management"
-                                Classes="nav-button"
-                                CommandParameter="{Binding AdminPanelPage}"
-                                Click="NavButton_Click"
-                                IsVisible="{Binding IsAdmin}" />
 
 					</StackPanel>
 				</ScrollViewer>

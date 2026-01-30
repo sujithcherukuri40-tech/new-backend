@@ -3,339 +3,408 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="using:PavamanDroneConfigurator.UI.ViewModels.Admin"
+             xmlns:converters="using:Avalonia.Data.Converters"
              mc:Ignorable="d" d:DesignWidth="1000" d:DesignHeight="700"
              x:Class="PavamanDroneConfigurator.UI.Views.Admin.AdminDashboardView"
              x:DataType="vm:AdminDashboardViewModel">
 
     <UserControl.Styles>
-        <!-- Dashboard Card -->
-        <Style Selector="Border.dashboard-card">
+        <!-- macOS-style Card -->
+        <Style Selector="Border.card">
             <Setter Property="Background" Value="White"/>
-            <Setter Property="CornerRadius" Value="12"/>
-            <Setter Property="BoxShadow" Value="0 2 8 0 #15000000"/>
-            <Setter Property="Padding" Value="24"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="BoxShadow" Value="0 2 8 0 #10000000"/>
         </Style>
 
-        <!-- Stat Card -->
-        <Style Selector="Border.stat-card">
+        <!-- Status Badge -->
+        <Style Selector="Border.badge-approved">
+            <Setter Property="Background" Value="#DCFCE7"/>
+            <Setter Property="CornerRadius" Value="4"/>
+            <Setter Property="Padding" Value="8,4"/>
+        </Style>
+
+        <Style Selector="Border.badge-pending">
+            <Setter Property="Background" Value="#FEF3C7"/>
+            <Setter Property="CornerRadius" Value="4"/>
+            <Setter Property="Padding" Value="8,4"/>
+        </Style>
+
+        <Style Selector="Border.badge-admin">
+            <Setter Property="Background" Value="#DBEAFE"/>
+            <Setter Property="CornerRadius" Value="4"/>
+            <Setter Property="Padding" Value="8,4"/>
+        </Style>
+
+        <Style Selector="Border.badge-user">
+            <Setter Property="Background" Value="#F3F4F6"/>
+            <Setter Property="CornerRadius" Value="4"/>
+            <Setter Property="Padding" Value="8,4"/>
+        </Style>
+
+        <!-- Action Button -->
+        <Style Selector="Button.action-approve">
+            <Setter Property="Background" Value="#10B981"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="CornerRadius" Value="6"/>
+            <Setter Property="Padding" Value="12,6"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+        </Style>
+
+        <Style Selector="Button.action-approve:pointerover">
+            <Setter Property="Background" Value="#059669"/>
+        </Style>
+
+        <Style Selector="Button.action-disapprove">
+            <Setter Property="Background" Value="#EF4444"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="CornerRadius" Value="6"/>
+            <Setter Property="Padding" Value="12,6"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+        </Style>
+
+        <Style Selector="Button.action-disapprove:pointerover">
+            <Setter Property="Background" Value="#DC2626"/>
+        </Style>
+
+        <Style Selector="Button.action-secondary">
+            <Setter Property="Background" Value="#F3F4F6"/>
+            <Setter Property="Foreground" Value="#374151"/>
+            <Setter Property="CornerRadius" Value="6"/>
+            <Setter Property="Padding" Value="12,6"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+        </Style>
+
+        <Style Selector="Button.action-secondary:pointerover">
+            <Setter Property="Background" Value="#E5E7EB"/>
+        </Style>
+
+        <!-- ComboBox Style -->
+        <Style Selector="ComboBox.role-select">
+            <Setter Property="MinWidth" Value="100"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Padding" Value="8,6"/>
+            <Setter Property="CornerRadius" Value="6"/>
             <Setter Property="Background" Value="White"/>
-            <Setter Property="CornerRadius" Value="12"/>
-            <Setter Property="BoxShadow" Value="0 2 8 0 #15000000"/>
-            <Setter Property="Padding" Value="20"/>
-            <Setter Property="MinHeight" Value="140"/>
-        </Style>
-
-        <!-- Stat Card Hover Effect -->
-        <Style Selector="Border.stat-card:pointerover">
-            <Setter Property="BoxShadow" Value="0 4 16 0 #20000000"/>
-        </Style>
-
-        <!-- Primary Stat Card (Pending) -->
-        <Style Selector="Border.stat-card-primary">
-            <Setter Property="Background">
-                <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
-                    <GradientStop Color="#FEF3C7" Offset="0"/>
-                    <GradientStop Color="#FDE68A" Offset="1"/>
-                </LinearGradientBrush>
-            </Setter>
+            <Setter Property="BorderBrush" Value="#D1D5DB"/>
+            <Setter Property="BorderThickness" Value="1"/>
         </Style>
     </UserControl.Styles>
 
-    <Grid RowDefinitions="Auto,Auto,*" Margin="24">
+    <Grid RowDefinitions="Auto,*" Margin="24">
         <!-- Header -->
-        <StackPanel Grid.Row="0" Spacing="8" Margin="0,0,0,24">
-            <TextBlock Text="Admin Dashboard"
+        <StackPanel Grid.Row="0" Spacing="12" Margin="0,0,0,24">
+            <TextBlock Text="👥 User Management"
                        FontSize="32"
                        FontWeight="Bold"
                        Foreground="#111827"/>
             
-            <StackPanel Orientation="Horizontal" Spacing="12">
-                <TextBlock Text="Overview of user management and system statistics"
-                           FontSize="14"
-                           Foreground="#6B7280"
-                           VerticalAlignment="Center"/>
-                
-                <Button Content="🔄 Refresh"
-                        Command="{Binding RefreshStatisticsCommand}"
-                        Background="#F3F4F6"
-                        Foreground="#374151"
-                        CornerRadius="6"
-                        Padding="12,6"
-                        FontSize="13"
-                        BorderThickness="0"
-                        Cursor="Hand"/>
-            </StackPanel>
+            <TextBlock Text="Manage user access requests, roles, and permissions"
+                       FontSize="14"
+                       Foreground="#6B7280"/>
         </StackPanel>
 
-        <!-- Statistics Cards Grid -->
-        <Grid Grid.Row="1" ColumnDefinitions="*,*,*,*" Margin="0,0,0,24">
-            <Grid.Styles>
-                <Style Selector="Grid > Border">
-                    <Setter Property="Margin" Value="0,0,12,0"/>
-                </Style>
-                <Style Selector="Grid > Border:nth-last-child(1)">
-                    <Setter Property="Margin" Value="0"/>
-                </Style>
-            </Grid.Styles>
-
-            <!-- Total Users -->
-            <Border Grid.Column="0" Classes="stat-card">
-                <StackPanel Spacing="12">
-                    <StackPanel Orientation="Horizontal" Spacing="12">
-                        <Border Background="#DBEAFE" 
-                                CornerRadius="8" 
-                                Width="48" 
-                                Height="48"
-                                Padding="12">
-                            <TextBlock Text="👥" 
-                                       FontSize="24"
-                                       HorizontalAlignment="Center"
-                                       VerticalAlignment="Center"/>
-                        </Border>
-                        <StackPanel VerticalAlignment="Center">
-                            <TextBlock Text="Total Users"
-                                       FontSize="13"
-                                       Foreground="#6B7280"/>
-                            <TextBlock Text="{Binding TotalUsers}"
-                                       FontSize="28"
-                                       FontWeight="Bold"
-                                       Foreground="#111827"/>
-                        </StackPanel>
-                    </StackPanel>
-                    <TextBlock Text="All registered users"
-                               FontSize="12"
-                               Foreground="#9CA3AF"/>
-                </StackPanel>
-            </Border>
-
-            <!-- Pending Approvals -->
-            <Border Grid.Column="1" Classes="stat-card stat-card-primary">
-                <StackPanel Spacing="12">
-                    <StackPanel Orientation="Horizontal" Spacing="12">
-                        <Border Background="#F59E0B" 
-                                CornerRadius="8" 
-                                Width="48" 
-                                Height="48"
-                                Padding="12">
-                            <TextBlock Text="⏳" 
-                                       FontSize="24"
-                                       HorizontalAlignment="Center"
-                                       VerticalAlignment="Center"/>
-                        </Border>
-                        <StackPanel VerticalAlignment="Center">
-                            <TextBlock Text="Pending Approvals"
-                                       FontSize="13"
-                                       Foreground="#92400E"/>
-                            <TextBlock Text="{Binding PendingApprovals}"
-                                       FontSize="28"
-                                       FontWeight="Bold"
-                                       Foreground="#78350F"/>
-                        </StackPanel>
-                    </StackPanel>
-                    <TextBlock Text="Users awaiting approval"
-                               FontSize="12"
-                               Foreground="#92400E"/>
-                </StackPanel>
-            </Border>
-
-            <!-- Active Admins -->
-            <Border Grid.Column="2" Classes="stat-card">
-                <StackPanel Spacing="12">
-                    <StackPanel Orientation="Horizontal" Spacing="12">
-                        <Border Background="#DCFCE7" 
-                                CornerRadius="8" 
-                                Width="48" 
-                                Height="48"
-                                Padding="12">
-                            <TextBlock Text="👑" 
-                                       FontSize="24"
-                                       HorizontalAlignment="Center"
-                                       VerticalAlignment="Center"/>
-                        </Border>
-                        <StackPanel VerticalAlignment="Center">
-                            <TextBlock Text="Active Admins"
-                                       FontSize="13"
-                                       Foreground="#6B7280"/>
-                            <TextBlock Text="{Binding ActiveAdmins}"
-                                       FontSize="28"
-                                       FontWeight="Bold"
-                                       Foreground="#111827"/>
-                        </StackPanel>
-                    </StackPanel>
-                    <TextBlock Text="Administrators with access"
-                               FontSize="12"
-                               Foreground="#9CA3AF"/>
-                </StackPanel>
-            </Border>
-
-            <!-- Recently Active -->
-            <Border Grid.Column="3" Classes="stat-card">
-                <StackPanel Spacing="12">
-                    <StackPanel Orientation="Horizontal" Spacing="12">
-                        <Border Background="#FEE2E2" 
-                                CornerRadius="8" 
-                                Width="48" 
-                                Height="48"
-                                Padding="12">
-                            <TextBlock Text="🔄" 
-                                       FontSize="24"
-                                       HorizontalAlignment="Center"
-                                       VerticalAlignment="Center"/>
-                        </Border>
-                        <StackPanel VerticalAlignment="Center">
-                            <TextBlock Text="Recently Active"
-                                       FontSize="13"
-                                       Foreground="#6B7280"/>
-                            <TextBlock Text="{Binding RecentlyActive}"
-                                       FontSize="28"
-                                       FontWeight="Bold"
-                                       Foreground="#111827"/>
-                        </StackPanel>
-                    </StackPanel>
-                    <TextBlock Text="Logged in last 24h"
-                               FontSize="12"
-                               Foreground="#9CA3AF"/>
-                </StackPanel>
-            </Border>
-        </Grid>
-
-        <!-- Quick Stats Section -->
-        <Grid Grid.Row="2" ColumnDefinitions="2*,*">
-            <!-- Main Stats Card -->
-            <Border Grid.Column="0" Classes="dashboard-card" Margin="0,0,12,0">
-                <StackPanel Spacing="24">
-                    <TextBlock Text="Quick Statistics"
-                               FontSize="20"
-                               FontWeight="SemiBold"
-                               Foreground="#111827"/>
-
-                    <!-- Approval Rate -->
-                    <StackPanel Spacing="8">
-                        <StackPanel Orientation="Horizontal" Spacing="8">
-                            <TextBlock Text="📊 Approval Rate:"
-                                       FontSize="14"
-                                       Foreground="#6B7280"/>
-                            <TextBlock FontSize="14" FontWeight="SemiBold">
-                                <Run Text="{Binding ApprovalRate}"/>
-                                <Run Text="%"/>
-                            </TextBlock>
-                        </StackPanel>
-                    </StackPanel>
-
-                    <!-- User Growth -->
-                    <StackPanel Spacing="8">
-                        <TextBlock Text="📈 User Growth"
-                                   FontSize="14"
-                                   Foreground="#6B7280"/>
-                        <StackPanel Orientation="Horizontal" Spacing="16">
-                            <StackPanel>
-                                <TextBlock Text="Total Users"
-                                           FontSize="12"
-                                           Foreground="#9CA3AF"/>
-                                <TextBlock Text="{Binding TotalUsers}"
-                                           FontSize="20"
-                                           FontWeight="SemiBold"
-                                           Foreground="#3B82F6"/>
-                            </StackPanel>
-                            <Border Width="1" Background="#E5E7EB"/>
-                            <StackPanel>
-                                <TextBlock Text="Approved"
-                                           FontSize="12"
-                                           Foreground="#9CA3AF"/>
-                                <TextBlock Text="{Binding ApprovedUsers}"
-                                           FontSize="20"
-                                           FontWeight="SemiBold"
-                                           Foreground="#10B981"/>
-                            </StackPanel>
-                            <Border Width="1" Background="#E5E7EB"/>
-                            <StackPanel>
-                                <TextBlock Text="Pending"
-                                           FontSize="12"
-                                           Foreground="#9CA3AF"/>
-                                <TextBlock Text="{Binding PendingApprovals}"
-                                           FontSize="20"
-                                           FontWeight="SemiBold"
-                                           Foreground="#F59E0B"/>
-                            </StackPanel>
-                        </StackPanel>
-                    </StackPanel>
-
-                    <!-- Last Activity -->
-                    <StackPanel Spacing="8">
-                        <TextBlock Text="🕒 Last User Login"
-                                   FontSize="14"
-                                   Foreground="#6B7280"/>
-                        <TextBlock Text="{Binding LastLoginTime}"
-                                   FontSize="16"
-                                   FontWeight="SemiBold"
-                                   Foreground="#111827"/>
-                    </StackPanel>
-                </StackPanel>
-            </Border>
-
-            <!-- Action Card -->
-            <Border Grid.Column="1" Classes="dashboard-card">
-                <StackPanel Spacing="16">
-                    <TextBlock Text="Quick Actions"
-                               FontSize="18"
-                               FontWeight="SemiBold"
-                               Foreground="#111827"/>
-
-                    <Border Height="1" Background="#E5E7EB"/>
-
-                    <StackPanel Spacing="12">
-                        <TextBlock Text="📋 System Info"
-                                   FontSize="14"
-                                   FontWeight="SemiBold"
-                                   Foreground="#6B7280"/>
+        <!-- Content -->
+        <Border Grid.Row="1" Classes="card" Padding="0">
+            <Grid RowDefinitions="Auto,Auto,*,Auto">
+                <!-- Toolbar with Search and Filters -->
+                <Border Grid.Row="0" 
+                        Background="#F9FAFB" 
+                        Padding="16"
+                        CornerRadius="8,8,0,0"
+                        BorderBrush="#E5E7EB"
+                        BorderThickness="0,0,0,1">
+                    <Grid ColumnDefinitions="Auto,*,Auto">
+                        <!-- Refresh Button -->
+                        <Button Grid.Column="0"
+                                Content="🔄 Refresh"
+                                Classes="action-secondary"
+                                Command="{Binding RefreshCommand}"
+                                Margin="0,0,12,0"/>
                         
-                        <StackPanel Spacing="8">
-                            <StackPanel Orientation="Horizontal" Spacing="8">
-                                <TextBlock Text="Status:"
-                                           FontSize="12"
-                                           Foreground="#9CA3AF"
-                                           Width="80"/>
-                                <Border Background="#DCFCE7" 
-                                        CornerRadius="4" 
-                                        Padding="8,4">
-                                    <TextBlock Text="✅ Online"
-                                               FontSize="11"
-                                               FontWeight="SemiBold"
-                                               Foreground="#16A34A"/>
-                                </Border>
+                        <!-- Search and Filter Section -->
+                        <StackPanel Grid.Column="1" 
+                                    Orientation="Horizontal" 
+                                    Spacing="12"
+                                    HorizontalAlignment="Left">
+                            <!-- Search Box -->
+                            <TextBox Watermark="🔍 Search by name or email..."
+                                     Text="{Binding SearchText, Mode=TwoWay}"
+                                     Width="250"
+                                     CornerRadius="6"
+                                     Padding="10,6"
+                                     FontSize="13"
+                                     BorderBrush="#D1D5DB"
+                                     BorderThickness="1"/>
+                            
+                            <!-- Status Filter -->
+                            <ComboBox SelectedIndex="{Binding StatusFilter, Mode=TwoWay}"
+                                      Width="130"
+                                      Classes="role-select">
+                                <ComboBoxItem Content="All Status"/>
+                                <ComboBoxItem Content="✅ Approved"/>
+                                <ComboBoxItem Content="⏳ Pending"/>
+                            </ComboBox>
+                            
+                            <!-- Role Filter -->
+                            <ComboBox SelectedIndex="{Binding RoleFilter, Mode=TwoWay}"
+                                      Width="130"
+                                      Classes="role-select">
+                                <ComboBoxItem Content="All Roles"/>
+                                <ComboBoxItem Content="👑 Admin"/>
+                                <ComboBoxItem Content="👤 User"/>
+                            </ComboBox>
+                            
+                            <!-- Clear Filters Button -->
+                            <Button Content="✖ Clear"
+                                    Classes="action-secondary"
+                                    Command="{Binding ClearFiltersCommand}"
+                                    FontSize="12"
+                                    Padding="10,6"/>
+                        </StackPanel>
+                        
+                        <!-- Stats -->
+                        <StackPanel Grid.Column="2" 
+                                    Orientation="Horizontal" 
+                                    Spacing="16">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <TextBlock Text="Total:" 
+                                           VerticalAlignment="Center" 
+                                           Foreground="#6B7280"
+                                           FontSize="13"/>
+                                <TextBlock Text="{Binding FilteredUsers.Count, FallbackValue=0}" 
+                                           FontWeight="SemiBold" 
+                                           Foreground="#111827" 
+                                           VerticalAlignment="Center"
+                                           FontSize="14"/>
                             </StackPanel>
 
-                            <StackPanel Orientation="Horizontal" Spacing="8">
-                                <TextBlock Text="Updated:"
-                                           FontSize="12"
-                                           Foreground="#9CA3AF"
-                                           Width="80"/>
-                                <TextBlock Text="{Binding StatusMessage}"
-                                           FontSize="12"
-                                           Foreground="#6B7280"/>
+                            <Border Width="1" Background="#E5E7EB"/>
+
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <TextBlock Text="⏳ Pending:" 
+                                           VerticalAlignment="Center" 
+                                           Foreground="#F59E0B"
+                                           FontSize="13"
+                                           FontWeight="SemiBold"/>
+                                <TextBlock Text="{Binding PendingCount, FallbackValue=0}" 
+                                           FontWeight="Bold" 
+                                           Foreground="#F59E0B" 
+                                           VerticalAlignment="Center"
+                                           FontSize="14"/>
                             </StackPanel>
                         </StackPanel>
-                    </StackPanel>
-                </StackPanel>
-            </Border>
-        </Grid>
+                    </Grid>
+                </Border>
 
-        <!-- Loading Overlay -->
-        <Border Grid.RowSpan="3"
-                Background="#CCF9FAFB"
-                IsVisible="{Binding IsBusy}">
-            <StackPanel VerticalAlignment="Center" 
-                        HorizontalAlignment="Center"
-                        Spacing="16">
-                <ProgressBar IsIndeterminate="True"
-                             Width="200"
-                             Height="4"
-                             Foreground="#3B82F6"/>
-                <TextBlock Text="Loading dashboard..."
-                           FontSize="14"
-                           Foreground="#6B7280"
-                           HorizontalAlignment="Center"/>
-            </StackPanel>
+                <!-- Status Message -->
+                <Border Grid.Row="1"
+                        Background="#EFF6FF"
+                        Padding="12"
+                        BorderBrush="#BFDBFE"
+                        BorderThickness="0,0,0,1"
+                        IsVisible="{Binding StatusMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                    <TextBlock Text="{Binding StatusMessage}"
+                               FontSize="13"
+                               Foreground="#1E40AF"/>
+                </Border>
+
+                <!-- Table Header -->
+                <Border Grid.Row="2"
+                        Background="#F3F4F6"
+                        BorderBrush="#E5E7EB"
+                        BorderThickness="0,0,0,1"
+                        Padding="16,10"
+                        VerticalAlignment="Top">
+                    <Grid ColumnDefinitions="2*,2.5*,1.2*,1.8*,1.2*,1.2*,2.5*">
+                        <TextBlock Grid.Column="0" Text="Full Name" FontWeight="Bold" FontSize="12" Foreground="#374151" Margin="0,0,12,0"/>
+                        <TextBlock Grid.Column="1" Text="Email" FontWeight="Bold" FontSize="12" Foreground="#374151" Margin="0,0,12,0"/>
+                        <TextBlock Grid.Column="2" Text="Status" FontWeight="Bold" FontSize="12" Foreground="#374151" Margin="0,0,12,0"/>
+                        <TextBlock Grid.Column="3" Text="👑 Role" FontWeight="Bold" FontSize="12" Foreground="#374151" Margin="0,0,12,0"/>
+                        <TextBlock Grid.Column="4" Text="Registered" FontWeight="Bold" FontSize="12" Foreground="#374151" Margin="0,0,12,0"/>
+                        <TextBlock Grid.Column="5" Text="Last Login" FontWeight="Bold" FontSize="12" Foreground="#374151" Margin="0,0,12,0"/>
+                        <TextBlock Grid.Column="6" Text="Actions" FontWeight="Bold" FontSize="12" Foreground="#374151"/>
+                    </Grid>
+                </Border>
+
+                <!-- Users List with ScrollViewer -->
+                <ScrollViewer Grid.Row="2" 
+                              VerticalScrollBarVisibility="Auto"
+                              Margin="0,41,0,0">
+                    <ItemsControl ItemsSource="{Binding FilteredUsers}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Background="White"
+                                        BorderBrush="#E5E7EB"
+                                        BorderThickness="0,0,0,1"
+                                        Padding="16,12">
+                                    <Grid ColumnDefinitions="2*,2.5*,1.2*,1.8*,1.2*,1.2*,2.5*">
+                                        <!-- Full Name -->
+                                        <TextBlock Grid.Column="0"
+                                                   Text="{Binding FullName}"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="#111827"
+                                                   FontSize="14"
+                                                   VerticalAlignment="Center"
+                                                   Margin="0,0,12,0"/>
+
+                                        <!-- Email -->
+                                        <TextBlock Grid.Column="1"
+                                                   Text="{Binding Email}"
+                                                   Foreground="#6B7280"
+                                                   FontSize="13"
+                                                   VerticalAlignment="Center"
+                                                   Margin="0,0,12,0"/>
+
+                                        <!-- Status -->
+                                        <Border Grid.Column="2"
+                                                Classes.badge-approved="{Binding IsApproved}"
+                                                Classes.badge-pending="{Binding !IsApproved}"
+                                                HorizontalAlignment="Left"
+                                                Padding="8,4"
+                                                CornerRadius="4"
+                                                Margin="0,0,12,0"
+                                                VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding StatusText}"
+                                                       FontSize="12" 
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{Binding StatusColor}"/>
+                                        </Border>
+
+                                        <!-- Role Selection -->
+                                        <ComboBox Grid.Column="3"
+                                                  Classes="role-select"
+                                                  SelectedItem="{Binding SelectedRole, Mode=TwoWay}"
+                                                  ItemsSource="{Binding AvailableRoles}"
+                                                  HorizontalAlignment="Stretch"
+                                                  MinWidth="110"
+                                                  Background="#FFFFFF"
+                                                  BorderBrush="#3B82F6"
+                                                  BorderThickness="1.5"
+                                                  FontWeight="SemiBold"
+                                                  VerticalAlignment="Center"
+                                                  Margin="0,0,12,0">
+                                            <ComboBox.ItemTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock Text="{Binding}" FontWeight="SemiBold"/>
+                                                </DataTemplate>
+                                            </ComboBox.ItemTemplate>
+                                        </ComboBox>
+
+                                        <!-- Registered Date -->
+                                        <TextBlock Grid.Column="4"
+                                                   Text="{Binding CreatedAt, StringFormat='{}{0:MMM dd, yyyy}'}"
+                                                   Foreground="#6B7280"
+                                                   FontSize="13"
+                                                   VerticalAlignment="Center"
+                                                   Margin="0,0,12,0"/>
+
+                                        <!-- Last Login -->
+                                        <TextBlock Grid.Column="5"
+                                                   Text="{Binding LastLoginAt, StringFormat='{}{0:MMM dd, yyyy}'}"
+                                                   Foreground="#6B7280"
+                                                   FontSize="13"
+                                                   VerticalAlignment="Center"
+                                                   Margin="0,0,12,0"/>
+
+                                        <!-- Actions -->
+                                        <StackPanel Grid.Column="6"
+                                                    Orientation="Horizontal" 
+                                                    Spacing="8"
+                                                    VerticalAlignment="Center">
+                                            <!-- Approve/Disapprove Button -->
+                                            <Button Classes.action-approve="{Binding !IsApproved}"
+                                                    Classes.action-disapprove="{Binding IsApproved}"
+                                                    Content="{Binding ApprovalButtonText}"
+                                                    Command="{Binding $parent[UserControl].((vm:AdminDashboardViewModel)DataContext).ApproveUserCommand}"
+                                                    CommandParameter="{Binding}"/>
+                                       
+                                            <!-- Update Role Button -->
+                                            <Button Content="Update Role"
+                                                    Classes="action-secondary"
+                                                    Command="{Binding $parent[UserControl].((vm:AdminDashboardViewModel)DataContext).UpdateRoleCommand}"
+                                                    CommandParameter="{Binding}"/>
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+
+                <!-- Empty State Overlay (ZIndex 1 - below loading) -->
+                <Border Grid.Row="2"
+                        Background="White"
+                        IsVisible="{Binding ShowEmptyState}"
+                        ZIndex="1">
+                    <StackPanel VerticalAlignment="Center" 
+                                HorizontalAlignment="Center"
+                                Spacing="16"
+                                Margin="40">
+                        <TextBlock Text="👥"
+                                   FontSize="48"
+                                   HorizontalAlignment="Center"
+                                   Opacity="0.3"/>
+                        <TextBlock Text="No Users Found"
+                                   FontSize="20"
+                                   FontWeight="SemiBold"
+                                   Foreground="#6B7280"
+                                   HorizontalAlignment="Center"/>
+                        <TextBlock Text="There are no users matching your current filters. Try adjusting your search or clearing filters."
+                                   FontSize="14"
+                                   Foreground="#9CA3AF"
+                                   HorizontalAlignment="Center"
+                                   TextAlignment="Center"
+                                   MaxWidth="400"
+                                   TextWrapping="Wrap"/>
+                        <Button Content="Clear Filters"
+                                Command="{Binding ClearFiltersCommand}"
+                                Classes="action-secondary"
+                                HorizontalAlignment="Center"
+                                Margin="0,8,0,0"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Loading Overlay (ZIndex 2 - on top) -->
+                <Border Grid.Row="2"
+                        Background="#CCF9FAFB"
+                        IsVisible="{Binding IsBusy}"
+                        ZIndex="2">
+                    <StackPanel VerticalAlignment="Center" 
+                                HorizontalAlignment="Center"
+                                Spacing="16">
+                        <ProgressBar IsIndeterminate="True"
+                                     Width="200"
+                                     Height="4"
+                                     Foreground="#3B82F6"/>
+                        <TextBlock Text="Loading users..."
+                                   FontSize="14"
+                                   Foreground="#6B7280"
+                                   HorizontalAlignment="Center"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Footer -->
+                <Border Grid.Row="3"
+                        Background="#F9FAFB"
+                        Padding="16"
+                        CornerRadius="0,0,8,8"
+                        BorderBrush="#E5E7EB"
+                        BorderThickness="0,1,0,0">
+                    <TextBlock FontSize="12" Foreground="#6B7280">
+                        <Run Text="💡 Tip:"/>
+                        <Run Text="Select a role from the dropdown before approving new users. The button will show 'Approve as [Role]'. Approved users can login immediately with their assigned role."/>
+                    </TextBlock>
+                </Border>
+            </Grid>
         </Border>
     </Grid>
 </UserControl>
