@@ -114,12 +114,13 @@
                               VerticalScrollBarVisibility="Auto"
                               HorizontalScrollBarVisibility="Disabled"
                               Margin="0,0,0,8">
-					<StackPanel Margin="8,0">
+					<StackPanel x:Name="NavigationMenu" Margin="8,0">
 
 						<!-- Connection -->
 						<TextBlock Text="CONNECTION" Classes="nav-group-title"/>
 						<Button Content="📡  Connection"
                                 Classes="nav-button"
+                                Tag="ConnectionPage"
                                 CommandParameter="{Binding ConnectionPage}"
                                 Click="NavButton_Click" />
 
@@ -127,6 +128,7 @@
 						<TextBlock Text="INSTALL FIRMWARE" Classes="nav-group-title"/>
 						<Button Content="💾  Firmware Upgrade"
                                 Classes="nav-button"
+                                Tag="FirmwarePage"
                                 CommandParameter="{Binding FirmwarePage}"
                                 Click="NavButton_Click" />
 
@@ -134,6 +136,7 @@
 						<TextBlock Text="HARDWARE SETUP" Classes="nav-group-title"/>
 						<Button Content="🛩️  Airframe"
                                 Classes="nav-button"
+                                Tag="AirframePage"
                                 CommandParameter="{Binding AirframePage}"
                                 Click="NavButton_Click"
                                 IsEnabled="{Binding CanAccessAirframe}" />
@@ -142,22 +145,31 @@
 						<TextBlock Text="CALIBRATION" Classes="nav-group-title"/>
 						<Button Content="📊  Sensors"
                                 Classes="nav-button"
+                                Tag="SensorsCalibrationPage"
                                 CommandParameter="{Binding SensorsCalibrationPage}"
                                 Click="NavButton_Click" />
 						<Button Content="🎮  RC Calibration"
                                 Classes="nav-button"
+                                Tag="RcCalibrationPage"
                                 CommandParameter="{Binding RcCalibrationPage}"
                                 Click="NavButton_Click" />
 						<Button Content="🔀  Flight Modes"
                                 Classes="nav-button"
+<<<<<<< HEAD
+                                Tag="FlightModesPage"
                                 CommandParameter="{Binding FlightModesPage}"
+=======
+                                CommandParameter="{Binding FlightModePage}"
+>>>>>>> a86414a61f2c29968a36ef2ae420682a1156c8c6
                                 Click="NavButton_Click" />
 						<Button Content="⚡  Motor &amp; ESC"
                                 Classes="nav-button"
+                                Tag="MotorEscPage"
                                 CommandParameter="{Binding MotorEscPage}"
                                 Click="NavButton_Click" />
 						<Button Content="🔋  Power"
                                 Classes="nav-button"
+                                Tag="PowerPage"
                                 CommandParameter="{Binding PowerPage}"
                                 Click="NavButton_Click" />
 
@@ -165,6 +177,7 @@
 						<TextBlock Text="DRONE SAFETY" Classes="nav-group-title"/>
 						<Button Content="🛡️  Safety"
                                 Classes="nav-button"
+                                Tag="SafetyPage"
                                 CommandParameter="{Binding SafetyPage}"
                                 Click="NavButton_Click" />
 
@@ -172,18 +185,22 @@
 						<TextBlock Text="ADVANCED CONFIGURATION" Classes="nav-group-title"/>
 						<Button Content="📷  Camera"
                                 Classes="nav-button"
+                                Tag="CameraConfigPage"
                                 CommandParameter="{Binding CameraConfigPage}"
                                 Click="NavButton_Click" />
 						<Button Content="🔧  Serial Config"
                                 Classes="nav-button"
+                                Tag="SerialConfigPage"
                                 CommandParameter="{Binding SerialConfigPage}"
                                 Click="NavButton_Click" />
 						<Button Content="🎯  PID Tuning"
                                 Classes="nav-button"
+                                Tag="PidTuningPage"
                                 CommandParameter="{Binding PidTuningPage}"
                                 Click="NavButton_Click" />
 						<Button Content="🌾  Spraying Config"
                                 Classes="nav-button"
+                                Tag="SprayingConfigPage"
                                 CommandParameter="{Binding SprayingConfigPage}"
                                 Click="NavButton_Click" />
 
@@ -191,23 +208,28 @@
 						<TextBlock Text="INFORMATION &amp; SUPPORT" Classes="nav-group-title"/>
 						<Button Content="ℹ️  Drone Details"
                                 Classes="nav-button"
+                                Tag="DroneDetailsPage"
                                 CommandParameter="{Binding DroneDetailsPage}"
                                 Click="NavButton_Click" />
 						<Button Content="⚙️  Parameters"
                                 Classes="nav-button"
+                                Tag="ParametersPage"
                                 CommandParameter="{Binding ParametersPage}"
                                 Click="NavButton_Click"
                                 IsEnabled="{Binding CanAccessParameters}" />
 						<Button Content="📋  Profiles"
                                 Classes="nav-button"
+                                Tag="ProfilePage"
                                 CommandParameter="{Binding ProfilePage}"
                                 Click="NavButton_Click" />
 						<Button Content="📈  Log Analyzer"
                                 Classes="nav-button"
+                                Tag="LogAnalyzerPage"
                                 CommandParameter="{Binding LogAnalyzerPage}"
                                 Click="NavButton_Click" />
 						<Button Content="🔄  Reset Parameters"
                                 Classes="nav-button"
+                                Tag="ResetParametersPage"
                                 CommandParameter="{Binding ResetParametersPage}"
                                 Click="NavButton_Click" />
 
@@ -222,6 +244,7 @@
                                 IsVisible="{Binding IsAdmin}" />
 						<Button Content="👥  User Management"
                                 Classes="nav-button"
+                                Tag="AdminPanelPage"
                                 CommandParameter="{Binding AdminPanelPage}"
                                 Click="NavButton_Click"
                                 IsVisible="{Binding IsAdmin}" />
@@ -250,6 +273,70 @@
 
 		<!-- Content Area with modern background -->
 		<Border Grid.Column="1" Background="#F9FAFB">
+<<<<<<< HEAD
+			<Grid>
+				<ContentControl Content="{Binding CurrentPage}">
+					<ContentControl.DataTemplates>
+						<DataTemplate DataType="{x:Type vm:ConnectionPageViewModel}">
+							<views:ConnectionPage />
+						</DataTemplate>
+						<DataTemplate DataType="{x:Type vm:DroneDetailsPageViewModel}">
+							<views:DroneDetailsPage />
+						</DataTemplate>
+						<DataTemplate DataType="{x:Type vm:ParametersPageViewModel}">
+							<views:ParametersPage />
+						</DataTemplate>
+						<DataTemplate DataType="{x:Type vm:AirframePageViewModel}">
+							<views:AirframePage />
+						</DataTemplate>
+						<DataTemplate DataType="{x:Type vm:SafetyPageViewModel}">
+							<views:SafetyPage />
+						</DataTemplate>
+						<DataTemplate DataType="{x:Type vm:ProfilePageViewModel}">
+							<views:ProfilePage />
+						</DataTemplate>
+						<DataTemplate DataType="{x:Type vm:FlightModePageViewModel}">
+							<views:FlightModesPage />
+						</DataTemplate>
+						<DataTemplate DataType="{x:Type vm:PowerPageViewModel}">
+							<views:PowerPage />
+						</DataTemplate>
+						<DataTemplate DataType="{x:Type vm:MotorEscPageViewModel}">
+							<views:MotorEscPage />
+						</DataTemplate>
+						<DataTemplate DataType="{x:Type vm:PidTuningPageViewModel}">
+							<views:PidTuningPage />
+						</DataTemplate>
+						<DataTemplate DataType="{x:Type vm:SerialConfigPageViewModel}">
+							<views:SerialConfigPage />
+						</DataTemplate>
+						<DataTemplate DataType="{x:Type vm:RcCalibrationPageViewModel}">
+							<views:RcCalibrationPage />
+						</DataTemplate>
+						<DataTemplate DataType="{x:Type vm:SensorsCalibrationPageViewModel}">
+							<views:SensorsCalibrationPage />
+						</DataTemplate>
+						<DataTemplate DataType="{x:Type vm:LogAnalyzerPageViewModel}">
+							<views:LogAnalyzerPage />
+						</DataTemplate>
+						<DataTemplate DataType="{x:Type vm:ResetParametersPageViewModel}">
+							<views:ResetParametersPage />
+						</DataTemplate>
+						<DataTemplate DataType="{x:Type vm:SprayingConfigPageViewModel}">
+							<views:SprayingConfigPage />
+						</DataTemplate>
+						<DataTemplate DataType="{x:Type vm:CameraConfigPageViewModel}">
+							<views:CameraConfigPage />
+						</DataTemplate>
+						<DataTemplate DataType="{x:Type vm:FirmwarePageViewModel}">
+							<views:FirmwarePage />
+						</DataTemplate>
+						<DataTemplate DataType="{x:Type adminVm:AdminPanelViewModel}">
+							<adminViews:AdminPanelView />
+						</DataTemplate>
+					</ContentControl.DataTemplates>
+				</ContentControl>
+=======
 			<ContentControl Content="{Binding CurrentPage}">
 				<ContentControl.DataTemplates>
 					<DataTemplate DataType="vm:ConnectionPageViewModel">
@@ -315,52 +402,54 @@
 				</ContentControl.DataTemplates>
 			</ContentControl>
 		</Border>
+>>>>>>> a86414a61f2c29968a36ef2ae420682a1156c8c6
 
-		<!-- Modal overlay for parameter download -->
-		<Border Grid.ColumnSpan="2"
-                Background="#CC000000"
-                IsVisible="{Binding IsParameterDownloadInProgress}"
-                IsHitTestVisible="{Binding IsParameterDownloadInProgress}">
-			<Border Background="White"
-                    Padding="40,30"
-                    CornerRadius="16"
-                    HorizontalAlignment="Center"
-                    VerticalAlignment="Center"
-                    BoxShadow="0 10 40 0 #60000000"
-                    MinWidth="400">
-				<StackPanel Spacing="16" HorizontalAlignment="Center">
-					<!-- Loading Icon -->
-					<Border Width="64"
-                            Height="64"
-                            CornerRadius="32"
-                            Background="#DBEAFE"
-                            HorizontalAlignment="Center">
-						<Viewbox Width="32" Height="32">
-							<Canvas Width="24" Height="24">
-								<Path Fill="#3B82F6"
-                                      Data="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83"/>
-							</Canvas>
-						</Viewbox>
+				<!-- Modal overlay for parameter download - ZIndex ensures it appears on top -->
+				<Border Background="#CC000000"
+						IsVisible="{Binding IsParameterDownloadInProgress}"
+						IsHitTestVisible="{Binding IsParameterDownloadInProgress}"
+						ZIndex="1000">
+					<Border Background="White"
+							Padding="40,30"
+							CornerRadius="16"
+							HorizontalAlignment="Center"
+							VerticalAlignment="Center"
+							BoxShadow="0 10 40 0 #60000000"
+							MinWidth="400">
+						<StackPanel Spacing="16" HorizontalAlignment="Center">
+							<!-- Loading Icon with spinning animation -->
+							<Border Width="64"
+									Height="64"
+									CornerRadius="32"
+									Background="#DBEAFE"
+									HorizontalAlignment="Center">
+								<StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+									<TextBlock Text="⏳"
+											   FontSize="28"
+											   HorizontalAlignment="Center"/>
+								</StackPanel>
+							</Border>
+
+							<TextBlock Text="Downloading Parameters"
+									   FontSize="20"
+									   FontWeight="Bold"
+									   HorizontalAlignment="Center"
+									   Foreground="#111827"/>
+
+							<TextBlock Text="{Binding ParameterDownloadStatusText}"
+									   FontSize="14"
+									   HorizontalAlignment="Center"
+									   Foreground="#6B7280"/>
+
+							<ProgressBar IsIndeterminate="True"
+										 Width="300"
+										 Height="4"
+										 Foreground="#3B82F6"
+										 Background="#E5E7EB"/>
+						</StackPanel>
 					</Border>
-
-					<TextBlock Text="Downloading Parameters"
-                               FontSize="20"
-                               FontWeight="Bold"
-                               HorizontalAlignment="Center"
-                               Foreground="#111827"/>
-
-					<TextBlock Text="{Binding ParameterDownloadStatusText}"
-                               FontSize="14"
-                               HorizontalAlignment="Center"
-                               Foreground="#6B7280"/>
-
-					<ProgressBar IsIndeterminate="True"
-                                 Width="300"
-                                 Height="4"
-                                 Foreground="#3B82F6"
-                                 Background="#E5E7EB"/>
-				</StackPanel>
-			</Border>
+				</Border>
+			</Grid>
 		</Border>
 	</Grid>
 

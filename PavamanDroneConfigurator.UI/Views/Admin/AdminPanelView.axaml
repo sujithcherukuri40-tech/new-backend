@@ -180,7 +180,7 @@
                                            VerticalAlignment="Center" 
                                            Foreground="#6B7280"
                                            FontSize="13"/>
-                                <TextBlock Text="{Binding FilteredUsers.Count}" 
+                                <TextBlock Text="{Binding FilteredUsers.Count, FallbackValue=0}" 
                                            FontWeight="SemiBold" 
                                            Foreground="#111827" 
                                            VerticalAlignment="Center"
@@ -195,7 +195,7 @@
                                            Foreground="#F59E0B"
                                            FontSize="13"
                                            FontWeight="SemiBold"/>
-                                <TextBlock Text="{Binding PendingCount}" 
+                                <TextBlock Text="{Binding PendingCount, FallbackValue=0}" 
                                            FontWeight="Bold" 
                                            Foreground="#F59E0B" 
                                            VerticalAlignment="Center"
@@ -326,10 +326,44 @@
                     </DataGrid.Columns>
                 </DataGrid>
 
-                <!-- Loading Overlay -->
+                <!-- Empty State Overlay (ZIndex 1 - below loading) -->
+                <Border Grid.Row="2"
+                        Background="White"
+                        IsVisible="{Binding ShowEmptyState}"
+                        ZIndex="1">
+                    <StackPanel VerticalAlignment="Center" 
+                                HorizontalAlignment="Center"
+                                Spacing="16"
+                                Margin="40">
+                        <TextBlock Text="👥"
+                                   FontSize="48"
+                                   HorizontalAlignment="Center"
+                                   Opacity="0.3"/>
+                        <TextBlock Text="No Users Found"
+                                   FontSize="20"
+                                   FontWeight="SemiBold"
+                                   Foreground="#6B7280"
+                                   HorizontalAlignment="Center"/>
+                        <TextBlock Text="There are no users matching your current filters. Try adjusting your search or clearing filters."
+                                   FontSize="14"
+                                   Foreground="#9CA3AF"
+                                   HorizontalAlignment="Center"
+                                   TextAlignment="Center"
+                                   MaxWidth="400"
+                                   TextWrapping="Wrap"/>
+                        <Button Content="Clear Filters"
+                                Command="{Binding ClearFiltersCommand}"
+                                Classes="action-secondary"
+                                HorizontalAlignment="Center"
+                                Margin="0,8,0,0"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Loading Overlay (ZIndex 2 - on top) -->
                 <Border Grid.Row="2"
                         Background="#CCF9FAFB"
-                        IsVisible="{Binding IsBusy}">
+                        IsVisible="{Binding IsBusy}"
+                        ZIndex="2">
                     <StackPanel VerticalAlignment="Center" 
                                 HorizontalAlignment="Center"
                                 Spacing="16">

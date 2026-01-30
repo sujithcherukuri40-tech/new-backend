@@ -472,7 +472,7 @@ public partial class SensorsCalibrationPageViewModel : ViewModelBase
                     IsAccelButtonEnabled = true;
                     UpdateCalibrationComplete(state.Type, false, state.Message ?? "Calibration failed");
                 }
-                else if (state.State == CalibrationState.Idle)
+                else if (state.State == CalibrationState.NotStarted)
                 {
                     // Reset to initial state
                     AccelButtonText = "Calibrate Accel";

@@ -70,6 +70,11 @@ public sealed partial class AdminPanelViewModel : ViewModelBase
     /// </summary>
     public int TotalCount => Users.Count;
 
+    /// <summary>
+    /// Whether to show the empty state message (no users found after initialization).
+    /// </summary>
+    public bool ShowEmptyState => !IsBusy && FilteredUsers.Count == 0 && _isInitialized;
+
     public AdminPanelViewModel(
         IAdminService adminService,
         ILogger<AdminPanelViewModel> logger)
@@ -311,12 +316,19 @@ public sealed partial class AdminPanelViewModel : ViewModelBase
         }
 
         OnPropertyChanged(nameof(PendingCount));
+        OnPropertyChanged(nameof(ShowEmptyState));
     }
 
     partial void OnUsersChanged(ObservableCollection<UserListItem> value)
     {
         OnPropertyChanged(nameof(PendingCount));
         OnPropertyChanged(nameof(TotalCount));
+        OnPropertyChanged(nameof(ShowEmptyState));
+    }
+
+    partial void OnIsBusyChanged(bool value)
+    {
+        OnPropertyChanged(nameof(ShowEmptyState));
     }
 }
 
