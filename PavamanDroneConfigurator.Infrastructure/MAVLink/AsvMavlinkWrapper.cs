@@ -1140,7 +1140,7 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
                 _ => position.ToString()
             };
             _mavLinkLogger?.LogOutgoing("COMMAND_LONG", 
-                $"cmd=MAV_CMD_ACCELCAL_VEHICLE_POS(42429), param1(position)={position} ({posName})");
+                $"cmd=MAV_CMD_ACCELCAL_VEHICLE_POS(42429), param1={position} ({posName})");
             
             // MissionPlanner sends this as fire-and-forget
             // sendPacket(mavlink_command_long_t { param1=pos, command=ACCELCAL_VEHICLE_POS })
@@ -1156,6 +1156,9 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
         /// This matches Mission Planner's sendPacket() behavior.
         /// Used for: MAV_CMD_ACCELCAL_VEHICLE_POS during accel calibration
         /// SYNCHRONOUS - does not wait for anything
+        /// 
+        /// CRITICAL: Must include target_system and target_component fields!
+        /// MissionPlanner: sendPacket(new mavlink_command_long_t { ... }, sysidcurrent, compidcurrent)
         /// </summary>
         public void SendPacketRaw(ushort command, float param1, float param2 = 0, float param3 = 0, 
             float param4 = 0, float param5 = 0, float param6 = 0, float param7 = 0)
@@ -1166,9 +1169,26 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
                 return;
             }
 
-            _logger.LogInformation("SendPacketRaw: cmd={Command} param1={Param1}", command, param1);
+            // CRITICAL: Ensure target_system and target_component are valid
+            // Default to 1 (autopilot) if not yet received from heartbeat
+            byte targetSysId = _targetSystemId != 0 ? _targetSystemId : (byte)1;
+            byte targetCompId = _targetComponentId != 0 ? _targetComponentId : (byte)1;
 
-            // COMMAND_LONG payload (33 bytes)
+            _logger.LogInformation("SendPacketRaw: cmd={Command} param1={Param1} -> target_system={TargetSys} target_component={TargetComp}", 
+                command, param1, targetSysId, targetCompId);
+
+            // COMMAND_LONG payload (33 bytes) - MAVLink spec order:
+            // [0-3]   param1 (float)
+            // [4-7]   param2 (float)
+            // [8-11]  param3 (float)
+            // [12-15] param4 (float)
+            // [16-19] param5 (float)
+            // [20-23] param6 (float)
+            // [24-27] param7 (float)
+            // [28-29] command (uint16)
+            // [30]    target_system (uint8) - CRITICAL!
+            // [31]    target_component (uint8) - CRITICAL!
+            // [32]    confirmation (uint8)
             var payload = new byte[33];
 
             BitConverter.GetBytes(param1).CopyTo(payload, 0);
@@ -1179,9 +1199,9 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
             BitConverter.GetBytes(param6).CopyTo(payload, 20);
             BitConverter.GetBytes(param7).CopyTo(payload, 24);
             BitConverter.GetBytes(command).CopyTo(payload, 28);
-            payload[30] = _targetSystemId != 0 ? _targetSystemId : (byte)1;
-            payload[31] = _targetComponentId != 0 ? _targetComponentId : (byte)1;
-            payload[32] = 0; // confirmation
+            payload[30] = targetSysId;    // CRITICAL: target_system
+            payload[31] = targetCompId;   // CRITICAL: target_component
+            payload[32] = 0;              // confirmation
 
             // Send synchronously, no waiting for ACK
             lock (_writeLock)
@@ -1210,7 +1230,8 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
                     _outputStream.Write(frame, 0, frameLen);
                     _outputStream.Flush();
 
-                    _logger.LogTrace("Sent raw packet: cmd={Cmd} seq={Seq}", command, seq);
+                    _logger.LogDebug("Sent raw packet: cmd={Cmd} seq={Seq} target_sys={TargetSys} target_comp={TargetComp}", 
+                        command, seq, targetSysId, targetCompId);
                 }
                 catch (Exception ex)
                 {
@@ -1223,6 +1244,12 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
         /// Send MAV_CMD_ACCELCAL_VEHICLE_POS - Mission Planner style (fire and forget)
         /// This is the EXACT behavior of Mission Planner's sendPacket() method.
         /// Does NOT wait for COMMAND_ACK - FC responds via STATUSTEXT/COMMAND_LONG
+        /// 
+        /// MissionPlanner code:
+        /// MainV2.comPort.sendPacket(new MAVLink.mavlink_command_long_t { 
+        ///     param1 = (float)pos, 
+        ///     command = (ushort)MAVLink.MAV_CMD.ACCELCAL_VEHICLE_POS 
+        /// }, MainV2.comPort.sysidcurrent, MainV2.comPort.compidcurrent);
         /// </summary>
         public void SendAccelCalVehiclePosRaw(int position)
         {
@@ -1237,9 +1264,14 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
                 _ => position.ToString()
             };
             
-            _logger.LogInformation("SendAccelCalVehiclePosRaw: position={Position} ({Name}) [FIRE-AND-FORGET]", position, posName);
+            // CRITICAL: Log target_system and target_component for debugging
+            byte targetSysId = _targetSystemId != 0 ? _targetSystemId : (byte)1;
+            byte targetCompId = _targetComponentId != 0 ? _targetComponentId : (byte)1;
+            
+            _logger.LogInformation("SendAccelCalVehiclePosRaw: position={Position} ({Name}) target_system={TargetSys} target_component={TargetComp} [FIRE-AND-FORGET]", 
+                position, posName, targetSysId, targetCompId);
             _mavLinkLogger?.LogOutgoing("COMMAND_LONG", 
-                $"cmd=MAV_CMD_ACCELCAL_VEHICLE_POS(42429), param1={position} ({posName}) [RAW/NO-ACK]");
+                $"cmd=MAV_CMD_ACCELCAL_VEHICLE_POS(42429), param1={position} ({posName}), target_sys={targetSysId}, target_comp={targetCompId} [RAW/NO-ACK]");
 
             SendPacketRaw(MAV_CMD_ACCELCAL_VEHICLE_POS, position);
         }
@@ -1436,6 +1468,8 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
         /// <summary>
         /// Send COMMAND_LONG message WITHOUT waiting for ACK (fire-and-forget).
         /// Used for accel calibration commands per MissionPlanner behavior.
+        /// 
+        /// CRITICAL: Must include target_system and target_component fields!
         /// </summary>
         private async Task SendCommandLongFireAndForgetAsync(
             ushort command,
@@ -1443,7 +1477,22 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
             float param5, float param6, float param7,
             CancellationToken ct = default)
         {
-            // COMMAND_LONG payload (33 bytes)
+            // CRITICAL: Ensure target_system and target_component are valid
+            byte targetSysId = _targetSystemId != 0 ? _targetSystemId : (byte)1;
+            byte targetCompId = _targetComponentId != 0 ? _targetComponentId : (byte)1;
+
+            // COMMAND_LONG payload (33 bytes) - MAVLink spec order:
+            // [0-3]   param1 (float)
+            // [4-7]   param2 (float)
+            // [8-11]  param3 (float)
+            // [12-15] param4 (float)
+            // [16-19] param5 (float)
+            // [20-23] param6 (float)
+            // [24-27] param7 (float)
+            // [28-29] command (uint16)
+            // [30]    target_system (uint8) - CRITICAL!
+            // [31]    target_component (uint8) - CRITICAL!
+            // [32]    confirmation (uint8)
             var payload = new byte[33];
 
             BitConverter.GetBytes(param1).CopyTo(payload, 0);
@@ -1454,19 +1503,22 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
             BitConverter.GetBytes(param6).CopyTo(payload, 20);
             BitConverter.GetBytes(param7).CopyTo(payload, 24);
             BitConverter.GetBytes(command).CopyTo(payload, 28);
-            payload[30] = _targetSystemId != 0 ? _targetSystemId : (byte)1;
-            payload[31] = _targetComponentId != 0 ? _targetComponentId : (byte)1;
-            payload[32] = 0; // confirmation
+            payload[30] = targetSysId;    // CRITICAL: target_system
+            payload[31] = targetCompId;   // CRITICAL: target_component
+            payload[32] = 0;              // confirmation
 
             // Send command - NO ACK WAIT
             await SendMessageAsync(MAVLINK_MSG_ID_COMMAND_LONG, payload, ct);
             
-            _logger.LogInformation("COMMAND_LONG sent (fire-and-forget): cmd={Command} param1={Param1}", command, param1);
+            _logger.LogInformation("COMMAND_LONG sent (fire-and-forget): cmd={Command} param1={Param1} target_sys={TargetSys} target_comp={TargetComp}", 
+                command, param1, targetSysId, targetCompId);
         }
 
         /// <summary>
         /// Send COMMAND_LONG message with transaction tracking and retry logic
         /// Production-grade reliability
+        /// 
+        /// CRITICAL: Must include target_system and target_component fields!
         /// </summary>
         private async Task<CommandResult> SendCommandLongAsync(
             ushort command,
@@ -1477,7 +1529,22 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
             // Register transaction for ACK tracking
             var resultTask = _transactionManager.RegisterCommandAsync(command, TimeSpan.FromSeconds(5), maxRetries: 3);
 
-            // COMMAND_LONG payload (33 bytes)
+            // CRITICAL: Ensure target_system and target_component are valid
+            byte targetSysId = _targetSystemId != 0 ? _targetSystemId : (byte)1;
+            byte targetCompId = _targetComponentId != 0 ? _targetComponentId : (byte)1;
+
+            // COMMAND_LONG payload (33 bytes) - MAVLink spec order:
+            // [0-3]   param1 (float)
+            // [4-7]   param2 (float)
+            // [8-11]  param3 (float)
+            // [12-15] param4 (float)
+            // [16-19] param5 (float)
+            // [20-23] param6 (float)
+            // [24-27] param7 (float)
+            // [28-29] command (uint16)
+            // [30]    target_system (uint8) - CRITICAL!
+            // [31]    target_component (uint8) - CRITICAL!
+            // [32]    confirmation (uint8)
             var payload = new byte[33];
 
             BitConverter.GetBytes(param1).CopyTo(payload, 0);
@@ -1488,12 +1555,15 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
             BitConverter.GetBytes(param6).CopyTo(payload, 20);
             BitConverter.GetBytes(param7).CopyTo(payload, 24);
             BitConverter.GetBytes(command).CopyTo(payload, 28);
-            payload[30] = _targetSystemId != 0 ? _targetSystemId : (byte)1;
-            payload[31] = _targetComponentId != 0 ? _targetComponentId : (byte)1;
-            payload[32] = 0; // confirmation
+            payload[30] = targetSysId;    // CRITICAL: target_system
+            payload[31] = targetCompId;   // CRITICAL: target_component
+            payload[32] = 0;              // confirmation
 
             // Send command
             await SendMessageAsync(MAVLINK_MSG_ID_COMMAND_LONG, payload, ct);
+            
+            _logger.LogDebug("COMMAND_LONG sent: cmd={Command} param1={Param1} target_sys={TargetSys} target_comp={TargetComp}", 
+                command, param1, targetSysId, targetCompId);
             
             // Wait for ACK with retry logic
             try
