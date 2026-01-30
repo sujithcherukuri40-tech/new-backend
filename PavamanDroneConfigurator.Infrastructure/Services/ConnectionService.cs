@@ -352,8 +352,15 @@ public sealed class ConnectionService : IConnectionService, IDisposable
                 return false;
             }
 
+            // Subscribe to all MAVLink events from Bluetooth connection
             _bluetoothConnection.HeartbeatReceived += OnBluetoothHeartbeat;
             _bluetoothConnection.ParamValueReceived += OnBluetoothParamValue;
+            _bluetoothConnection.HeartbeatDataReceived += OnBluetoothHeartbeatData;
+            _bluetoothConnection.StatusTextReceived += OnBluetoothStatusText;
+            _bluetoothConnection.RcChannelsReceived += OnBluetoothRcChannels;
+            _bluetoothConnection.CommandAckReceived += OnBluetoothCommandAck;
+            _bluetoothConnection.CommandLongReceived += OnBluetoothCommandLong;
+            _bluetoothConnection.RawImuReceived += OnBluetoothRawImu;
 
             var heartbeatReceived = await WaitForHeartbeatAsync(TimeSpan.FromSeconds(15));
 
@@ -481,6 +488,11 @@ public sealed class ConnectionService : IConnectionService, IDisposable
     private void OnMavlinkCommandLong(object? sender, CommandLongData e)
     {
         _lastDataReceivedTime = DateTime.UtcNow;
+        
+        // Log ALL incoming COMMAND_LONG messages for debugging
+        _logger.LogInformation("COMMAND_LONG received: cmd={Command}, param1={Param1}, sysid={SysId}, compid={CompId}",
+            e.Command, e.Param1, e.SystemId, e.ComponentId);
+        
         CommandLongReceived?.Invoke(this, new CommandLongEventArgs
         {
             SystemId = e.SystemId,
@@ -530,6 +542,109 @@ public sealed class ConnectionService : IConnectionService, IDisposable
         var param = new DroneParameter { Name = e.Name, Value = e.Value };
         ParamValueReceived?.Invoke(this, new MavlinkParamValueEventArgs(param, e.Index, e.Count));
     }
+    
+    private void OnBluetoothHeartbeatData(object? sender, HeartbeatData e)
+    {
+        _lastDataReceivedTime = DateTime.UtcNow;
+        
+        // Track armed status from base_mode (bit 7 = MAV_MODE_FLAG_SAFETY_ARMED)
+        _isArmed = e.IsArmed;
+        
+        HeartbeatDataReceived?.Invoke(this, new HeartbeatDataEventArgs
+        {
+            SystemId = e.SystemId,
+            ComponentId = e.ComponentId,
+            CustomMode = e.CustomMode,
+            VehicleType = e.VehicleType,
+            Autopilot = e.Autopilot,
+            BaseMode = e.BaseMode,
+            IsArmed = e.IsArmed
+        });
+    }
+    
+    private void OnBluetoothStatusText(object? sender, (byte Severity, string Text) e)
+    {
+        _lastDataReceivedTime = DateTime.UtcNow;
+        _logger.LogInformation("Bluetooth StatusText [{Severity}]: {Text}", e.Severity, e.Text);
+        StatusTextReceived?.Invoke(this, new StatusTextEventArgs
+        {
+            Severity = e.Severity,
+            Text = e.Text
+        });
+    }
+    
+    private void OnBluetoothRcChannels(object? sender, RcChannelsData e)
+    {
+        _lastDataReceivedTime = DateTime.UtcNow;
+        RcChannelsReceived?.Invoke(this, new RcChannelsEventArgs
+        {
+            Channel1 = e.Channel1,
+            Channel2 = e.Channel2,
+            Channel3 = e.Channel3,
+            Channel4 = e.Channel4,
+            Channel5 = e.Channel5,
+            Channel6 = e.Channel6,
+            Channel7 = e.Channel7,
+            Channel8 = e.Channel8,
+            ChannelCount = e.ChannelCount,
+            Rssi = e.Rssi
+        });
+    }
+    
+    private void OnBluetoothCommandAck(object? sender, (ushort Command, byte Result) e)
+    {
+        _lastDataReceivedTime = DateTime.UtcNow;
+        _logger.LogInformation("Bluetooth COMMAND_ACK: cmd={Command}, result={Result}", e.Command, e.Result);
+        CommandAckReceived?.Invoke(this, new CommandAckEventArgs
+        {
+            Command = e.Command,
+            Result = e.Result
+        });
+    }
+    
+    private void OnBluetoothCommandLong(object? sender, CommandLongData e)
+    {
+        _lastDataReceivedTime = DateTime.UtcNow;
+        
+        // Log ALL incoming COMMAND_LONG messages for debugging
+        _logger.LogInformation("Bluetooth COMMAND_LONG received: cmd={Command}, param1={Param1}, sysid={SysId}, compid={CompId}",
+            e.Command, e.Param1, e.SystemId, e.ComponentId);
+        
+        CommandLongReceived?.Invoke(this, new CommandLongEventArgs
+        {
+            SystemId = e.SystemId,
+            ComponentId = e.ComponentId,
+            Command = e.Command,
+            Param1 = e.Param1,
+            Param2 = e.Param2,
+            Param3 = e.Param3,
+            Param4 = e.Param4,
+            Param5 = e.Param5,
+            Param6 = e.Param6,
+            Param7 = e.Param7,
+            TargetSystem = e.TargetSystem,
+            TargetComponent = e.TargetComponent,
+            Confirmation = e.Confirmation
+        });
+    }
+    
+    private void OnBluetoothRawImu(object? sender, RawImuData e)
+    {
+        _lastDataReceivedTime = DateTime.UtcNow;
+        var accel = e.GetAcceleration();
+        var gyro = e.GetGyro();
+        RawImuReceived?.Invoke(this, new RawImuEventArgs
+        {
+            AccelX = accel.X,
+            AccelY = accel.Y,
+            AccelZ = accel.Z,
+            GyroX = gyro.X,
+            GyroY = gyro.Y,
+            GyroZ = gyro.Z,
+            TimeUsec = e.TimeUsec,
+            Temperature = e.GetTemperature()
+        });
+    }
 
     private async Task<bool> WaitForHeartbeatAsync(TimeSpan timeout)
     {
@@ -574,6 +689,7 @@ public sealed class ConnectionService : IConnectionService, IDisposable
                 _mavlink.StatusTextReceived -= OnMavlinkStatusText;
                 _mavlink.RcChannelsReceived -= OnMavlinkRcChannels;
                 _mavlink.CommandAckReceived -= OnMavlinkCommandAck;
+                _mavlink.CommandLongReceived -= OnMavlinkCommandLong;  // ADD THIS - was missing!
                 _mavlink.RawImuReceived -= OnMavlinkRawImu;
                 _mavlink.Dispose();
                 _mavlink = null;
@@ -583,6 +699,12 @@ public sealed class ConnectionService : IConnectionService, IDisposable
             {
                 _bluetoothConnection.HeartbeatReceived -= OnBluetoothHeartbeat;
                 _bluetoothConnection.ParamValueReceived -= OnBluetoothParamValue;
+                _bluetoothConnection.HeartbeatDataReceived -= OnBluetoothHeartbeatData;
+                _bluetoothConnection.StatusTextReceived -= OnBluetoothStatusText;
+                _bluetoothConnection.RcChannelsReceived -= OnBluetoothRcChannels;
+                _bluetoothConnection.CommandAckReceived -= OnBluetoothCommandAck;
+                _bluetoothConnection.CommandLongReceived -= OnBluetoothCommandLong;
+                _bluetoothConnection.RawImuReceived -= OnBluetoothRawImu;
                 _bluetoothConnection.Dispose();
                 _bluetoothConnection = null;
             }
@@ -702,13 +824,12 @@ public sealed class ConnectionService : IConnectionService, IDisposable
 
     public void SendAccelCalVehiclePos(int position)
     {
-        _logger.LogInformation("SendAccelCalVehiclePos called: position={Position}, connectionType={Type}, isConnected={Connected}", 
-            position, _currentConnectionType, _isConnected);
+        _logger.LogInformation("SendAccelCalVehiclePos: position={Position} [FIRE-AND-FORGET]", position);
         
         if (_currentConnectionType == ConnectionType.Bluetooth && _bluetoothConnection != null)
         {
-            _logger.LogInformation("Sending via Bluetooth connection");
-            _ = _bluetoothConnection.SendAccelCalVehiclePosAsync(position);
+            _logger.LogInformation("Sending via Bluetooth connection (raw/fire-and-forget)");
+            _bluetoothConnection.SendAccelCalVehiclePosRaw(position);
             return;
         }
 
@@ -718,8 +839,9 @@ public sealed class ConnectionService : IConnectionService, IDisposable
             return;
         }
 
-        _logger.LogInformation("Sending via MAVLink wrapper");
-        _ = _mavlink.SendAccelCalVehiclePosAsync(position);
+        _logger.LogInformation("Sending via MAVLink wrapper (raw/fire-and-forget - Mission Planner style)");
+        // CRITICAL: Use RAW method - no ACK waiting (Mission Planner's sendPacket() style)
+        _mavlink.SendAccelCalVehiclePosRaw(position);
     }
 
     public void SendPreflightReboot(int autopilot, int companion)

@@ -30,7 +30,11 @@ public partial class FirmwarePage : UserControl
         try
         {
             var topLevel = TopLevel.GetTopLevel(this);
-            if (topLevel == null) return;
+            if (topLevel == null) 
+            {
+                ShowError("Unable to access file system");
+                return;
+            }
             
             var files = await topLevel.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
             {
@@ -55,16 +59,41 @@ public partial class FirmwarePage : UserControl
                 var file = files[0];
                 var path = file.TryGetLocalPath();
                 
-                if (!string.IsNullOrEmpty(path) && DataContext is FirmwarePageViewModel viewModel)
+                if (!string.IsNullOrEmpty(path))
                 {
-                    await viewModel.SetFirmwareFileAsync(path);
+                    // Validate file exists and path is safe
+                    if (!System.IO.File.Exists(path))
+                    {
+                        ShowError("Selected file does not exist");
+                        return;
+                    }
+                    
+                    // Check file size (reasonable limit: 50MB for firmware)
+                    var fileInfo = new System.IO.FileInfo(path);
+                    if (fileInfo.Length > 50 * 1024 * 1024)
+                    {
+                        ShowError("File size exceeds maximum (50MB)");
+                        return;
+                    }
+                    
+                    if (DataContext is FirmwarePageViewModel viewModel)
+                    {
+                        await viewModel.SetFirmwareFileAsync(path);
+                    }
                 }
             }
         }
         catch (Exception ex)
         {
-            // Log error - in production you'd want proper error handling
-            System.Diagnostics.Debug.WriteLine($"Error opening file picker: {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"File picker error: {ex.Message}");
+            ShowError($"Error selecting file: {ex.Message}");
         }
+    }
+    
+    private void ShowError(string message)
+    {
+        // Simple error display - in a production app, you might want a proper dialog
+        System.Diagnostics.Debug.WriteLine($"Firmware file error: {message}");
+        // You could also show a toast notification or update status in the ViewModel
     }
 }

@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Threading;
 using Mapsui;
@@ -282,6 +283,38 @@ public class LogMapControl : UserControl
             _markerLayer?.Clear();
             _mapControl.InvalidateVisual();
         });
+    }
+
+    protected override void OnUnloaded(RoutedEventArgs e)
+    {
+        base.OnUnloaded(e);
+        
+        try
+        {
+            // Clear layers first
+            _trackLayer?.Clear();
+            _markerLayer?.Clear();
+            
+            // Remove from map
+            if (_trackLayer != null && _map?.Layers != null)
+            {
+                _map.Layers.Remove(_trackLayer);
+            }
+            if (_markerLayer != null && _map?.Layers != null)
+            {
+                _map.Layers.Remove(_markerLayer);
+            }
+            
+            // Dispose resources
+            (_trackLayer as IDisposable)?.Dispose();
+            (_markerLayer as IDisposable)?.Dispose();
+            (_trackFeature as IDisposable)?.Dispose();
+            (_map as IDisposable)?.Dispose();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error disposing map: {ex.Message}");
+        }
     }
 }
 

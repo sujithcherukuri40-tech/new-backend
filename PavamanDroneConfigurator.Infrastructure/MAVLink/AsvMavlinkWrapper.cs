@@ -1041,12 +1041,8 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
 
         /// <summary>
         /// Send MAV_CMD_PREFLIGHT_CALIBRATION command
+        /// NOTE: For accel calibration (accel >= 1), MissionPlanner does NOT wait for ACK!
         /// </summary>
-        /// <param name="gyro">Gyroscope calibration (0=skip, 1=calibrate)</param>
-        /// <param name="mag">Magnetometer calibration (0=skip, 1=calibrate)</param>
-        /// <param name="groundPressure">Ground pressure/barometer calibration (0=skip, 1=calibrate)</param>
-        /// <param name="airspeed">Radio/airspeed calibration (0=skip, 1=calibrate)</param>
-        /// <param name="accel">Accelerometer calibration (0=skip, 1=calibrate, 2=board level, 3=simple)</param>
         public async Task SendPreflightCalibrationAsync(
             int gyro = 0,
             int mag = 0,
@@ -1062,6 +1058,20 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
             _mavLinkLogger?.LogOutgoing("COMMAND_LONG", 
                 $"cmd=MAV_CMD_PREFLIGHT_CALIBRATION(241), param1(gyro)={gyro}, param2(mag)={mag}, param3(baro)={groundPressure}, param4(airspeed)={airspeed}, param5(accel)={accel}");
 
+            // CRITICAL: MissionPlanner behavior for accel calibration:
+            // "imu calib take a little while" - it does NOT wait for ACK!
+            // It returns immediately and relies on STATUSTEXT/COMMAND_LONG subscriptions.
+            // This applies to ALL accel calibration modes (1, 2, 4, etc.)
+            if (accel >= 1)
+            {
+                _logger.LogInformation("[PREFLIGHT_CAL] Accel calibration (param5={Accel}) - sending fire-and-forget (no ACK wait, per MissionPlanner)", accel);
+                await SendCommandLongFireAndForgetAsync(
+                    MAV_CMD_PREFLIGHT_CALIBRATION,
+                    gyro, mag, groundPressure, airspeed, accel, 0, 0, ct);
+                return;
+            }
+
+            // For non-accel calibrations, wait for ACK normally
             await SendCommandLongAsync(
                 MAV_CMD_PREFLIGHT_CALIBRATION,
                 gyro,           // param1: gyroscope
@@ -1111,6 +1121,7 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
 
         /// <summary>
         /// Send MAV_CMD_ACCELCAL_VEHICLE_POS command for accelerometer calibration
+        /// MissionPlanner sends this as fire-and-forget (no ACK wait)
         /// </summary>
         /// <param name="position">Vehicle position (1-6 for different orientations)</param>
         public async Task SendAccelCalVehiclePosAsync(int position, CancellationToken ct = default)
@@ -1131,7 +1142,9 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
             _mavLinkLogger?.LogOutgoing("COMMAND_LONG", 
                 $"cmd=MAV_CMD_ACCELCAL_VEHICLE_POS(42429), param1(position)={position} ({posName})");
             
-            await SendCommandLongAsync(
+            // MissionPlanner sends this as fire-and-forget
+            // sendPacket(mavlink_command_long_t { param1=pos, command=ACCELCAL_VEHICLE_POS })
+            await SendCommandLongFireAndForgetAsync(
                 MAV_CMD_ACCELCAL_VEHICLE_POS,
                 position,   // param1: position (1-6)
                 0, 0, 0, 0, 0, 0,
@@ -1139,122 +1152,23 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
         }
 
         /// <summary>
-        /// Send MAV_CMD_PREFLIGHT_STORAGE command to reset all parameters to default
-        /// param1 = 0: Read params from storage
-        /// param1 = 1: Write params to storage
-        /// param1 = 2: Reset params to default
+        /// Send a raw COMMAND_LONG packet without any ACK handling.
+        /// This matches Mission Planner's sendPacket() behavior.
+        /// Used for: MAV_CMD_ACCELCAL_VEHICLE_POS during accel calibration
+        /// SYNCHRONOUS - does not wait for anything
         /// </summary>
-        public async Task SendResetParametersAsync(CancellationToken ct = default)
+        public void SendPacketRaw(ushort command, float param1, float param2 = 0, float param3 = 0, 
+            float param4 = 0, float param5 = 0, float param6 = 0, float param7 = 0)
         {
-            _logger.LogInformation("Sending MAV_CMD_PREFLIGHT_STORAGE: param1=2 (reset to defaults)");
+            if (_outputStream == null)
+            {
+                _logger.LogWarning("SendPacketRaw: Output stream is null");
+                return;
+            }
 
-            await SendCommandLongAsync(
-                MAV_CMD_PREFLIGHT_STORAGE,
-                2,  // param1: 2 = reset all params to defaults
-                0,  // param2: mission storage (not used)
-                0,  // param3: logging rate (not used)
-                0, 0, 0, 0,
-                ct);
-        }
+            _logger.LogInformation("SendPacketRaw: cmd={Command} param1={Param1}", command, param1);
 
-        /// <summary>
-        /// Send MAV_CMD_FLASH_BOOTLOADER command to update the bootloader
-        /// Magic value 290876 confirms the operation
-        /// </summary>
-        /// <param name="magicValue">Magic confirmation value (290876)</param>
-        public async Task SendFlashBootloaderAsync(int magicValue, CancellationToken ct = default)
-        {
-            _logger.LogInformation("Sending MAV_CMD_FLASH_BOOTLOADER: magic={Magic}", magicValue);
-
-            const ushort MAV_CMD_FLASH_BOOTLOADER = 42650;
-
-            await SendCommandLongAsync(
-                MAV_CMD_FLASH_BOOTLOADER,
-                0,          // param1: unused
-                0,          // param2: unused
-                0,          // param3: unused
-                0,          // param4: unused
-                magicValue, // param5: magic number (290876)
-                0,          // param6: unused
-                0,          // param7: unused
-                ct);
-        }
-
-        /// <summary>
-        /// Send MAV_CMD_SET_MESSAGE_INTERVAL to request specific message rate
-        /// Used to force IMU messages at 50Hz during accelerometer calibration
-        /// </summary>
-        /// <param name="messageId">MAVLink message ID (27=RAW_IMU, 26=SCALED_IMU)</param>
-        /// <param name="intervalUs">Interval in microseconds (20000 = 50Hz, -1 = default rate, 0 = stop)</param>
-        public async Task SendSetMessageIntervalAsync(int messageId, int intervalUs, CancellationToken ct = default)
-        {
-            _logger.LogInformation("Sending MAV_CMD_SET_MESSAGE_INTERVAL: msgId={MsgId} interval={Interval}us ({Hz}Hz)",
-                messageId, intervalUs, intervalUs > 0 ? 1000000.0 / intervalUs : 0);
-
-            await SendCommandLongAsync(
-                MAV_CMD_SET_MESSAGE_INTERVAL,
-                messageId,      // param1: message ID
-                intervalUs,     // param2: interval in microseconds
-                0, 0, 0, 0, 0,
-                ct);
-        }
-
-        /// <summary>
-        /// Send REQUEST_DATA_STREAM (legacy fallback for older firmware)
-        /// Used when SET_MESSAGE_INTERVAL is not supported
-        /// </summary>
-        /// <param name="streamId">Stream ID (1=RAW_SENSORS includes IMU)</param>
-        /// <param name="rateHz">Rate in Hz (50 = 50Hz)</param>
-        /// <param name="startStop">1=start, 0=stop</param>
-        public async Task SendRequestDataStreamAsync(int streamId, int rateHz, int startStop, CancellationToken ct = default)
-        {
-            _logger.LogInformation("Sending REQUEST_DATA_STREAM: streamId={StreamId} rate={Rate}Hz start={Start}",
-                streamId, rateHz, startStop);
-
-            // REQUEST_DATA_STREAM payload (6 bytes):
-            // [0]     target_system (uint8)
-            // [1]     target_component (uint8)
-            // [2]     req_stream_id (uint8)
-            // [3-4]   req_message_rate (uint16)
-            // [5]     start_stop (uint8)
-            const byte MAVLINK_MSG_ID_REQUEST_DATA_STREAM = 66;
-
-            var payload = new byte[6];
-            payload[0] = _targetSystemId != 0 ? _targetSystemId : (byte)1;
-            payload[1] = _targetComponentId != 0 ? _targetComponentId : (byte)1;
-            payload[2] = (byte)streamId;
-            BitConverter.GetBytes((ushort)rateHz).CopyTo(payload, 3);
-            payload[5] = (byte)startStop;
-
-            await SendMessageAsync(MAVLINK_MSG_ID_REQUEST_DATA_STREAM, payload, ct);
-        }
-
-        /// <summary>
-        /// Send COMMAND_LONG message with transaction tracking and retry logic
-        /// Production-grade reliability
-        /// </summary>
-        private async Task<CommandResult> SendCommandLongAsync(
-            ushort command,
-            float param1, float param2, float param3, float param4,
-            float param5, float param6, float param7,
-            CancellationToken ct = default)
-        {
-            // Register transaction for ACK tracking
-            var resultTask = _transactionManager.RegisterCommandAsync(command, TimeSpan.FromSeconds(5), maxRetries: 3);
-
-            // COMMAND_LONG payload (33 bytes):
-            // [0-3]   param1 (float)
-            // [4-7]   param2 (float)
-            // [8-11]  param3 (float)
-            // [12-15] param4 (float)
-            // [16-19] param5 (float)
-            // [20-23] param6 (float)
-            // [24-27] param7 (float)
-            // [28-29] command (uint16)
-            // [30]    target_system
-            // [31]    target_component
-            // [32]    confirmation
-
+            // COMMAND_LONG payload (33 bytes)
             var payload = new byte[33];
 
             BitConverter.GetBytes(param1).CopyTo(payload, 0);
@@ -1269,26 +1183,65 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
             payload[31] = _targetComponentId != 0 ? _targetComponentId : (byte)1;
             payload[32] = 0; // confirmation
 
-            // Send command
-            await SendMessageAsync(MAVLINK_MSG_ID_COMMAND_LONG, payload, ct);
-            
-            // Wait for ACK with retry logic
-            try
+            // Send synchronously, no waiting for ACK
+            lock (_writeLock)
             {
-                var result = await resultTask;
-                
-                if (result != CommandResult.Accepted)
+                try
                 {
-                    _logger.LogWarning("Command {Command} result: {Result}", command, result);
+                    byte payloadLen = (byte)payload.Length;
+                    byte seq = _packetSequence++;
+
+                    int frameLen = 8 + payloadLen;
+                    var frame = new byte[frameLen];
+
+                    frame[0] = MAVLINK_STX_V1;
+                    frame[1] = payloadLen;
+                    frame[2] = seq;
+                    frame[3] = GCS_SYSTEM_ID;
+                    frame[4] = GCS_COMPONENT_ID;
+                    frame[5] = MAVLINK_MSG_ID_COMMAND_LONG;
+
+                    Array.Copy(payload, 0, frame, 6, payloadLen);
+
+                    ushort crc = CalculateCrc(frame, 1, 5 + payloadLen, CRC_EXTRA_COMMAND_LONG);
+                    frame[6 + payloadLen] = (byte)(crc & 0xFF);
+                    frame[7 + payloadLen] = (byte)((crc >> 8) & 0xFF);
+
+                    _outputStream.Write(frame, 0, frameLen);
+                    _outputStream.Flush();
+
+                    _logger.LogTrace("Sent raw packet: cmd={Cmd} seq={Seq}", command, seq);
                 }
-                
-                return result;
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error sending raw packet");
+                }
             }
-            catch (TimeoutException ex)
+        }
+
+        /// <summary>
+        /// Send MAV_CMD_ACCELCAL_VEHICLE_POS - Mission Planner style (fire and forget)
+        /// This is the EXACT behavior of Mission Planner's sendPacket() method.
+        /// Does NOT wait for COMMAND_ACK - FC responds via STATUSTEXT/COMMAND_LONG
+        /// </summary>
+        public void SendAccelCalVehiclePosRaw(int position)
+        {
+            string posName = position switch
             {
-                _logger.LogError("Command {Command} timed out: {Message}", command, ex.Message);
-                throw;
-            }
+                1 => "LEVEL",
+                2 => "LEFT",
+                3 => "RIGHT",
+                4 => "NOSE_DOWN",
+                5 => "NOSE_UP",
+                6 => "BACK",
+                _ => position.ToString()
+            };
+            
+            _logger.LogInformation("SendAccelCalVehiclePosRaw: position={Position} ({Name}) [FIRE-AND-FORGET]", position, posName);
+            _mavLinkLogger?.LogOutgoing("COMMAND_LONG", 
+                $"cmd=MAV_CMD_ACCELCAL_VEHICLE_POS(42429), param1={position} ({posName}) [RAW/NO-ACK]");
+
+            SendPacketRaw(MAV_CMD_ACCELCAL_VEHICLE_POS, position);
         }
 
         private async Task SendMessageAsync(byte msgId, byte[] payload, CancellationToken ct)
@@ -1392,6 +1345,173 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
             }
 
             _logger.LogInformation("MAVLink wrapper disposed");
+        }
+
+        /// <summary>
+        /// Send MAV_CMD_PREFLIGHT_STORAGE command to reset all parameters to default
+        /// param1 = 0: Read params from storage
+        /// param1 = 1: Write params to storage
+        /// param1 = 2: Reset params to default
+        /// </summary>
+        public async Task SendResetParametersAsync(CancellationToken ct = default)
+        {
+            _logger.LogInformation("Sending MAV_CMD_PREFLIGHT_STORAGE: param1=2 (reset to defaults)");
+
+            await SendCommandLongAsync(
+                MAV_CMD_PREFLIGHT_STORAGE,
+                2,  // param1: 2 = reset all params to defaults
+                0,  // param2: mission storage (not used)
+                0,  // param3: logging rate (not used)
+                0, 0, 0, 0,
+                ct);
+        }
+
+        /// <summary>
+        /// Send MAV_CMD_FLASH_BOOTLOADER command to update the bootloader
+        /// Magic value 290876 confirms the operation
+        /// </summary>
+        /// <param name="magicValue">Magic confirmation value (290876)</param>
+        public async Task SendFlashBootloaderAsync(int magicValue, CancellationToken ct = default)
+        {
+            _logger.LogInformation("Sending MAV_CMD_FLASH_BOOTLOADER: magic={Magic}", magicValue);
+
+            const ushort MAV_CMD_FLASH_BOOTLOADER = 42650;
+
+            await SendCommandLongAsync(
+                MAV_CMD_FLASH_BOOTLOADER,
+                0,          // param1: unused
+                0,          // param2: unused
+                0,          // param3: unused
+                0,          // param4: unused
+                magicValue, // param5: magic number (290876)
+                0,          // param6: unused
+                0,          // param7: unused
+                ct);
+        }
+
+        /// <summary>
+        /// Send MAV_CMD_SET_MESSAGE_INTERVAL to request specific message rate
+        /// Used to force IMU messages at 50Hz during accelerometer calibration
+        /// </summary>
+        /// <param name="messageId">MAVLink message ID (27=RAW_IMU, 26=SCALED_IMU)</param>
+        /// <param name="intervalUs">Interval in microseconds (20000 = 50Hz, -1 = default rate, 0 = stop)</param>
+        public async Task SendSetMessageIntervalAsync(int messageId, int intervalUs, CancellationToken ct = default)
+        {
+            _logger.LogInformation("Sending MAV_CMD_SET_MESSAGE_INTERVAL: msgId={MsgId} interval={Interval}us ({Hz}Hz)",
+                messageId, intervalUs, intervalUs > 0 ? 1000000.0 / intervalUs : 0);
+
+            await SendCommandLongAsync(
+                MAV_CMD_SET_MESSAGE_INTERVAL,
+                messageId,      // param1: message ID
+                intervalUs,     // param2: interval in microseconds
+                0, 0, 0, 0, 0,
+                ct);
+        }
+
+        /// <summary>
+        /// Send REQUEST_DATA_STREAM (legacy fallback for older firmware)
+        /// Used when SET_MESSAGE_INTERVAL is not supported
+        /// </summary>
+        /// <param name="streamId">Stream ID (1=RAW_SENSORS includes IMU)</param>
+        /// <param name="rateHz">Rate in Hz (50 = 50Hz)</param>
+        /// <param name="startStop">1=start, 0=stop</param>
+        public async Task SendRequestDataStreamAsync(int streamId, int rateHz, int startStop, CancellationToken ct = default)
+        {
+            _logger.LogInformation("Sending REQUEST_DATA_STREAM: streamId={StreamId} rate={Rate}Hz start={Start}",
+                streamId, rateHz, startStop);
+
+            // REQUEST_DATA_STREAM payload (6 bytes):
+            const byte MAVLINK_MSG_ID_REQUEST_DATA_STREAM = 66;
+
+            var payload = new byte[6];
+            payload[0] = _targetSystemId != 0 ? _targetSystemId : (byte)1;
+            payload[1] = _targetComponentId != 0 ? _targetComponentId : (byte)1;
+            payload[2] = (byte)streamId;
+            BitConverter.GetBytes((ushort)rateHz).CopyTo(payload, 3);
+            payload[5] = (byte)startStop;
+
+            await SendMessageAsync(MAVLINK_MSG_ID_REQUEST_DATA_STREAM, payload, ct);
+        }
+
+        /// <summary>
+        /// Send COMMAND_LONG message WITHOUT waiting for ACK (fire-and-forget).
+        /// Used for accel calibration commands per MissionPlanner behavior.
+        /// </summary>
+        private async Task SendCommandLongFireAndForgetAsync(
+            ushort command,
+            float param1, float param2, float param3, float param4,
+            float param5, float param6, float param7,
+            CancellationToken ct = default)
+        {
+            // COMMAND_LONG payload (33 bytes)
+            var payload = new byte[33];
+
+            BitConverter.GetBytes(param1).CopyTo(payload, 0);
+            BitConverter.GetBytes(param2).CopyTo(payload, 4);
+            BitConverter.GetBytes(param3).CopyTo(payload, 8);
+            BitConverter.GetBytes(param4).CopyTo(payload, 12);
+            BitConverter.GetBytes(param5).CopyTo(payload, 16);
+            BitConverter.GetBytes(param6).CopyTo(payload, 20);
+            BitConverter.GetBytes(param7).CopyTo(payload, 24);
+            BitConverter.GetBytes(command).CopyTo(payload, 28);
+            payload[30] = _targetSystemId != 0 ? _targetSystemId : (byte)1;
+            payload[31] = _targetComponentId != 0 ? _targetComponentId : (byte)1;
+            payload[32] = 0; // confirmation
+
+            // Send command - NO ACK WAIT
+            await SendMessageAsync(MAVLINK_MSG_ID_COMMAND_LONG, payload, ct);
+            
+            _logger.LogInformation("COMMAND_LONG sent (fire-and-forget): cmd={Command} param1={Param1}", command, param1);
+        }
+
+        /// <summary>
+        /// Send COMMAND_LONG message with transaction tracking and retry logic
+        /// Production-grade reliability
+        /// </summary>
+        private async Task<CommandResult> SendCommandLongAsync(
+            ushort command,
+            float param1, float param2, float param3, float param4,
+            float param5, float param6, float param7,
+            CancellationToken ct = default)
+        {
+            // Register transaction for ACK tracking
+            var resultTask = _transactionManager.RegisterCommandAsync(command, TimeSpan.FromSeconds(5), maxRetries: 3);
+
+            // COMMAND_LONG payload (33 bytes)
+            var payload = new byte[33];
+
+            BitConverter.GetBytes(param1).CopyTo(payload, 0);
+            BitConverter.GetBytes(param2).CopyTo(payload, 4);
+            BitConverter.GetBytes(param3).CopyTo(payload, 8);
+            BitConverter.GetBytes(param4).CopyTo(payload, 12);
+            BitConverter.GetBytes(param5).CopyTo(payload, 16);
+            BitConverter.GetBytes(param6).CopyTo(payload, 20);
+            BitConverter.GetBytes(param7).CopyTo(payload, 24);
+            BitConverter.GetBytes(command).CopyTo(payload, 28);
+            payload[30] = _targetSystemId != 0 ? _targetSystemId : (byte)1;
+            payload[31] = _targetComponentId != 0 ? _targetComponentId : (byte)1;
+            payload[32] = 0; // confirmation
+
+            // Send command
+            await SendMessageAsync(MAVLINK_MSG_ID_COMMAND_LONG, payload, ct);
+            
+            // Wait for ACK with retry logic
+            try
+            {
+                var result = await resultTask;
+                
+                if (result != CommandResult.Accepted)
+                {
+                    _logger.LogWarning("Command {Command} result: {Result}", command, result);
+                }
+                
+                return result;
+            }
+            catch (TimeoutException ex)
+            {
+                _logger.LogError("Command {Command} timed out: {Message}", command, ex.Message);
+                throw;
+            }
         }
     }
 

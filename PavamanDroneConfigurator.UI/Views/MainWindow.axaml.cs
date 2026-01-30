@@ -27,6 +27,7 @@ public partial class MainWindow : Window
         // We use the visual tree to find buttons with nav-button class
         if (Content is Grid mainGrid)
         {
+<<<<<<< HEAD
             var sidebar = mainGrid.Children.OfType<Border>().FirstOrDefault();
             if (sidebar?.Child is Grid sidebarGrid)
             {
@@ -38,11 +39,30 @@ public partial class MainWindow : Window
                     if (firstButton != null)
                     {
                         Console.WriteLine($"[MainWindow] Found first nav button: {firstButton.Content}");
+=======
+            try
+            {
+                // Find and activate the Connection button by default
+                if (this.FindControl<StackPanel>("NavigationMenu") is StackPanel navMenu)
+                {
+                    var firstButton = navMenu.Children.OfType<Button>().FirstOrDefault();
+                    if (firstButton != null)
+                    {
+>>>>>>> a86414a61f2c29968a36ef2ae420682a1156c8c6
                         SetActiveButton(firstButton);
                     }
                 }
             }
+<<<<<<< HEAD
         }
+=======
+            catch (Exception ex)
+            {
+                // Log error but don't crash app
+                System.Diagnostics.Debug.WriteLine($"Error setting initial navigation: {ex.Message}");
+            }
+        };
+>>>>>>> a86414a61f2c29968a36ef2ae420682a1156c8c6
     }
 
     private void NavButton_Click(object? sender, RoutedEventArgs e)

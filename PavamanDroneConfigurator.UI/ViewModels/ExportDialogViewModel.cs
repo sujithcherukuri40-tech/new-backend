@@ -126,6 +126,29 @@ public partial class ExportDialogViewModel : ViewModelBase
             }
         }
 
+        // Check for reserved Windows names
+        string[] reservedNames = { "CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", 
+                                   "COM5", "COM6", "COM7", "COM8", "COM9", "LPT1", "LPT2", 
+                                   "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9" };
+        var fileNameUpper = FileName.ToUpperInvariant();
+        var fileNameWithoutExt = System.IO.Path.GetFileNameWithoutExtension(fileNameUpper);
+        
+        if (reservedNames.Contains(fileNameWithoutExt))
+        {
+            ValidationMessage = $"'{FileName}' is a reserved system name.";
+            HasValidationError = true;
+            return;
+        }
+
+        // Check for path traversal attempts
+        if (FileName.Contains("..") || FileName.Contains("/") || FileName.Contains("\\"))
+        {
+            ValidationMessage = "File name cannot contain path separators.";
+            HasValidationError = true;
+            return;
+        }
+
+        // All validation passed
         ValidationMessage = string.Empty;
         HasValidationError = false;
     }

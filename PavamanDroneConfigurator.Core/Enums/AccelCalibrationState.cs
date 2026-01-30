@@ -47,27 +47,54 @@ public enum AccelCalibrationState
 
 /// <summary>
 /// Accelerometer calibration position (1-6).
-/// These MUST match MAV_CMD_ACCELCAL_VEHICLE_POS parameter values.
+/// These MUST match MAVLink ACCELCAL_VEHICLE_POS enum parameter values.
+/// 
+/// From MAVLink enum definition:
+///   ACCELCAL_VEHICLE_POS_LEVEL    = 1
+///   ACCELCAL_VEHICLE_POS_LEFT     = 2
+///   ACCELCAL_VEHICLE_POS_RIGHT    = 3
+///   ACCELCAL_VEHICLE_POS_NOSEDOWN = 4
+///   ACCELCAL_VEHICLE_POS_NOSEUP   = 5
+///   ACCELCAL_VEHICLE_POS_BACK     = 6
+///   ACCELCAL_VEHICLE_POS_SUCCESS  = 16777215 (0xFFFFFF)
+///   ACCELCAL_VEHICLE_POS_FAILED   = 16777216 (0x1000000)
 /// </summary>
 public enum AccelCalibrationPosition
 {
-    /// <summary>Position 1: Vehicle level on flat surface</summary>
+    /// <summary>Position 1: Vehicle level on flat surface (ACCELCAL_VEHICLE_POS_LEVEL)</summary>
     Level = 1,
     
-    /// <summary>Position 2: Vehicle on left side</summary>
+    /// <summary>Position 2: Vehicle on left side (ACCELCAL_VEHICLE_POS_LEFT)</summary>
     Left = 2,
     
-    /// <summary>Position 3: Vehicle on right side</summary>
+    /// <summary>Position 3: Vehicle on right side (ACCELCAL_VEHICLE_POS_RIGHT)</summary>
     Right = 3,
     
-    /// <summary>Position 4: Vehicle nose pointing down (90° pitch forward)</summary>
+    /// <summary>Position 4: Vehicle nose pointing down 90° (ACCELCAL_VEHICLE_POS_NOSEDOWN)</summary>
     NoseDown = 4,
     
-    /// <summary>Position 5: Vehicle nose pointing up (90° pitch backward)</summary>
+    /// <summary>Position 5: Vehicle nose pointing up 90° (ACCELCAL_VEHICLE_POS_NOSEUP)</summary>
     NoseUp = 5,
     
-    /// <summary>Position 6: Vehicle upside down (on its back)</summary>
+    /// <summary>Position 6: Vehicle upside down on its back (ACCELCAL_VEHICLE_POS_BACK)</summary>
     Back = 6
+}
+
+/// <summary>
+/// Special position values for calibration completion status.
+/// FC sends these via COMMAND_LONG to indicate final result.
+/// </summary>
+public static class AccelCalSpecialPositions
+{
+    /// <summary>
+    /// Calibration completed successfully (ACCELCAL_VEHICLE_POS_SUCCESS = 16777215 = 0xFFFFFF)
+    /// </summary>
+    public const int Success = 16777215;
+    
+    /// <summary>
+    /// Calibration failed (ACCELCAL_VEHICLE_POS_FAILED = 16777216 = 0x1000000)
+    /// </summary>
+    public const int Failed = 16777216;
 }
 
 /// <summary>

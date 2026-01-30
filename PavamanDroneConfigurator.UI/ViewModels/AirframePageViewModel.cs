@@ -96,7 +96,7 @@ public partial class AirframePageViewModel : ViewModelBase
         if (success)
         {
             // Auto-load airframe settings after parameters are downloaded
-            Dispatcher.UIThread.Post(async () =>
+            _ = Dispatcher.UIThread.InvokeAsync(async () =>
             {
                 await LoadSettingsAsync();
             });
@@ -197,6 +197,16 @@ public partial class AirframePageViewModel : ViewModelBase
     private async Task RefreshSettingsAsync()
     {
         await LoadSettingsAsync();
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            _connectionService.ConnectionStateChanged -= OnConnectionStateChanged;
+            _parameterService.ParameterDownloadCompleted -= OnParameterDownloadCompleted;
+        }
+        base.Dispose(disposing);
     }
 }
 

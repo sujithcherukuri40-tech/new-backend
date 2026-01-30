@@ -6,6 +6,7 @@ public enum CalibrationType
     Compass,
     Gyroscope,
     Barometer,
+    Level,
     LevelHorizon,
     Airspeed
 }
