@@ -326,10 +326,11 @@
                     </DataGrid.Columns>
                 </DataGrid>
 
-                <!-- Empty State Overlay -->
+                <!-- Empty State Overlay (ZIndex 1 - below loading) -->
                 <Border Grid.Row="2"
                         Background="White"
-                        IsVisible="{Binding ShowEmptyState}">
+                        IsVisible="{Binding ShowEmptyState}"
+                        ZIndex="1">
                     <StackPanel VerticalAlignment="Center" 
                                 HorizontalAlignment="Center"
                                 Spacing="16"
@@ -358,10 +359,11 @@
                     </StackPanel>
                 </Border>
 
-                <!-- Loading Overlay -->
+                <!-- Loading Overlay (ZIndex 2 - on top) -->
                 <Border Grid.Row="2"
                         Background="#CCF9FAFB"
-                        IsVisible="{Binding IsBusy}">
+                        IsVisible="{Binding IsBusy}"
+                        ZIndex="2">
                     <StackPanel VerticalAlignment="Center" 
                                 HorizontalAlignment="Center"
                                 Spacing="16">

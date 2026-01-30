@@ -71,9 +71,9 @@ public sealed partial class AdminPanelViewModel : ViewModelBase
     public int TotalCount => Users.Count;
 
     /// <summary>
-    /// Whether to show the empty state message.
+    /// Whether to show the empty state message (no users found after initialization).
     /// </summary>
-    public bool ShowEmptyState => !IsBusy && FilteredUsers.Count == 0;
+    public bool ShowEmptyState => !IsBusy && FilteredUsers.Count == 0 && _isInitialized;
 
     public AdminPanelViewModel(
         IAdminService adminService,
