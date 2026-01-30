@@ -52,6 +52,7 @@ public partial class MainWindowViewModel : ViewModelBase
     public AdvancedSettingsPageViewModel AdvancedSettingsPage { get; }
     public FirmwarePageViewModel FirmwarePage { get; }
     public Admin.AdminPanelViewModel? AdminPanelPage { get; private set; }
+    public Admin.AdminDashboardViewModel? AdminDashboardPage { get; private set; }
 
     private readonly IParameterService _parameterService;
     private readonly IConnectionService _connectionService;
@@ -109,20 +110,48 @@ public partial class MainWindowViewModel : ViewModelBase
         // Determine if user is admin from auth session
         IsAdmin = authSession.CurrentState.User?.IsAdmin ?? false;
 
-        // Create admin panel only if user is admin
+        // Create admin panel and dashboard only if user is admin
         if (IsAdmin && App.Services != null)
         {
             try
             {
+                AdminDashboardPage = App.Services.GetService<Admin.AdminDashboardViewModel>();
+                if (AdminDashboardPage != null)
+                {
+                    Task.Run(async () =>
+                    {
+                        try
+                        {
+                            await AdminDashboardPage.InitializeAsync();
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"Admin dashboard initialization failed: {ex.Message}");
+                        }
+                    });
+                }
+
                 AdminPanelPage = App.Services.GetService<Admin.AdminPanelViewModel>();
                 if (AdminPanelPage != null)
                 {
-                    _ = AdminPanelPage.InitializeAsync();
+                    Task.Run(async () =>
+                    {
+                        try
+                        {
+                            await AdminPanelPage.InitializeAsync();
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"Admin panel initialization failed: {ex.Message}");
+                        }
+                    });
                 }
             }
-            catch
+            catch (Exception ex)
             {
-                // Admin panel not available - gracefully degrade
+                // Admin features not available - gracefully degrade
+                Console.WriteLine($"Failed to initialize admin features: {ex.Message}");
+                AdminDashboardPage = null;
                 AdminPanelPage = null;
             }
         }

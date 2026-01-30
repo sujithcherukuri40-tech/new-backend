@@ -125,6 +125,7 @@ public partial class App : Application
         services.AddTransient<AuthShellViewModel>();
         
         services.AddTransient<UI.ViewModels.Admin.AdminPanelViewModel>();
+        services.AddTransient<UI.ViewModels.Admin.AdminDashboardViewModel>();
 
         if (Configuration != null)
         {

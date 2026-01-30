@@ -101,46 +101,108 @@
 
     <Grid RowDefinitions="Auto,*" Margin="24">
         <!-- Header -->
-        <StackPanel Grid.Row="0" Spacing="8" Margin="0,0,0,24">
-            <TextBlock Text="User Management"
-                       FontSize="28"
+        <StackPanel Grid.Row="0" Spacing="12" Margin="0,0,0,24">
+            <TextBlock Text="👥 User Management"
+                       FontSize="32"
                        FontWeight="Bold"
                        Foreground="#111827"/>
             
-            <TextBlock Text="Manage user access requests and roles"
+            <TextBlock Text="Manage user access requests, roles, and permissions"
                        FontSize="14"
                        Foreground="#6B7280"/>
         </StackPanel>
 
         <!-- Content -->
         <Border Grid.Row="1" Classes="card" Padding="0">
-            <Grid RowDefinitions="Auto,Auto,*,Auto">
-                <!-- Toolbar -->
+            <Grid RowDefinitions="Auto,Auto,Auto,*,Auto">
+                <!-- Toolbar with Search and Filters -->
                 <Border Grid.Row="0" 
                         Background="#F9FAFB" 
                         Padding="16"
                         CornerRadius="8,8,0,0"
                         BorderBrush="#E5E7EB"
                         BorderThickness="0,0,0,1">
-                    <StackPanel Orientation="Horizontal" Spacing="12">
-                        <Button Content="Refresh"
+                    <Grid ColumnDefinitions="Auto,*,Auto">
+                        <!-- Refresh Button -->
+                        <Button Grid.Column="0"
+                                Content="🔄 Refresh"
                                 Classes="action-secondary"
-                                Command="{Binding RefreshCommand}"/>
+                                Command="{Binding RefreshCommand}"
+                                Margin="0,0,12,0"/>
                         
-                        <Border Width="1" Background="#E5E7EB" Margin="4,0"/>
+                        <!-- Search and Filter Section -->
+                        <StackPanel Grid.Column="1" 
+                                    Orientation="Horizontal" 
+                                    Spacing="12"
+                                    HorizontalAlignment="Left">
+                            <!-- Search Box -->
+                            <TextBox Watermark="🔍 Search by name or email..."
+                                     Text="{Binding SearchText, Mode=TwoWay}"
+                                     Width="250"
+                                     CornerRadius="6"
+                                     Padding="10,6"
+                                     FontSize="13"
+                                     BorderBrush="#D1D5DB"
+                                     BorderThickness="1"/>
+                            
+                            <!-- Status Filter -->
+                            <ComboBox SelectedIndex="{Binding StatusFilter, Mode=TwoWay}"
+                                      Width="130"
+                                      Classes="role-select">
+                                <ComboBoxItem Content="All Status"/>
+                                <ComboBoxItem Content="✅ Approved"/>
+                                <ComboBoxItem Content="⏳ Pending"/>
+                            </ComboBox>
+                            
+                            <!-- Role Filter -->
+                            <ComboBox SelectedIndex="{Binding RoleFilter, Mode=TwoWay}"
+                                      Width="130"
+                                      Classes="role-select">
+                                <ComboBoxItem Content="All Roles"/>
+                                <ComboBoxItem Content="👑 Admin"/>
+                                <ComboBoxItem Content="👤 User"/>
+                            </ComboBox>
+                            
+                            <!-- Clear Filters Button -->
+                            <Button Content="✖ Clear"
+                                    Classes="action-secondary"
+                                    Command="{Binding ClearFiltersCommand}"
+                                    FontSize="12"
+                                    Padding="10,6"/>
+                        </StackPanel>
                         
-                        <StackPanel Orientation="Horizontal" Spacing="8">
-                            <TextBlock Text="Total Users:" VerticalAlignment="Center" Foreground="#6B7280"/>
-                            <TextBlock Text="{Binding Users.Count}" FontWeight="SemiBold" Foreground="#111827" VerticalAlignment="Center"/>
-                        </StackPanel>
+                        <!-- Stats -->
+                        <StackPanel Grid.Column="2" 
+                                    Orientation="Horizontal" 
+                                    Spacing="16">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <TextBlock Text="Total:" 
+                                           VerticalAlignment="Center" 
+                                           Foreground="#6B7280"
+                                           FontSize="13"/>
+                                <TextBlock Text="{Binding FilteredUsers.Count}" 
+                                           FontWeight="SemiBold" 
+                                           Foreground="#111827" 
+                                           VerticalAlignment="Center"
+                                           FontSize="14"/>
+                            </StackPanel>
 
-                        <Border Width="1" Background="#E5E7EB" Margin="4,0"/>
+                            <Border Width="1" Background="#E5E7EB"/>
 
-                        <StackPanel Orientation="Horizontal" Spacing="8">
-                            <TextBlock Text="Pending Approval:" VerticalAlignment="Center" Foreground="#6B7280"/>
-                            <TextBlock Text="{Binding PendingCount}" FontWeight="SemiBold" Foreground="#F59E0B" VerticalAlignment="Center"/>
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <TextBlock Text="⏳ Pending:" 
+                                           VerticalAlignment="Center" 
+                                           Foreground="#F59E0B"
+                                           FontSize="13"
+                                           FontWeight="SemiBold"/>
+                                <TextBlock Text="{Binding PendingCount}" 
+                                           FontWeight="Bold" 
+                                           Foreground="#F59E0B" 
+                                           VerticalAlignment="Center"
+                                           FontSize="14"/>
+                            </StackPanel>
                         </StackPanel>
-                    </StackPanel>
+                    </Grid>
                 </Border>
 
                 <!-- Status Message -->
@@ -157,7 +219,7 @@
 
                 <!-- Users DataGrid -->
                 <DataGrid Grid.Row="2"
-                          ItemsSource="{Binding Users}"
+                          ItemsSource="{Binding FilteredUsers}"
                           AutoGenerateColumns="False"
                           CanUserResizeColumns="True"
                           CanUserSortColumns="True"
@@ -201,19 +263,28 @@
                         </DataGridTemplateColumn>
 
                         <!-- Role Selection -->
-                        <DataGridTemplateColumn Header="Role" Width="150">
+                        <DataGridTemplateColumn Header="👑 Role" Width="180">
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate>
-                                    <ComboBox Classes="role-select"
-                                              SelectedItem="{Binding SelectedRole, Mode=TwoWay}"
-                                              ItemsSource="{Binding AvailableRoles}"
-                                              HorizontalAlignment="Stretch">
-                                        <ComboBox.ItemTemplate>
-                                            <DataTemplate>
-                                                <TextBlock Text="{Binding}"/>
-                                            </DataTemplate>
-                                        </ComboBox.ItemTemplate>
-                                    </ComboBox>
+                                    <StackPanel Orientation="Horizontal" Spacing="8" Margin="4">
+                                        <ComboBox Classes="role-select"
+                                                  SelectedItem="{Binding SelectedRole, Mode=TwoWay}"
+                                                  ItemsSource="{Binding AvailableRoles}"
+                                                  HorizontalAlignment="Stretch"
+                                                  MinWidth="110"
+                                                  Background="#FFFFFF"
+                                                  BorderBrush="#3B82F6"
+                                                  BorderThickness="1.5"
+                                                  FontWeight="SemiBold">
+                                            <ComboBox.ItemTemplate>
+                                                <DataTemplate>
+                                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                                        <TextBlock Text="{Binding}" FontWeight="SemiBold"/>
+                                                    </StackPanel>
+                                                </DataTemplate>
+                                            </ComboBox.ItemTemplate>
+                                        </ComboBox>
+                                    </StackPanel>
                                 </DataTemplate>
                             </DataGridTemplateColumn.CellTemplate>
                         </DataGridTemplateColumn>
@@ -255,7 +326,7 @@
                 </DataGrid>
 
                 <!-- Loading Overlay -->
-                <Border Grid.Row="2"
+                <Border Grid.Row="3"
                         Background="#CCF9FAFB"
                         IsVisible="{Binding IsBusy}">
                     <StackPanel VerticalAlignment="Center" 
@@ -273,15 +344,15 @@
                 </Border>
 
                 <!-- Footer -->
-                <Border Grid.Row="3"
+                <Border Grid.Row="4"
                         Background="#F9FAFB"
                         Padding="16"
                         CornerRadius="0,0,8,8"
                         BorderBrush="#E5E7EB"
                         BorderThickness="0,1,0,0">
                     <TextBlock FontSize="12" Foreground="#6B7280">
-                        <Run Text="Tip:"/>
-                        <Run Text="Select a role before approving new users. Approved users can login immediately with their assigned role."/>
+                        <Run Text="💡 Tip:"/>
+                        <Run Text="Select a role from the dropdown before approving new users. The button will show 'Approve as [Role]'. Approved users can login immediately with their assigned role."/>
                     </TextBlock>
                 </Border>
             </Grid>
