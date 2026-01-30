@@ -99,10 +99,15 @@ public partial class ProfilePageViewModel : ViewModelBase
     {
         var user = _authSession.CurrentState.User;
         
-        _logger.LogInformation("Loading user details. User is null: {IsNull}", user == null);
+        _logger.LogInformation("=== ProfilePage: Loading user details ===");
+        _logger.LogInformation("User is null: {IsNull}", user == null);
+        _logger.LogInformation("AuthSession CurrentState: {@State}", _authSession.CurrentState);
         
         if (user != null)
         {
+            _logger.LogInformation("User found: {Email}, Role: {Role}, IsAdmin: {IsAdmin}", 
+                user.Email, user.Role, user.IsAdmin);
+            
             UserFullName = user.FullName;
             UserEmail = user.Email;
             UserRole = user.Role;
@@ -114,6 +119,7 @@ public partial class ProfilePageViewModel : ViewModelBase
             // Initialize admin panel if user became an admin and panel doesn't exist
             if (IsAdmin && !wasAdmin && AdminPanel == null)
             {
+                _logger.LogInformation("Initializing AdminPanel for admin user");
                 AdminPanel = new AdminPanelViewModel(_adminService, _adminPanelLogger);
                 _ = AdminPanel.InitializeAsync();
                 OnPropertyChanged(nameof(AdminPanel));
@@ -121,23 +127,25 @@ public partial class ProfilePageViewModel : ViewModelBase
             // Dispose admin panel if user is no longer an admin
             else if (!IsAdmin && wasAdmin && AdminPanel != null)
             {
+                _logger.LogInformation("Disposing AdminPanel - user is no longer admin");
                 AdminPanel = null;
                 OnPropertyChanged(nameof(AdminPanel));
             }
 
-            _logger.LogDebug("Loaded user profile: {Email} ({Role})", user.Email, user.Role);
+            _logger.LogInformation("Successfully loaded user profile: {Email} ({Role})", user.Email, user.Role);
         }
         else
         {
+            _logger.LogWarning("No user found in auth session - using fallback values");
             UserFullName = "Guest User";
             UserEmail = "Not logged in";
             UserRole = "User";
             UserStatus = "Not authenticated";
             AccountCreatedDate = DateTime.Now.ToString("MMMM dd, yyyy 'at' hh:mm tt");
             IsAdmin = false;
-            
-            _logger.LogWarning("No user found in auth session");
         }
+        
+        _logger.LogInformation("=== ProfilePage: User details loaded successfully ===");
     }
 
     [RelayCommand]
