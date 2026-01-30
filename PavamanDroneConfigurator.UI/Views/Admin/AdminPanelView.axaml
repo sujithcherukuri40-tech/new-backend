@@ -1,0 +1,296 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:PavamanDroneConfigurator.UI.ViewModels.Admin"
+             xmlns:converters="using:Avalonia.Data.Converters"
+             mc:Ignorable="d" d:DesignWidth="1000" d:DesignHeight="700"
+             x:Class="PavamanDroneConfigurator.UI.Views.Admin.AdminPanelView"
+             x:DataType="vm:AdminPanelViewModel">
+
+    <UserControl.Styles>
+        <!-- macOS-style Card -->
+        <Style Selector="Border.card">
+            <Setter Property="Background" Value="White"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="BoxShadow" Value="0 2 8 0 #10000000"/>
+        </Style>
+
+        <!-- Status Badge -->
+        <Style Selector="Border.badge-approved">
+            <Setter Property="Background" Value="#DCFCE7"/>
+            <Setter Property="CornerRadius" Value="4"/>
+            <Setter Property="Padding" Value="8,4"/>
+        </Style>
+
+        <Style Selector="Border.badge-pending">
+            <Setter Property="Background" Value="#FEF3C7"/>
+            <Setter Property="CornerRadius" Value="4"/>
+            <Setter Property="Padding" Value="8,4"/>
+        </Style>
+
+        <Style Selector="Border.badge-admin">
+            <Setter Property="Background" Value="#DBEAFE"/>
+            <Setter Property="CornerRadius" Value="4"/>
+            <Setter Property="Padding" Value="8,4"/>
+        </Style>
+
+        <Style Selector="Border.badge-user">
+            <Setter Property="Background" Value="#F3F4F6"/>
+            <Setter Property="CornerRadius" Value="4"/>
+            <Setter Property="Padding" Value="8,4"/>
+        </Style>
+
+        <!-- Action Button -->
+        <Style Selector="Button.action-approve">
+            <Setter Property="Background" Value="#10B981"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="CornerRadius" Value="6"/>
+            <Setter Property="Padding" Value="12,6"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+        </Style>
+
+        <Style Selector="Button.action-approve:pointerover">
+            <Setter Property="Background" Value="#059669"/>
+        </Style>
+
+        <Style Selector="Button.action-disapprove">
+            <Setter Property="Background" Value="#EF4444"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="CornerRadius" Value="6"/>
+            <Setter Property="Padding" Value="12,6"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+        </Style>
+
+        <Style Selector="Button.action-disapprove:pointerover">
+            <Setter Property="Background" Value="#DC2626"/>
+        </Style>
+
+        <Style Selector="Button.action-secondary">
+            <Setter Property="Background" Value="#F3F4F6"/>
+            <Setter Property="Foreground" Value="#374151"/>
+            <Setter Property="CornerRadius" Value="6"/>
+            <Setter Property="Padding" Value="12,6"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+        </Style>
+
+        <Style Selector="Button.action-secondary:pointerover">
+            <Setter Property="Background" Value="#E5E7EB"/>
+        </Style>
+
+        <!-- ComboBox Style -->
+        <Style Selector="ComboBox.role-select">
+            <Setter Property="MinWidth" Value="100"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Padding" Value="8,6"/>
+            <Setter Property="CornerRadius" Value="6"/>
+            <Setter Property="Background" Value="White"/>
+            <Setter Property="BorderBrush" Value="#D1D5DB"/>
+            <Setter Property="BorderThickness" Value="1"/>
+        </Style>
+    </UserControl.Styles>
+
+    <Grid RowDefinitions="Auto,*" Margin="24">
+        <!-- Header -->
+        <StackPanel Grid.Row="0" Spacing="8" Margin="0,0,0,24">
+            <TextBlock Text="?? User Management"
+                       FontSize="28"
+                       FontWeight="Bold"
+                       Foreground="#111827"/>
+            
+            <TextBlock Text="Manage user access requests and roles"
+                       FontSize="14"
+                       Foreground="#6B7280"/>
+        </StackPanel>
+
+        <!-- Content -->
+        <Border Grid.Row="1" Classes="card" Padding="0">
+            <Grid RowDefinitions="Auto,Auto,*,Auto">
+                <!-- Toolbar -->
+                <Border Grid.Row="0" 
+                        Background="#F9FAFB" 
+                        Padding="16"
+                        CornerRadius="8,8,0,0"
+                        BorderBrush="#E5E7EB"
+                        BorderThickness="0,0,0,1">
+                    <StackPanel Orientation="Horizontal" Spacing="12">
+                        <Button Content="?? Refresh"
+                                Classes="action-secondary"
+                                Command="{Binding RefreshCommand}"/>
+                        
+                        <Border Width="1" Background="#E5E7EB" Margin="4,0"/>
+                        
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <TextBlock Text="??" FontSize="16" VerticalAlignment="Center"/>
+                            <TextBlock VerticalAlignment="Center" Foreground="#6B7280">
+                                <Run Text="Total Users:"/>
+                                <Run Text="{Binding Users.Count}" FontWeight="SemiBold" Foreground="#111827"/>
+                            </TextBlock>
+                        </StackPanel>
+
+                        <Border Width="1" Background="#E5E7EB" Margin="4,0"/>
+
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <TextBlock Text="?" FontSize="16" VerticalAlignment="Center"/>
+                            <TextBlock VerticalAlignment="Center" Foreground="#6B7280">
+                                <Run Text="Pending Approval:"/>
+                                <Run Text="{Binding PendingCount}" FontWeight="SemiBold" Foreground="#F59E0B"/>
+                            </TextBlock>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <!-- Status Message -->
+                <Border Grid.Row="1"
+                        Background="#EFF6FF"
+                        Padding="12"
+                        BorderBrush="#BFDBFE"
+                        BorderThickness="0,0,0,1"
+                        IsVisible="{Binding StatusMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                    <TextBlock Text="{Binding StatusMessage}"
+                               FontSize="13"
+                               Foreground="#1E40AF"/>
+                </Border>
+
+                <!-- Users DataGrid -->
+                <DataGrid Grid.Row="2"
+                          ItemsSource="{Binding Users}"
+                          AutoGenerateColumns="False"
+                          CanUserResizeColumns="True"
+                          CanUserSortColumns="True"
+                          GridLinesVisibility="Horizontal"
+                          HeadersVisibility="Column"
+                          IsReadOnly="True"
+                          SelectionMode="Single"
+                          Background="Transparent"
+                          RowBackground="White">
+
+                    <DataGrid.Columns>
+                        <!-- Full Name -->
+                        <DataGridTextColumn Header="Full Name"
+                                            Binding="{Binding FullName}"
+                                            Width="200"
+                                            FontWeight="SemiBold"
+                                            Foreground="#111827"/>
+
+                        <!-- Email -->
+                        <DataGridTextColumn Header="Email"
+                                            Binding="{Binding Email}"
+                                            Width="220"
+                                            Foreground="#6B7280"/>
+
+                        <!-- Status -->
+                        <DataGridTemplateColumn Header="Status" Width="120">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <Border Classes.badge-approved="{Binding IsApproved}"
+                                            Classes.badge-pending="{Binding !IsApproved}"
+                                            HorizontalAlignment="Left"
+                                            Padding="8,4"
+                                            CornerRadius="4">
+                                        <TextBlock Text="{Binding StatusText}"
+                                                   FontSize="12" 
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{Binding StatusColor}"/>
+                                    </Border>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+
+                        <!-- Role Selection -->
+                        <DataGridTemplateColumn Header="Role" Width="150">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <ComboBox Classes="role-select"
+                                              SelectedItem="{Binding SelectedRole, Mode=TwoWay}"
+                                              ItemsSource="{Binding AvailableRoles}"
+                                              HorizontalAlignment="Stretch">
+                                        <ComboBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding}"/>
+                                            </DataTemplate>
+                                        </ComboBox.ItemTemplate>
+                                    </ComboBox>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+
+                        <!-- Created Date -->
+                        <DataGridTextColumn Header="Registered"
+                                            Binding="{Binding CreatedAt, StringFormat='{}{0:MMM dd, yyyy}'}"
+                                            Width="120"
+                                            Foreground="#6B7280"/>
+
+                        <!-- Last Login -->
+                        <DataGridTextColumn Header="Last Login"
+                                            Binding="{Binding LastLoginAt, StringFormat='{}{0:MMM dd, yyyy}'}"
+                                            Width="120"
+                                            Foreground="#6B7280"/>
+
+                        <!-- Actions -->
+                        <DataGridTemplateColumn Header="Actions" Width="*" MinWidth="200">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <StackPanel Orientation="Horizontal" Spacing="8" Margin="4,4">
+                                        <!-- Approve/Disapprove Button -->
+                                        <Button Classes.action-approve="{Binding !IsApproved}"
+                                                Classes.action-disapprove="{Binding IsApproved}"
+                                                Content="{Binding ApprovalButtonText}"
+                                                Command="{Binding $parent[UserControl].((vm:AdminPanelViewModel)DataContext).ApproveUserCommand}"
+                                                CommandParameter="{Binding}"/>
+                                   
+                                        <!-- Update Role Button -->
+                                        <Button Content="?? Update Role"
+                                                Classes="action-secondary"
+                                                Command="{Binding $parent[UserControl].((vm:AdminPanelViewModel)DataContext).UpdateRoleCommand}"
+                                                CommandParameter="{Binding}"/>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                    </DataGrid.Columns>
+                </DataGrid>
+
+                <!-- Loading Overlay -->
+                <Border Grid.Row="2"
+                        Background="#CCF9FAFB"
+                        IsVisible="{Binding IsBusy}">
+                    <StackPanel VerticalAlignment="Center" 
+                                HorizontalAlignment="Center"
+                                Spacing="16">
+                        <ProgressBar IsIndeterminate="True"
+                                     Width="200"
+                                     Height="4"
+                                     Foreground="#3B82F6"/>
+                        <TextBlock Text="Loading users..."
+                                   FontSize="14"
+                                   Foreground="#6B7280"
+                                   HorizontalAlignment="Center"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Footer -->
+                <Border Grid.Row="3"
+                        Background="#F9FAFB"
+                        Padding="16"
+                        CornerRadius="0,0,8,8"
+                        BorderBrush="#E5E7EB"
+                        BorderThickness="0,1,0,0">
+                    <TextBlock FontSize="12" Foreground="#6B7280">
+                        <Run Text="?? Tip:"/>
+                        <Run Text="Select a role before approving new users. Approved users can login immediately with their assigned role."/>
+                    </TextBlock>
+                </Border>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>

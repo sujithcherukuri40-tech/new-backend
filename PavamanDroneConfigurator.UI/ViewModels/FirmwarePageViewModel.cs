@@ -747,7 +747,8 @@ public partial class FirmwarePageViewModel : ViewModelBase
         }
     }
 
-    [RelayCommand] private Task BrowseFirmwareFileAsync() => Task.CompletedTask; // implemented in code-behind
+    // BrowseFirmwareFile is implemented in code-behind (FirmwarePage.axaml.cs) via Click handler
+    // No command needed here
 
     public async Task SetFirmwareFileAsync(string filePath)
     {
@@ -786,8 +787,103 @@ public partial class FirmwarePageViewModel : ViewModelBase
             _operationCts = new CancellationTokenSource();
 
             AddLog($"Starting custom firmware flash: {SelectedFileName}");
-            StatusMessage = "Waiting for board in bootloader mode...";
-            DetailMessage = "Connect board while holding boot button";
+
+            // Step 1: Close existing MAVLink connection first (like Mission Planner)
+            if (_connectionService?.IsConnected == true)
+            {
+                AddLog("Closing existing MAVLink connection...");
+                StatusMessage = "Closing connection...";
+                await _connectionService.DisconnectAsync();
+                await Task.Delay(500);
+            }
+
+            // Step 2: Detect board with quick timeout
+            StatusMessage = "Scanning for board...";
+            AddLog("Scanning for connected flight controllers...");
+
+            using var detectCts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            var board = await _firmwareService.DetectBoardAsync(detectCts.Token);
+
+            // Step 3: If no board detected OR board is not in bootloader, try to enter bootloader
+            if (board == null || !board.IsInBootloader)
+            {
+                if (board != null)
+                {
+                    AddLog($"Board detected but not in bootloader: {board.BoardName}");
+                }
+                else
+                {
+                    AddLog("No running board found. Attempting to reboot to bootloader...");
+                }
+                
+                // CRITICAL FIX: Send reboot command before showing dialog
+                // This matches the behavior of online firmware flashing
+                StatusMessage = "Rebooting to bootloader...";
+                AddLog("Sending reboot-to-bootloader command...");
+                
+                var rebootSuccess = await _firmwareService.AttemptRebootToBootloaderAsync(_operationCts.Token);
+                
+                if (rebootSuccess)
+                {
+                    AddLog("Reboot command sent. Waiting for USB re-enumeration...");
+                    StatusMessage = "Waiting for USB re-enumeration...";
+                    await Task.Delay(2500, _operationCts.Token); // USB_REENUMERATION_DELAY_MS
+                }
+                else
+                {
+                    // Reboot command failed - board may not be connected or not responding
+                    // Show user prompt to manually enter bootloader
+                    AddLog("Automatic reboot failed. Showing manual bootloader mode prompt...");
+                    
+                    var userConfirmed = await ShowBootloaderModePromptAsync(
+                        "Could not automatically reboot to bootloader.\n\n" +
+                        "Please unplug the board and plug back in while holding the BOOT button.\n\n" +
+                        "Click OK when ready, or Cancel to abort.",
+                        _operationCts.Token);
+
+                    if (!userConfirmed)
+                    {
+                        IsOperationInProgress = false;
+                        StatusMessage = "Installation cancelled";
+                        AddLog("User cancelled bootloader mode prompt");
+                        return;
+                    }
+                }
+
+                // Wait for bootloader with user feedback
+                StatusMessage = "Waiting for bootloader...";
+                DetailMessage = "Looking for board in bootloader mode...";
+                AddLog("Waiting for board in bootloader mode...");
+
+                board = await _firmwareService.WaitForBootloaderAsync(
+                    TimeSpan.FromSeconds(30), _operationCts.Token);
+            }
+
+            if (board == null)
+            {
+                IsOperationInProgress = false;
+                IsError = true;
+                StatusMessage = "No board detected in bootloader mode.";
+                DetailMessage = "Try holding the BOOT button while connecting";
+                AddLog("Board detection timed out");
+                return;
+            }
+
+            // Step 4: Update UI with detected board info
+            AddLog($"Board detected in bootloader: {board.BoardName} (board_type={board.BoardIdNumeric}) on {board.SerialPort}");
+            StatusMessage = $"Detected: {board.BoardName}";
+
+            await Dispatcher.UIThread.InvokeAsync(() =>
+            {
+                IsBoardDetected = true;
+                DetectedBoardName = board.BoardName;
+                DetectedBoardPort = board.SerialPort;
+                IsInBootloader = board.IsInBootloader;
+            });
+
+            // Step 5: Flash custom firmware
+            StatusMessage = "Flashing custom firmware...";
+            DetailMessage = "Please wait...";
 
             var result = await _firmwareService.FlashFirmwareFromFileAsync(SelectedFilePath, _operationCts.Token);
 
@@ -796,6 +892,9 @@ public partial class FirmwarePageViewModel : ViewModelBase
                 IsSuccess = true;
                 StatusMessage = "Custom firmware installed successfully!";
                 AddLog($"Flash completed in {result.Duration.TotalSeconds:F1}s");
+
+                // Step 6: Show reconnect prompt like Mission Planner
+                ShowReconnectPrompt();
             }
             else
             {
@@ -807,12 +906,14 @@ public partial class FirmwarePageViewModel : ViewModelBase
         catch (OperationCanceledException)
         {
             StatusMessage = "Operation cancelled";
+            AddLog("Operation cancelled by user");
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Custom firmware flash failed");
             IsError = true;
             StatusMessage = $"Error: {ex.Message}";
+            AddLog($"Error: {ex.Message}");
         }
         finally
         {

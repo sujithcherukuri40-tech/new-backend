@@ -1,4 +1,4 @@
-<UserControl xmlns="https://github.com/avaloniaui"
+ <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:PavamanDroneConfigurator.UI.ViewModels"
              x:Class="PavamanDroneConfigurator.UI.Views.AirframePage"
@@ -237,11 +237,11 @@
                         <TextBlock Text="Important Warning" FontSize="14" FontWeight="SemiBold" Foreground="#92400E"/>
                     </StackPanel>
                     <StackPanel Spacing="4" Margin="24,0,0,0">
-                        <TextBlock Text="• Changing the airframe configuration requires a reboot to take effect" 
+                        <TextBlock Text="â€¢ Changing the airframe configuration requires a reboot to take effect" 
                                    FontSize="13" Foreground="#A16207" TextWrapping="Wrap"/>
-                        <TextBlock Text="• Ensure you have selected the correct frame type that matches your physical drone" 
+                        <TextBlock Text="â€¢ Ensure you have selected the correct frame type that matches your physical drone" 
                                    FontSize="13" Foreground="#A16207" TextWrapping="Wrap"/>
-                        <TextBlock Text="• Incorrect settings may result in unstable flight or crashes!" 
+                        <TextBlock Text="â€¢ Incorrect settings may result in unstable flight or crashes!" 
                                    FontSize="13" Foreground="#92400E" FontWeight="SemiBold" TextWrapping="Wrap"/>
                     </StackPanel>
                 </StackPanel>

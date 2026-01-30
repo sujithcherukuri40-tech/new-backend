@@ -146,9 +146,15 @@ public interface IFirmwareService
     #region Bootloader Operations
     
     /// <summary>
-    /// Updates the bootloader on the connected board
+    /// Updates the bootloader on the connected board.
     /// </summary>
     Task<FirmwareFlashResult> UpdateBootloaderAsync(CancellationToken ct = default);
+    
+    /// <summary>
+    /// Attempts to reboot the FC into bootloader mode - Mission Planner equivalent.
+    /// Returns true if reboot command was sent successfully.
+    /// </summary>
+    Task<bool> AttemptRebootToBootloaderAsync(CancellationToken ct = default);
     
     /// <summary>
     /// Reboots the board into bootloader mode

@@ -34,17 +34,6 @@ bld/
 **/packages/*
 !**/packages/build/
 
-# Build results
-[Dd]ebug/
-[Rr]elease/
-x64/
-x86/
-[Aa][Rr][Mm]/
-[Aa][Rr][Mm]64/
-bld/
-[Bb]in/
-[Oo]bj/
-
 # Visual Studio profiler
 *.psess
 *.vsp
@@ -79,3 +68,34 @@ Desktop.ini
 project.lock.json
 project.fragment.lock.json
 artifacts/
+
+# ==============================================
+# SECURITY: Sensitive Configuration Files
+# ==============================================
+
+# Environment files (NEVER commit these - they contain secrets)
+.env
+.env.local
+.env.*.local
+
+# AWS credentials
+**/.aws/credentials
+**/.aws/config
+
+# User secrets
+**/secrets.json
+
+# Certificate files
+**/*.pfx
+**/*.p12
+**/*.pem
+**/*.key
+
+# Database files
+**/*.db
+**/*.db-*
+**/*.sqlite
+**/*.sqlite3
+
+# Log files with potential sensitive data
+**/logs/*.log
