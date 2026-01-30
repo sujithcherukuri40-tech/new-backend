@@ -33,6 +33,14 @@ public class BluetoothMavConnection : IDisposable
     public event EventHandler<(byte SystemId, byte ComponentId)>? HeartbeatReceived;
     public event EventHandler<(string Name, float Value, ushort Index, ushort Count)>? ParamValueReceived;
     public event EventHandler<bool>? ConnectionStateChanged;
+    
+    // Additional events needed for calibration (forwarded from AsvMavlinkWrapper)
+    public event EventHandler<HeartbeatData>? HeartbeatDataReceived;
+    public event EventHandler<(byte Severity, string Text)>? StatusTextReceived;
+    public event EventHandler<RcChannelsData>? RcChannelsReceived;
+    public event EventHandler<(ushort Command, byte Result)>? CommandAckReceived;
+    public event EventHandler<CommandLongData>? CommandLongReceived;
+    public event EventHandler<RawImuData>? RawImuReceived;
 
     public bool IsConnected => _isConnected;
 
@@ -87,6 +95,12 @@ public class BluetoothMavConnection : IDisposable
             _mavlinkWrapper = new AsvMavlinkWrapper(_logger);
             _mavlinkWrapper.HeartbeatReceived += OnMavlinkHeartbeat;
             _mavlinkWrapper.ParamValueReceived += OnMavlinkParamValue;
+            _mavlinkWrapper.HeartbeatDataReceived += OnMavlinkHeartbeatData;
+            _mavlinkWrapper.StatusTextReceived += OnMavlinkStatusText;
+            _mavlinkWrapper.RcChannelsReceived += OnMavlinkRcChannels;
+            _mavlinkWrapper.CommandAckReceived += OnMavlinkCommandAck;
+            _mavlinkWrapper.CommandLongReceived += OnMavlinkCommandLong;
+            _mavlinkWrapper.RawImuReceived += OnMavlinkRawImu;
             _mavlinkWrapper.Initialize(_stream, _stream);
 
             _isConnected = true;
@@ -157,6 +171,12 @@ public class BluetoothMavConnection : IDisposable
             {
                 _mavlinkWrapper.HeartbeatReceived -= OnMavlinkHeartbeat;
                 _mavlinkWrapper.ParamValueReceived -= OnMavlinkParamValue;
+                _mavlinkWrapper.HeartbeatDataReceived -= OnMavlinkHeartbeatData;
+                _mavlinkWrapper.StatusTextReceived -= OnMavlinkStatusText;
+                _mavlinkWrapper.RcChannelsReceived -= OnMavlinkRcChannels;
+                _mavlinkWrapper.CommandAckReceived -= OnMavlinkCommandAck;
+                _mavlinkWrapper.CommandLongReceived -= OnMavlinkCommandLong;
+                _mavlinkWrapper.RawImuReceived -= OnMavlinkRawImu;
                 _mavlinkWrapper.Dispose();
                 _mavlinkWrapper = null;
             }
@@ -341,6 +361,36 @@ public class BluetoothMavConnection : IDisposable
     private void OnMavlinkParamValue(object? sender, (string Name, float Value, ushort Index, ushort Count) e)
     {
         ParamValueReceived?.Invoke(this, e);
+    }
+    
+    private void OnMavlinkHeartbeatData(object? sender, HeartbeatData e)
+    {
+        HeartbeatDataReceived?.Invoke(this, e);
+    }
+    
+    private void OnMavlinkStatusText(object? sender, (byte Severity, string Text) e)
+    {
+        StatusTextReceived?.Invoke(this, e);
+    }
+    
+    private void OnMavlinkRcChannels(object? sender, RcChannelsData e)
+    {
+        RcChannelsReceived?.Invoke(this, e);
+    }
+    
+    private void OnMavlinkCommandAck(object? sender, (ushort Command, byte Result) e)
+    {
+        CommandAckReceived?.Invoke(this, e);
+    }
+    
+    private void OnMavlinkCommandLong(object? sender, CommandLongData e)
+    {
+        CommandLongReceived?.Invoke(this, e);
+    }
+    
+    private void OnMavlinkRawImu(object? sender, RawImuData e)
+    {
+        RawImuReceived?.Invoke(this, e);
     }
 
     public void Dispose()
