@@ -546,7 +546,10 @@ public sealed class ConnectionService : IConnectionService, IDisposable
     private void OnBluetoothHeartbeatData(object? sender, HeartbeatData e)
     {
         _lastDataReceivedTime = DateTime.UtcNow;
+        
+        // Track armed status from base_mode (bit 7 = MAV_MODE_FLAG_SAFETY_ARMED)
         _isArmed = e.IsArmed;
+        
         HeartbeatDataReceived?.Invoke(this, new HeartbeatDataEventArgs
         {
             SystemId = e.SystemId,
@@ -562,7 +565,7 @@ public sealed class ConnectionService : IConnectionService, IDisposable
     private void OnBluetoothStatusText(object? sender, (byte Severity, string Text) e)
     {
         _lastDataReceivedTime = DateTime.UtcNow;
-        _logger.LogDebug("Bluetooth STATUSTEXT: [{Severity}] {Text}", e.Severity, e.Text);
+        _logger.LogInformation("Bluetooth StatusText [{Severity}]: {Text}", e.Severity, e.Text);
         StatusTextReceived?.Invoke(this, new StatusTextEventArgs
         {
             Severity = e.Severity,
@@ -602,7 +605,11 @@ public sealed class ConnectionService : IConnectionService, IDisposable
     private void OnBluetoothCommandLong(object? sender, CommandLongData e)
     {
         _lastDataReceivedTime = DateTime.UtcNow;
-        _logger.LogInformation("Bluetooth COMMAND_LONG: cmd={Command}, param1={Param1}", e.Command, e.Param1);
+        
+        // Log ALL incoming COMMAND_LONG messages for debugging
+        _logger.LogInformation("Bluetooth COMMAND_LONG received: cmd={Command}, param1={Param1}, sysid={SysId}, compid={CompId}",
+            e.Command, e.Param1, e.SystemId, e.ComponentId);
+        
         CommandLongReceived?.Invoke(this, new CommandLongEventArgs
         {
             SystemId = e.SystemId,
