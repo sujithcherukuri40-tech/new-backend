@@ -27,13 +27,16 @@ public sealed partial class AdminDashboardViewModel : ViewModelBase
     private int _activeAdmins;
 
     [ObservableProperty]
-    private int _recentlyApproved;
+    private int _approvedUsers;
+
+    [ObservableProperty]
+    private int _recentlyActive; // Users who logged in recently (last 24h)
 
     [ObservableProperty]
     private double _approvalRate;
 
     [ObservableProperty]
-    private string _lastApprovalTime = "N/A";
+    private string _lastLoginTime = "N/A";
 
     [ObservableProperty]
     private bool _isBusy;
@@ -77,38 +80,40 @@ public sealed partial class AdminDashboardViewModel : ViewModelBase
                 // Pending approvals
                 PendingApprovals = users.Count(u => !u.IsApproved);
 
+                // Approved users
+                ApprovedUsers = users.Count(u => u.IsApproved);
+
                 // Active admins
                 ActiveAdmins = users.Count(u => u.IsApproved && u.Role == "Admin");
 
-                // Recently approved (last 24 hours)
+                // Recently active (logged in last 24 hours)
                 var oneDayAgo = DateTimeOffset.UtcNow.AddDays(-1);
-                RecentlyApproved = users.Count(u => 
+                RecentlyActive = users.Count(u => 
                     u.IsApproved && 
                     u.LastLoginAt.HasValue && 
                     u.LastLoginAt.Value >= oneDayAgo);
 
                 // Approval rate
-                var approvedUsers = users.Count(u => u.IsApproved);
                 ApprovalRate = TotalUsers > 0 
-                    ? Math.Round((double)approvedUsers / TotalUsers * 100, 1) 
+                    ? Math.Round((double)ApprovedUsers / TotalUsers * 100, 1) 
                     : 0;
 
-                // Last approval time
-                var lastApproved = users
+                // Last login time (most recent)
+                var lastActive = users
                     .Where(u => u.IsApproved && u.LastLoginAt.HasValue)
                     .OrderByDescending(u => u.LastLoginAt)
                     .FirstOrDefault();
 
-                if (lastApproved?.LastLoginAt != null)
+                if (lastActive?.LastLoginAt != null)
                 {
-                    var elapsed = DateTimeOffset.UtcNow - lastApproved.LastLoginAt.Value;
-                    LastApprovalTime = elapsed.TotalHours < 24 
+                    var elapsed = DateTimeOffset.UtcNow - lastActive.LastLoginAt.Value;
+                    LastLoginTime = elapsed.TotalHours < 24 
                         ? $"{elapsed.Hours}h {elapsed.Minutes}m ago"
-                        : lastApproved.LastLoginAt.Value.ToString("MMM dd, HH:mm");
+                        : lastActive.LastLoginAt.Value.ToString("MMM dd, HH:mm");
                 }
                 else
                 {
-                    LastApprovalTime = "N/A";
+                    LastLoginTime = "N/A";
                 }
             });
 

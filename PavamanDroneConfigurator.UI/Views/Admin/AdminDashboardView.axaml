@@ -168,7 +168,7 @@
                 </StackPanel>
             </Border>
 
-            <!-- Recently Approved -->
+            <!-- Recently Active -->
             <Border Grid.Column="3" Classes="stat-card">
                 <StackPanel Spacing="12">
                     <StackPanel Orientation="Horizontal" Spacing="12">
@@ -177,22 +177,22 @@
                                 Width="48" 
                                 Height="48"
                                 Padding="12">
-                            <TextBlock Text="✅" 
+                            <TextBlock Text="🔄" 
                                        FontSize="24"
                                        HorizontalAlignment="Center"
                                        VerticalAlignment="Center"/>
                         </Border>
                         <StackPanel VerticalAlignment="Center">
-                            <TextBlock Text="Recently Approved"
+                            <TextBlock Text="Recently Active"
                                        FontSize="13"
                                        Foreground="#6B7280"/>
-                            <TextBlock Text="{Binding RecentlyApproved}"
+                            <TextBlock Text="{Binding RecentlyActive}"
                                        FontSize="28"
                                        FontWeight="Bold"
                                        Foreground="#111827"/>
                         </StackPanel>
                     </StackPanel>
-                    <TextBlock Text="Last 24 hours"
+                    <TextBlock Text="Logged in last 24h"
                                FontSize="12"
                                Foreground="#9CA3AF"/>
                 </StackPanel>
@@ -220,15 +220,6 @@
                                 <Run Text="%"/>
                             </TextBlock>
                         </StackPanel>
-                        <Border Height="8" 
-                                Background="#F3F4F6" 
-                                CornerRadius="4">
-                            <TextBlock Text="Progress indicator"
-                                       FontSize="12"
-                                       Foreground="#9CA3AF"
-                                       VerticalAlignment="Center"
-                                       Margin="8,0"/>
-                        </Border>
                     </StackPanel>
 
                     <!-- User Growth -->
@@ -251,11 +242,10 @@
                                 <TextBlock Text="Approved"
                                            FontSize="12"
                                            Foreground="#9CA3AF"/>
-                                <TextBlock FontSize="20" FontWeight="SemiBold" Foreground="#10B981">
-                                    <Run Text="{Binding TotalUsers}"/>
-                                    <Run Text="-"/>
-                                    <Run Text="{Binding PendingApprovals}"/>
-                                </TextBlock>
+                                <TextBlock Text="{Binding ApprovedUsers}"
+                                           FontSize="20"
+                                           FontWeight="SemiBold"
+                                           Foreground="#10B981"/>
                             </StackPanel>
                             <Border Width="1" Background="#E5E7EB"/>
                             <StackPanel>
@@ -272,10 +262,10 @@
 
                     <!-- Last Activity -->
                     <StackPanel Spacing="8">
-                        <TextBlock Text="🕒 Last Approval"
+                        <TextBlock Text="🕒 Last User Login"
                                    FontSize="14"
                                    Foreground="#6B7280"/>
-                        <TextBlock Text="{Binding LastApprovalTime}"
+                        <TextBlock Text="{Binding LastLoginTime}"
                                    FontSize="16"
                                    FontWeight="SemiBold"
                                    Foreground="#111827"/>
@@ -290,18 +280,6 @@
                                FontSize="18"
                                FontWeight="SemiBold"
                                Foreground="#111827"/>
-
-                    <Button Content="👥 Manage Users"
-                            Background="#3B82F6"
-                            Foreground="White"
-                            CornerRadius="8"
-                            Padding="16,12"
-                            FontSize="14"
-                            FontWeight="SemiBold"
-                            BorderThickness="0"
-                            Cursor="Hand"
-                            HorizontalAlignment="Stretch"
-                            HorizontalContentAlignment="Center"/>
 
                     <Border Height="1" Background="#E5E7EB"/>
 

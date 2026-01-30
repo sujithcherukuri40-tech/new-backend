@@ -118,18 +118,39 @@ public partial class MainWindowViewModel : ViewModelBase
                 AdminDashboardPage = App.Services.GetService<Admin.AdminDashboardViewModel>();
                 if (AdminDashboardPage != null)
                 {
-                    _ = AdminDashboardPage.InitializeAsync();
+                    Task.Run(async () =>
+                    {
+                        try
+                        {
+                            await AdminDashboardPage.InitializeAsync();
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"Admin dashboard initialization failed: {ex.Message}");
+                        }
+                    });
                 }
 
                 AdminPanelPage = App.Services.GetService<Admin.AdminPanelViewModel>();
                 if (AdminPanelPage != null)
                 {
-                    _ = AdminPanelPage.InitializeAsync();
+                    Task.Run(async () =>
+                    {
+                        try
+                        {
+                            await AdminPanelPage.InitializeAsync();
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"Admin panel initialization failed: {ex.Message}");
+                        }
+                    });
                 }
             }
-            catch
+            catch (Exception ex)
             {
                 // Admin features not available - gracefully degrade
+                Console.WriteLine($"Failed to initialize admin features: {ex.Message}");
                 AdminDashboardPage = null;
                 AdminPanelPage = null;
             }

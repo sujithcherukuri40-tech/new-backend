@@ -11,12 +11,33 @@ using PavamanDroneConfigurator.Core.Interfaces;
 namespace PavamanDroneConfigurator.UI.ViewModels.Admin;
 
 /// <summary>
+/// Filter options for status.
+/// </summary>
+public enum StatusFilterOption
+{
+    All = 0,
+    Approved = 1,
+    Pending = 2
+}
+
+/// <summary>
+/// Filter options for roles.
+/// </summary>
+public enum RoleFilterOption
+{
+    All = 0,
+    Admin = 1,
+    User = 2
+}
+
+/// <summary>
 /// ViewModel for admin panel - user management.
 /// </summary>
 public sealed partial class AdminPanelViewModel : ViewModelBase
 {
     private readonly IAdminService _adminService;
     private readonly ILogger<AdminPanelViewModel> _logger;
+    private bool _isInitialized;
 
     [ObservableProperty]
     private ObservableCollection<UserListItem> _users = new();
@@ -28,10 +49,10 @@ public sealed partial class AdminPanelViewModel : ViewModelBase
     private string _searchText = string.Empty;
 
     [ObservableProperty]
-    private int _statusFilter = 0; // 0 = All, 1 = Approved, 2 = Pending
+    private int _statusFilter = (int)StatusFilterOption.All;
 
     [ObservableProperty]
-    private int _roleFilter = 0; // 0 = All, 1 = Admin, 2 = User
+    private int _roleFilter = (int)RoleFilterOption.All;
 
     [ObservableProperty]
     private bool _isBusy;
@@ -55,14 +76,8 @@ public sealed partial class AdminPanelViewModel : ViewModelBase
     {
         _adminService = adminService;
         _logger = logger;
-    }
 
-    /// <summary>
-    /// Initialize and load users.
-    /// </summary>
-    public async Task InitializeAsync()
-    {
-        // Set up property changed event for filters
+        // Register property changed handler once in constructor
         PropertyChanged += (s, e) =>
         {
             if (e.PropertyName == nameof(SearchText) || 
@@ -72,7 +87,16 @@ public sealed partial class AdminPanelViewModel : ViewModelBase
                 ApplyFilters();
             }
         };
+    }
 
+    /// <summary>
+    /// Initialize and load users.
+    /// </summary>
+    public async Task InitializeAsync()
+    {
+        if (_isInitialized) return;
+        _isInitialized = true;
+        
         await RefreshAsync();
     }
 
@@ -242,8 +266,8 @@ public sealed partial class AdminPanelViewModel : ViewModelBase
     private void ClearFilters()
     {
         SearchText = string.Empty;
-        StatusFilter = 0;
-        RoleFilter = 0;
+        StatusFilter = (int)StatusFilterOption.All;
+        RoleFilter = (int)RoleFilterOption.All;
         StatusMessage = "Filters cleared";
     }
 
@@ -261,21 +285,21 @@ public sealed partial class AdminPanelViewModel : ViewModelBase
         }
 
         // Apply status filter
-        if (StatusFilter == 1) // Approved
+        if (StatusFilter == (int)StatusFilterOption.Approved)
         {
             filtered = filtered.Where(u => u.IsApproved);
         }
-        else if (StatusFilter == 2) // Pending
+        else if (StatusFilter == (int)StatusFilterOption.Pending)
         {
             filtered = filtered.Where(u => !u.IsApproved);
         }
 
         // Apply role filter
-        if (RoleFilter == 1) // Admin
+        if (RoleFilter == (int)RoleFilterOption.Admin)
         {
             filtered = filtered.Where(u => u.Role == "Admin");
         }
-        else if (RoleFilter == 2) // User
+        else if (RoleFilter == (int)RoleFilterOption.User)
         {
             filtered = filtered.Where(u => u.Role == "User");
         }
