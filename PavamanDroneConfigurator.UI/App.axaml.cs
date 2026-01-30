@@ -88,8 +88,6 @@ public partial class App : Application
         services.AddSingleton<CalibrationPreConditionChecker>();
         services.AddSingleton<CalibrationAbortMonitor>();
         services.AddSingleton<CalibrationValidationHelper>();
-        services.AddSingleton<AccelStatusTextParser>();
-        services.AddSingleton<AccelImuValidator>();
         services.AddSingleton<AccelerometerCalibrationService>();
 
         // Firmware Services (Mission Planner-equivalent firmware flashing)
@@ -145,6 +143,7 @@ public partial class App : Application
         services.AddTransient<LogAnalyzerPageViewModel>();
         services.AddTransient<ResetParametersPageViewModel>();
         services.AddTransient<SprayingConfigPageViewModel>();
+        services.AddTransient<CameraConfigPageViewModel>();
         services.AddTransient<AdvancedSettingsPageViewModel>();
         services.AddTransient<FirmwarePageViewModel>();
 

@@ -47,6 +47,7 @@ public partial class MainWindowViewModel : ViewModelBase
     public LogAnalyzerPageViewModel LogAnalyzerPage { get; }
     public ResetParametersPageViewModel ResetParametersPage { get; }
     public SprayingConfigPageViewModel SprayingConfigPage { get; }
+    public CameraConfigPageViewModel CameraConfigPage { get; }
     public AdvancedSettingsPageViewModel AdvancedSettingsPage { get; }
     public FirmwarePageViewModel FirmwarePage { get; }
 
@@ -72,6 +73,7 @@ public partial class MainWindowViewModel : ViewModelBase
         LogAnalyzerPageViewModel logAnalyzerPage,
         ResetParametersPageViewModel resetParametersPage,
         SprayingConfigPageViewModel sprayingConfigPage,
+        CameraConfigPageViewModel cameraConfigPage,
         AdvancedSettingsPageViewModel advancedSettingsPage,
         FirmwarePageViewModel firmwarePage,
         IParameterService parameterService,
@@ -93,6 +95,7 @@ public partial class MainWindowViewModel : ViewModelBase
         LogAnalyzerPage = logAnalyzerPage;
         ResetParametersPage = resetParametersPage;
         SprayingConfigPage = sprayingConfigPage;
+        CameraConfigPage = cameraConfigPage;
         AdvancedSettingsPage = advancedSettingsPage;
         FirmwarePage = firmwarePage;
         _parameterService = parameterService;

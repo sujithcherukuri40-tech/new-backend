@@ -168,6 +168,10 @@
 
 						<!-- Advanced Configuration Group -->
 						<TextBlock Text="ADVANCED CONFIGURATION" Classes="nav-group-title"/>
+						<Button Content="📷  Camera"
+                                Classes="nav-button"
+                                CommandParameter="{Binding CameraConfigPage}"
+                                Click="NavButton_Click" />
 						<Button Content="🔧  Serial Config"
                                 Classes="nav-button"
                                 CommandParameter="{Binding SerialConfigPage}"
@@ -278,6 +282,9 @@
 					</DataTemplate>
 					<DataTemplate DataType="vm:SprayingConfigPageViewModel">
 						<views:SprayingConfigPage />
+					</DataTemplate>
+					<DataTemplate DataType="vm:CameraConfigPageViewModel">
+						<views:CameraConfigPage />
 					</DataTemplate>
 					<DataTemplate DataType="vm:FirmwarePageViewModel">
 						<views:FirmwarePage />
