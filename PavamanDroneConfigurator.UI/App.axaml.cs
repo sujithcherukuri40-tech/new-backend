@@ -162,9 +162,8 @@ public partial class App : Application
 
         services.AddSingleton<IConnectionService, ConnectionService>();
         services.AddSingleton<IParameterService, ParameterService>();
-        // Temporary stub implementation to prevent application crashes
-        // TODO: Implement full CalibrationService when ready
-        services.AddSingleton<ICalibrationService, CalibrationServiceStub>();
+        // Use the full CalibrationService implementation
+        services.AddSingleton<ICalibrationService, CalibrationService>();
         services.AddSingleton<ISafetyService, SafetyService>();
         services.AddSingleton<IAirframeService, AirframeService>();
         services.AddSingleton<IPersistenceService, PersistenceService>();

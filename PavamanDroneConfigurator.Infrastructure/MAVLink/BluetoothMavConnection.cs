@@ -283,6 +283,22 @@ public class BluetoothMavConnection : IDisposable
     }
 
     /// <summary>
+    /// Send MAV_CMD_ACCELCAL_VEHICLE_POS - Mission Planner style (fire and forget)
+    /// This is the EXACT behavior of Mission Planner's sendPacket() method.
+    /// Does NOT wait for COMMAND_ACK - FC responds via STATUSTEXT/COMMAND_LONG
+    /// </summary>
+    public void SendAccelCalVehiclePosRaw(int position)
+    {
+        if (!_isConnected || _mavlinkWrapper == null)
+        {
+            _logger.LogWarning("Bluetooth connection is not active - cannot send ACCELCAL_VEHICLE_POS");
+            return;
+        }
+
+        _mavlinkWrapper.SendAccelCalVehiclePosRaw(position);
+    }
+
+    /// <summary>
     /// Discover available Bluetooth devices
     /// </summary>
     public async Task<IEnumerable<CoreBluetoothDeviceInfo>> DiscoverDevicesAsync()

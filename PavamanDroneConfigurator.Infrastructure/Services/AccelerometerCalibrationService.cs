@@ -5,94 +5,54 @@ using PavamanDroneConfigurator.Core.Interfaces;
 namespace PavamanDroneConfigurator.Infrastructure.Services;
 
 /// <summary>
-/// Accelerometer calibration service implementing Mission Planner's exact architecture.
+/// Accelerometer calibration service - EXACT MissionPlanner implementation.
 /// 
-/// MISSION PLANNER ARCHITECTURE (REFERENCE):
-/// 1. FC drives the entire calibration workflow
-/// 2. Position validation is performed ENTIRELY on the Flight Controller
-/// 3. Mission Planner is a "dumb" relay - it just shows instructions and forwards confirmations
-/// 4. NO client-side IMU validation, NO threshold checks, NO hardcoded values
-/// 5. FC sends STATUSTEXT for position requests, progress, and completion
-/// 6. FC may also send COMMAND_LONG (MAV_CMD_ACCELCAL_VEHICLE_POS) for position requests
-/// 
-/// SIMPLIFIED STATE MACHINE (Mission Planner style):
-/// - _inCalibration = false: Idle, button shows "Calibrate Accel"
-/// - _inCalibration = true: Calibrating, button shows "Click When Done"
-/// 
-/// FLOW:
-/// 1. User clicks "Calibrate Accel" button
-/// 2. Send MAV_CMD_PREFLIGHT_CALIBRATION (param5=1 for 6-axis)
-/// 3. Subscribe to STATUSTEXT and COMMAND_LONG packets
-/// 4. FC sends position request: "Place vehicle level and press any key"
-/// 5. UI shows position image, enables "Click When In Position" button
-/// 6. User places vehicle, clicks button
-/// 7. Send MAV_CMD_ACCELCAL_VEHICLE_POS (param1=1-6)
-/// 8. FC validates internally, samples IMU data
-/// 9. FC sends next position request or "Calibration successful/failed"
-/// 10. Repeat for all 6 positions
-/// 11. FC sends completion STATUSTEXT
-/// 
-/// CRITICAL: This service does NOT:
-/// - Collect IMU samples (FC does this internally)
-/// - Validate gravity magnitude (FC does this)
-/// - Check axis orientation (FC does this)
-/// - Use hardcoded thresholds (FC has its own validation)
-/// - Auto-complete or use timeouts (FC drives timing)
+/// KEY DIFFERENCES FROM PREVIOUS IMPLEMENTATION:
+/// 1. Position confirmations use fire-and-forget (no ACK wait) - Mission Planner's sendPacket() style
+/// 2. Position value comes from FC's COMMAND_LONG (authoritative) - we echo back EXACTLY what FC requested
+/// 3. Don't reset position after confirming - FC will send next position via STATUSTEXT/COMMAND_LONG
 /// </summary>
 public class AccelerometerCalibrationService : IDisposable
 {
     private readonly ILogger<AccelerometerCalibrationService> _logger;
     private readonly IConnectionService _connectionService;
     
-    // Simple two-state model (Mission Planner style)
-    private bool _inCalibration = false;
+    // MissionPlanner exact state variables
+    private bool _incalibrate = false;  // Matches MissionPlanner's _incalibrate
+    private int _pos = 0;               // Position FROM FC (via COMMAND_LONG) - we echo this back
+    private int _count = 0;             // Matches MissionPlanner's count (click counter)
     private readonly object _lock = new();
     
-    // Current position being calibrated (1-6, from FC)
-    private AccelCalibrationPosition _currentPosition = AccelCalibrationPosition.Level;
-    
-    // Click counter for position confirmations
-    private int _positionClickCount = 0;
+    // Timeout tracking
+    private DateTime _lastPositionAcceptedTime;
+    private System.Timers.Timer? _positionTimeoutTimer;
+    private const int POSITION_TIMEOUT_SECONDS = 15; // If no new position after 15s, warn user
     
     // Diagnostics
     private DateTime _calibrationStartTime;
     private readonly List<string> _statusTextLog = new();
     
-    // Cancellation support
-    private CancellationTokenSource? _calibrationCts;
     private bool _disposed;
     
-    // Position names for display (matches Mission Planner ACCELCAL_VEHICLE_POS enum)
-    private static readonly string[] PositionNames = { "", "LEVEL", "LEFT", "RIGHT", "NOSE DOWN", "NOSE UP", "BACK" };
-    
-    // Events (for UI binding)
+    // Events
     public event EventHandler<AccelCalibrationStateChangedEventArgs>? StateChanged;
     public event EventHandler<AccelPositionRequestedEventArgs>? PositionRequested;
     public event EventHandler<AccelCalibrationCompletedEventArgs>? CalibrationCompleted;
     public event EventHandler<AccelStatusTextEventArgs>? StatusTextReceived;
     
-    /// <summary>
-    /// Whether calibration is currently in progress (Mission Planner's _incalibrate)
-    /// </summary>
     public bool IsCalibrating
     {
-        get { lock (_lock) return _inCalibration; }
+        get { lock (_lock) return _incalibrate; }
     }
     
-    /// <summary>
-    /// Current position requested by FC (1-6)
-    /// </summary>
-    public AccelCalibrationPosition CurrentPosition
+    public int CurrentPosition
     {
-        get { lock (_lock) return _currentPosition; }
+        get { lock (_lock) return _pos; }
     }
     
-    /// <summary>
-    /// Current position as integer (1-6)
-    /// </summary>
-    public int CurrentPositionIndex
+    public bool CanConfirmPosition
     {
-        get { lock (_lock) return (int)_currentPosition; }
+        get { lock (_lock) return _incalibrate && _pos >= 1 && _pos <= 6; }
     }
     
     public AccelerometerCalibrationService(
@@ -102,308 +62,337 @@ public class AccelerometerCalibrationService : IDisposable
         _logger = logger;
         _connectionService = connectionService;
         
-        // Subscribe to MAVLink events (Mission Planner's SubscribeToPacketType equivalent)
+        _logger.LogInformation("[AccelCal] Service initialized - Mission Planner exact implementation");
+        
         _connectionService.StatusTextReceived += OnStatusTextReceived;
         _connectionService.CommandAckReceived += OnCommandAckReceived;
         _connectionService.CommandLongReceived += OnCommandLongReceived;
         _connectionService.ConnectionStateChanged += OnConnectionStateChanged;
+        
+        // Initialize timeout timer
+        _positionTimeoutTimer = new System.Timers.Timer(POSITION_TIMEOUT_SECONDS * 1000);
+        _positionTimeoutTimer.Elapsed += OnPositionTimeout;
+        _positionTimeoutTimer.AutoReset = false;
     }
     
-    #region Public API (Mission Planner Button Handlers)
+    private void OnPositionTimeout(object? sender, System.Timers.ElapsedEventArgs e)
+    {
+        bool isCalibrating;
+        int currentPos;
+        lock (_lock)
+        {
+            isCalibrating = _incalibrate;
+            currentPos = _pos;
+        }
+        
+        if (!isCalibrating)
+            return;
+        
+        _logger.LogWarning("[AccelCal] TIMEOUT: No new position received for {Seconds}s after position {Pos} was accepted", 
+            POSITION_TIMEOUT_SECONDS, currentPos);
+        _logger.LogWarning("[AccelCal] This usually means the calibration was aborted by FC due to PreArm issues.");
+        
+        // Notify user
+        StatusTextReceived?.Invoke(this, new AccelStatusTextEventArgs
+        {
+            Severity = 4, // WARNING
+            Text = $"Timeout waiting for next position. Calibration may have been aborted. Check PreArm status (RC, safety switch, compass).",
+            Timestamp = DateTime.UtcNow
+        });
+        
+        // Finish calibration as failed
+        FinishCalibration(false, "Calibration timed out - likely aborted due to PreArm violations");
+    }
     
-    /// <summary>
-    /// Start 6-position accelerometer calibration.
-    /// Called when user clicks "Calibrate Accel" button (first click).
-    /// Sends MAV_CMD_PREFLIGHT_CALIBRATION with param5=1.
-    /// </summary>
+    #region Public API
+    
+    public bool HandleButtonClick()
+    {
+        lock (_lock)
+        {
+            if (_incalibrate)
+                return ConfirmPositionInternal();
+            else
+                return StartCalibrationInternal();
+        }
+    }
+    
     public bool StartCalibration()
     {
         lock (_lock)
         {
-            if (_inCalibration)
+            if (_incalibrate)
             {
-                _logger.LogWarning("StartCalibration: Already calibrating");
+                _logger.LogWarning("[AccelCal] Already calibrating");
                 return false;
             }
-            
-            if (!_connectionService.IsConnected)
-            {
-                _logger.LogError("StartCalibration: Not connected to FC");
-                return false;
-            }
-            
-            // Initialize calibration session
-            _calibrationCts?.Cancel();
-            _calibrationCts?.Dispose();
-            _calibrationCts = new CancellationTokenSource();
-            
-            _calibrationStartTime = DateTime.UtcNow;
-            _currentPosition = AccelCalibrationPosition.Level;
-            _positionClickCount = 0;
-            _statusTextLog.Clear();
-            _inCalibration = true;
+            return StartCalibrationInternal();
         }
-        
-        _logger.LogInformation("=== ACCELEROMETER CALIBRATION STARTED ===");
-        _logger.LogInformation("Sending MAV_CMD_PREFLIGHT_CALIBRATION (param5=1) - 6-axis accel cal");
-        
-        // Notify UI of state change
-        RaiseStateChanged(false, true);
-        
-        // Send calibration command to FC
-        // param5=1 triggers 6-position accelerometer calibration (Mission Planner behavior)
-        _connectionService.SendPreflightCalibration(
-            gyro: 0,
-            mag: 0,
-            groundPressure: 0,
-            airspeed: 0,
-            accel: 1);  // 1 = 6-axis accel calibration (matches Mission Planner)
-        
-        return true;
     }
     
-    /// <summary>
-    /// User confirms vehicle is in the requested position.
-    /// Called when user clicks "Click When In Position" button.
-    /// Sends MAV_CMD_ACCELCAL_VEHICLE_POS with current position (1-6).
-    /// 
-    /// MISSION PLANNER BEHAVIOR:
-    /// - Does NOT validate IMU data
-    /// - Does NOT check orientation
-    /// - Just sends position to FC immediately
-    /// - FC decides if position is correct
-    /// </summary>
     public bool ConfirmPosition()
     {
-        int position;
-        
         lock (_lock)
         {
-            if (!_inCalibration)
+            if (!_incalibrate)
             {
-                _logger.LogWarning("ConfirmPosition: Not in calibration mode");
+                _logger.LogWarning("[AccelCal] Not in calibration mode");
                 return false;
             }
-            
-            position = (int)_currentPosition;
-            _positionClickCount++;
+            return ConfirmPositionInternal();
         }
-        
-        if (!_connectionService.IsConnected)
-        {
-            _logger.LogWarning("ConfirmPosition: Not connected to FC");
-            return false;
-        }
-        
-        // Validate position range (1-6)
-        if (position < 1 || position > 6)
-        {
-            _logger.LogWarning("ConfirmPosition: Invalid position {Position} (expected 1-6)", position);
-            return false;
-        }
-        
-        _logger.LogInformation("User confirmed position {Position} ({Name}) - sending MAV_CMD_ACCELCAL_VEHICLE_POS({Position})",
-            position, GetPositionName(position), position);
-        
-        // Send position confirmation to FC (Mission Planner's sendPacket equivalent)
-        // FC will validate the position internally and respond via STATUSTEXT
-        _connectionService.SendAccelCalVehiclePos(position);
-        
-        return true;
     }
     
-    /// <summary>
-    /// Start simple accelerometer calibration (automatic, no user positions).
-    /// Vehicle must be on level surface. FC performs automatic calibration.
-    /// </summary>
-    public bool StartSimpleCalibration()
-    {
-        lock (_lock)
-        {
-            if (_inCalibration)
-            {
-                _logger.LogWarning("StartSimpleCalibration: Already calibrating");
-                return false;
-            }
-            
-            if (!_connectionService.IsConnected)
-            {
-                _logger.LogError("StartSimpleCalibration: Not connected to FC");
-                return false;
-            }
-            
-            _calibrationCts?.Cancel();
-            _calibrationCts?.Dispose();
-            _calibrationCts = new CancellationTokenSource();
-            
-            _calibrationStartTime = DateTime.UtcNow;
-            _statusTextLog.Clear();
-            _inCalibration = true;
-        }
-        
-        _logger.LogInformation("Starting simple accelerometer calibration (param5=4)");
-        
-        RaiseStateChanged(false, true);
-        
-        // param5=4 for simple accelerometer calibration
-        _connectionService.SendPreflightCalibration(
-            gyro: 0,
-            mag: 0,
-            groundPressure: 0,
-            airspeed: 0,
-            accel: 4);
-        
-        return true;
-    }
-    
-    /// <summary>
-    /// Start level-only calibration (AHRS trims).
-    /// Vehicle must be on perfectly level surface.
-    /// </summary>
-    public bool StartLevelCalibration()
-    {
-        lock (_lock)
-        {
-            if (_inCalibration)
-            {
-                _logger.LogWarning("StartLevelCalibration: Already calibrating");
-                return false;
-            }
-            
-            if (!_connectionService.IsConnected)
-            {
-                _logger.LogError("StartLevelCalibration: Not connected to FC");
-                return false;
-            }
-            
-            _calibrationCts?.Cancel();
-            _calibrationCts?.Dispose();
-            _calibrationCts = new CancellationTokenSource();
-            
-            _calibrationStartTime = DateTime.UtcNow;
-            _statusTextLog.Clear();
-            _inCalibration = true;
-        }
-        
-        _logger.LogInformation("Starting level-only calibration (param5=2)");
-        
-        RaiseStateChanged(false, true);
-        
-        // param5=2 for level-only calibration
-        _connectionService.SendPreflightCalibration(
-            gyro: 0,
-            mag: 0,
-            groundPressure: 0,
-            airspeed: 0,
-            accel: 2);
-        
-        return true;
-    }
-    
-    /// <summary>
-    /// Cancel calibration.
-    /// </summary>
     public void CancelCalibration()
     {
         lock (_lock)
         {
-            if (!_inCalibration)
+            if (!_incalibrate)
                 return;
             
-            _logger.LogInformation("Calibration cancelled by user");
-            
-            _calibrationCts?.Cancel();
-            _inCalibration = false;
+            _logger.LogInformation("[AccelCal] Calibration CANCELLED by user");
+            _incalibrate = false;
+            _pos = 0;
+            _count = 0;
         }
         
-        RaiseStateChanged(true, false);
         RaiseCalibrationCompleted(AccelCalibrationResult.Cancelled, "Cancelled by user");
-    }
-    
-    /// <summary>
-    /// Get diagnostics for current/last calibration session.
-    /// </summary>
-    public AccelCalibrationDiagnostics GetDiagnostics()
-    {
-        lock (_lock)
-        {
-            return new AccelCalibrationDiagnostics
-            {
-                State = _inCalibration ? AccelCalibrationState.WaitingForUserConfirmation : AccelCalibrationState.Idle,
-                CurrentPosition = (int)_currentPosition,
-                StartTime = _calibrationStartTime,
-                Duration = DateTime.UtcNow - _calibrationStartTime,
-                StatusTextLog = new List<string>(_statusTextLog),
-                PositionAttempts = new Dictionary<int, PositionAttempt>()
-            };
-        }
     }
     
     #endregion
     
-    #region Event Handlers (Mission Planner's receivedPacket equivalent)
+    #region Internal Methods
+    
+    private bool StartCalibrationInternal()
+    {
+        if (!_connectionService.IsConnected)
+        {
+            _logger.LogError("[AccelCal] Not connected to FC");
+            return false;
+        }
+        
+        _calibrationStartTime = DateTime.UtcNow;
+        _count = 0;
+        _pos = 0;
+        _statusTextLog.Clear();
+        
+        _logger.LogInformation("[AccelCal] === STARTING ACCEL CALIBRATION ===");
+        _logger.LogInformation("[AccelCal] Sending MAV_CMD_PREFLIGHT_CALIBRATION (param5=1)");
+        
+        // Send the standard 6-axis accelerometer calibration command
+        // param5=1 = Full 6-axis accelerometer calibration
+        _connectionService.SendPreflightCalibration(
+            gyro: 0,
+            mag: 0,
+            groundPressure: 0,
+            airspeed: 0,
+            accel: 1);
+        
+        _incalibrate = true;
+        
+        _logger.LogInformation("[AccelCal] _incalibrate = true, waiting for FC position request via COMMAND_LONG/STATUSTEXT");
+        _logger.LogWarning("[AccelCal] NOTE: If PreArm messages appear (RC not found, safety switch, compass), calibration may abort.");
+        _logger.LogWarning("[AccelCal] TIP: Press safety switch and ensure vehicle is stationary during calibration.");
+        
+        RaiseStateChanged(false, true);
+        
+        return true;
+    }
+    
+    /// <summary>
+    /// Confirm position - Mission Planner style (fire-and-forget)
+    /// 
+    /// KEY: We echo back the EXACT position that FC requested via COMMAND_LONG
+    /// We do NOT wait for ACK - FC will send next position or completion via STATUSTEXT/COMMAND_LONG
+    /// </summary>
+    private bool ConfirmPositionInternal()
+    {
+        if (_pos < 1 || _pos > 6)
+        {
+            _logger.LogWarning("[AccelCal] Cannot confirm - no valid position requested (pos={Pos})", _pos);
+            return false;
+        }
+        
+        if (!_connectionService.IsConnected)
+        {
+            _logger.LogWarning("[AccelCal] Cannot confirm - not connected");
+            return false;
+        }
+        
+        _count++;
+        
+        _logger.LogInformation("[AccelCal] >>> User confirming position {Pos} ({Name}), count={Count}", 
+            _pos, GetPositionName(_pos), _count);
+        _logger.LogInformation("[AccelCal] >>> Sending MAV_CMD_ACCELCAL_VEHICLE_POS(param1={Pos}) [FIRE-AND-FORGET]", _pos);
+        
+        // CRITICAL: Use fire-and-forget (Mission Planner's sendPacket() style)
+        // We echo back the EXACT position that FC requested
+        // DO NOT wait for ACK - FC responds via STATUSTEXT/COMMAND_LONG
+        _connectionService.SendAccelCalVehiclePos(_pos);
+        
+        // DO NOT RESET _pos HERE!
+        // Mission Planner keeps the position until FC sends the next one
+        // FC will send next position request via COMMAND_LONG or STATUSTEXT
+        
+        _logger.LogInformation("[AccelCal] Position {Pos} sent, waiting for FC response (next position or completion)...", _pos);
+        
+        return true;
+    }
+    
+    #endregion
+    
+    #region Event Handlers
     
     private void OnConnectionStateChanged(object? sender, bool connected)
     {
         if (!connected)
         {
+            bool wasCalibrating;
             lock (_lock)
             {
-                if (_inCalibration)
-                {
-                    _logger.LogWarning("Connection lost during calibration");
-                    _calibrationCts?.Cancel();
-                    _inCalibration = false;
-                }
+                wasCalibrating = _incalibrate;
+                _incalibrate = false;
+                _pos = 0;
+                _count = 0;
             }
             
-            RaiseCalibrationCompleted(AccelCalibrationResult.Failed, "Connection lost during calibration");
+            if (wasCalibrating)
+            {
+                _logger.LogWarning("[AccelCal] Connection lost during calibration!");
+                RaiseCalibrationCompleted(AccelCalibrationResult.Failed, "Connection lost");
+            }
         }
     }
     
     /// <summary>
-    /// Handle COMMAND_ACK responses from FC.
-    /// Mission Planner uses this to detect command acceptance/rejection.
+    /// Handle COMMAND_ACK - for PREFLIGHT_CALIBRATION only
+    /// Note: For ACCELCAL_VEHICLE_POS, we use fire-and-forget so we may or may not get ACK
     /// </summary>
     private void OnCommandAckReceived(object? sender, CommandAckEventArgs e)
     {
-        if (!IsCalibrating)
+        _logger.LogInformation("[AccelCal] COMMAND_ACK: cmd={Command}, result={Result}", e.Command, e.Result);
+        
+        bool isCalibrating;
+        int currentPos;
+        lock (_lock) 
+        { 
+            isCalibrating = _incalibrate;
+            currentPos = _pos;
+        }
+        
+        if (!isCalibrating)
             return;
         
         // MAV_CMD_PREFLIGHT_CALIBRATION = 241
         if (e.Command == 241)
         {
-            HandleCalibrationCommandAck(e.Result);
+            _logger.LogInformation("[AccelCal] COMMAND_ACK for PREFLIGHT_CALIBRATION: result={Result}, success={Success}", 
+                e.Result, e.IsSuccess);
+            
+            if (!e.IsSuccess)
+            {
+                _logger.LogError("[AccelCal] FC REJECTED calibration command!");
+                
+                lock (_lock)
+                {
+                    _incalibrate = false;
+                    _pos = 0;
+                }
+                
+                string errorMsg = e.Result switch
+                {
+                    1 => "Temporarily rejected - try again",
+                    2 => "Denied - vehicle must be disarmed",
+                    3 => "Not supported by firmware",
+                    4 => "Failed",
+                    _ => $"Rejected (code: {e.Result})"
+                };
+                
+                RaiseCalibrationCompleted(AccelCalibrationResult.Failed, errorMsg);
+            }
+            else
+            {
+                _logger.LogInformation("[AccelCal] Calibration started, waiting for FC to send position request...");
+            }
         }
         // MAV_CMD_ACCELCAL_VEHICLE_POS = 42429
         else if (e.Command == 42429)
         {
-            HandlePositionCommandAck(e.Result);
+            _logger.LogInformation("[AccelCal] COMMAND_ACK for ACCELCAL_VEHICLE_POS: result={Result}, pos={Pos}", 
+                e.Result, currentPos);
+            
+            if (e.IsSuccess)
+            {
+                _logger.LogInformation("[AccelCal] *** Position {Pos} ({Name}) ACCEPTED by FC - sampling... ***", 
+                    currentPos, GetPositionName(currentPos));
+                
+                // Start/reset timeout timer - if we don't get a new position soon, calibration may have aborted
+                _lastPositionAcceptedTime = DateTime.UtcNow;
+                _positionTimeoutTimer?.Stop();
+                _positionTimeoutTimer?.Start();
+                
+                // Raise event to update UI - show "Sampling..." state
+                StatusTextReceived?.Invoke(this, new AccelStatusTextEventArgs
+                {
+                    Severity = 6, // INFO
+                    Text = $"Position {currentPos} ({GetPositionName(currentPos)}) accepted. FC is sampling...",
+                    Timestamp = DateTime.UtcNow
+                });
+            }
+            else
+            {
+                // CRITICAL: Position was REJECTED - calibration has likely been aborted by FC
+                _logger.LogError("[AccelCal] *** Position {Pos} REJECTED (result={Result}) - CALIBRATION ABORTED ***", 
+                    currentPos, e.Result);
+                
+                string failReason = e.Result switch
+                {
+                    1 => "Temporarily rejected - click again quickly",
+                    2 => "Denied - check PreArm status",
+                    3 => "Not supported",
+                    4 => "Failed - calibration may have timed out. PreArm issues (RC, safety switch, compass) can cause this.",
+                    _ => $"Failed (code: {e.Result})"
+                };
+                
+                // Notify user but don't end calibration yet - they might want to retry
+                StatusTextReceived?.Invoke(this, new AccelStatusTextEventArgs
+                {
+                    Severity = 3, // ERROR
+                    Text = $"Position rejected: {failReason}. Try starting calibration again.",
+                    Timestamp = DateTime.UtcNow
+                });
+                
+                // If this is the second+ failure, abort the calibration
+                if (_count > 1)
+                {
+                    _logger.LogError("[AccelCal] Multiple failures detected - aborting calibration");
+                    FinishCalibration(false, $"Calibration failed: {failReason}");
+                }
+            }
         }
     }
     
     /// <summary>
-    /// Handle STATUSTEXT messages from FC.
-    /// THIS IS THE PRIMARY COMMUNICATION CHANNEL.
-    /// FC sends position requests, progress updates, and completion via STATUSTEXT.
+    /// Handle STATUSTEXT - detect position requests and completion messages
     /// </summary>
     private void OnStatusTextReceived(object? sender, StatusTextEventArgs e)
     {
-        if (!IsCalibrating)
+        bool isCalibrating;
+        lock (_lock) { isCalibrating = _incalibrate; }
+        
+        if (!isCalibrating)
             return;
         
         var text = e.Text;
         var lower = text.ToLowerInvariant();
         
-        // Log all STATUSTEXT for diagnostics (Mission Planner does this)
         lock (_lock)
         {
             _statusTextLog.Add($"[{DateTime.UtcNow:HH:mm:ss.fff}] [{e.Severity}] {text}");
         }
         
-        _logger.LogInformation("FC STATUSTEXT: [{Severity}] {Text}", e.Severity, text);
+        _logger.LogInformation("[AccelCal] <<< STATUSTEXT: [{Severity}] \"{Text}\"", e.Severity, text);
         
-        // Raise event for UI to display raw FC message
         StatusTextReceived?.Invoke(this, new AccelStatusTextEventArgs
         {
             Severity = e.Severity,
@@ -411,144 +400,132 @@ public class AccelerometerCalibrationService : IDisposable
             Timestamp = DateTime.UtcNow
         });
         
-        // MISSION PLANNER BEHAVIOR:
-        // Only process messages that contain position keywords or calibration status
-        // Filter out PreArm, EKF, GPS, etc. messages - they don't affect calibration
-        
-        // Check for completion first
-        if (IsSuccessMessage(lower))
+        // Check for calibration completion
+        if (lower.Contains("calibration successful") || lower.Contains("accel calibration complete"))
         {
-            _logger.LogInformation("FC reported CALIBRATION SUCCESS: {Text}", text);
+            _logger.LogInformation("[AccelCal] *** CALIBRATION SUCCESSFUL ***");
             FinishCalibration(true, text);
             return;
         }
         
-        // Check for failure
-        if (IsFailureMessage(lower))
+        if (lower.Contains("calibration failed") || lower.Contains("accel calibration failed"))
         {
-            _logger.LogWarning("FC reported CALIBRATION FAILURE: {Text}", text);
+            _logger.LogError("[AccelCal] *** CALIBRATION FAILED ***");
             FinishCalibration(false, text);
             return;
         }
         
-        // Check for position request (FC telling us which position it wants)
-        var requestedPosition = DetectPositionRequest(lower);
-        if (requestedPosition.HasValue)
+        if (lower.Contains("calibration cancelled") || lower.Contains("calibration timeout"))
         {
-            HandlePositionRequest(requestedPosition.Value, text);
+            _logger.LogWarning("[AccelCal] *** CALIBRATION CANCELLED/TIMEOUT ***");
+            FinishCalibration(false, text);
             return;
         }
         
-        // Other messages are informational - just display to user
-        // Examples: "Rotation bad", sampling progress, etc.
-        _logger.LogDebug("FC informational message: {Text}", text);
+        // Detect position requests from STATUSTEXT
+        // Note: COMMAND_LONG is the authoritative source, but STATUSTEXT can also trigger position detection
+        var detectedPos = DetectPositionFromStatusText(lower);
+        if (detectedPos.HasValue)
+        {
+            _logger.LogInformation("[AccelCal] Position {Pos} ({Name}) detected from STATUSTEXT", 
+                detectedPos.Value, GetPositionName(detectedPos.Value));
+            HandlePositionRequest(detectedPos.Value, text);
+        }
     }
     
     /// <summary>
-    /// Handle COMMAND_LONG messages from FC.
-    /// FC may send MAV_CMD_ACCELCAL_VEHICLE_POS to request positions.
-    /// This is more reliable than parsing STATUSTEXT.
+    /// Handle COMMAND_LONG from FC - THIS IS THE AUTHORITATIVE SOURCE FOR POSITION REQUESTS
+    /// 
+    /// Mission Planner stores pos from incoming COMMAND_LONG and echoes it back exactly.
+    /// This is the primary way FC tells us which position to calibrate.
     /// </summary>
     private void OnCommandLongReceived(object? sender, CommandLongEventArgs e)
     {
-        if (!IsCalibrating)
+        bool isCalibrating;
+        lock (_lock) { isCalibrating = _incalibrate; }
+        
+        if (!isCalibrating)
             return;
         
         // MAV_CMD_ACCELCAL_VEHICLE_POS = 42429
         if (e.Command == 42429)
         {
-            // param1 contains position enum (1-6)
             int position = (int)e.Param1;
             
-            _logger.LogInformation("FC requesting position via COMMAND_LONG: MAV_CMD_ACCELCAL_VEHICLE_POS param1={Position}", position);
+            _logger.LogInformation("[AccelCal] <<< COMMAND_LONG: MAV_CMD_ACCELCAL_VEHICLE_POS param1={Position}", position);
             
+            // Special completion values (from ArduPilot)
+            if (position == 16777215) // ACCELCAL_VEHICLE_POS_SUCCESS
+            {
+                _logger.LogInformation("[AccelCal] *** SUCCESS via COMMAND_LONG (16777215) ***");
+                FinishCalibration(true, "Calibration successful");
+                return;
+            }
+            
+            if (position == 16777216) // ACCELCAL_VEHICLE_POS_FAILED
+            {
+                _logger.LogError("[AccelCal] *** FAILED via COMMAND_LONG (16777216) ***");
+                FinishCalibration(false, "Calibration failed");
+                return;
+            }
+            
+            // Normal position request (1-6)
+            // THIS IS THE AUTHORITATIVE POSITION - store exactly what FC requested
             if (position >= 1 && position <= 6)
             {
-                HandlePositionRequest(position, $"Place vehicle {GetPositionName(position)}");
+                _logger.LogInformation("[AccelCal] <<< FC requesting position {Position} ({Name}) - STORING AS AUTHORITATIVE", 
+                    position, GetPositionName(position));
+                HandlePositionRequest(position, $"Please place vehicle {GetPositionName(position)}");
+            }
+            else
+            {
+                _logger.LogWarning("[AccelCal] Unknown position value: {Position}", position);
             }
         }
     }
     
-    #endregion
-    
-    #region Message Processing (Mission Planner style)
-    
-    private void HandleCalibrationCommandAck(byte result)
-    {
-        var mavResult = (MavResult)result;
-        
-        if (mavResult == MavResult.Accepted || mavResult == MavResult.InProgress)
-        {
-            _logger.LogInformation("FC accepted calibration command (MAV_RESULT={Result})", mavResult);
-            // Now waiting for FC to send STATUSTEXT with first position request
-        }
-        else
-        {
-            _logger.LogError("FC rejected calibration command: MAV_RESULT={Result}", mavResult);
-            
-            string errorMessage = mavResult switch
-            {
-                MavResult.TemporarilyRejected => "Calibration temporarily rejected - FC may be busy. Try again.",
-                MavResult.Denied => "Calibration denied - check vehicle is disarmed and stationary.",
-                MavResult.Unsupported => "Calibration not supported by this firmware version.",
-                MavResult.Failed => "Calibration failed to start - check FC console for errors.",
-                _ => $"Calibration rejected (code: {result})"
-            };
-            
-            FinishCalibration(false, errorMessage);
-        }
-    }
-    
-    private void HandlePositionCommandAck(byte result)
-    {
-        var mavResult = (MavResult)result;
-        int position;
-        
-        lock (_lock)
-        {
-            position = (int)_currentPosition;
-        }
-        
-        if (mavResult == MavResult.Accepted || mavResult == MavResult.InProgress)
-        {
-            _logger.LogInformation("FC accepted position {Position} - FC is now sampling IMU data", position);
-            // FC will send STATUSTEXT for next position or completion
-        }
-        else
-        {
-            _logger.LogWarning("FC rejected position {Position}: MAV_RESULT={Result}", position, mavResult);
-            // FC may send "Rotation bad" or similar via STATUSTEXT
-            // Just log it - FC will tell us what to do next
-        }
-    }
-    
     /// <summary>
-    /// FC is requesting a specific position.
-    /// Called when we detect a position request in STATUSTEXT or COMMAND_LONG.
+    /// Handle position request from FC (via COMMAND_LONG or STATUSTEXT)
+    /// Stores the position that FC requested - we will echo this back when user confirms
     /// </summary>
-    private void HandlePositionRequest(int position, string fcMessage)
+    private void HandlePositionRequest(int position, string message)
     {
+        // Stop timeout timer - we got a new position!
+        _positionTimeoutTimer?.Stop();
+        
         lock (_lock)
         {
-            _currentPosition = (AccelCalibrationPosition)position;
+            _pos = position;  // Store FC's requested position - we echo this back exactly
         }
         
-        _logger.LogInformation("FC requesting position {Position}: {Name}", position, GetPositionName(position));
-        _logger.LogInformation("FC message: {Message}", fcMessage);
+        _logger.LogInformation("[AccelCal] ========================================");
+        _logger.LogInformation("[AccelCal] === POSITION {Position}/6: {Name} ===", position, GetPositionName(position));
+        _logger.LogInformation("[AccelCal] ========================================");
+        _logger.LogInformation("[AccelCal] _pos = {Position} (will echo this back when user confirms)", position);
         
-        // Notify UI to show position image and enable button
-        RaisePositionRequested(position, fcMessage);
+        PositionRequested?.Invoke(this, new AccelPositionRequestedEventArgs
+        {
+            Position = position,
+            PositionName = GetPositionName(position),
+            FcMessage = message
+        });
     }
     
     private void FinishCalibration(bool success, string message)
     {
+        // Stop timeout timer
+        _positionTimeoutTimer?.Stop();
+        
         bool wasCalibrating;
+        int finalPos;
         
         lock (_lock)
         {
-            wasCalibrating = _inCalibration;
-            _inCalibration = false;
-            _calibrationCts?.Cancel();
+            wasCalibrating = _incalibrate;
+            finalPos = _pos;
+            _incalibrate = false;
+            _pos = 0;
+            _count = 0;
         }
         
         if (!wasCalibrating)
@@ -556,9 +533,10 @@ public class AccelerometerCalibrationService : IDisposable
         
         var duration = DateTime.UtcNow - _calibrationStartTime;
         
-        _logger.LogInformation("=== ACCELEROMETER CALIBRATION {Result} ===", success ? "COMPLETED" : "FAILED");
-        _logger.LogInformation("Duration: {Duration:F1}s", duration.TotalSeconds);
-        _logger.LogInformation("FC message: {Message}", message);
+        _logger.LogInformation("[AccelCal] ========================================");
+        _logger.LogInformation("[AccelCal] === CALIBRATION {Result} ===", success ? "SUCCESSFUL" : "FAILED");
+        _logger.LogInformation("[AccelCal] ========================================");
+        _logger.LogInformation("[AccelCal] Duration: {Duration:F1}s, Final position: {Position}", duration.TotalSeconds, finalPos);
         
         RaiseStateChanged(true, false);
         RaiseCalibrationCompleted(
@@ -568,16 +546,26 @@ public class AccelerometerCalibrationService : IDisposable
     
     #endregion
     
-    #region STATUSTEXT Parsing (Mission Planner style - inline, simple)
+    #region Helper Methods
     
     /// <summary>
-    /// Detect which position FC is requesting based on STATUSTEXT keywords.
-    /// Mission Planner does this inline in receivedPacket().
+    /// Detect position from STATUSTEXT keywords.
+    /// ArduPilot sends messages like:
+    /// - "Place vehicle level and press any key"
+    /// - "Place vehicle on its LEFT side and press any key"
+    /// - "Place vehicle on its RIGHT side and press any key"
+    /// - "Place vehicle nose DOWN and press any key"
+    /// - "Place vehicle nose UP and press any key"
+    /// - "Place vehicle on its BACK and press any key"
     /// </summary>
-    private static int? DetectPositionRequest(string lower)
+    private static int? DetectPositionFromStatusText(string lower)
     {
-        // Must contain "place" or similar to be a position request
-        if (!lower.Contains("place") && !lower.Contains("position"))
+        // Must contain keywords indicating a position request
+        if (!lower.Contains("place") && !lower.Contains("position") && !lower.Contains("press"))
+            return null;
+        
+        // Skip completion/error messages
+        if (lower.Contains("calibration") && (lower.Contains("successful") || lower.Contains("failed") || lower.Contains("complete")))
             return null;
         
         // Check specific positions (order matters - check compound terms first)
@@ -589,68 +577,38 @@ public class AccelerometerCalibrationService : IDisposable
             return 2;  // LEFT
         if (lower.Contains("right") && !lower.Contains("left"))
             return 3;  // RIGHT
-        if (lower.Contains("back") || lower.Contains("upside"))
+        if (lower.Contains("back") || lower.Contains("upside") || lower.Contains("inverted"))
             return 6;  // BACK
-        if (lower.Contains("level"))
+        if (lower.Contains("level") || (lower.Contains("flat") && lower.Contains("surface")))
             return 1;  // LEVEL
         
         return null;
     }
     
-    /// <summary>
-    /// Check if STATUSTEXT indicates calibration success.
-    /// </summary>
-    private static bool IsSuccessMessage(string lower)
-    {
-        return lower.Contains("calibration successful") ||
-               lower.Contains("calibration complete") ||
-               lower.Contains("calibration done") ||
-               lower.Contains("accel calibration successful") ||
-               (lower.Contains("accel") && lower.Contains("offsets") && lower.Contains("saved"));
-    }
-    
-    /// <summary>
-    /// Check if STATUSTEXT indicates calibration failure.
-    /// Note: "PreArm" messages are NOT failures - they're filtered.
-    /// </summary>
-    private static bool IsFailureMessage(string lower)
-    {
-        // Filter out PreArm messages (not calibration failures)
-        if (lower.Contains("prearm"))
-            return false;
-        
-        // Check for actual calibration failures
-        return lower.Contains("calibration failed") ||
-               lower.Contains("accel cal failed") ||
-               lower.Contains("calibration cancelled") ||
-               lower.Contains("calibration timeout");
-    }
-    
     private static string GetPositionName(int position)
     {
-        return position >= 1 && position <= 6 ? PositionNames[position] : "UNKNOWN";
+        return position switch
+        {
+            1 => "LEVEL",
+            2 => "LEFT",
+            3 => "RIGHT",
+            4 => "NOSEDOWN",
+            5 => "NOSEUP",
+            6 => "BACK",
+            _ => $"UNKNOWN({position})"
+        };
     }
     
     #endregion
     
     #region Event Raising
     
-    private void RaiseStateChanged(bool oldInCalibration, bool newInCalibration)
+    private void RaiseStateChanged(bool wasCalibrating, bool isCalibrating)
     {
         StateChanged?.Invoke(this, new AccelCalibrationStateChangedEventArgs
         {
-            OldState = oldInCalibration ? AccelCalibrationState.WaitingForUserConfirmation : AccelCalibrationState.Idle,
-            NewState = newInCalibration ? AccelCalibrationState.WaitingForUserConfirmation : AccelCalibrationState.Idle
-        });
-    }
-    
-    private void RaisePositionRequested(int position, string fcMessage)
-    {
-        PositionRequested?.Invoke(this, new AccelPositionRequestedEventArgs
-        {
-            Position = position,
-            PositionName = GetPositionName(position),
-            FcMessage = fcMessage
+            OldState = wasCalibrating ? AccelCalibrationState.WaitingForUserConfirmation : AccelCalibrationState.Idle,
+            NewState = isCalibrating ? AccelCalibrationState.WaitingForFirstPosition : AccelCalibrationState.Idle
         });
     }
     
@@ -676,8 +634,10 @@ public class AccelerometerCalibrationService : IDisposable
         
         CancelCalibration();
         
-        _calibrationCts?.Cancel();
-        _calibrationCts?.Dispose();
+        // Clean up timeout timer
+        _positionTimeoutTimer?.Stop();
+        _positionTimeoutTimer?.Dispose();
+        _positionTimeoutTimer = null;
         
         _connectionService.StatusTextReceived -= OnStatusTextReceived;
         _connectionService.CommandAckReceived -= OnCommandAckReceived;
@@ -686,35 +646,24 @@ public class AccelerometerCalibrationService : IDisposable
     }
     
     #endregion
+
 }
 
 #region Event Args
 
-/// <summary>
-/// Event args for calibration state changes.
-/// </summary>
 public class AccelCalibrationStateChangedEventArgs : EventArgs
 {
     public AccelCalibrationState OldState { get; set; }
     public AccelCalibrationState NewState { get; set; }
 }
 
-/// <summary>
-/// Event args when FC requests a position.
-/// </summary>
 public class AccelPositionRequestedEventArgs : EventArgs
 {
-    /// <summary>Position number (1-6)</summary>
     public int Position { get; set; }
-    /// <summary>Position name for display</summary>
     public string PositionName { get; set; } = "";
-    /// <summary>Original FC message</summary>
     public string FcMessage { get; set; } = "";
 }
 
-/// <summary>
-/// Event args for FC STATUSTEXT during calibration.
-/// </summary>
 public class AccelStatusTextEventArgs : EventArgs
 {
     public byte Severity { get; set; }
@@ -722,9 +671,6 @@ public class AccelStatusTextEventArgs : EventArgs
     public DateTime Timestamp { get; set; }
 }
 
-/// <summary>
-/// Event args when calibration completes.
-/// </summary>
 public class AccelCalibrationCompletedEventArgs : EventArgs
 {
     public AccelCalibrationResult Result { get; set; }
@@ -734,11 +680,8 @@ public class AccelCalibrationCompletedEventArgs : EventArgs
 
 #endregion
 
-#region Diagnostics Models
+#region Diagnostics
 
-/// <summary>
-/// Diagnostics for calibration session.
-/// </summary>
 public class AccelCalibrationDiagnostics
 {
     public AccelCalibrationState State { get; set; }
@@ -749,9 +692,6 @@ public class AccelCalibrationDiagnostics
     public Dictionary<int, PositionAttempt> PositionAttempts { get; set; } = new();
 }
 
-/// <summary>
-/// Diagnostics for individual position attempts.
-/// </summary>
 public class PositionAttempt
 {
     public int Position { get; set; }

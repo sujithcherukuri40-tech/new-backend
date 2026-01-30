@@ -481,6 +481,11 @@ public sealed class ConnectionService : IConnectionService, IDisposable
     private void OnMavlinkCommandLong(object? sender, CommandLongData e)
     {
         _lastDataReceivedTime = DateTime.UtcNow;
+        
+        // Log ALL incoming COMMAND_LONG messages for debugging
+        _logger.LogInformation("COMMAND_LONG received: cmd={Command}, param1={Param1}, sysid={SysId}, compid={CompId}",
+            e.Command, e.Param1, e.SystemId, e.ComponentId);
+        
         CommandLongReceived?.Invoke(this, new CommandLongEventArgs
         {
             SystemId = e.SystemId,
@@ -574,6 +579,7 @@ public sealed class ConnectionService : IConnectionService, IDisposable
                 _mavlink.StatusTextReceived -= OnMavlinkStatusText;
                 _mavlink.RcChannelsReceived -= OnMavlinkRcChannels;
                 _mavlink.CommandAckReceived -= OnMavlinkCommandAck;
+                _mavlink.CommandLongReceived -= OnMavlinkCommandLong;  // ADD THIS - was missing!
                 _mavlink.RawImuReceived -= OnMavlinkRawImu;
                 _mavlink.Dispose();
                 _mavlink = null;
@@ -702,13 +708,12 @@ public sealed class ConnectionService : IConnectionService, IDisposable
 
     public void SendAccelCalVehiclePos(int position)
     {
-        _logger.LogInformation("SendAccelCalVehiclePos called: position={Position}, connectionType={Type}, isConnected={Connected}", 
-            position, _currentConnectionType, _isConnected);
+        _logger.LogInformation("SendAccelCalVehiclePos: position={Position} [FIRE-AND-FORGET]", position);
         
         if (_currentConnectionType == ConnectionType.Bluetooth && _bluetoothConnection != null)
         {
-            _logger.LogInformation("Sending via Bluetooth connection");
-            _ = _bluetoothConnection.SendAccelCalVehiclePosAsync(position);
+            _logger.LogInformation("Sending via Bluetooth connection (raw/fire-and-forget)");
+            _bluetoothConnection.SendAccelCalVehiclePosRaw(position);
             return;
         }
 
@@ -718,8 +723,9 @@ public sealed class ConnectionService : IConnectionService, IDisposable
             return;
         }
 
-        _logger.LogInformation("Sending via MAVLink wrapper");
-        _ = _mavlink.SendAccelCalVehiclePosAsync(position);
+        _logger.LogInformation("Sending via MAVLink wrapper (raw/fire-and-forget - Mission Planner style)");
+        // CRITICAL: Use RAW method - no ACK waiting (Mission Planner's sendPacket() style)
+        _mavlink.SendAccelCalVehiclePosRaw(position);
     }
 
     public void SendPreflightReboot(int autopilot, int companion)
