@@ -167,17 +167,17 @@
                         <StackPanel Orientation="Horizontal" Spacing="24">
                             <StackPanel Orientation="Horizontal" Spacing="8">
                                 <TextBlock Text="Showing:" FontWeight="SemiBold" Foreground="#475569"/>
-                                <TextBlock Text="{Binding FilteredParameterCount}" Foreground="#29ABE2" FontWeight="Bold"/>
+                                <TextBlock Text="{Binding FilteredParameterCount, FallbackValue=0}" Foreground="#29ABE2" FontWeight="Bold"/>
                                 <TextBlock Text="of" Foreground="#64748B"/>
-                                <TextBlock Text="{Binding TotalParameterCount}" Foreground="#29ABE2" FontWeight="Bold"/>
+                                <TextBlock Text="{Binding TotalParameterCount, FallbackValue=0}" Foreground="#29ABE2" FontWeight="Bold"/>
                             </StackPanel>
                             <StackPanel Orientation="Horizontal" Spacing="8">
                                 <TextBlock Text="Groups:" FontWeight="SemiBold" Foreground="#475569"/>
-                                <TextBlock Text="{Binding GroupCount}" Foreground="#29ABE2" FontWeight="Bold"/>
+                                <TextBlock Text="{Binding GroupCount, FallbackValue=0}" Foreground="#29ABE2" FontWeight="Bold"/>
                             </StackPanel>
                             <StackPanel Orientation="Horizontal" Spacing="8">
                                 <TextBlock Text="With Ranges:" FontWeight="SemiBold" Foreground="#475569"/>
-                                <TextBlock Text="{Binding ParametersWithRanges}" Foreground="#29ABE2" FontWeight="Bold"/>
+                                <TextBlock Text="{Binding ParametersWithRanges, FallbackValue=0}" Foreground="#29ABE2" FontWeight="Bold"/>
                             </StackPanel>
                         </StackPanel>
                     </Border>

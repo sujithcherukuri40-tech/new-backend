@@ -180,7 +180,7 @@
                                            VerticalAlignment="Center" 
                                            Foreground="#6B7280"
                                            FontSize="13"/>
-                                <TextBlock Text="{Binding FilteredUsers.Count}" 
+                                <TextBlock Text="{Binding FilteredUsers.Count, FallbackValue=0}" 
                                            FontWeight="SemiBold" 
                                            Foreground="#111827" 
                                            VerticalAlignment="Center"
@@ -195,7 +195,7 @@
                                            Foreground="#F59E0B"
                                            FontSize="13"
                                            FontWeight="SemiBold"/>
-                                <TextBlock Text="{Binding PendingCount}" 
+                                <TextBlock Text="{Binding PendingCount, FallbackValue=0}" 
                                            FontWeight="Bold" 
                                            Foreground="#F59E0B" 
                                            VerticalAlignment="Center"
