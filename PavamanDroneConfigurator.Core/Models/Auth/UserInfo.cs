@@ -40,4 +40,9 @@ public sealed record UserInfo
     /// When the user's account was created.
     /// </summary>
     public DateTimeOffset CreatedAt { get; init; }
+
+    /// <summary>
+    /// When the user last logged in successfully. Null if never logged in.
+    /// </summary>
+    public DateTimeOffset? LastLoginAt { get; init; }
 }

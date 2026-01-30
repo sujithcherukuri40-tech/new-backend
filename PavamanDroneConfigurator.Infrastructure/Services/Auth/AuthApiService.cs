@@ -279,7 +279,8 @@ public sealed class AuthApiService : IAuthService
                     FullName = authResponse.User.FullName,
                     IsApproved = authResponse.User.IsApproved,
                     Role = authResponse.User.Role,
-                    CreatedAt = authResponse.User.CreatedAt
+                    CreatedAt = authResponse.User.CreatedAt,
+                    LastLoginAt = authResponse.User.LastLoginAt
                 };
 
                 // Determine auth state based on approval status
@@ -373,6 +374,7 @@ public sealed class AuthApiService : IAuthService
         public bool IsApproved { get; set; }
         public string Role { get; set; } = "User";
         public DateTimeOffset CreatedAt { get; set; }
+        public DateTimeOffset? LastLoginAt { get; set; }
     }
 
     private sealed class TokensApiResponse
