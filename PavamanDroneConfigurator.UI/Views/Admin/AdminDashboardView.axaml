@@ -171,7 +171,7 @@
                                     Padding="10,6"/>
                         </StackPanel>
                         
-                        <!-- Stats -->
+                        <!-- Stats and Add User Button -->
                         <StackPanel Grid.Column="2" 
                                     Orientation="Horizontal" 
                                     Spacing="16">
@@ -201,6 +201,29 @@
                                            VerticalAlignment="Center"
                                            FontSize="14"/>
                             </StackPanel>
+
+                            <Border Width="1" Background="#E5E7EB"/>
+
+                            <!-- Add User Button -->
+                            <Button Content="➕ Add User"
+                                    Command="{Binding OpenAddUserDialogCommand}"
+                                    Background="#3B82F6"
+                                    Foreground="White"
+                                    CornerRadius="6"
+                                    Padding="16,8"
+                                    FontSize="13"
+                                    FontWeight="SemiBold"
+                                    BorderThickness="0"
+                                    Cursor="Hand">
+                                <Button.Styles>
+                                    <Style Selector="Button:pointerover">
+                                        <Setter Property="Background" Value="#2563EB"/>
+                                    </Style>
+                                    <Style Selector="Button:pressed">
+                                        <Setter Property="Background" Value="#1D4ED8"/>
+                                    </Style>
+                                </Button.Styles>
+                            </Button>
                         </StackPanel>
                     </Grid>
                 </Border>
@@ -332,6 +355,35 @@
                                                     Classes="action-secondary"
                                                     Command="{Binding $parent[UserControl].((vm:AdminDashboardViewModel)DataContext).UpdateRoleCommand}"
                                                     CommandParameter="{Binding}"/>
+                                            
+                                            <!-- Delete Button -->
+                                            <Button Content="🗑"
+                                                    Command="{Binding $parent[UserControl].((vm:AdminDashboardViewModel)DataContext).OpenDeleteConfirmationCommand}"
+                                                    CommandParameter="{Binding}"
+                                                    ToolTip.Tip="Delete user"
+                                                    Background="#EF4444"
+                                                    Foreground="White"
+                                                    CornerRadius="6"
+                                                    Padding="10,6"
+                                                    FontSize="14"
+                                                    BorderThickness="0"
+                                                    Cursor="Hand"
+                                                    IsEnabled="{Binding CanDelete}"
+                                                    VerticalAlignment="Center">
+                                                <Button.Styles>
+                                                    <Style Selector="Button:pointerover">
+                                                        <Setter Property="Background" Value="#DC2626"/>
+                                                    </Style>
+                                                    <Style Selector="Button:pressed">
+                                                        <Setter Property="Background" Value="#B91C1C"/>
+                                                    </Style>
+                                                    <Style Selector="Button:disabled">
+                                                        <Setter Property="Background" Value="#F3F4F6"/>
+                                                        <Setter Property="Foreground" Value="#9CA3AF"/>
+                                                        <Setter Property="Cursor" Value="NotAllowed"/>
+                                                    </Style>
+                                                </Button.Styles>
+                                            </Button>
                                         </StackPanel>
                                     </Grid>
                                 </Border>
@@ -405,6 +457,303 @@
                     </TextBlock>
                 </Border>
             </Grid>
+        </Border>
+
+        <!-- Add User Modal Dialog -->
+        <Border Grid.RowSpan="2"
+                Background="#CC000000"
+                IsVisible="{Binding IsAddUserDialogOpen}"
+                IsHitTestVisible="{Binding IsAddUserDialogOpen}"
+                ZIndex="1000">
+            <Border Background="White"
+                    MaxWidth="500"
+                    CornerRadius="12"
+                    BoxShadow="0 20 60 0 #40000000"
+                    Padding="32"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center">
+                <StackPanel Spacing="24">
+                    <!-- Dialog Header -->
+                    <StackPanel Spacing="8">
+                        <TextBlock Text="➕ Add New User"
+                                   FontSize="24"
+                                   FontWeight="Bold"
+                                   Foreground="#111827"/>
+                        <TextBlock Text="Create a new user account. They will need to be approved before gaining access."
+                                   FontSize="13"
+                                   Foreground="#6B7280"
+                                   TextWrapping="Wrap"/>
+                    </StackPanel>
+
+                    <!-- Form Fields -->
+                    <StackPanel Spacing="16">
+                        <!-- Full Name -->
+                        <StackPanel Spacing="6">
+                            <TextBlock Text="Full Name *"
+                                       FontSize="13"
+                                       FontWeight="SemiBold"
+                                       Foreground="#374151"/>
+                            <TextBox Text="{Binding NewUserFullName, Mode=TwoWay}"
+                                     Watermark="Enter full name"
+                                     CornerRadius="6"
+                                     Padding="12,10"
+                                     FontSize="14"
+                                     BorderBrush="{Binding NewUserFullNameError, Converter={x:Static StringConverters.IsNullOrEmpty}, ConverterParameter=#D1D5DB|#EF4444}"
+                                     BorderThickness="1"/>
+                            <TextBlock Text="{Binding NewUserFullNameError}"
+                                       IsVisible="{Binding NewUserFullNameError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                                       Foreground="#EF4444"
+                                       FontSize="12"
+                                       Margin="4,0,0,0"/>
+                        </StackPanel>
+
+                        <!-- Email -->
+                        <StackPanel Spacing="6">
+                            <TextBlock Text="Email Address *"
+                                       FontSize="13"
+                                       FontWeight="SemiBold"
+                                       Foreground="#374151"/>
+                            <TextBox Text="{Binding NewUserEmail, Mode=TwoWay}"
+                                     Watermark="user@example.com"
+                                     CornerRadius="6"
+                                     Padding="12,10"
+                                     FontSize="14"
+                                     BorderBrush="{Binding NewUserEmailError, Converter={x:Static StringConverters.IsNullOrEmpty}, ConverterParameter=#D1D5DB|#EF4444}"
+                                     BorderThickness="1"/>
+                            <TextBlock Text="{Binding NewUserEmailError}"
+                                       IsVisible="{Binding NewUserEmailError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                                       Foreground="#EF4444"
+                                       FontSize="12"
+                                       Margin="4,0,0,0"/>
+                        </StackPanel>
+
+                        <!-- Role -->
+                        <StackPanel Spacing="6">
+                            <TextBlock Text="Role *"
+                                       FontSize="13"
+                                       FontWeight="SemiBold"
+                                       Foreground="#374151"/>
+                            <ComboBox ItemsSource="{Binding AvailableRolesForNewUser}"
+                                      SelectedItem="{Binding NewUserRole, Mode=TwoWay}"
+                                      CornerRadius="6"
+                                      Padding="12,10"
+                                      FontSize="14"
+                                      BorderBrush="#D1D5DB"
+                                      BorderThickness="1"
+                                      HorizontalAlignment="Stretch"/>
+                            <TextBlock Text="Users will be created with 'Pending' status and require approval."
+                                       FontSize="11"
+                                       Foreground="#9CA3AF"
+                                       Margin="4,0,0,0"/>
+                        </StackPanel>
+                    </StackPanel>
+
+                    <!-- Dialog Actions -->
+                    <Grid ColumnDefinitions="*,Auto,Auto" Margin="0,8,0,0">
+                        <!-- Loading Indicator -->
+                        <StackPanel Grid.Column="0" 
+                                    Orientation="Horizontal" 
+                                    Spacing="8"
+                                    IsVisible="{Binding IsBusy}">
+                            <ProgressBar IsIndeterminate="True" 
+                                         Width="20" 
+                                         Height="20"
+                                         VerticalAlignment="Center"/>
+                            <TextBlock Text="Creating user..."
+                                       FontSize="12"
+                                       Foreground="#6B7280"
+                                       VerticalAlignment="Center"/>
+                        </StackPanel>
+
+                        <!-- Cancel Button -->
+                        <Button Grid.Column="1"
+                                Content="Cancel"
+                                Command="{Binding CancelAddUserCommand}"
+                                Background="Transparent"
+                                Foreground="#6B7280"
+                                BorderBrush="#D1D5DB"
+                                BorderThickness="1"
+                                CornerRadius="6"
+                                Padding="20,10"
+                                FontSize="13"
+                                FontWeight="SemiBold"
+                                Margin="0,0,12,0"
+                                IsEnabled="{Binding !IsBusy}"
+                                Cursor="Hand">
+                            <Button.Styles>
+                                <Style Selector="Button:pointerover">
+                                    <Setter Property="Background" Value="#F3F4F6"/>
+                                </Style>
+                            </Button.Styles>
+                        </Button>
+
+                        <!-- Create User Button -->
+                        <Button Grid.Column="2"
+                                Content="✅ Create User"
+                                Command="{Binding CreateUserCommand}"
+                                Background="#3B82F6"
+                                Foreground="White"
+                                BorderThickness="0"
+                                CornerRadius="6"
+                                Padding="20,10"
+                                FontSize="13"
+                                FontWeight="SemiBold"
+                                IsEnabled="{Binding !IsBusy}"
+                                Cursor="Hand">
+                            <Button.Styles>
+                                <Style Selector="Button:pointerover">
+                                    <Setter Property="Background" Value="#2563EB"/>
+                                </Style>
+                                <Style Selector="Button:pressed">
+                                    <Setter Property="Background" Value="#1D4ED8"/>
+                                </Style>
+                                <Style Selector="Button:disabled">
+                                    <Setter Property="Background" Value="#D1D5DB"/>
+                                    <Setter Property="Cursor" Value="NotAllowed"/>
+                                </Style>
+                            </Button.Styles>
+                        </Button>
+                    </Grid>
+                </StackPanel>
+            </Border>
+        </Border>
+
+        <!-- Delete Confirmation Modal Dialog -->
+        <Border Grid.RowSpan="2"
+                Background="#CC000000"
+                IsVisible="{Binding IsDeleteConfirmationDialogOpen}"
+                IsHitTestVisible="{Binding IsDeleteConfirmationDialogOpen}"
+                ZIndex="1001">
+            <Border Background="White"
+                    MaxWidth="480"
+                    CornerRadius="12"
+                    BoxShadow="0 20 60 0 #40000000"
+                    Padding="32"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center">
+                <StackPanel Spacing="24">
+                    <!-- Warning Icon -->
+                    <Border Width="56"
+                            Height="56"
+                            CornerRadius="28"
+                            Background="#FEF2F2"
+                            HorizontalAlignment="Center">
+                        <TextBlock Text="⚠️"
+                                   FontSize="28"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center"/>
+                    </Border>
+
+                    <!-- Dialog Header -->
+                    <StackPanel Spacing="8">
+                        <TextBlock Text="Delete User?"
+                                   FontSize="22"
+                                   FontWeight="Bold"
+                                   Foreground="#111827"
+                                   HorizontalAlignment="Center"/>
+                        <TextBlock FontSize="14"
+                                   Foreground="#6B7280"
+                                   TextWrapping="Wrap"
+                                   HorizontalAlignment="Center"
+                                   TextAlignment="Center">
+                            <Run Text="Are you sure you want to permanently delete"/>
+                            <Run Text="{Binding UserToDelete.FullName, FallbackValue=this user}" FontWeight="SemiBold" Foreground="#111827"/>
+                            <Run Text="?"/>
+                        </TextBlock>
+                        <TextBlock Text="This action cannot be undone."
+                                   FontSize="13"
+                                   Foreground="#EF4444"
+                                   FontWeight="SemiBold"
+                                   HorizontalAlignment="Center"
+                                   Margin="0,4,0,0"/>
+                    </StackPanel>
+
+                    <!-- User Details Card -->
+                    <Border Background="#F9FAFB"
+                            CornerRadius="8"
+                            Padding="16"
+                            BorderBrush="#E5E7EB"
+                            BorderThickness="1">
+                        <StackPanel Spacing="8">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <TextBlock Text="📧"
+                                           FontSize="14"
+                                           VerticalAlignment="Center"/>
+                                <TextBlock Text="{Binding UserToDelete.Email, FallbackValue=user@example.com}"
+                                           FontSize="13"
+                                           Foreground="#374151"
+                                           VerticalAlignment="Center"/>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <TextBlock Text="👤"
+                                           FontSize="14"
+                                           VerticalAlignment="Center"/>
+                                <TextBlock Text="{Binding UserToDelete.Role, FallbackValue=User}"
+                                           FontSize="13"
+                                           Foreground="#6B7280"
+                                           VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Dialog Actions -->
+                    <Grid ColumnDefinitions="*,*">
+                        <!-- Cancel Button -->
+                        <Button Grid.Column="0"
+                                Content="Cancel"
+                                Command="{Binding CancelDeleteCommand}"
+                                Background="Transparent"
+                                Foreground="#6B7280"
+                                BorderBrush="#D1D5DB"
+                                BorderThickness="1"
+                                CornerRadius="6"
+                                Padding="0,12"
+                                FontSize="14"
+                                FontWeight="SemiBold"
+                                Margin="0,0,8,0"
+                                IsEnabled="{Binding !IsBusy}"
+                                Cursor="Hand"
+                                HorizontalAlignment="Stretch"
+                                HorizontalContentAlignment="Center">
+                            <Button.Styles>
+                                <Style Selector="Button:pointerover">
+                                    <Setter Property="Background" Value="#F3F4F6"/>
+                                </Style>
+                            </Button.Styles>
+                        </Button>
+
+                        <!-- Delete Button -->
+                        <Button Grid.Column="1"
+                                Content="🗑 Delete User"
+                                Command="{Binding ConfirmDeleteCommand}"
+                                Background="#EF4444"
+                                Foreground="White"
+                                BorderThickness="0"
+                                CornerRadius="6"
+                                Padding="0,12"
+                                FontSize="14"
+                                FontWeight="Bold"
+                                Margin="8,0,0,0"
+                                IsEnabled="{Binding !IsBusy}"
+                                Cursor="Hand"
+                                HorizontalAlignment="Stretch"
+                                HorizontalContentAlignment="Center">
+                            <Button.Styles>
+                                <Style Selector="Button:pointerover">
+                                    <Setter Property="Background" Value="#DC2626"/>
+                                </Style>
+                                <Style Selector="Button:pressed">
+                                    <Setter Property="Background" Value="#B91C1C"/>
+                                </Style>
+                                <Style Selector="Button:disabled">
+                                    <Setter Property="Background" Value="#D1D5DB"/>
+                                    <Setter Property="Cursor" Value="NotAllowed"/>
+                                </Style>
+                            </Button.Styles>
+                        </Button>
+                    </Grid>
+                </StackPanel>
+            </Border>
         </Border>
     </Grid>
 </UserControl>

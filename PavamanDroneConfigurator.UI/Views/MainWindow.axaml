@@ -155,12 +155,8 @@
                                 Click="NavButton_Click" />
 						<Button Content="🔀  Flight Modes"
                                 Classes="nav-button"
-<<<<<<< HEAD
-                                Tag="FlightModesPage"
-                                CommandParameter="{Binding FlightModesPage}"
-=======
+                                Tag="FlightModePage"
                                 CommandParameter="{Binding FlightModePage}"
->>>>>>> a86414a61f2c29968a36ef2ae420682a1156c8c6
                                 Click="NavButton_Click" />
 						<Button Content="⚡  Motor &amp; ESC"
                                 Classes="nav-button"
@@ -239,18 +235,16 @@
                                    IsVisible="{Binding IsAdmin}"/>
 						<Button Content="📊  Dashboard"
                                 Classes="nav-button"
+                                Tag="AdminDashboardPage"
                                 CommandParameter="{Binding AdminDashboardPage}"
                                 Click="NavButton_Click"
                                 IsVisible="{Binding IsAdmin}" />
-<<<<<<< HEAD
-=======
 						<Button Content="👥  User Management"
                                 Classes="nav-button"
                                 Tag="AdminPanelPage"
                                 CommandParameter="{Binding AdminPanelPage}"
                                 Click="NavButton_Click"
                                 IsVisible="{Binding IsAdmin}" />
->>>>>>> 7fa22b2f6f0254e739178e1fc8aa127935270365
 
 					</StackPanel>
 				</ScrollViewer>
@@ -276,136 +270,71 @@
 
 		<!-- Content Area with modern background -->
 		<Border Grid.Column="1" Background="#F9FAFB">
-<<<<<<< HEAD
 			<Grid>
 				<ContentControl Content="{Binding CurrentPage}">
 					<ContentControl.DataTemplates>
-						<DataTemplate DataType="{x:Type vm:ConnectionPageViewModel}">
+						<DataTemplate DataType="vm:ConnectionPageViewModel">
 							<views:ConnectionPage />
 						</DataTemplate>
-						<DataTemplate DataType="{x:Type vm:DroneDetailsPageViewModel}">
+						<DataTemplate DataType="vm:DroneDetailsPageViewModel">
 							<views:DroneDetailsPage />
 						</DataTemplate>
-						<DataTemplate DataType="{x:Type vm:ParametersPageViewModel}">
+						<DataTemplate DataType="vm:ParametersPageViewModel">
 							<views:ParametersPage />
 						</DataTemplate>
-						<DataTemplate DataType="{x:Type vm:AirframePageViewModel}">
+						<DataTemplate DataType="vm:AirframePageViewModel">
 							<views:AirframePage />
 						</DataTemplate>
-						<DataTemplate DataType="{x:Type vm:SafetyPageViewModel}">
+						<DataTemplate DataType="vm:SafetyPageViewModel">
 							<views:SafetyPage />
 						</DataTemplate>
-						<DataTemplate DataType="{x:Type vm:ProfilePageViewModel}">
+						<DataTemplate DataType="vm:ProfilePageViewModel">
 							<views:ProfilePage />
 						</DataTemplate>
-						<DataTemplate DataType="{x:Type vm:FlightModePageViewModel}">
+						<DataTemplate DataType="vm:FlightModePageViewModel">
 							<views:FlightModesPage />
 						</DataTemplate>
-						<DataTemplate DataType="{x:Type vm:PowerPageViewModel}">
+						<DataTemplate DataType="vm:PowerPageViewModel">
 							<views:PowerPage />
 						</DataTemplate>
-						<DataTemplate DataType="{x:Type vm:MotorEscPageViewModel}">
+						<DataTemplate DataType="vm:MotorEscPageViewModel">
 							<views:MotorEscPage />
 						</DataTemplate>
-						<DataTemplate DataType="{x:Type vm:PidTuningPageViewModel}">
+						<DataTemplate DataType="vm:PidTuningPageViewModel">
 							<views:PidTuningPage />
 						</DataTemplate>
-						<DataTemplate DataType="{x:Type vm:SerialConfigPageViewModel}">
+						<DataTemplate DataType="vm:SerialConfigPageViewModel">
 							<views:SerialConfigPage />
 						</DataTemplate>
-						<DataTemplate DataType="{x:Type vm:RcCalibrationPageViewModel}">
+						<DataTemplate DataType="vm:RcCalibrationPageViewModel">
 							<views:RcCalibrationPage />
 						</DataTemplate>
-						<DataTemplate DataType="{x:Type vm:SensorsCalibrationPageViewModel}">
+						<DataTemplate DataType="vm:SensorsCalibrationPageViewModel">
 							<views:SensorsCalibrationPage />
 						</DataTemplate>
-						<DataTemplate DataType="{x:Type vm:LogAnalyzerPageViewModel}">
+						<DataTemplate DataType="vm:LogAnalyzerPageViewModel">
 							<views:LogAnalyzerPage />
 						</DataTemplate>
-						<DataTemplate DataType="{x:Type vm:ResetParametersPageViewModel}">
+						<DataTemplate DataType="vm:ResetParametersPageViewModel">
 							<views:ResetParametersPage />
 						</DataTemplate>
-						<DataTemplate DataType="{x:Type vm:SprayingConfigPageViewModel}">
+						<DataTemplate DataType="vm:SprayingConfigPageViewModel">
 							<views:SprayingConfigPage />
 						</DataTemplate>
-						<DataTemplate DataType="{x:Type vm:CameraConfigPageViewModel}">
+						<DataTemplate DataType="vm:CameraConfigPageViewModel">
 							<views:CameraConfigPage />
 						</DataTemplate>
-						<DataTemplate DataType="{x:Type vm:FirmwarePageViewModel}">
+						<DataTemplate DataType="vm:FirmwarePageViewModel">
 							<views:FirmwarePage />
 						</DataTemplate>
-						<DataTemplate DataType="{x:Type adminVm:AdminPanelViewModel}">
+						<DataTemplate DataType="adminVm:AdminDashboardViewModel">
+							<adminViews:AdminDashboardView />
+						</DataTemplate>
+						<DataTemplate DataType="adminVm:AdminPanelViewModel">
 							<adminViews:AdminPanelView />
 						</DataTemplate>
 					</ContentControl.DataTemplates>
 				</ContentControl>
-=======
-			<ContentControl Content="{Binding CurrentPage}">
-				<ContentControl.DataTemplates>
-					<DataTemplate DataType="vm:ConnectionPageViewModel">
-						<views:ConnectionPage />
-					</DataTemplate>
-					<DataTemplate DataType="vm:DroneDetailsPageViewModel">
-						<views:DroneDetailsPage />
-					</DataTemplate>
-					<DataTemplate DataType="vm:ParametersPageViewModel">
-						<views:ParametersPage />
-					</DataTemplate>
-					<DataTemplate DataType="vm:AirframePageViewModel">
-						<views:AirframePage />
-					</DataTemplate>
-					<DataTemplate DataType="vm:SafetyPageViewModel">
-						<views:SafetyPage />
-					</DataTemplate>
-					<DataTemplate DataType="vm:ProfilePageViewModel">
-						<views:ProfilePage />
-					</DataTemplate>
-					<DataTemplate DataType="vm:FlightModePageViewModel">
-						<views:FlightModesPage />
-					</DataTemplate>
-					<DataTemplate DataType="vm:PowerPageViewModel">
-						<views:PowerPage />
-					</DataTemplate>
-					<DataTemplate DataType="vm:MotorEscPageViewModel">
-						<views:MotorEscPage />
-					</DataTemplate>
-					<DataTemplate DataType="vm:PidTuningPageViewModel">
-						<views:PidTuningPage />
-					</DataTemplate>
-					<DataTemplate DataType="vm:SerialConfigPageViewModel">
-						<views:SerialConfigPage />
-					</DataTemplate>
-					<DataTemplate DataType="vm:RcCalibrationPageViewModel">
-						<views:RcCalibrationPage />
-					</DataTemplate>
-					<DataTemplate DataType="vm:SensorsCalibrationPageViewModel">
-						<views:SensorsCalibrationPage />
-					</DataTemplate>
-					<DataTemplate DataType="vm:LogAnalyzerPageViewModel">
-						<views:LogAnalyzerPage />
-					</DataTemplate>
-					<DataTemplate DataType="vm:ResetParametersPageViewModel">
-						<views:ResetParametersPage />
-					</DataTemplate>
-					<DataTemplate DataType="vm:SprayingConfigPageViewModel">
-						<views:SprayingConfigPage />
-					</DataTemplate>
-					<DataTemplate DataType="vm:CameraConfigPageViewModel">
-						<views:CameraConfigPage />
-					</DataTemplate>
-					<DataTemplate DataType="vm:FirmwarePageViewModel">
-						<views:FirmwarePage />
-					</DataTemplate>
-					<DataTemplate DataType="adminVm:AdminDashboardViewModel">
-						<adminViews:AdminDashboardView />
-					</DataTemplate>
-					<DataTemplate DataType="adminVm:AdminPanelViewModel">
-						<adminViews:AdminPanelView />
-					</DataTemplate>
-				</ContentControl.DataTemplates>
-			</ContentControl>
-		</Border>
->>>>>>> a86414a61f2c29968a36ef2ae420682a1156c8c6
 
 				<!-- Modal overlay for parameter download - ZIndex ensures it appears on top -->
 				<Border Background="#CC000000"

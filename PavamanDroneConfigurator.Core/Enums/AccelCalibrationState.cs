@@ -81,23 +81,6 @@ public enum AccelCalibrationPosition
 }
 
 /// <summary>
-/// Special position values for calibration completion status.
-/// FC sends these via COMMAND_LONG to indicate final result.
-/// </summary>
-public static class AccelCalSpecialPositions
-{
-    /// <summary>
-    /// Calibration completed successfully (ACCELCAL_VEHICLE_POS_SUCCESS = 16777215 = 0xFFFFFF)
-    /// </summary>
-    public const int Success = 16777215;
-    
-    /// <summary>
-    /// Calibration failed (ACCELCAL_VEHICLE_POS_FAILED = 16777216 = 0x1000000)
-    /// </summary>
-    public const int Failed = 16777216;
-}
-
-/// <summary>
 /// Accelerometer calibration result.
 /// </summary>
 public enum AccelCalibrationResult
