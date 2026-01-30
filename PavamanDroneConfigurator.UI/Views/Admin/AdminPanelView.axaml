@@ -114,7 +114,7 @@
 
         <!-- Content -->
         <Border Grid.Row="1" Classes="card" Padding="0">
-            <Grid RowDefinitions="Auto,Auto,Auto,*,Auto">
+            <Grid RowDefinitions="Auto,Auto,*,Auto">
                 <!-- Toolbar with Search and Filters -->
                 <Border Grid.Row="0" 
                         Background="#F9FAFB" 
@@ -220,6 +220,7 @@
                 <!-- Users DataGrid -->
                 <DataGrid Grid.Row="2"
                           ItemsSource="{Binding FilteredUsers}"
+                          MinHeight="400"
                           AutoGenerateColumns="False"
                           CanUserResizeColumns="True"
                           CanUserSortColumns="True"
@@ -326,7 +327,7 @@
                 </DataGrid>
 
                 <!-- Loading Overlay -->
-                <Border Grid.Row="3"
+                <Border Grid.Row="2"
                         Background="#CCF9FAFB"
                         IsVisible="{Binding IsBusy}">
                     <StackPanel VerticalAlignment="Center" 
@@ -344,7 +345,7 @@
                 </Border>
 
                 <!-- Footer -->
-                <Border Grid.Row="4"
+                <Border Grid.Row="3"
                         Background="#F9FAFB"
                         Padding="16"
                         CornerRadius="0,0,8,8"
