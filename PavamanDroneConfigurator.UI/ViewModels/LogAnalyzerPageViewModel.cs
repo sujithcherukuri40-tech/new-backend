@@ -512,7 +512,7 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
 
     private void OnLogParsed(object? sender, LogParseResult result)
     {
-        Dispatcher.UIThread.Post(async () =>
+        _ = Dispatcher.UIThread.InvokeAsync(async () =>
         {
             if (result.IsSuccess)
             {

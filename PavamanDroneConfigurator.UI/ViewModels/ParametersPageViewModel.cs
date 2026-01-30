@@ -283,7 +283,7 @@ public partial class ParametersPageViewModel : ViewModelBase
 
     private void OnDownloadCompleted(object? sender, bool success)
     {
-        Dispatcher.UIThread.Post(async () =>
+        _ = Dispatcher.UIThread.InvokeAsync(async () =>
         {
             IsRefreshing = false;
             
