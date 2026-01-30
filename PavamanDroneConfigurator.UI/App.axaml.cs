@@ -162,8 +162,9 @@ public partial class App : Application
 
         services.AddSingleton<IConnectionService, ConnectionService>();
         services.AddSingleton<IParameterService, ParameterService>();
-        // TODO: CalibrationService implementation missing - commented out to fix build
-        // services.AddSingleton<ICalibrationService, CalibrationService>();
+        // Temporary stub implementation to prevent application crashes
+        // TODO: Implement full CalibrationService when ready
+        services.AddSingleton<ICalibrationService, CalibrationServiceStub>();
         services.AddSingleton<ISafetyService, SafetyService>();
         services.AddSingleton<IAirframeService, AirframeService>();
         services.AddSingleton<IPersistenceService, PersistenceService>();

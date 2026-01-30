@@ -12,8 +12,6 @@ public partial class ProfilePageViewModel : ViewModelBase
     private readonly IPersistenceService _persistenceService;
     private readonly AuthSessionViewModel _authSession;
     private readonly ILogger<ProfilePageViewModel> _logger;
-    private readonly IAdminService _adminService;
-    private readonly ILogger<AdminPanelViewModel> _adminPanelLogger;
 
     [ObservableProperty]
     private ObservableCollection<string> _profiles = new();
@@ -55,9 +53,6 @@ public partial class ProfilePageViewModel : ViewModelBase
     [ObservableProperty]
     private bool _isLoggingOut;
 
-    [ObservableProperty]
-    private AdminPanelViewModel? _adminPanel;
-
     /// <summary>
     /// Whether the user can logout (inverse of IsLoggingOut for binding)
     /// </summary>
@@ -76,15 +71,11 @@ public partial class ProfilePageViewModel : ViewModelBase
     public ProfilePageViewModel(
         IPersistenceService persistenceService,
         AuthSessionViewModel authSession,
-        ILogger<ProfilePageViewModel> logger,
-        IAdminService adminService,
-        ILogger<AdminPanelViewModel> adminPanelLogger)
+        ILogger<ProfilePageViewModel> logger)
     {
         _persistenceService = persistenceService;
         _authSession = authSession;
         _logger = logger;
-        _adminService = adminService;
-        _adminPanelLogger = adminPanelLogger;
 
         // Load user details from auth session
         LoadUserDetails();
@@ -103,7 +94,6 @@ public partial class ProfilePageViewModel : ViewModelBase
     private void LoadUserDetails()
     {
         var user = _authSession.CurrentState.User;
-        bool wasAdmin = IsAdmin;
 
         _logger.LogInformation("=== ProfilePage: Loading user details ===");
         _logger.LogInformation("User is null: {IsNull}", user == null);
@@ -122,22 +112,6 @@ public partial class ProfilePageViewModel : ViewModelBase
             UserStatus = user.IsApproved ? "Approved" : "Pending Approval";
             AccountCreatedDate = user.CreatedAt.ToString("MMMM dd, yyyy 'at' hh:mm tt");
             LastLoginDate = user.LastLoginAt?.ToString("MMMM dd, yyyy 'at' hh:mm tt") ?? "Never";
-
-            // Initialize admin panel if user became an admin and panel doesn't exist
-            if (IsAdmin && !wasAdmin && AdminPanel == null)
-            {
-                _logger.LogInformation("Initializing AdminPanel for admin user");
-                AdminPanel = new AdminPanelViewModel(_adminService, _adminPanelLogger);
-                _ = AdminPanel.InitializeAsync();
-                OnPropertyChanged(nameof(AdminPanel));
-            }
-            // Dispose admin panel if user is no longer an admin
-            else if (!IsAdmin && wasAdmin && AdminPanel != null)
-            {
-                _logger.LogInformation("Disposing AdminPanel - user is no longer admin");
-                AdminPanel = null;
-                OnPropertyChanged(nameof(AdminPanel));
-            }
 
             _logger.LogInformation("Successfully loaded user profile: {Email} ({Role})", user.Email, user.Role);
         }
