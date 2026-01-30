@@ -4,6 +4,7 @@ using Avalonia.Interactivity;
 using PavamanDroneConfigurator.Core.Models;
 using PavamanDroneConfigurator.UI.ViewModels;
 using System;
+using System.Collections.ObjectModel;
 using System.Linq;
 
 namespace PavamanDroneConfigurator.UI.Views;
@@ -47,6 +48,12 @@ public partial class ParametersPage : UserControl
         // Update the bitmask selection
         if (cb.IsChecked == true)
         {
+            // Initialize collection if null
+            if (parameter.SelectedBitmaskOptions == null)
+            {
+                parameter.SelectedBitmaskOptions = new ObservableCollection<ParameterOption>();
+            }
+            
             if (!parameter.SelectedBitmaskOptions.Any(o => o.Value == opt.Value))
             {
                 parameter.SelectedBitmaskOptions.Add(opt);
@@ -54,10 +61,13 @@ public partial class ParametersPage : UserControl
         }
         else
         {
-            var toRemove = parameter.SelectedBitmaskOptions.FirstOrDefault(o => o.Value == opt.Value);
-            if (toRemove != null)
+            if (parameter.SelectedBitmaskOptions != null)
             {
-                parameter.SelectedBitmaskOptions.Remove(toRemove);
+                var toRemove = parameter.SelectedBitmaskOptions.FirstOrDefault(o => o.Value == opt.Value);
+                if (toRemove != null)
+                {
+                    parameter.SelectedBitmaskOptions.Remove(toRemove);
+                }
             }
         }
 
