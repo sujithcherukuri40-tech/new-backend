@@ -215,6 +215,11 @@
 						<TextBlock Text="ADMIN" 
                                    Classes="nav-group-title"
                                    IsVisible="{Binding IsAdmin}"/>
+						<Button Content="📊  Dashboard"
+                                Classes="nav-button"
+                                CommandParameter="{Binding AdminDashboardPage}"
+                                Click="NavButton_Click"
+                                IsVisible="{Binding IsAdmin}" />
 						<Button Content="👥  User Management"
                                 Classes="nav-button"
                                 CommandParameter="{Binding AdminPanelPage}"
@@ -300,6 +305,9 @@
 					</DataTemplate>
 					<DataTemplate DataType="vm:FirmwarePageViewModel">
 						<views:FirmwarePage />
+					</DataTemplate>
+					<DataTemplate DataType="adminVm:AdminDashboardViewModel">
+						<adminViews:AdminDashboardView />
 					</DataTemplate>
 					<DataTemplate DataType="adminVm:AdminPanelViewModel">
 						<adminViews:AdminPanelView />
