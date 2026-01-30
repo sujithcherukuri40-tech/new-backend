@@ -1,6 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using Microsoft.Extensions.DependencyInjection;
 using PavamanDroneConfigurator.Core.Models.Auth;
+using System;
 
 namespace PavamanDroneConfigurator.UI.ViewModels.Auth;
 
@@ -12,6 +13,7 @@ public sealed partial class AuthShellViewModel : ViewModelBase
 {
     private readonly AuthSessionViewModel _authSession;
     private readonly IServiceProvider _services;
+    private CancellationTokenSource? _initCts;
 
     [ObservableProperty]
     private ViewModelBase? _currentView;
@@ -53,6 +55,11 @@ public sealed partial class AuthShellViewModel : ViewModelBase
     /// </summary>
     public async Task InitializeAsync()
     {
+        // Cancel any previous initialization
+        _initCts?.Cancel();
+        _initCts?.Dispose();
+        _initCts = new CancellationTokenSource();
+        
         IsInitializing = true;
         InitializingMessage = "Checking authentication...";
 
@@ -63,6 +70,14 @@ public sealed partial class AuthShellViewModel : ViewModelBase
 
             // Navigate based on current state
             NavigateToStateView(_authSession.CurrentState);
+        }
+        catch (OperationCanceledException)
+        {
+            // Expected when cancelled - don't log as error
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Auth initialization error: {ex.Message}");
         }
         finally
         {
@@ -192,6 +207,8 @@ public sealed partial class AuthShellViewModel : ViewModelBase
     {
         if (disposing)
         {
+            _initCts?.Cancel();
+            _initCts?.Dispose();
             _authSession.StateChanged -= OnAuthStateChanged;
             
             (_loginViewModel as IDisposable)?.Dispose();

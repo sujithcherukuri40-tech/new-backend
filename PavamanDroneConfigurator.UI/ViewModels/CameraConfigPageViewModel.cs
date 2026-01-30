@@ -950,6 +950,17 @@ public partial class CameraConfigPageViewModel : ViewModelBase
         await LoadParametersAsync();
     }
 
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            _parameterService.ParameterDownloadProgressChanged -= OnParameterDownloadProgressChanged;
+            _parameterService.ParameterUpdated -= OnParameterUpdated;
+            _connectionService.ConnectionStateChanged -= OnConnectionStateChanged;
+        }
+        base.Dispose(disposing);
+    }
+
     #endregion
 }
 

@@ -1,6 +1,7 @@
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using PavamanDroneConfigurator.UI.ViewModels;
+using System;
 using System.Linq;
 
 namespace PavamanDroneConfigurator.UI.Views;
@@ -16,14 +17,22 @@ public partial class MainWindow : Window
         // Set initial active state
         Loaded += (s, e) =>
         {
-            // Find and activate the Connection button by default
-            if (this.FindControl<StackPanel>("NavigationMenu") is StackPanel navMenu)
+            try
             {
-                var firstButton = navMenu.Children.OfType<Button>().FirstOrDefault();
-                if (firstButton != null)
+                // Find and activate the Connection button by default
+                if (this.FindControl<StackPanel>("NavigationMenu") is StackPanel navMenu)
                 {
-                    SetActiveButton(firstButton);
+                    var firstButton = navMenu.Children.OfType<Button>().FirstOrDefault();
+                    if (firstButton != null)
+                    {
+                        SetActiveButton(firstButton);
+                    }
                 }
+            }
+            catch (Exception ex)
+            {
+                // Log error but don't crash app
+                System.Diagnostics.Debug.WriteLine($"Error setting initial navigation: {ex.Message}");
             }
         };
     }
