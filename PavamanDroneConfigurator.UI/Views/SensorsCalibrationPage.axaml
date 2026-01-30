@@ -382,18 +382,19 @@
                             </StackPanel>
                         </Border>
                         
-                        <!-- Buttons - Hide Calibrate if sensor unavailable -->
+                        <!-- Buttons - MissionPlanner style: SINGLE button that changes text -->
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="12" Margin="0,24,0,0">
+                            <!-- Main calibration button - MissionPlanner style:
+                                 Text: "Calibrate Accel" (not started) -> "Click when Done" (calibrating) -> "Done" (finished)
+                                 First click: starts calibration
+                                 Subsequent clicks: confirms position
+                            -->
                             <Button Classes="Primary" 
-                                    Content="Calibrate" 
+                                    Content="{Binding AccelButtonText}" 
                                     Command="{Binding CalibrateAccelerometerCommand}"
-                                    IsVisible="{Binding CanCalibrateAccelerometer}"/>
-                            
-                            <!-- Button to confirm drone is in position - FC will validate -->
-                            <Button Classes="Primary" Content="Click When In Position" 
-                                    Command="{Binding NextAccelStepCommand}"
-                                    IsVisible="{Binding IsAccelCalibrationActive}"
-                                    ToolTip.Tip="Click this after placing the drone in the shown position. The flight controller will verify the orientation."/>
+                                    IsEnabled="{Binding IsAccelButtonEnabled}"
+                                    MinWidth="160"
+                                    ToolTip.Tip="First click starts calibration. During calibration, click after placing the drone in each position."/>
                             
                             <Button Classes="Danger" Content="Cancel" 
                                     Command="{Binding CancelCalibrationCommand}"

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading.Tasks;
@@ -167,6 +167,18 @@ public partial class SensorsCalibrationPageViewModel : ViewModelBase
 
     [ObservableProperty]
     private string _currentCalibrationImage = "avares://PavamanDroneConfigurator.UI/Assets/Images/Caliberation-images/Level.png";
+
+    /// <summary>
+    /// MissionPlanner's button text: "Calibrate Accel" → "Click when Done" → "Done"
+    /// </summary>
+    [ObservableProperty]
+    private string _accelButtonText = "Calibrate Accel";
+
+    /// <summary>
+    /// MissionPlanner: Button is disabled only when calibration completes
+    /// </summary>
+    [ObservableProperty]
+    private bool _isAccelButtonEnabled = true;
 
     // Step border and background colors for UI
     [ObservableProperty] private string _step1BorderColor = "#E2E8F0";
@@ -437,13 +449,47 @@ public partial class SensorsCalibrationPageViewModel : ViewModelBase
             IsLevelCalibrationActive = IsCalibrating && state.Type == CalibrationType.LevelHorizon;
             IsPressureCalibrationActive = IsCalibrating && state.Type == CalibrationType.Barometer;
 
-            if (state.State == CalibrationState.Completed)
+            // MissionPlanner button text logic for accelerometer
+            if (state.Type == CalibrationType.Accelerometer)
             {
-                UpdateCalibrationComplete(state.Type, true, state.Message ?? "Calibration completed!");
+                if (state.State == CalibrationState.InProgress)
+                {
+                    // MissionPlanner: Button text = "Click when Done" during calibration
+                    AccelButtonText = "Click when Done";
+                    IsAccelButtonEnabled = true;  // Button stays enabled during calibration
+                }
+                else if (state.State == CalibrationState.Completed)
+                {
+                    // MissionPlanner: Button text = "Done", button disabled
+                    AccelButtonText = "Done";
+                    IsAccelButtonEnabled = false;
+                    UpdateCalibrationComplete(state.Type, true, state.Message ?? "Calibration completed!");
+                }
+                else if (state.State == CalibrationState.Failed)
+                {
+                    // Reset button on failure
+                    AccelButtonText = "Calibrate Accel";
+                    IsAccelButtonEnabled = true;
+                    UpdateCalibrationComplete(state.Type, false, state.Message ?? "Calibration failed");
+                }
+                else if (state.State == CalibrationState.Idle)
+                {
+                    // Reset to initial state
+                    AccelButtonText = "Calibrate Accel";
+                    IsAccelButtonEnabled = true;
+                }
             }
-            else if (state.State == CalibrationState.Failed)
+            else
             {
-                UpdateCalibrationComplete(state.Type, false, state.Message ?? "Calibration failed");
+                // Non-accelerometer calibrations
+                if (state.State == CalibrationState.Completed)
+                {
+                    UpdateCalibrationComplete(state.Type, true, state.Message ?? "Calibration completed!");
+                }
+                else if (state.State == CalibrationState.Failed)
+                {
+                    UpdateCalibrationComplete(state.Type, false, state.Message ?? "Calibration failed");
+                }
             }
         });
     }
@@ -720,23 +766,63 @@ public partial class SensorsCalibrationPageViewModel : ViewModelBase
     [RelayCommand]
     private async Task CalibrateAccelerometerAsync()
     {
-        if (!CanCalibrateAccelerometer)
+        if (!CanCalibrateAccelerometer && !IsCalibrating)
         {
             ShowError("Cannot Calibrate", "Check connection and sensor availability.");
             return;
         }
 
-        AddDebugLog("Starting accelerometer calibration (Mission Planner style)...");
+        // MissionPlanner behavior: Same button for start AND confirm
+        // If calibrating AND can confirm → send position confirmation
+        // If not calibrating → start calibration
+        
+        if (IsCalibrating && IsAccelCalibrationActive)
+        {
+            // Already calibrating - this is position confirmation (MissionPlanner's second click)
+            if (CanClickWhenInPosition)
+            {
+                AddDebugLog($"User clicked 'Click when Done' - confirming position {AccelStepNumber}");
+                AddDebugLog($"Sending COMMAND_LONG(ACCELCAL_VEHICLE_POS, param1={AccelStepNumber})");
+                
+                var success = await _calibrationService.AcceptCalibrationStepAsync();
+                if (!success)
+                {
+                    AddDebugLog("Position confirmation failed - FC may not have requested a position yet");
+                }
+            }
+            else
+            {
+                AddDebugLog("Cannot confirm - waiting for FC to request position");
+            }
+            return;
+        }
+
+        // Start new calibration (MissionPlanner's first click)
+        AddDebugLog("=== Starting accelerometer calibration ===");
+        AddDebugLog("Sending MAV_CMD_PREFLIGHT_CALIBRATION (param5=1)");
         
         // Reset UI
         AccelCalibrationProgress = 0;
+        AccelStepNumber = 0;
+        AccelCurrentStep = "";
+        CanClickWhenInPosition = false;
         ResetStepColors();
-        AccelInstructions = "Place the drone LEVEL on a flat surface. The FC will sample all 6 positions internally after you confirm position 1.";
         
-        var success = await _calibrationService.StartAccelerometerCalibrationAsync(fullSixAxis: true);
-        if (!success)
+        // Show waiting message (NOT a hardcoded position)
+        AccelInstructions = "Starting calibration... waiting for FC instructions";
+        AccelButtonText = "Click when Done";  // Change button text immediately
+        
+        var result = await _calibrationService.StartAccelerometerCalibrationAsync(fullSixAxis: true);
+        if (!result)
         {
-            ShowError("Start Failed", "Failed to start accelerometer calibration.");
+            ShowError("Start Failed", "Failed to start calibration. Check vehicle is disarmed.");
+            AccelInstructions = "Calibration failed to start";
+            AccelButtonText = "Calibrate Accel";  // Reset button
+        }
+        else
+        {
+            AddDebugLog("Calibration command sent, _incalibrate = true");
+            AddDebugLog("Subscribed to STATUSTEXT and COMMAND_LONG");
         }
     }
     
@@ -754,21 +840,20 @@ public partial class SensorsCalibrationPageViewModel : ViewModelBase
     [RelayCommand]
     private async Task NextAccelStepAsync()
     {
+        // This is now handled by CalibrateAccelerometerAsync when button is clicked during calibration
+        // But keep this for backwards compatibility with any existing UI bindings
         if (!IsCalibrating || !CanClickWhenInPosition)
+        {
+            AddDebugLog("NextAccelStepAsync: Cannot confirm (IsCalibrating={IsCalibrating}, CanConfirm={CanClickWhenInPosition})");
             return;
+        }
 
-        AddDebugLog($"User clicked 'When In Position' for step {AccelStepNumber}");
-        
-        // The CalibrationService.AcceptCalibrationStepAsync() will:
-        // 1. Validate using IMU data (via AccelerometerCalibrationService)
-        // 2. If valid: Send MAV_CMD_ACCELCAL_VEHICLE_POS (fire-and-forget)
-        // 3. FC will validate and respond via STATUSTEXT
-        // 4. We do NOT auto-advance - FC drives the workflow
+        AddDebugLog($"NextAccelStepAsync: Confirming position {AccelStepNumber}");
         var success = await _calibrationService.AcceptCalibrationStepAsync();
         
         if (!success)
         {
-            AddDebugLog("Position confirmation failed - check vehicle orientation");
+            AddDebugLog("Position confirmation failed");
         }
     }
 
