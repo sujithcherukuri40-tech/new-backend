@@ -38,7 +38,7 @@ public partial class MainWindowViewModel : ViewModelBase
     public ParametersPageViewModel ParametersPage { get; }
     public SafetyPageViewModel SafetyPage { get; }
     public ProfilePageViewModel ProfilePage { get; }
-    public FlightModePageViewModel FlightModesPage { get; }
+    public FlightModePageViewModel FlightModePage { get; }
     public PowerPageViewModel PowerPage { get; }
     public MotorEscPageViewModel MotorEscPage { get; }
     public PidTuningPageViewModel PidTuningPage { get; }
@@ -68,7 +68,7 @@ public partial class MainWindowViewModel : ViewModelBase
         ParametersPageViewModel parametersPage,
         SafetyPageViewModel safetyPage,
         ProfilePageViewModel profilePage,
-        FlightModePageViewModel flightModesPage,
+        FlightModePageViewModel flightModePage,
         PowerPageViewModel powerPage,
         MotorEscPageViewModel motorEscPage,
         PidTuningPageViewModel pidTuningPage,
@@ -91,7 +91,7 @@ public partial class MainWindowViewModel : ViewModelBase
         ParametersPage = parametersPage;
         SafetyPage = safetyPage;
         ProfilePage = profilePage;
-        FlightModesPage = flightModesPage;
+        FlightModePage = flightModePage;
         PowerPage = powerPage;
         MotorEscPage = motorEscPage;
         PidTuningPage = pidTuningPage;
