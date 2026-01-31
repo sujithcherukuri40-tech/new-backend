@@ -1201,7 +1201,7 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
             BitConverter.GetBytes(command).CopyTo(payload, 28);
             payload[30] = targetSysId;    // CRITICAL: target_system
             payload[31] = targetCompId;   // CRITICAL: target_component
-            payload[32] = 0;              // confirmation
+            payload[32] = 1;              // confirmation = 1 (FIX: request acknowledgment and trigger action)
 
             // Send synchronously, no waiting for ACK
             lock (_writeLock)
