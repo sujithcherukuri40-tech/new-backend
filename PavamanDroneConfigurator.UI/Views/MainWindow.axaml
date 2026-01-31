@@ -155,12 +155,8 @@
                                 Click="NavButton_Click" />
 						<Button Content="🔀  Flight Modes"
                                 Classes="nav-button"
-<<<<<<< HEAD
-                                Tag="FlightModesPage"
-                                CommandParameter="{Binding FlightModesPage}"
-=======
+                                Tag="FlightModePage"
                                 CommandParameter="{Binding FlightModePage}"
->>>>>>> a86414a61f2c29968a36ef2ae420682a1156c8c6
                                 Click="NavButton_Click" />
 						<Button Content="⚡  Motor &amp; ESC"
                                 Classes="nav-button"
@@ -273,7 +269,6 @@
 
 		<!-- Content Area with modern background -->
 		<Border Grid.Column="1" Background="#F9FAFB">
-<<<<<<< HEAD
 			<Grid>
 				<ContentControl Content="{Binding CurrentPage}">
 					<ContentControl.DataTemplates>
@@ -336,73 +331,6 @@
 						</DataTemplate>
 					</ContentControl.DataTemplates>
 				</ContentControl>
-=======
-			<ContentControl Content="{Binding CurrentPage}">
-				<ContentControl.DataTemplates>
-					<DataTemplate DataType="vm:ConnectionPageViewModel">
-						<views:ConnectionPage />
-					</DataTemplate>
-					<DataTemplate DataType="vm:DroneDetailsPageViewModel">
-						<views:DroneDetailsPage />
-					</DataTemplate>
-					<DataTemplate DataType="vm:ParametersPageViewModel">
-						<views:ParametersPage />
-					</DataTemplate>
-					<DataTemplate DataType="vm:AirframePageViewModel">
-						<views:AirframePage />
-					</DataTemplate>
-					<DataTemplate DataType="vm:SafetyPageViewModel">
-						<views:SafetyPage />
-					</DataTemplate>
-					<DataTemplate DataType="vm:ProfilePageViewModel">
-						<views:ProfilePage />
-					</DataTemplate>
-					<DataTemplate DataType="vm:FlightModePageViewModel">
-						<views:FlightModesPage />
-					</DataTemplate>
-					<DataTemplate DataType="vm:PowerPageViewModel">
-						<views:PowerPage />
-					</DataTemplate>
-					<DataTemplate DataType="vm:MotorEscPageViewModel">
-						<views:MotorEscPage />
-					</DataTemplate>
-					<DataTemplate DataType="vm:PidTuningPageViewModel">
-						<views:PidTuningPage />
-					</DataTemplate>
-					<DataTemplate DataType="vm:SerialConfigPageViewModel">
-						<views:SerialConfigPage />
-					</DataTemplate>
-					<DataTemplate DataType="vm:RcCalibrationPageViewModel">
-						<views:RcCalibrationPage />
-					</DataTemplate>
-					<DataTemplate DataType="vm:SensorsCalibrationPageViewModel">
-						<views:SensorsCalibrationPage />
-					</DataTemplate>
-					<DataTemplate DataType="vm:LogAnalyzerPageViewModel">
-						<views:LogAnalyzerPage />
-					</DataTemplate>
-					<DataTemplate DataType="vm:ResetParametersPageViewModel">
-						<views:ResetParametersPage />
-					</DataTemplate>
-					<DataTemplate DataType="vm:SprayingConfigPageViewModel">
-						<views:SprayingConfigPage />
-					</DataTemplate>
-					<DataTemplate DataType="vm:CameraConfigPageViewModel">
-						<views:CameraConfigPage />
-					</DataTemplate>
-					<DataTemplate DataType="vm:FirmwarePageViewModel">
-						<views:FirmwarePage />
-					</DataTemplate>
-					<DataTemplate DataType="adminVm:AdminDashboardViewModel">
-						<adminViews:AdminDashboardView />
-					</DataTemplate>
-					<DataTemplate DataType="adminVm:AdminPanelViewModel">
-						<adminViews:AdminPanelView />
-					</DataTemplate>
-				</ContentControl.DataTemplates>
-			</ContentControl>
-		</Border>
->>>>>>> a86414a61f2c29968a36ef2ae420682a1156c8c6
 
 				<!-- Modal overlay for parameter download - ZIndex ensures it appears on top -->
 				<Border Background="#CC000000"
