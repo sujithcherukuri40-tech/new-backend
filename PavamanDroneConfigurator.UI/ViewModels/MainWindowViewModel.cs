@@ -132,20 +132,6 @@ public partial class MainWindowViewModel : ViewModelBase
                 }
 
                 AdminPanelPage = App.Services.GetService<Admin.AdminPanelViewModel>();
-                if (AdminPanelPage != null)
-                {
-                    Task.Run(async () =>
-                    {
-                        try
-                        {
-                            await AdminPanelPage.InitializeAsync();
-                        }
-                        catch (Exception ex)
-                        {
-                            Console.WriteLine($"Admin panel initialization failed: {ex.Message}");
-                        }
-                    });
-                }
             }
             catch (Exception ex)
             {

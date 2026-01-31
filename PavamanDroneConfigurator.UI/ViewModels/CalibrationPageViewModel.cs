@@ -258,40 +258,38 @@ public partial class CalibrationPageViewModel : ViewModelBase
         }
 
         // MAV_CMD_ACCELCAL_VEHICLE_POS = 42429
-        if (e.Command == 42429)
+        int position = (int)e.Param1;
+
+        LogInfo($"[COMMAND_LONG] MAV_CMD_ACCELCAL_VEHICLE_POS received: param1={position}");
+
+        // Check for special completion values
+        // ACCELCAL_VEHICLE_POS_SUCCESS = 16777215 (0xFFFFFF)
+        if (position == 16777215)
         {
-            // param1 contains position enum
-            int position = (int)e.Param1;
+            LogInfo("*** CALIBRATION SUCCESS received via COMMAND_LONG (position=16777215) ***");
+            FinishImuCalibration(true, "Calibration successful");
+            return;
+        }
+        
+        // ACCELCAL_VEHICLE_POS_FAILED = 16777216 (0x1000000)
+        if (position == 16777216)
+        {
+            LogError("*** CALIBRATION FAILED received via COMMAND_LONG (position=16777216) ***");
+            FinishImuCalibration(false, "Calibration failed");
+            return;
+        }
 
-            LogInfo($"[COMMAND_LONG] MAV_CMD_ACCELCAL_VEHICLE_POS received: param1={position}");
-
-            // Check for special completion values
-            if (position == AccelCalSpecialPositions.Success)
-            {
-                LogInfo("*** CALIBRATION SUCCESS received via COMMAND_LONG (position=16777215) ***");
-                FinishImuCalibration(true, "Calibration successful");
-                return;
-            }
-            
-            if (position == AccelCalSpecialPositions.Failed)
-            {
-                LogError("*** CALIBRATION FAILED received via COMMAND_LONG (position=16777216) ***");
-                FinishImuCalibration(false, "Calibration failed");
-                return;
-            }
-
-            // Normal position request (1-6)
-            if (position >= 1 && position <= 6)
-            {
-                string posName = GetPositionName(position);
-                string message = $"Please place vehicle {posName}";
-                LogInfo($"Position request: {position} ({posName})");
-                HandlePositionRequest(position, message);
-            }
-            else
-            {
-                LogWarning($"Unknown position value received: {position}");
-            }
+        // Normal position request (1-6)
+        if (position >= 1 && position <= 6)
+        {
+            string posName = GetPositionName(position);
+            string message = $"Please place vehicle {posName}";
+            LogInfo($"Position request: {position} ({posName})");
+            HandlePositionRequest(position, message);
+        }
+        else
+        {
+            LogWarning($"Unknown position value received: {position}");
         }
     }
 

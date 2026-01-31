@@ -256,6 +256,7 @@
                                     <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding LogMessageTypes}" Foreground="#333333" Margin="0,0,0,8"/>
                                 </Grid>
                                 
+
                                 <TextBlock Text="Data Availability" Classes="SectionTitle" Margin="0,20,0,12"/>
                                 <StackPanel Orientation="Horizontal" Spacing="20">
                                     <StackPanel Orientation="Horizontal" Spacing="6">
@@ -308,6 +309,7 @@
                                     </Grid>
                                 </Border>
                                 
+
                                 <!-- No Log Loaded Placeholder -->
                                 <StackPanel IsVisible="{Binding !IsLogLoaded}" VerticalAlignment="Center" HorizontalAlignment="Center" Margin="0,48,0,0">
                                     <TextBlock Text="No log file loaded" Foreground="#999999" FontSize="16" HorizontalAlignment="Center"/>
@@ -396,6 +398,8 @@
                                      Background="#FAFAFA" Foreground="#333333" BorderThickness="0,0,0,1" BorderBrush="#E1E1E1" 
                                      Margin="0" Padding="12,10" FontSize="12"/>
                             
+
+                            <!-- Events Scrollable List -->
                             <ScrollViewer Grid.Row="1">
                                 <ItemsControl ItemsSource="{Binding FilteredFields}" Margin="4">
                                     <ItemsControl.ItemTemplate>
@@ -603,107 +607,147 @@
                         </StackPanel>
                     </Border>
                     
-                    <!-- Events Data Grid -->
-                    <DataGrid Grid.Row="2" Classes="EventsDataGrid"
-                              ItemsSource="{Binding FilteredEvents}" 
-                              SelectedItem="{Binding SelectedEvent}"
-                              AutoGenerateColumns="False"
-                              IsReadOnly="True" 
-                              CanUserResizeColumns="True" 
-                              CanUserSortColumns="True"
-                              HeadersVisibility="Column"
-                              SelectionMode="Single"
-                              IsVisible="{Binding HasFilteredEvents}">
-                        <DataGrid.Columns>
-                            <!-- Timestamp Column -->
-                            <DataGridTextColumn Header="Timestamp" 
-                                                Binding="{Binding TimestampDisplay}" 
-                                                Width="160"/>
-                            
-                            <!-- Severity Column with Colored Badges -->
-                            <DataGridTemplateColumn Header="Severity" Width="120">
-                                <DataGridTemplateColumn.CellTemplate>
+                    <!-- Events List with ScrollViewer (replacing DataGrid) -->
+                    <Grid Grid.Row="2">
+                        <!-- Table Header -->
+                        <Border Background="#0F172A"
+                                BorderBrush="#334155"
+                                BorderThickness="0,0,0,1"
+                                Padding="16,10"
+                                VerticalAlignment="Top"
+                                ZIndex="1">
+                            <Grid ColumnDefinitions="1.3*,1*,1.5*,1.2*,3*,1.2*,0.4*">
+                                <TextBlock Grid.Column="0" Text="Timestamp" Foreground="#94A3B8" FontWeight="SemiBold" FontSize="12"/>
+                                <TextBlock Grid.Column="1" Text="Severity" Foreground="#94A3B8" FontWeight="SemiBold" FontSize="12"/>
+                                <TextBlock Grid.Column="2" Text="Event Type" Foreground="#94A3B8" FontWeight="SemiBold" FontSize="12"/>
+                                <TextBlock Grid.Column="3" Text="Source" Foreground="#94A3B8" FontWeight="SemiBold" FontSize="12"/>
+                                <TextBlock Grid.Column="4" Text="Message" Foreground="#94A3B8" FontWeight="SemiBold" FontSize="12"/>
+                                <TextBlock Grid.Column="5" Text="User / Host" Foreground="#94A3B8" FontWeight="SemiBold" FontSize="12"/>
+                                <TextBlock Grid.Column="6" Text="" Foreground="#94A3B8" FontWeight="SemiBold" FontSize="12"/>
+                            </Grid>
+                        </Border>
+
+                        <!-- Events Scrollable List -->
+                        <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                      Margin="0,41,0,0"
+                                      IsVisible="{Binding HasFilteredEvents}">
+                            <ItemsControl ItemsSource="{Binding FilteredEvents}">
+                                <ItemsControl.ItemTemplate>
                                     <DataTemplate x:DataType="interfaces:LogEvent">
-                                        <Panel>
-                                            <!-- Error Badge -->
-                                            <Border Background="#DC2626" Padding="8,4" CornerRadius="4" HorizontalAlignment="Center"
-                                                    IsVisible="{Binding Severity, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static interfaces:LogEventSeverity.Error}}">
-                                                <StackPanel Orientation="Horizontal" Spacing="4">
-                                                    <TextBlock Text="✗" Foreground="White" FontSize="10"/>
-                                                    <TextBlock Text="Error" Foreground="White" FontSize="11" FontWeight="SemiBold"/>
-                                                </StackPanel>
-                                            </Border>
+                                        <Border Background="#1E293B"
+                                                BorderBrush="#334155"
+                                                BorderThickness="0,0,0,1"
+                                                Padding="16,12"
+                                                Cursor="Hand">
+                                            <Border.Styles>
+                                                <Style Selector="Border:pointerover">
+                                                    <Setter Property="Background" Value="#334155"/>
+                                                </Style>
+                                            </Border.Styles>
                                             
-                                            <!-- Warning Badge -->
-                                            <Border Background="#F59E0B" Padding="8,4" CornerRadius="4" HorizontalAlignment="Center"
-                                                    IsVisible="{Binding Severity, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static interfaces:LogEventSeverity.Warning}}">
-                                                <StackPanel Orientation="Horizontal" Spacing="4">
-                                                    <TextBlock Text="⚠" Foreground="White" FontSize="10"/>
-                                                    <TextBlock Text="Warning" Foreground="White" FontSize="11" FontWeight="SemiBold"/>
-                                                </StackPanel>
-                                            </Border>
-                                            
-                                            <!-- Info Badge -->
-                                            <Border Background="#3B82F6" Padding="8,4" CornerRadius="4" HorizontalAlignment="Center"
-                                                    IsVisible="{Binding Severity, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static interfaces:LogEventSeverity.Info}}">
-                                                <StackPanel Orientation="Horizontal" Spacing="4">
-                                                    <TextBlock Text="ℹ" Foreground="White" FontSize="10"/>
-                                                    <TextBlock Text="Info" Foreground="White" FontSize="11" FontWeight="SemiBold"/>
-                                                </StackPanel>
-                                            </Border>
-                                            
-                                            <!-- Critical Badge -->
-                                            <Border Background="#991B1B" Padding="8,4" CornerRadius="4" HorizontalAlignment="Center"
-                                                    IsVisible="{Binding Severity, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static interfaces:LogEventSeverity.Critical}}">
-                                                <StackPanel Orientation="Horizontal" Spacing="4">
-                                                    <TextBlock Text="🔥" Foreground="White" FontSize="10"/>
-                                                    <TextBlock Text="Critical" Foreground="White" FontSize="11" FontWeight="SemiBold"/>
-                                                </StackPanel>
-                                            </Border>
-                                        </Panel>
+                                            <Grid ColumnDefinitions="1.3*,1*,1.5*,1.2*,3*,1.2*,0.4*">
+                                                <!-- Timestamp -->
+                                                <TextBlock Grid.Column="0"
+                                                           Text="{Binding TimestampDisplay}"
+                                                           Foreground="#E2E8F0"
+                                                           FontSize="12"
+                                                           VerticalAlignment="Center"/>
+
+                                                <!-- Severity Badge -->
+                                                <Panel Grid.Column="1">
+                                                    <!-- Error Badge -->
+                                                    <Border Background="#DC2626" Padding="8,4" CornerRadius="4" HorizontalAlignment="Left"
+                                                            IsVisible="{Binding Severity, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static interfaces:LogEventSeverity.Error}}">
+                                                        <StackPanel Orientation="Horizontal" Spacing="4">
+                                                            <TextBlock Text="✗" Foreground="White" FontSize="10"/>
+                                                            <TextBlock Text="Error" Foreground="White" FontSize="11" FontWeight="SemiBold"/>
+                                                        </StackPanel>
+                                                    </Border>
+                                                    
+
+                                                    <!-- Warning Badge -->
+                                                    <Border Background="#F59E0B" Padding="8,4" CornerRadius="4" HorizontalAlignment="Left"
+                                                            IsVisible="{Binding Severity, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static interfaces:LogEventSeverity.Warning}}">
+                                                        <StackPanel Orientation="Horizontal" Spacing="4">
+                                                            <TextBlock Text="⚠" Foreground="White" FontSize="10"/>
+                                                            <TextBlock Text="Warning" Foreground="White" FontSize="11" FontWeight="SemiBold"/>
+                                                        </StackPanel>
+                                                    </Border>
+                                                    
+
+                                                    <!-- Info Badge -->
+                                                    <Border Background="#3B82F6" Padding="8,4" CornerRadius="4" HorizontalAlignment="Left"
+                                                            IsVisible="{Binding Severity, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static interfaces:LogEventSeverity.Info}}">
+                                                        <StackPanel Orientation="Horizontal" Spacing="4">
+                                                            <TextBlock Text="ℹ" Foreground="White" FontSize="10"/>
+                                                            <TextBlock Text="Info" Foreground="White" FontSize="11" FontWeight="SemiBold"/>
+                                                        </StackPanel>
+                                                    </Border>
+                                                    
+
+                                                    <!-- Critical Badge -->
+                                                    <Border Background="#991B1B" Padding="8,4" CornerRadius="4" HorizontalAlignment="Left"
+                                                            IsVisible="{Binding Severity, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static interfaces:LogEventSeverity.Critical}}">
+                                                        <StackPanel Orientation="Horizontal" Spacing="4">
+                                                            <TextBlock Text="🔥" Foreground="White" FontSize="10"/>
+                                                            <TextBlock Text="Critical" Foreground="White" FontSize="11" FontWeight="SemiBold"/>
+                                                        </StackPanel>
+                                                    </Border>
+                                                </Panel>
+
+                                                <!-- Event Type -->
+                                                <TextBlock Grid.Column="2"
+                                                           Text="{Binding Title}" 
+                                                           Foreground="#E2E8F0"
+                                                           FontSize="12"
+                                                           VerticalAlignment="Center"/>
+
+                                                <!-- Source -->
+                                                <TextBlock Grid.Column="3"
+                                                           Text="{Binding Type}"
+                                                           Foreground="#94A3B8"
+                                                           FontSize="12"
+                                                           VerticalAlignment="Center"/>
+
+                                                <!-- Message -->
+                                                <TextBlock Grid.Column="4"
+                                                           Text="{Binding Description}"
+                                                           Foreground="#E2E8F0"
+                                                           FontSize="12"
+                                                           TextWrapping="Wrap"
+                                                           VerticalAlignment="Center"/>
+
+                                                <!-- User/Host -->
+                                                <TextBlock Grid.Column="5"
+                                                           Text="{Binding Details}"
+                                                           Foreground="#94A3B8"
+                                                           FontSize="11"
+                                                           VerticalAlignment="Center"/>
+
+                                                <!-- Jump to Event Button -->
+                                                <Button Grid.Column="6"
+                                                        Content="→"
+                                                        Background="Transparent"
+                                                        Foreground="#64748B"
+                                                        Command="{Binding $parent[UserControl].((vm:LogAnalyzerPageViewModel)DataContext).JumpToEventCommand}"
+                                                        CommandParameter="{Binding}"
+                                                        Padding="8,4"
+                                                        FontSize="10"
+                                                        VerticalAlignment="Center"
+                                                        HorizontalAlignment="Center"
+                                                        ToolTip.Tip="View in graph"/>
+                                            </Grid>
+                                        </Border>
                                     </DataTemplate>
-                                </DataGridTemplateColumn.CellTemplate>
-                            </DataGridTemplateColumn>
-                            
-                            <!-- Event Type Column -->
-                            <DataGridTextColumn Header="Event Type" 
-                                                Binding="{Binding Title}" 
-                                                Width="180"/>
-                            
-                            <!-- Source Column -->
-                            <DataGridTextColumn Header="Source" 
-                                                Binding="{Binding Type}" 
-                                                Width="140"/>
-                            
-                            <!-- Message Column -->
-                            <DataGridTextColumn Header="Message" 
-                                                Binding="{Binding Description}" 
-                                                Width="*"/>
-                            
-                            <!-- User/Host Column -->
-                            <DataGridTextColumn Header="User / Host" 
-                                                Binding="{Binding Details}" 
-                                                Width="140"/>
-                            
-                            <!-- Expand/Details Column -->
-                            <DataGridTemplateColumn Header="" Width="50">
-                                <DataGridTemplateColumn.CellTemplate>
-                                    <DataTemplate x:DataType="interfaces:LogEvent">
-                                        <Button Content="→" Background="Transparent" Foreground="#64748B"
-                                                Command="{Binding $parent[DataGrid].((vm:LogAnalyzerPageViewModel)DataContext).JumpToEventCommand}"
-                                                CommandParameter="{Binding}"
-                                                Padding="8,4" FontSize="10"
-                                                ToolTip.Tip="View in graph"/>
-                                    </DataTemplate>
-                                </DataGridTemplateColumn.CellTemplate>
-                            </DataGridTemplateColumn>
-                        </DataGrid.Columns>
-                    </DataGrid>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                    </Grid>
                     
                     <!-- Raw Log Data Preview Section -->
                     <Border Grid.Row="3" Background="#1E293B" BorderBrush="#334155" BorderThickness="0,1,0,0"
                             IsVisible="{Binding HasRawLogData}">
-                        <Grid RowDefinitions="Auto,*">
+                        <Grid RowDefinitions="Auto,Auto,*">
                             <Border Grid.Row="0" Background="#0F172A" Padding="12,8">
                                 <Grid ColumnDefinitions="*,Auto">
                                     <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8">
@@ -712,20 +756,34 @@
                                     </StackPanel>
                                 </Grid>
                             </Border>
-                            <DataGrid Grid.Row="1" Classes="EventsDataGrid"
-                                      ItemsSource="{Binding RawLogMessages}"
-                                      AutoGenerateColumns="False"
-                                      IsReadOnly="True"
-                                      CanUserResizeColumns="True"
-                                      HeadersVisibility="Column"
-                                      MaxHeight="200">
-                                <DataGrid.Columns>
-                                    <DataGridTextColumn Header="Index" Binding="{Binding Index}" Width="60"/>
-                                    <DataGridTextColumn Header="Type" Binding="{Binding TypeName}" Width="100"/>
-                                    <DataGridTextColumn Header="Timestamp" Binding="{Binding Timestamp}" Width="140"/>
-                                    <DataGridTextColumn Header="Data" Binding="{Binding FieldsDisplay}" Width="*"/>
-                                </DataGrid.Columns>
-                            </DataGrid>
+                            
+                            <!-- Table Header -->
+                            <Border Grid.Row="1" Background="#0F172A" BorderBrush="#334155" BorderThickness="0,0,0,1" Padding="12,8">
+                                <Grid ColumnDefinitions="0.5*,1*,1.2*,3*">
+                                    <TextBlock Grid.Column="0" Text="Index" Foreground="#94A3B8" FontWeight="SemiBold" FontSize="11"/>
+                                    <TextBlock Grid.Column="1" Text="Type" Foreground="#94A3B8" FontWeight="SemiBold" FontSize="11"/>
+                                    <TextBlock Grid.Column="2" Text="Timestamp" Foreground="#94A3B8" FontWeight="SemiBold" FontSize="11"/>
+                                    <TextBlock Grid.Column="3" Text="Data" Foreground="#94A3B8" FontWeight="SemiBold" FontSize="11"/>
+                                </Grid>
+                            </Border>
+                            
+                            <!-- Raw Data List -->
+                            <ScrollViewer Grid.Row="2" MaxHeight="200" VerticalScrollBarVisibility="Auto">
+                                <ItemsControl ItemsSource="{Binding RawLogMessages}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Background="#1E293B" BorderBrush="#334155" BorderThickness="0,0,0,1" Padding="12,8">
+                                                <Grid ColumnDefinitions="0.5*,1*,1.2*,3*">
+                                                    <TextBlock Grid.Column="0" Text="{Binding Index}" Foreground="#94A3B8" FontSize="11"/>
+                                                    <TextBlock Grid.Column="1" Text="{Binding TypeName}" Foreground="#E2E8F0" FontSize="11"/>
+                                                    <TextBlock Grid.Column="2" Text="{Binding Timestamp}" Foreground="#94A3B8" FontSize="11"/>
+                                                    <TextBlock Grid.Column="3" Text="{Binding FieldsDisplay}" Foreground="#E2E8F0" FontSize="11" TextWrapping="Wrap"/>
+                                                </Grid>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
                         </Grid>
                     </Border>
                     
@@ -812,18 +870,85 @@
                         </Grid>
                     </Border>
                     
-                    <!-- Parameters DataGrid -->
-                    <DataGrid Grid.Row="1" ItemsSource="{Binding FilteredLogParameters}" SelectedItem="{Binding SelectedLogParameter}"
-                              AutoGenerateColumns="False" GridLinesVisibility="Horizontal"
-                              IsReadOnly="True" CanUserResizeColumns="True" HeadersVisibility="Column">
-                        <DataGrid.Columns>
-                            <DataGridTextColumn Header="Parameter" Binding="{Binding Name}" Width="220"/>
-                            <DataGridTextColumn Header="Value" Binding="{Binding ValueDisplay}" Width="120"/>
-                            <DataGridTextColumn Header="Description" Binding="{Binding Description}" Width="*"/>
-                            <DataGridTextColumn Header="Range" Binding="{Binding Range}" Width="140"/>
-                            <DataGridTextColumn Header="Units" Binding="{Binding Units}" Width="80"/>
-                        </DataGrid.Columns>
-                    </DataGrid>
+                    <!-- Parameters List (replacing DataGrid) -->
+                    <Grid Grid.Row="1">
+                        <!-- Table Header -->
+                        <Border Background="#F8F8F8"
+                                BorderBrush="#E1E1E1"
+                                BorderThickness="0,0,0,1"
+                                Padding="12,10"
+                                VerticalAlignment="Top"
+                                ZIndex="1">
+                            <Grid ColumnDefinitions="1.8*,1*,3*,1.2*,0.7*">
+                                <TextBlock Grid.Column="0" Text="Parameter" Foreground="#666666" FontWeight="Bold" FontSize="12"/>
+                                <TextBlock Grid.Column="1" Text="Value" Foreground="#666666" FontWeight="Bold" FontSize="12"/>
+                                <TextBlock Grid.Column="2" Text="Description" Foreground="#666666" FontWeight="Bold" FontSize="12"/>
+                                <TextBlock Grid.Column="3" Text="Range" Foreground="#666666" FontWeight="Bold" FontSize="12"/>
+                                <TextBlock Grid.Column="4" Text="Units" Foreground="#666666" FontWeight="Bold" FontSize="12"/>
+                            </Grid>
+                        </Border>
+
+                        <!-- Parameters Scrollable List -->
+                        <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="0,41,0,0">
+                            <ItemsControl ItemsSource="{Binding FilteredLogParameters}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Background="White"
+                                                BorderBrush="#E1E1E1"
+                                                BorderThickness="0,0,0,1"
+                                                Padding="12,10"
+                                                Cursor="Hand">
+                                            <Border.Styles>
+                                                <Style Selector="Border:pointerover">
+                                                    <Setter Property="Background" Value="#F5F5F5"/>
+                                                </Style>
+                                            </Border.Styles>
+                                            
+                                            <Grid ColumnDefinitions="1.8*,1*,3*,1.2*,0.7*">
+                                                <!-- Parameter Name -->
+                                                <TextBlock Grid.Column="0"
+                                                           Text="{Binding Name}"
+                                                           Foreground="#333333"
+                                                           FontSize="12"
+                                                           FontWeight="SemiBold"
+                                                           VerticalAlignment="Center"/>
+
+                                                <!-- Value -->
+                                                <TextBlock Grid.Column="1"
+                                                           Text="{Binding ValueDisplay}"
+                                                           Foreground="#007ACC"
+                                                           FontSize="12"
+                                                           FontWeight="SemiBold"
+                                                           VerticalAlignment="Center"/>
+
+                                                <!-- Description -->
+                                                <TextBlock Grid.Column="2"
+                                                           Text="{Binding Description}"
+                                                           Foreground="#666666"
+                                                           FontSize="11"
+                                                           TextWrapping="Wrap"
+                                                           VerticalAlignment="Center"/>
+
+                                                <!-- Range -->
+                                                <TextBlock Grid.Column="3"
+                                                           Text="{Binding Range}"
+                                                           Foreground="#888888"
+                                                           FontSize="11"
+                                                           VerticalAlignment="Center"/>
+
+                                                <!-- Units -->
+                                                <TextBlock Grid.Column="4"
+                                                           Text="{Binding Units}"
+                                                           Foreground="#888888"
+                                                           FontSize="11"
+                                                           VerticalAlignment="Center"/>
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                    </Grid>
                     
                     <!-- Parameter Details Panel -->
                     <Border Grid.Row="2" Background="#F8F8F8" Padding="16" BorderBrush="#E1E1E1" BorderThickness="0,1,0,0"
@@ -886,22 +1011,73 @@
 
         <!-- DOWNLOAD DIALOG OVERLAY -->
         <Border Grid.RowSpan="3" Background="#CC000000" IsVisible="{Binding IsDownloadDialogOpen}">
-            <Border Background="White"  MaxWidth="900" MaxHeight="600" Padding="24"
+            <Border Background="White" MaxWidth="900" MaxHeight="600" Padding="24"
                     HorizontalAlignment="Center" VerticalAlignment="Center" BorderBrush="#DDDDDD" BorderThickness="1">
-                <Grid RowDefinitions="Auto,*,Auto">
+                <Grid RowDefinitions="Auto,Auto,*,Auto">
                     <TextBlock Grid.Row="0" Text="Log Files on Flight Controller" Foreground="#333333" FontSize="18" FontWeight="Bold" Margin="0,0,0,16"/>
                     
-                    <DataGrid Grid.Row="1" ItemsSource="{Binding LogFiles}" AutoGenerateColumns="False"
-                              IsReadOnly="True" GridLinesVisibility="Horizontal" HeadersVisibility="Column">
-                        <DataGrid.Columns>
-                            <DataGridCheckBoxColumn Header="" Binding="{Binding IsSelected}" Width="50"/>
-                            <DataGridTextColumn Header="ID" Binding="{Binding LogId}" Width="60"/>
-                            <DataGridTextColumn Header="File Name" Binding="{Binding FileName}" Width="*"/>
-                            <DataGridTextColumn Header="Size" Binding="{Binding FileSizeDisplay}" Width="120"/>
-                        </DataGrid.Columns>
-                    </DataGrid>
+                    <!-- Table Header -->
+                    <Border Grid.Row="1" Background="#F8F8F8" BorderBrush="#E1E1E1" BorderThickness="0,0,0,1" Padding="12,10">
+                        <Grid ColumnDefinitions="0.4*,0.5*,3*,1*">
+                            <TextBlock Grid.Column="0" Text="" Foreground="#666666" FontWeight="Bold" FontSize="12"/>
+                            <TextBlock Grid.Column="1" Text="ID" Foreground="#666666" FontWeight="Bold" FontSize="12"/>
+                            <TextBlock Grid.Column="2" Text="File Name" Foreground="#666666" FontWeight="Bold" FontSize="12"/>
+                            <TextBlock Grid.Column="3" Text="Size" Foreground="#666666" FontWeight="Bold" FontSize="12"/>
+                        </Grid>
+                    </Border>
                     
-                    <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Center" Spacing="12" Margin="0,16,0,0">
+                    <!-- Log Files List -->
+                    <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
+                        <ItemsControl ItemsSource="{Binding LogFiles}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Background="White"
+                                            BorderBrush="#E1E1E1"
+                                            BorderThickness="0,0,0,1"
+                                            Padding="12,10"
+                                            Cursor="Hand">
+                                        <Border.Styles>
+                                            <Style Selector="Border:pointerover">
+                                                <Setter Property="Background" Value="#F5F5F5"/>
+                                            </Style>
+                                        </Border.Styles>
+                                        
+                                        <Grid ColumnDefinitions="0.4*,0.5*,3*,1*">
+                                            <!-- Checkbox -->
+                                            <CheckBox Grid.Column="0"
+                                                      IsChecked="{Binding IsSelected}"
+                                                      VerticalAlignment="Center"
+                                                      HorizontalAlignment="Center"/>
+
+                                            <!-- Log ID -->
+                                            <TextBlock Grid.Column="1"
+                                                       Text="{Binding LogId}"
+                                                       Foreground="#333333"
+                                                       FontSize="12"
+                                                       VerticalAlignment="Center"/>
+
+                                            <!-- File Name -->
+                                            <TextBlock Grid.Column="2"
+                                                       Text="{Binding FileName}"
+                                                       Foreground="#333333"
+                                                       FontSize="12"
+                                                       FontWeight="SemiBold"
+                                                       VerticalAlignment="Center"/>
+
+                                            <!-- File Size -->
+                                            <TextBlock Grid.Column="3"
+                                                       Text="{Binding FileSizeDisplay}"
+                                                       Foreground="#666666"
+                                                       FontSize="12"
+                                                       VerticalAlignment="Center"/>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                    
+                    <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Center" Spacing="12" Margin="0,16,0,0">
                         <Button Classes="ToolbarButton" Content="Cancel" Width="120" Command="{Binding CloseDownloadDialogCommand}"/>
                         <Button Classes="ToolbarButton" Content="Refresh" Width="120" Command="{Binding RefreshLogsCommand}"/>
                         <Button Classes="ToolbarButton" Content="Download" Width="120" Command="{Binding DownloadSelectedCommand}"/>
