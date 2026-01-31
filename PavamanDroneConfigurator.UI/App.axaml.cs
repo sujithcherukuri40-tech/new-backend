@@ -153,7 +153,6 @@ public partial class App : Application
         services.AddSingleton<CalibrationPreConditionChecker>();
         services.AddSingleton<CalibrationAbortMonitor>();
         services.AddSingleton<CalibrationValidationHelper>();
-        services.AddSingleton<AccelerometerCalibrationService>();
 
         services.AddSingleton<Stm32Bootloader>();
         services.AddSingleton<FirmwareDownloader>();
