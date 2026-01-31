@@ -157,6 +157,12 @@ public interface ICalibrationService
     /// </summary>
     event EventHandler<CalibrationStatusTextEventArgs>? StatusTextReceived;
 
+    /// <summary>
+    /// Event raised when FC sends MAV_CMD_ACCELCAL_VEHICLE_POS requesting a specific position.
+    /// MissionPlanner-style: FC tells GCS what position to place vehicle in.
+    /// </summary>
+    event EventHandler<AccelCalPositionRequestedEventArgs>? AccelCalPositionRequested;
+
     #endregion
 }
 
@@ -216,4 +222,31 @@ public enum CalibrationStep
     Rotate,
     /// <summary>Keep vehicle still</summary>
     KeepStill
+}
+
+/// <summary>
+/// Event args for FC requesting a specific vehicle position during accel calibration.
+/// Raised when FC sends MAV_CMD_ACCELCAL_VEHICLE_POS to GCS.
+/// </summary>
+public class AccelCalPositionRequestedEventArgs : EventArgs
+{
+    /// <summary>
+    /// The position FC is requesting (1-6, or SUCCESS/FAILED terminal states).
+    /// </summary>
+    public AccelCalVehiclePosition Position { get; set; }
+
+    /// <summary>
+    /// Human-readable position name (e.g., "LEVEL", "on its LEFT side").
+    /// </summary>
+    public string PositionName { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Current step number (1-6).
+    /// </summary>
+    public int StepNumber { get; set; }
+
+    /// <summary>
+    /// Total number of steps (always 6 for accel calibration).
+    /// </summary>
+    public int TotalSteps { get; set; } = 6;
 }

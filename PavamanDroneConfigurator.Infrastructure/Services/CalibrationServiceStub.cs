@@ -30,6 +30,7 @@ public class CalibrationServiceStub : ICalibrationService
     public event EventHandler<CalibrationProgressEventArgs>? CalibrationProgressChanged;
     public event EventHandler<CalibrationStepEventArgs>? CalibrationStepRequired;
     public event EventHandler<CalibrationStatusTextEventArgs>? StatusTextReceived;
+    public event EventHandler<AccelCalPositionRequestedEventArgs>? AccelCalPositionRequested;
 
     public Task<bool> StartCalibrationAsync(CalibrationType type)
     {
