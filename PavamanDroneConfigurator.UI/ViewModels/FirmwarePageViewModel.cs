@@ -100,6 +100,36 @@ public partial class FirmwarePageViewModel : ViewModelBase
     [ObservableProperty] private string _bootloaderModeMessage = string.Empty;
     private TaskCompletionSource<bool>? _bootloaderDialogTcs;
     #endregion
+    
+    #region Connection Status
+    [ObservableProperty] private bool _isConnected;
+    [ObservableProperty] private string _connectionStatusText = "Disconnected";
+    [ObservableProperty] private string _connectionStatusColor = "#EF4444"; // Red for disconnected
+    #endregion
+    
+    #region Vehicle Groups
+    public ObservableCollection<VehicleTypeGroup> VehicleGroups { get; } = new();
+    #endregion
+    
+    #region Flashing Progress Dialog
+    [ObservableProperty] private bool _showFlashingProgressDialog;
+    [ObservableProperty] private FlashingStep _currentFlashingStep = FlashingStep.Idle;
+    [ObservableProperty] private string _flashingStepText = string.Empty;
+    [ObservableProperty] private string _estimatedTimeRemaining = string.Empty;
+    [ObservableProperty] private bool _canCancelFlashing = true;
+    #endregion
+    
+    #region Failure Dialog
+    [ObservableProperty] private bool _showFailureDialog;
+    [ObservableProperty] private string _failureMessage = string.Empty;
+    [ObservableProperty] private string _failureSuggestion = string.Empty;
+    #endregion
+    
+    #region Log Panel
+    [ObservableProperty] private bool _isLogPanelExpanded;
+    [ObservableProperty] private LogFilterLevel _selectedLogFilter = LogFilterLevel.Info;
+    [ObservableProperty] private bool _autoScrollLogs = true;
+    #endregion
 
     public FirmwarePageViewModel(
         IFirmwareService firmwareService, 
@@ -117,6 +147,7 @@ public partial class FirmwarePageViewModel : ViewModelBase
 
         LoadFirmwareSources();
         LoadVehicleTypes();
+        UpdateConnectionStatus();
         _ = LoadFirmwareVersionsAsync();
     }
 
@@ -142,8 +173,62 @@ public partial class FirmwarePageViewModel : ViewModelBase
                 ImagePath = type.ImagePath,
                 ArduPilotId = type.ArduPilotId,
                 MavType = type.MavType,
-                VersionText = "Loading..."
+                VersionText = "Loading...",
+                IsLoading = true
             });
+        }
+        
+        // Build grouped vehicle types
+        LoadVehicleGroups();
+    }
+    
+    private void LoadVehicleGroups()
+    {
+        VehicleGroups.Clear();
+        
+        // Group by category
+        var groupedItems = VehicleTypes
+            .GroupBy(v => v.Category)
+            .OrderBy(g => g.Key);
+        
+        foreach (var group in groupedItems)
+        {
+            var vehicleGroup = new VehicleTypeGroup
+            {
+                Name = group.Key switch
+                {
+                    VehicleCategory.Ground => "🚗 Ground",
+                    VehicleCategory.FixedWing => "✈️ Fixed Wing",
+                    VehicleCategory.Multirotor => "🚁 Multirotor",
+                    VehicleCategory.Specialized => "⚙️ Specialized",
+                    _ => "Other"
+                },
+                Category = group.Key,
+                IsExpanded = true
+            };
+            
+            foreach (var item in group)
+            {
+                vehicleGroup.Items.Add(item);
+            }
+            
+            VehicleGroups.Add(vehicleGroup);
+        }
+    }
+    
+    private void UpdateConnectionStatus()
+    {
+        if (_connectionService?.IsConnected == true)
+        {
+            IsConnected = true;
+            ConnectionStatusText = "Connected";
+            ConnectionStatusColor = "#22C55E"; // Green
+        }
+        else
+        {
+            IsConnected = false;
+            ConnectionStatusText = "Disconnected";
+            ConnectionStatusColor = "#EF4444"; // Red
         }
     }
 
@@ -1047,12 +1132,39 @@ public partial class FirmwarePageViewModel : ViewModelBase
         _firmwareService.CancelOperation();
         AddLog("Cancelling operation...");
         StatusMessage = "Cancelling...";
+        ShowFlashingProgressDialog = false;
     }
 
     [RelayCommand]
     private void ClearLog()
     {
         LogMessages.Clear();
+    }
+    
+    [RelayCommand]
+    private void CloseFailureDialog()
+    {
+        ShowFailureDialog = false;
+        FailureMessage = string.Empty;
+        FailureSuggestion = string.Empty;
+    }
+    
+    [RelayCommand]
+    private async Task RetryFlashingAsync()
+    {
+        ShowFailureDialog = false;
+        
+        // Retry with pending vehicle type if available
+        if (PendingVehicleType != null)
+        {
+            await FlashSelectedFirmwareAsync();
+        }
+    }
+    
+    [RelayCommand]
+    private void ToggleLogPanel()
+    {
+        IsLogPanelExpanded = !IsLogPanelExpanded;
     }
     #endregion
 
@@ -1065,6 +1177,39 @@ public partial class FirmwarePageViewModel : ViewModelBase
             StatusMessage = e.StatusMessage;
             DetailMessage = e.DetailMessage;
             IsError = e.IsError;
+            
+            // Map firmware state to flashing step
+            CurrentFlashingStep = e.State switch
+            {
+                FirmwareFlashState.DownloadingFirmware => FlashingStep.Downloading,
+                FirmwareFlashState.ErasingFlash => FlashingStep.Verifying,
+                FirmwareFlashState.Programming => FlashingStep.Uploading,
+                FirmwareFlashState.Verifying => FlashingStep.Verifying,
+                FirmwareFlashState.Rebooting => FlashingStep.Finalizing,
+                FirmwareFlashState.Completed => FlashingStep.Complete,
+                _ => CurrentFlashingStep
+            };
+            
+            FlashingStepText = CurrentFlashingStep switch
+            {
+                FlashingStep.Downloading => "Downloading firmware...",
+                FlashingStep.Verifying => "Verifying firmware...",
+                FlashingStep.Uploading => "Uploading to board...",
+                FlashingStep.Finalizing => "Finalizing...",
+                FlashingStep.Complete => "Complete!",
+                _ => e.StatusMessage
+            };
+            
+            // Disable cancel once flashing starts
+            CanCancelFlashing = e.State == FirmwareFlashState.DownloadingFirmware || 
+                               e.State == FirmwareFlashState.DetectingBoard ||
+                               e.State == FirmwareFlashState.WaitingForBootloader;
+            
+            // Update estimated time if available
+            if (e.EstimatedTimeRemaining.HasValue)
+            {
+                EstimatedTimeRemaining = $"~{e.EstimatedTimeRemaining.Value.TotalSeconds:F0}s remaining";
+            }
         });
     }
 
@@ -1151,6 +1296,50 @@ public enum FirmwareUpgradeMode
     Manual
 }
 
+/// <summary>
+/// Flashing progress step indicators
+/// </summary>
+public enum FlashingStep
+{
+    Idle,
+    Downloading,
+    Verifying,
+    Uploading,
+    Finalizing,
+    Complete
+}
+
+/// <summary>
+/// Log filter level for log panel
+/// </summary>
+public enum LogFilterLevel
+{
+    Info,
+    Warning,
+    Error
+}
+
+/// <summary>
+/// Vehicle category for grouping firmware tiles
+/// </summary>
+public enum VehicleCategory
+{
+    Ground,      // Rover
+    FixedWing,   // Plane
+    Multirotor,  // Copter variants
+    Specialized  // Sub, AntennaTracker, etc.
+}
+
+/// <summary>
+/// Firmware availability status for badges
+/// </summary>
+public enum FirmwareAvailability
+{
+    Available,    // 🟢 Available online
+    LocalOnly,    // 🟡 Local file only
+    NotSupported  // 🔴 Not supported for this board
+}
+
 public partial class VehicleTypeItem : ObservableObject
 {
     public string Id { get; set; } = string.Empty;
@@ -1162,11 +1351,78 @@ public partial class VehicleTypeItem : ObservableObject
 
     [ObservableProperty]
     private string _versionText = string.Empty;
+    
+    [ObservableProperty]
+    private bool _isSelected;
+    
+    [ObservableProperty]
+    private bool _isLoading;
+    
+    [ObservableProperty]
+    private FirmwareAvailability _availability = FirmwareAvailability.Available;
+    
+    /// <summary>
+    /// Vehicle category for grouping
+    /// </summary>
+    public VehicleCategory Category => ArduPilotId switch
+    {
+        "Rover" => VehicleCategory.Ground,
+        "Plane" => VehicleCategory.FixedWing,
+        "Copter" or "Copter-heli" => VehicleCategory.Multirotor,
+        _ => VehicleCategory.Specialized
+    };
+    
+    /// <summary>
+    /// Category display name with icon
+    /// </summary>
+    public string CategoryDisplayName => Category switch
+    {
+        VehicleCategory.Ground => "🚗 Ground",
+        VehicleCategory.FixedWing => "✈️ Fixed Wing",
+        VehicleCategory.Multirotor => "🚁 Multirotor",
+        VehicleCategory.Specialized => "⚙️ Specialized",
+        _ => "Other"
+    };
 
     /// <summary>
     /// Display name with version (like Mission Planner)
     /// </summary>
     public string DisplayName => $"{Name}\n{VersionText}";
+    
+    /// <summary>
+    /// Availability badge color (for binding)
+    /// </summary>
+    public string AvailabilityBadgeColor => Availability switch
+    {
+        FirmwareAvailability.Available => "#22C55E",
+        FirmwareAvailability.LocalOnly => "#F59E0B",
+        FirmwareAvailability.NotSupported => "#EF4444",
+        _ => "#94A3B8"
+    };
+    
+    /// <summary>
+    /// Availability tooltip text
+    /// </summary>
+    public string AvailabilityText => Availability switch
+    {
+        FirmwareAvailability.Available => "Available",
+        FirmwareAvailability.LocalOnly => "Local only",
+        FirmwareAvailability.NotSupported => "Not supported",
+        _ => "Unknown"
+    };
+}
+
+/// <summary>
+/// Group of vehicle types for collapsible sections
+/// </summary>
+public partial class VehicleTypeGroup : ObservableObject
+{
+    public string Name { get; set; } = string.Empty;
+    public VehicleCategory Category { get; set; }
+    public ObservableCollection<VehicleTypeItem> Items { get; set; } = new();
+    
+    [ObservableProperty]
+    private bool _isExpanded = true;
 }
 
 public class FirmwareVersionItem
