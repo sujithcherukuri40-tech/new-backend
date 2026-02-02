@@ -106,6 +106,28 @@ public class AdminService : IAdminService
         return true;
     }
 
+    public async Task<bool> DeleteUserAsync(Guid userId)
+    {
+        var user = await _context.Users.FindAsync(userId);
+
+        if (user == null)
+        {
+            _logger.LogWarning("Cannot delete user {UserId} - user not found", userId);
+            throw new AuthException("User not found", "USER_NOT_FOUND", 404);
+        }
+
+        // Revoke all tokens first
+        await _tokenService.RevokeAllUserTokensAsync(userId, "User deleted by admin");
+
+        // Remove the user
+        _context.Users.Remove(user);
+        await _context.SaveChangesAsync();
+
+        _logger.LogInformation("User {UserId} ({Email}) deleted by admin", userId, user.Email);
+
+        return true;
+    }
+
     public async Task<User?> GetUserByIdAsync(Guid userId)
     {
         return await _context.Users.FindAsync(userId);

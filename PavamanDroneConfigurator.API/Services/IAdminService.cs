@@ -24,6 +24,11 @@ public interface IAdminService
     Task<bool> ChangeUserRoleAsync(Guid userId, UserRole newRole);
 
     /// <summary>
+    /// Delete a user permanently.
+    /// </summary>
+    Task<bool> DeleteUserAsync(Guid userId);
+
+    /// <summary>
     /// Get a user by ID.
     /// </summary>
     Task<User?> GetUserByIdAsync(Guid userId);

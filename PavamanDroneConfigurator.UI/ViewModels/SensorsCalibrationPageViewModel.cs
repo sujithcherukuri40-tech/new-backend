@@ -474,12 +474,15 @@ public partial class SensorsCalibrationPageViewModel : ViewModelBase
     /// </summary>
     private void HandleAccelCalibrationStateChange(CalibrationStateModel e)
     {
-        AddDebugLog($"[AccelCal] State: {e.State} SM: {e.StateMachine} Pos: {e.CurrentPosition} Msg: {e.Message}");
+        AddDebugLog($"[AccelCal] State: {e.State} SM: {e.StateMachine} Pos: {e.CurrentPosition} Completed: [{string.Join(",", e.CompletedPositions)}] Msg: {e.Message}");
 
         AccelCalibrationStatus = e.Message;
         AccelCalibrationProgress = e.Progress;
         IsAccelCalibrationActive = e.State == CalibrationState.InProgress ||
                                    e.State == CalibrationState.WaitingForUserAction;
+
+        // Update step indicators based on completed positions and current position
+        UpdateStepIndicatorsFromState(e.CompletedPositions, e.CurrentPosition, e.CanConfirmPosition);
 
         switch (e.State)
         {
@@ -515,6 +518,120 @@ public partial class SensorsCalibrationPageViewModel : ViewModelBase
                 IsAccelButtonEnabled = IsConnected && IsAccelerometerAvailable;
                 ResetAllStepIndicators();
                 break;
+        }
+    }
+
+    /// <summary>
+    /// Update step indicators based on completed positions and current position.
+    /// This is the SINGLE SOURCE OF TRUTH for step colors.
+    /// - Completed positions -> GREEN
+    /// - Current waiting position -> RED
+    /// - Other positions -> GRAY (pending)
+    /// </summary>
+    private void UpdateStepIndicatorsFromState(List<int> completedPositions, int currentPosition, bool isWaiting)
+    {
+        // Position enum values: Level=1, Left=2, Right=3, NoseDown=4, NoseUp=5, Back=6
+        
+        // Step 1 = Level (position 1)
+        if (completedPositions.Contains(1))
+        {
+            Step1BorderColor = CompleteBorderColor;
+            Step1BackgroundColor = CompleteBackgroundColor;
+        }
+        else if (currentPosition == 1 && isWaiting)
+        {
+            Step1BorderColor = WaitingBorderColor;
+            Step1BackgroundColor = WaitingBackgroundColor;
+        }
+        else
+        {
+            Step1BorderColor = PendingBorderColor;
+            Step1BackgroundColor = PendingBackgroundColor;
+        }
+
+        // Step 2 = Left (position 2)
+        if (completedPositions.Contains(2))
+        {
+            Step2BorderColor = CompleteBorderColor;
+            Step2BackgroundColor = CompleteBackgroundColor;
+        }
+        else if (currentPosition == 2 && isWaiting)
+        {
+            Step2BorderColor = WaitingBorderColor;
+            Step2BackgroundColor = WaitingBackgroundColor;
+        }
+        else
+        {
+            Step2BorderColor = PendingBorderColor;
+            Step2BackgroundColor = PendingBackgroundColor;
+        }
+
+        // Step 3 = Right (position 3)
+        if (completedPositions.Contains(3))
+        {
+            Step3BorderColor = CompleteBorderColor;
+            Step3BackgroundColor = CompleteBackgroundColor;
+        }
+        else if (currentPosition == 3 && isWaiting)
+        {
+            Step3BorderColor = WaitingBorderColor;
+            Step3BackgroundColor = WaitingBackgroundColor;
+        }
+        else
+        {
+            Step3BorderColor = PendingBorderColor;
+            Step3BackgroundColor = PendingBackgroundColor;
+        }
+
+        // Step 4 = NoseDown (position 4)
+        if (completedPositions.Contains(4))
+        {
+            Step4BorderColor = CompleteBorderColor;
+            Step4BackgroundColor = CompleteBackgroundColor;
+        }
+        else if (currentPosition == 4 && isWaiting)
+        {
+            Step4BorderColor = WaitingBorderColor;
+            Step4BackgroundColor = WaitingBackgroundColor;
+        }
+        else
+        {
+            Step4BorderColor = PendingBorderColor;
+            Step4BackgroundColor = PendingBackgroundColor;
+        }
+
+        // Step 5 = NoseUp (position 5)
+        if (completedPositions.Contains(5))
+        {
+            Step5BorderColor = CompleteBorderColor;
+            Step5BackgroundColor = CompleteBackgroundColor;
+        }
+        else if (currentPosition == 5 && isWaiting)
+        {
+            Step5BorderColor = WaitingBorderColor;
+            Step5BackgroundColor = WaitingBackgroundColor;
+        }
+        else
+        {
+            Step5BorderColor = PendingBorderColor;
+            Step5BackgroundColor = PendingBackgroundColor;
+        }
+
+        // Step 6 = Back (position 6)
+        if (completedPositions.Contains(6))
+        {
+            Step6BorderColor = CompleteBorderColor;
+            Step6BackgroundColor = CompleteBackgroundColor;
+        }
+        else if (currentPosition == 6 && isWaiting)
+        {
+            Step6BorderColor = WaitingBorderColor;
+            Step6BackgroundColor = WaitingBackgroundColor;
+        }
+        else
+        {
+            Step6BorderColor = PendingBorderColor;
+            Step6BackgroundColor = PendingBackgroundColor;
         }
     }
 
@@ -567,6 +684,15 @@ public partial class SensorsCalibrationPageViewModel : ViewModelBase
     /// <summary>
     /// Handle FC requesting a specific vehicle position (MissionPlanner style).
     /// FC sends MAV_CMD_ACCELCAL_VEHICLE_POS with param1 = position (1-6).
+    /// 
+    /// NOTE: This handler should NOT update step indicator colors directly.
+    /// Step colors are managed by UpdateStepIndicatorsFromState which is called
+    /// from OnCalibrationStateChanged - that is the SINGLE SOURCE OF TRUTH.
+    /// This handler only updates calibration image and other non-color UI elements.
+    /// 
+    /// NOTE: Button state is managed by OnCalibrationStateChanged via CanConfirmPosition.
+    /// This handler should NOT override button state - the CalibrationService is the
+    /// single source of truth for when the user can click.
     /// </summary>
     private void OnAccelCalPositionRequested(object? sender, AccelCalPositionRequestedEventArgs e)
     {
@@ -579,14 +705,14 @@ public partial class SensorsCalibrationPageViewModel : ViewModelBase
             AccelCurrentStep = e.PositionName;
             AccelInstructions = $"Place vehicle {e.PositionName} and click 'Click when Done'";
 
-            // Update step indicators to show current position as waiting
-            UpdateStepIndicatorForPosition(e.Position);
-
-            // Update calibration image based on position
+            // ONLY update calibration image - DO NOT override step indicator colors here!
+            // Step colors are managed by UpdateStepIndicatorsFromState in OnCalibrationStateChanged
+            // which uses the actual CompletedPositions list from CalibrationService (single source of truth)
             UpdateCalibrationImage(e.Position);
 
-            // Enable button for user to confirm position
-            IsAccelButtonEnabled = true;
+            // NOTE: Button state (IsAccelButtonEnabled) is managed by OnCalibrationStateChanged
+            // via the CanConfirmPosition property. We set CanClickWhenInPosition here for UI feedback
+            // but DO NOT set IsAccelButtonEnabled - that's controlled by CalibrationService state.
             CanClickWhenInPosition = true;
         });
     }
@@ -784,69 +910,23 @@ public partial class SensorsCalibrationPageViewModel : ViewModelBase
 
     #region Step Indicator Helpers
 
+    /// <summary>
+    /// DEPRECATED: This method uses hardcoded assumptions about position order.
+    /// Use UpdateStepIndicatorsFromState instead, which uses the actual CompletedPositions
+    /// from CalibrationService as the single source of truth.
+    /// 
+    /// Kept for reference but should not be called.
+    /// </summary>
+    [Obsolete("Use UpdateStepIndicatorsFromState instead - this method uses hardcoded position order assumptions")]
     private void UpdateStepIndicatorForPosition(AccelCalVehiclePosition position)
     {
-        // Reset all to pending first
-        ResetAllStepIndicatorsToPending();
-
-        // Set current position as waiting (red)
-        switch (position)
-        {
-            case AccelCalVehiclePosition.Level:
-                Step1BorderColor = WaitingBorderColor;
-                Step1BackgroundColor = WaitingBackgroundColor;
-                break;
-            case AccelCalVehiclePosition.Left:
-                Step1BorderColor = CompleteBorderColor;
-                Step1BackgroundColor = CompleteBackgroundColor;
-                Step2BorderColor = WaitingBorderColor;
-                Step2BackgroundColor = WaitingBackgroundColor;
-                break;
-            case AccelCalVehiclePosition.Right:
-                Step1BorderColor = CompleteBorderColor;
-                Step1BackgroundColor = CompleteBackgroundColor;
-                Step2BorderColor = CompleteBorderColor;
-                Step2BackgroundColor = CompleteBackgroundColor;
-                Step3BorderColor = WaitingBorderColor;
-                Step3BackgroundColor = WaitingBackgroundColor;
-                break;
-            case AccelCalVehiclePosition.NoseDown:
-                Step1BorderColor = CompleteBorderColor;
-                Step1BackgroundColor = CompleteBackgroundColor;
-                Step2BorderColor = CompleteBorderColor;
-                Step2BackgroundColor = CompleteBackgroundColor;
-                Step3BorderColor = CompleteBorderColor;
-                Step3BackgroundColor = CompleteBackgroundColor;
-                Step4BorderColor = WaitingBorderColor;
-                Step4BackgroundColor = WaitingBackgroundColor;
-                break;
-            case AccelCalVehiclePosition.NoseUp:
-                Step1BorderColor = CompleteBorderColor;
-                Step1BackgroundColor = CompleteBackgroundColor;
-                Step2BorderColor = CompleteBorderColor;
-                Step2BackgroundColor = CompleteBackgroundColor;
-                Step3BorderColor = CompleteBorderColor;
-                Step3BackgroundColor = CompleteBackgroundColor;
-                Step4BorderColor = CompleteBorderColor;
-                Step4BackgroundColor = CompleteBackgroundColor;
-                Step5BorderColor = WaitingBorderColor;
-                Step5BackgroundColor = WaitingBackgroundColor;
-                break;
-            case AccelCalVehiclePosition.Back:
-                Step1BorderColor = CompleteBorderColor;
-                Step1BackgroundColor = CompleteBackgroundColor;
-                Step2BorderColor = CompleteBorderColor;
-                Step2BackgroundColor = CompleteBackgroundColor;
-                Step3BorderColor = CompleteBorderColor;
-                Step3BackgroundColor = CompleteBackgroundColor;
-                Step4BorderColor = CompleteBorderColor;
-                Step4BackgroundColor = CompleteBackgroundColor;
-                Step5BorderColor = CompleteBorderColor;
-                Step5BackgroundColor = CompleteBackgroundColor;
-                Step6BorderColor = WaitingBorderColor;
-                Step6BackgroundColor = WaitingBackgroundColor;
-                break;
-        }
+        // This method is deprecated and should not be used.
+        // Step colors should be derived from CompletedPositions + CurrentPosition
+        // in UpdateStepIndicatorsFromState, which is the single source of truth.
+        
+        // The old implementation assumed positions are always completed in order,
+        // which is not always true (FC may request positions in different orders
+        // or retry a position).
     }
 
     private void ResetAllStepIndicatorsToPending()
@@ -957,18 +1037,25 @@ public partial class SensorsCalibrationPageViewModel : ViewModelBase
         OnPropertyChanged(nameof(CanCalibrateBarometer));
         
         // Update accel button enabled state based on current calibration state
+        // IMPORTANT: During calibration, button state is managed by CalibrationService
+        // via CanConfirmPosition in HandleAccelCalibrationStateChange. Do NOT override here!
         if (!IsConnected || !IsAccelerometerAvailable)
         {
             IsAccelButtonEnabled = false;
         }
         else if (AccelButtonText == "Done")
         {
+            // Calibration completed - keep button disabled
             IsAccelButtonEnabled = false;
         }
-        else if (!IsCalibrating)
+        else if (!IsCalibrating && !IsAccelCalibrationActive)
         {
+            // Only enable button when NOT calibrating (to start new calibration)
+            // During calibration, HandleAccelCalibrationStateChange manages button via CanConfirmPosition
             IsAccelButtonEnabled = true;
         }
+        // NOTE: When IsCalibrating or IsAccelCalibrationActive is true, 
+        // button state is managed by HandleAccelCalibrationStateChange - don't touch it here
         
         // Update compass button state
         CanStartCompassCal = IsConnected && IsCompassAvailable && !IsOnboardCompassCalActive && !CanAcceptCompassCal;

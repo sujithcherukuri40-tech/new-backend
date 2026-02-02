@@ -159,6 +159,56 @@ public class AdminController : ControllerBase
         }
     }
 
+    /// <summary>
+    /// Delete a user permanently.
+    /// </summary>
+    /// <param name="userId">User ID.</param>
+    /// <returns>Success response.</returns>
+    /// <response code="200">User deleted successfully.</response>
+    /// <response code="404">User not found.</response>
+    [HttpDelete("users/{userId}")]
+    [ProducesResponseType(typeof(SuccessResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<SuccessResponse>> DeleteUser([FromRoute] Guid userId)
+    {
+        try
+        {
+            var adminId = GetCurrentUserId();
+            
+            // Prevent self-deletion
+            if (adminId == userId)
+            {
+                return BadRequest(new ErrorResponse
+                {
+                    Message = "Cannot delete your own account",
+                    Code = "SELF_DELETE_NOT_ALLOWED"
+                });
+            }
+
+            _logger.LogInformation("Admin {AdminId} deleting user {UserId}", adminId, userId);
+
+            await _adminService.DeleteUserAsync(userId);
+
+            return Ok(new SuccessResponse
+            {
+                Message = "User deleted successfully"
+            });
+        }
+        catch (AuthException ex) when (ex.StatusCode == 404)
+        {
+            return NotFound(new ErrorResponse { Message = ex.Message, Code = ex.Code });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error deleting user {UserId}", userId);
+            return StatusCode(500, new ErrorResponse
+            {
+                Message = "Failed to delete user",
+                Code = "SERVER_ERROR"
+            });
+        }
+    }
+
     private Guid? GetCurrentUserId()
     {
         var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value

@@ -43,6 +43,13 @@ public class CalibrationStateModel
     public bool CanConfirmPosition { get; set; }
     
     /// <summary>
+    /// For accelerometer: list of completed position values (1-6)
+    /// Used by UI to show green indicators for completed positions.
+    /// This is the SINGLE SOURCE OF TRUTH for completed positions.
+    /// </summary>
+    public List<int> CompletedPositions { get; set; } = new();
+    
+    /// <summary>
     /// Diagnostics for this calibration session
     /// </summary>
     public CalibrationDiagnostics? Diagnostics { get; set; }

@@ -344,4 +344,11 @@ public sealed partial class ResetParametersPageViewModel : ViewModelBase
 
         base.Dispose(disposing);
     }
+
+    public bool IsDisconnected => !IsConnected;
+
+    partial void OnIsConnectedChanged(bool value)
+    {
+        OnPropertyChanged(nameof(IsDisconnected));
+    }
 }

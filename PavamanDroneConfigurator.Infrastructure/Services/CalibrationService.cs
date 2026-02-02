@@ -12,6 +12,7 @@ public class CalibrationService : ICalibrationService
 {
     private readonly ILogger<CalibrationService> _logger;
     private readonly IConnectionService _connectionService;
+    private readonly IParameterService _parameterService;
     
     // State machine variables
     private CalibrationStateModel? _currentState;
@@ -51,10 +52,12 @@ public class CalibrationService : ICalibrationService
 
     public CalibrationService(
         ILogger<CalibrationService> logger,
-        IConnectionService connectionService)
+        IConnectionService connectionService,
+        IParameterService parameterService)
     {
         _logger = logger;
         _connectionService = connectionService;
+        _parameterService = parameterService;
 
         _connectionService.StatusTextReceived += OnStatusTextReceived;
         _connectionService.CommandAckReceived += OnCommandAckReceived;
@@ -205,20 +208,46 @@ public class CalibrationService : ICalibrationService
 
         if (_isCalibrating)
         {
-            if (e.Command == 241 && !e.IsSuccess)
+            // MAV_CMD_PREFLIGHT_CALIBRATION = 241
+            // CRITICAL: Only transition to calibration state AFTER FC acknowledges
+            if (e.Command == 241)
             {
-                _logger.LogWarning("[CalibService] PREFLIGHT_CALIBRATION rejected by FC: {Result}", e.Result);
-                
-                if (!_inAccelCalibrate)
+                if (e.IsSuccess)
                 {
+                    // FC accepted calibration command - NOW we can update state
+                    _logger.LogInformation("[CalibService] PREFLIGHT_CALIBRATION ACCEPTED by FC - entering calibration mode");
+                    
+                    if (_inAccelCalibrate)
+                    {
+                        UpdateState(new CalibrationStateModel
+                        {
+                            Type = CalibrationType.Accelerometer,
+                            State = CalibrationState.InProgress,
+                            StateMachine = CalibrationStateMachine.WaitingForInstruction,
+                            Message = "Waiting for FC to request position...",
+                            CanConfirmPosition = false,
+                            Progress = 0
+                        });
+                    }
+                }
+                else
+                {
+                    // FC rejected calibration - abort
+                    _logger.LogWarning("[CalibService] PREFLIGHT_CALIBRATION REJECTED by FC: result={Result}", e.Result);
+                    
                     _isCalibrating = false;
+                    _inAccelCalibrate = false;
+                    
                     UpdateState(new CalibrationStateModel
                     {
                         Type = _activeCalibrationType,
                         State = CalibrationState.Failed,
-                        Message = $"Calibration rejected by FC (result: {e.Result})"
+                        StateMachine = CalibrationStateMachine.Rejected,
+                        Message = $"Calibration rejected by FC (result: {e.Result}). Check PreArm conditions.",
+                        CanConfirmPosition = false
                     });
                 }
+                return;
             }
             
             // MAV_CMD_ACCELCAL_VEHICLE_POS = 42429
@@ -226,18 +255,47 @@ public class CalibrationService : ICalibrationService
             {
                 if (e.IsSuccess)
                 {
-                    _logger.LogInformation("[AccelCal] Position {Position} (value={Value}) ACK ACCEPTED. FC is sampling, waiting for next position request.", 
-                        _lastConfirmedPosition, (int)_lastConfirmedPosition);
-                    // Position accepted - FC will sample and then send next STATUSTEXT
-                    // Don't do anything here - wait for FC
+                    // CRITICAL FIX: Mark position as completed IMMEDIATELY on ACK ACCEPTED
+                    // ArduPilot does NOT send a "sampling done" message - it silently samples
+                    // then sends the next position request. We must NOT wait in WaitingForSampling.
+                    _logger.LogInformation("[AccelCal] Position {Position} ACK ACCEPTED. Completed, waiting for next.", 
+                        _lastConfirmedPosition);
+                    
+                    // _currentRequestedPosition is already cleared in AcceptCalibrationStepAsync
+                    // _waitingForNextPosition remains true until FC sends next position request
+                    
+                    // UX IMPROVEMENT: Clear messaging about what's happening
+                    // FC will take 1-3 seconds to prepare and send the next position request
+                    var stepsDone = _completedPositions.Count;
+                    var stepsRemaining = 6 - stepsDone;
+                    var positionName = GetPositionName(_lastConfirmedPosition);
+                    
+                    UpdateState(new CalibrationStateModel
+                    {
+                        Type = CalibrationType.Accelerometer,
+                        State = CalibrationState.InProgress,
+                        StateMachine = CalibrationStateMachine.WaitingForInstruction,
+                        CurrentPosition = (int)_lastConfirmedPosition,
+                        Message = stepsRemaining > 0 
+                            ? $"? {positionName} complete! Preparing next position... ({stepsDone}/6)"
+                            : $"? {positionName} complete! Finalizing calibration...",
+                        CanConfirmPosition = false, // Button stays disabled until FC requests next position
+                        Progress = (stepsDone * 100) / 6
+                    });
                 }
                 else
                 {
-                    _logger.LogWarning("[AccelCal] Position {Position} (value={Value}) ACK REJECTED (result={Result}). Allow retry.", 
-                        _currentRequestedPosition, (int)_currentRequestedPosition, e.Result);
-                    _waitingForNextPosition = false;
-                    // Remove from completed if it was added
+                    // Position REJECTED by FC - allow retry
+                    _logger.LogWarning("[AccelCal] Position {Position} ACK REJECTED (result={Result}). Allow retry.", 
+                        _lastConfirmedPosition, e.Result);
+                    
+                    // CRITICAL: Remove from completed positions since it was rejected
                     _completedPositions.Remove(_lastConfirmedPosition);
+                    
+                    // CRITICAL: Restore _currentRequestedPosition so user can retry
+                    _currentRequestedPosition = _lastConfirmedPosition;
+                    _waitingForNextPosition = false;
+                    
                     UpdateState(new CalibrationStateModel
                     {
                         Type = CalibrationType.Accelerometer,
@@ -245,7 +303,7 @@ public class CalibrationService : ICalibrationService
                         StateMachine = CalibrationStateMachine.PositionRejected,
                         CurrentPosition = (int)_currentRequestedPosition,
                         Message = $"Position rejected (result: {e.Result}). Reposition and try again.",
-                        CanConfirmPosition = true,
+                        CanConfirmPosition = true, // Re-enable button for retry
                         Progress = (_completedPositions.Count * 100) / 6
                     });
                 }
@@ -363,6 +421,9 @@ public class CalibrationService : ICalibrationService
     /// - ACCELCAL_VEHICLE_POS_BACK = 6
     /// 
     /// We must send the POSITION ENUM VALUE (1-6) directly!
+    /// 
+    /// MISSION PLANNER RULE: User can ONLY click when FC has requested a position.
+    /// If no position is requested (currentRequestedPosition == 0), ignore the click.
     /// </summary>
     public Task<bool> AcceptCalibrationStepAsync()
     {
@@ -372,9 +433,28 @@ public class CalibrationService : ICalibrationService
             return Task.FromResult(false);
         }
 
+        // CRITICAL GUARD: Block if no position is requested by FC
+        // This prevents user from clicking again after a position is completed
+        // but before FC requests the next position
         if (_currentRequestedPosition == 0)
         {
-            _logger.LogWarning("[CalibService] No position requested yet by FC - cannot confirm");
+            _logger.LogInformation("[AccelCal] Ignoring click - no position requested by FC. Waiting for next position request.");
+            return Task.FromResult(false);
+        }
+
+        // GUARD: Block if we're already waiting for sampling to complete
+        if (_waitingForNextPosition)
+        {
+            _logger.LogInformation("[AccelCal] Ignoring click - already waiting for FC to complete sampling of {Position}", 
+                _lastConfirmedPosition);
+            return Task.FromResult(false);
+        }
+
+        // GUARD: Block if this position is already completed
+        if (_completedPositions.Contains(_currentRequestedPosition))
+        {
+            _logger.LogInformation("[AccelCal] Ignoring click - position {Position} already completed", 
+                _currentRequestedPosition);
             return Task.FromResult(false);
         }
 
@@ -390,41 +470,69 @@ public class CalibrationService : ICalibrationService
         _waitingForNextPosition = true;
         _stepCount = _completedPositions.Count;
 
+        // CRITICAL: Clear currentRequestedPosition IMMEDIATELY after confirming
+        // This prevents double-sends if user clicks again before ACK is received
+        var confirmedPosition = _currentRequestedPosition;
+        _currentRequestedPosition = 0;
+
         // Send MAV_CMD_ACCELCAL_VEHICLE_POS with position enum value (1-6)
         _logger.LogInformation("[AccelCal] Sending MAV_CMD_ACCELCAL_VEHICLE_POS param1={PositionValue}", positionParam);
         _connectionService.SendAccelCalVehiclePos(positionParam);
 
+        // UX IMPROVEMENT: Set clear expectations about timing
+        // ArduPilot samples 400-500 readings at 100-200Hz = 2-5 seconds per position
         UpdateState(new CalibrationStateModel
         {
             Type = CalibrationType.Accelerometer,
             State = CalibrationState.InProgress,
             StateMachine = CalibrationStateMachine.WaitingForSampling,
-            CurrentPosition = (int)_currentRequestedPosition,
-            Message = $"Sampling {GetPositionName(_currentRequestedPosition)}... waiting for FC",
-            CanConfirmPosition = false,
+            CurrentPosition = (int)confirmedPosition,
+            Message = $"Sampling {GetPositionName(confirmedPosition)}... do not move (this takes a few seconds)",
+            CanConfirmPosition = false, // CRITICAL: Disable button while sampling
             Progress = (_completedPositions.Count * 100) / 6
         });
 
         return Task.FromResult(true);
     }
 
-    public Task<bool> StartAccelerometerCalibrationAsync(bool fullSixAxis = true)
+    public async Task<bool> StartAccelerometerCalibrationAsync(bool fullSixAxis = true)
     {
         if (_inAccelCalibrate)
         {
             _logger.LogInformation("[AccelCal] Already calibrating - treating click as position confirmation");
-            return AcceptCalibrationStepAsync();
+            return await AcceptCalibrationStepAsync();
         }
 
         if (!_connectionService.IsConnected)
         {
             _logger.LogWarning("[AccelCal] Not connected - cannot start calibration");
-            return Task.FromResult(false);
+            return false;
         }
 
         _logger.LogInformation("[AccelCal] Starting full 6-position accelerometer calibration");
 
-        // Reset state
+        // CRITICAL: Disable arming checks for bench testing without RC/safety switch
+        _logger.LogInformation("[AccelCal] Disabling arming checks (ARMING_CHECK=0, BRD_SAFETY_DEFLT=0)...");
+
+        try
+        {
+            // Disable all arming checks (allows calibration without RC, safety switch, etc.)
+            await _parameterService.SetParameterAsync("ARMING_CHECK", 0);
+            await Task.Delay(100);
+            
+            // Disable safety switch requirement
+            await _parameterService.SetParameterAsync("BRD_SAFETY_DEFLT", 0);
+            await Task.Delay(100);
+            
+            _logger.LogInformation("[AccelCal] Arming checks disabled successfully");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "[AccelCal] Failed to disable arming checks - continuing anyway");
+        }
+
+        // Reset state - but DO NOT update UI state yet!
+        // State will be updated ONLY when we receive COMMAND_ACK from FC
         _stepCount = 0;
         _completedPositions.Clear();
         _currentRequestedPosition = 0;
@@ -434,26 +542,16 @@ public class CalibrationService : ICalibrationService
         _isCalibrating = true;
         _inAccelCalibrate = true;
 
-        UpdateState(new CalibrationStateModel
-        {
-            Type = CalibrationType.Accelerometer,
-            State = CalibrationState.InProgress,
-            StateMachine = CalibrationStateMachine.WaitingForInstruction,
-            Message = "Starting accelerometer calibration...",
-            CanConfirmPosition = false,
-            Progress = 0
-        });
-
         // Send MAV_CMD_PREFLIGHT_CALIBRATION
-        // Standard ArduPilot: param5=1 for full 6-axis accel calibration
-        // However, some older firmware may use different parameter mappings
-        // param5: 1=full 6-axis, 2=level only, 4=simple
+        // DO NOT update state here - wait for COMMAND_ACK!
         int accelParam = fullSixAxis ? 1 : 4;
         
-        _logger.LogInformation("[AccelCal] Sending MAV_CMD_PREFLIGHT_CALIBRATION with param5={Accel} (1=full 6-axis, 4=simple)", accelParam);
-        _connectionService.SendPreflightCalibration(0, 0, 0, 0, 1);
+        _logger.LogInformation("[AccelCal] Sending MAV_CMD_PREFLIGHT_CALIBRATION with param5={Accel} - waiting for ACK...", accelParam);
+        _connectionService.SendPreflightCalibration(0, 0, 0, 0, accelParam);
 
-        return Task.FromResult(true);
+        // Note: State will be updated in OnCommandAckReceived when FC responds
+        // This is the correct Mission Planner behavior - don't assume success!
+        return true;
     }
 
     public Task<bool> StartSimpleAccelerometerCalibrationAsync()
@@ -600,11 +698,14 @@ public class CalibrationService : ICalibrationService
 
     private void UpdateState(CalibrationStateModel state)
     {
+        // CRITICAL: Always include completed positions for UI to show green indicators
+        state.CompletedPositions = _completedPositions.Select(p => (int)p).ToList();
+        
         _currentState = state;
         _stateMachineState = state.StateMachine;
         
-        _logger.LogDebug("[CalibService] State update: Type={Type} State={State} SM={SM} Msg={Msg}",
-            state.Type, state.State, state.StateMachine, state.Message);
+        _logger.LogDebug("[CalibService] State update: Type={Type} State={State} SM={SM} Msg={Msg} Completed={Completed}",
+            state.Type, state.State, state.StateMachine, state.Message, string.Join(",", state.CompletedPositions));
         
         CalibrationStateChanged?.Invoke(this, state);
 
