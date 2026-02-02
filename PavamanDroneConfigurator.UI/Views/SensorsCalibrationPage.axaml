@@ -881,5 +881,33 @@
                 </StackPanel>
             </Border>
         </Border>
+        
+        <!-- REBOOT PROMPT DIALOG OVERLAY -->
+        <Border Background="#80000000" IsVisible="{Binding ShowRebootPrompt}" IsHitTestVisible="{Binding ShowRebootPrompt}">
+            <Border Background="White" CornerRadius="16" Padding="24" 
+                    HorizontalAlignment="Center" VerticalAlignment="Center"
+                    MinWidth="400" MaxWidth="500" BoxShadow="0 10 40 0 #60000000">
+                <StackPanel Spacing="16">
+                    <!-- Success Icon -->
+                    <Border Width="64" Height="64" CornerRadius="32" Background="#D1FAE5" HorizontalAlignment="Center">
+                        <TextBlock Text="?" FontSize="32" FontWeight="Bold" Foreground="#10B981" 
+                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    
+                    <TextBlock Text="Calibration Complete!" FontSize="20" FontWeight="Bold" 
+                               HorizontalAlignment="Center" Foreground="#111827"/>
+                    
+                    <TextBlock Text="{Binding RebootPromptMessage}" FontSize="14" TextWrapping="Wrap"
+                               HorizontalAlignment="Center" Foreground="#6B7280" TextAlignment="Center"/>
+                    
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="12">
+                        <Button Content="Later" Padding="24,10" Background="#E2E8F0" Foreground="#475569"
+                                CornerRadius="8" Command="{Binding CloseRebootPromptCommand}"/>
+                        <Button Content="Reboot Now" Classes="Primary" MinWidth="120"
+                                Command="{Binding RebootFromPromptCommand}"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </Border>
     </Grid>
 </UserControl>

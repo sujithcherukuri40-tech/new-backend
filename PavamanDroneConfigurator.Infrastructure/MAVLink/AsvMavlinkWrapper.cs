@@ -756,22 +756,32 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
 
         private void HandleMagCalProgress(byte[] payload)
         {
-            if (payload.Length < 22)
+            // MAG_CAL_PROGRESS message (27 bytes minimum):
+            // [0-3]   direction_x (float)
+            // [4-7]   direction_y (float)
+            // [8-11]  direction_z (float)
+            // [12]    compass_id (uint8)
+            // [13]    cal_mask (uint8)
+            // [14]    cal_status (uint8)
+            // [15]    attempt (uint8)
+            // [16]    completion_pct (uint8)
+            // [17-26] completion_mask (uint8[10])
+            if (payload.Length < 27)
                 return;
 
             var progressData = new MagCalProgressData
             {
-                CompassId = payload[0],
-                CalMask = payload[1],
-                CalStatus = payload[2],
-                Attempt = payload[3],
-                CompletionPct = payload[4],
-                DirectionX = BitConverter.ToInt16(payload, 15),
-                DirectionY = BitConverter.ToInt16(payload, 17),
-                DirectionZ = BitConverter.ToInt16(payload, 19)
+                DirectionX = BitConverter.ToSingle(payload, 0),
+                DirectionY = BitConverter.ToSingle(payload, 4),
+                DirectionZ = BitConverter.ToSingle(payload, 8),
+                CompassId = payload[12],
+                CalMask = payload[13],
+                CalStatus = payload[14],
+                Attempt = payload[15],
+                CompletionPct = payload[16]
             };
 
-            Array.Copy(payload, 5, progressData.CompletionMask, 0, 10);
+            Array.Copy(payload, 17, progressData.CompletionMask, 0, 10);
 
             _logger.LogDebug("MAG_CAL_PROGRESS: compass={CompassId} status={Status} pct={Pct}%",
                 progressData.CompassId, progressData.CalStatus, progressData.CompletionPct);
@@ -781,30 +791,58 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
 
         private void HandleMagCalReport(byte[] payload)
         {
-            if (payload.Length < 55)
+            // MAG_CAL_REPORT message (44+ bytes):
+            // [0-3]   fitness (float)
+            // [4-7]   ofs_x (float)
+            // [8-11]  ofs_y (float)
+            // [12-15] ofs_z (float)
+            // [16-19] diag_x (float)
+            // [20-23] diag_y (float)
+            // [24-27] diag_z (float)
+            // [28-31] offdiag_x (float)
+            // [32-35] offdiag_y (float)
+            // [36-39] offdiag_z (float)
+            // [40]    compass_id (uint8)
+            // [41]    cal_mask (uint8)
+            // [42]    cal_status (uint8)
+            // [43]    autosaved (uint8)
+            // Extensions (MAVLink v2):
+            // [44]    orientation_confidence (uint8)
+            // [45]    old_orientation (uint8)
+            // [46]    new_orientation (uint8)
+            // [47-50] scale_factor (float)
+            if (payload.Length < 44)
                 return;
 
             var reportData = new MagCalReportData
             {
-                CompassId = payload[0],
-                CalMask = payload[1],
-                CalStatus = payload[2],
-                Autosaved = payload[3],
-                Fitness = BitConverter.ToSingle(payload, 4),
-                OfsX = BitConverter.ToSingle(payload, 8),
-                OfsY = BitConverter.ToSingle(payload, 12),
-                OfsZ = BitConverter.ToSingle(payload, 16),
-                DiagX = BitConverter.ToSingle(payload, 20),
-                DiagY = BitConverter.ToSingle(payload, 24),
-                DiagZ = BitConverter.ToSingle(payload, 28),
-                OffdiagX = BitConverter.ToSingle(payload, 32),
-                OffdiagY = BitConverter.ToSingle(payload, 36),
-                OffdiagZ = BitConverter.ToSingle(payload, 40),
-                OrientationConfidence = payload[44],
-                OldOrientation = payload[45],
-                NewOrientation = payload[46],
-                ScaleFactor = BitConverter.ToSingle(payload, 47)
+                Fitness = BitConverter.ToSingle(payload, 0),
+                OfsX = BitConverter.ToSingle(payload, 4),
+                OfsY = BitConverter.ToSingle(payload, 8),
+                OfsZ = BitConverter.ToSingle(payload, 12),
+                DiagX = BitConverter.ToSingle(payload, 16),
+                DiagY = BitConverter.ToSingle(payload, 20),
+                DiagZ = BitConverter.ToSingle(payload, 24),
+                OffdiagX = BitConverter.ToSingle(payload, 28),
+                OffdiagY = BitConverter.ToSingle(payload, 32),
+                OffdiagZ = BitConverter.ToSingle(payload, 36),
+                CompassId = payload[40],
+                CalMask = payload[41],
+                CalStatus = payload[42],
+                Autosaved = payload[43]
             };
+
+            // MAVLink v2 extensions
+            if (payload.Length >= 47)
+            {
+                reportData.OrientationConfidence = payload[44];
+                reportData.OldOrientation = payload[45];
+                reportData.NewOrientation = payload[46];
+            }
+            if (payload.Length >= 51)
+            {
+                reportData.ScaleFactor = BitConverter.ToSingle(payload, 47);
+            }
 
             _logger.LogInformation("MAG_CAL_REPORT: compass={CompassId} status={Status} fitness={Fitness} autosaved={Autosaved}",
                 reportData.CompassId, reportData.CalStatus, reportData.Fitness, reportData.Autosaved);

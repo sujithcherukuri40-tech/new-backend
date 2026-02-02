@@ -73,6 +73,12 @@ public partial class SensorsCalibrationPageViewModel : ViewModelBase
     [ObservableProperty]
     private ObservableCollection<MavLinkLogEntry> _mavLinkMessages = new();
 
+    [ObservableProperty]
+    private bool _showRebootPrompt;
+
+    [ObservableProperty]
+    private string _rebootPromptMessage = "Calibration complete! Please reboot the autopilot to apply changes.";
+
     #endregion
 
     #region Calibration Active States
@@ -237,7 +243,7 @@ public partial class SensorsCalibrationPageViewModel : ViewModelBase
     private int _compassCalibrationProgress;
 
     [ObservableProperty]
-    private string _compassInstructions = "Compass calibration implementation pending";
+    private string _compassInstructions = "Click 'Start Calibration' and rotate the vehicle in all directions.";
 
     #endregion
 
@@ -308,6 +314,15 @@ public partial class SensorsCalibrationPageViewModel : ViewModelBase
     private int _compass3Progress;
 
     [ObservableProperty]
+    private string _compass1Status = "Not started";
+
+    [ObservableProperty]
+    private string _compass2Status = "Not started";
+
+    [ObservableProperty]
+    private string _compass3Status = "Not started";
+
+    [ObservableProperty]
     private string _compass1Result = string.Empty;
 
     [ObservableProperty]
@@ -317,13 +332,28 @@ public partial class SensorsCalibrationPageViewModel : ViewModelBase
     private string _compass3Result = string.Empty;
 
     [ObservableProperty]
+    private string _compass1OffsetColor = "#6B7280"; // Gray
+
+    [ObservableProperty]
+    private string _compass2OffsetColor = "#6B7280";
+
+    [ObservableProperty]
+    private string _compass3OffsetColor = "#6B7280";
+
+    [ObservableProperty]
     private bool _canAcceptCompassCal;
 
     [ObservableProperty]
     private bool _canCancelCompassCal;
 
     [ObservableProperty]
-    private string _compassCalStatus = "Ready";
+    private bool _canStartCompassCal = true;
+
+    [ObservableProperty]
+    private string _compassCalStatus = "Ready to calibrate";
+
+    [ObservableProperty]
+    private string _compassCalButtonText = "Start Calibration";
 
     private int _compassCount;
     private int _completedCompassCount;
@@ -418,6 +448,7 @@ public partial class SensorsCalibrationPageViewModel : ViewModelBase
                 {
                     IsLevelCalibrated = true;
                     LevelInstructions = "Level calibration complete!";
+                    ShowRebootPromptDialog("Level calibration complete! Please reboot the autopilot to apply changes.");
                 }
             }
             else if (e.Type == CalibrationType.Barometer)
@@ -467,6 +498,7 @@ public partial class SensorsCalibrationPageViewModel : ViewModelBase
                 IsAccelCalibrated = true;
                 AccelInstructions = "Calibration successful! Reboot required to apply changes.";
                 ResetAllStepIndicatorsToComplete();
+                ShowRebootPromptDialog("Accelerometer calibration complete! Please reboot the autopilot to apply changes.");
                 break;
 
             case CalibrationState.Failed:
@@ -523,6 +555,12 @@ public partial class SensorsCalibrationPageViewModel : ViewModelBase
             {
                 AccelInstructions = e.Text;
             }
+            
+            // Check for compass calibration messages
+            if (lower.Contains("compass") && lower.Contains("calibrat"))
+            {
+                CompassCalStatus = e.Text;
+            }
         });
     }
 
@@ -559,21 +597,28 @@ public partial class SensorsCalibrationPageViewModel : ViewModelBase
         {
             AddDebugLog($"[CompassCal] Progress: compass={e.CompassId} status={e.Status} pct={e.CompletionPercent}%");
 
-            // Update progress bars based on compass_id
+            // Update progress bars and status based on compass_id
             switch (e.CompassId)
             {
                 case 0:
                     Compass1Progress = e.CompletionPercent;
+                    Compass1Status = GetCalStatusText(e.Status, e.CompletionPercent);
                     break;
                 case 1:
                     Compass2Progress = e.CompletionPercent;
+                    Compass2Status = GetCalStatusText(e.Status, e.CompletionPercent);
                     break;
                 case 2:
                     Compass3Progress = e.CompletionPercent;
+                    Compass3Status = GetCalStatusText(e.Status, e.CompletionPercent);
                     break;
             }
 
             _compassCount = Math.Max(_compassCount, e.CompassId + 1);
+            
+            // Update overall status
+            CompassCalStatus = $"Calibrating... Rotate vehicle in all directions. ({e.CompletionPercent}%)";
+            CompassInstructions = "Rotate the vehicle slowly in all directions to cover all orientations.";
         });
     }
 
@@ -581,37 +626,63 @@ public partial class SensorsCalibrationPageViewModel : ViewModelBase
     {
         Dispatcher.UIThread.Post(() =>
         {
-            var resultText = $"id:{e.CompassId} x:{e.Offsets.X:F1} y:{e.Offsets.Y:F1} z:{e.Offsets.Z:F1} fit:{e.Fitness:F1} {e.Status}";
-            AddDebugLog($"[CompassCal] Report: {resultText}");
+            var resultText = $"Fitness: {e.Fitness:F1}, Offsets: X:{e.Offsets.X:F1} Y:{e.Offsets.Y:F1} Z:{e.Offsets.Z:F1}";
+            var statusText = e.Status == MagCalStatus.Success ? "SUCCESS" : e.Status.ToString();
+            AddDebugLog($"[CompassCal] Report: compass={e.CompassId} status={statusText} {resultText}");
 
-            // Update result text and progress to 100%
+            // Determine offset color based on magnitude
+            var maxOffset = Math.Max(Math.Max(Math.Abs(e.Offsets.X), Math.Abs(e.Offsets.Y)), Math.Abs(e.Offsets.Z));
+            var offsetColor = CompassOffsetThresholds.GetColorForOffset(maxOffset);
+
+            // Update result text, progress to 100%, and color
             switch (e.CompassId)
             {
                 case 0:
                     Compass1Progress = 100;
                     Compass1Result = resultText;
+                    Compass1Status = statusText;
+                    Compass1OffsetColor = offsetColor;
                     break;
                 case 1:
                     Compass2Progress = 100;
                     Compass2Result = resultText;
+                    Compass2Status = statusText;
+                    Compass2OffsetColor = offsetColor;
                     break;
                 case 2:
                     Compass3Progress = 100;
                     Compass3Result = resultText;
+                    Compass3Status = statusText;
+                    Compass3OffsetColor = offsetColor;
                     break;
             }
 
             if (e.IsAutosaved)
             {
                 _completedCompassCount++;
-                if (_completedCompassCount == _compassCount && _compassCount > 0)
+                AddDebugLog($"[CompassCal] Compass {e.CompassId} autosaved. Completed: {_completedCompassCount}/{_compassCount}");
+                
+                if (_completedCompassCount >= _compassCount && _compassCount > 0)
                 {
-                    // All complete
+                    // All compasses complete and autosaved
                     CanAcceptCompassCal = false;
                     CanCancelCompassCal = false;
-                    CompassCalStatus = "Calibration complete! Please reboot the autopilot.";
+                    CanStartCompassCal = true;
+                    CompassCalButtonText = "Start Calibration";
+                    CompassCalStatus = "Calibration complete and saved! Please reboot the autopilot.";
+                    CompassInstructions = "Compass calibration successful. Reboot required to apply changes.";
                     IsOnboardCompassCalActive = false;
+                    IsCompassCalibrationActive = false;
+                    
+                    // Show reboot prompt
+                    ShowRebootPromptDialog("Compass calibration complete! Please reboot the autopilot to apply the new calibration values.");
                 }
+            }
+            else if (e.Status == MagCalStatus.Success && !e.IsAutosaved)
+            {
+                // Calibration successful but needs acceptance
+                CanAcceptCompassCal = true;
+                CompassCalStatus = "Calibration successful. Click Accept to save.";
             }
         });
     }
@@ -620,10 +691,28 @@ public partial class SensorsCalibrationPageViewModel : ViewModelBase
     {
         Dispatcher.UIThread.Post(() =>
         {
+            AddDebugLog($"[CompassCal] State changed: {e.State} - {e.Message}");
+            
             CompassCalStatus = e.Message;
             IsOnboardCompassCalActive = e.IsCalibrating;
+            IsCompassCalibrationActive = e.IsCalibrating;
             CanAcceptCompassCal = e.CanAccept;
             CanCancelCompassCal = e.CanCancel;
+            CanStartCompassCal = !e.IsCalibrating && !e.CanAccept;
+
+            // Update button text based on state
+            if (e.IsCalibrating)
+            {
+                CompassCalButtonText = "Calibrating...";
+            }
+            else if (e.CanAccept)
+            {
+                CompassCalButtonText = "Accept";
+            }
+            else
+            {
+                CompassCalButtonText = "Start Calibration";
+            }
 
             // Update progress from state
             foreach (var kvp in e.CompassProgress)
@@ -642,9 +731,53 @@ public partial class SensorsCalibrationPageViewModel : ViewModelBase
                 }
             }
 
+            // Check for completion states
+            if (e.State == CompassCalibrationState.Accepted || e.State == CompassCalibrationState.Cancelled)
+            {
+                IsOnboardCompassCalActive = false;
+                IsCompassCalibrationActive = false;
+                CanStartCompassCal = true;
+                CompassCalButtonText = "Start Calibration";
+                
+                if (e.State == CompassCalibrationState.Accepted)
+                {
+                    ShowRebootPromptDialog("Compass calibration accepted! Please reboot the autopilot to apply changes.");
+                }
+            }
+            else if (e.State == CompassCalibrationState.Failed)
+            {
+                IsOnboardCompassCalActive = false;
+                IsCompassCalibrationActive = false;
+                CanStartCompassCal = true;
+                CompassCalButtonText = "Start Calibration";
+                CompassInstructions = "Calibration failed. Please try again.";
+            }
+
             IsCalibrating = _calibrationService.IsCalibrating;
             UpdateButtonStates();
         });
+    }
+
+    private string GetCalStatusText(MagCalStatus status, int progress)
+    {
+        return status switch
+        {
+            MagCalStatus.NotStarted => "Not started",
+            MagCalStatus.WaitingToStart => "Waiting...",
+            MagCalStatus.RunningStepOne => $"Sphere fit: {progress}%", // Placeholder for actual step text
+            MagCalStatus.RunningStepTwo => $"Ellipsoid fit: {progress}%", // Placeholder for actual step text
+            MagCalStatus.Success => "Success",
+            MagCalStatus.Failed => "Failed",
+            MagCalStatus.BadOrientation => "Bad orientation",
+            MagCalStatus.BadRadius => "Bad radius",
+            _ => status.ToString()
+        };
+    }
+
+    private void ShowRebootPromptDialog(string message)
+    {
+        RebootPromptMessage = message;
+        ShowRebootPrompt = true;
     }
 
     #endregion
@@ -836,6 +969,27 @@ public partial class SensorsCalibrationPageViewModel : ViewModelBase
         {
             IsAccelButtonEnabled = true;
         }
+        
+        // Update compass button state
+        CanStartCompassCal = IsConnected && IsCompassAvailable && !IsOnboardCompassCalActive && !CanAcceptCompassCal;
+    }
+
+    private void ResetCompassCalibrationUI()
+    {
+        Compass1Progress = 0;
+        Compass2Progress = 0;
+        Compass3Progress = 0;
+        Compass1Status = "Not started";
+        Compass2Status = "Not started";
+        Compass3Status = "Not started";
+        Compass1Result = string.Empty;
+        Compass2Result = string.Empty;
+        Compass3Result = string.Empty;
+        Compass1OffsetColor = "#6B7280";
+        Compass2OffsetColor = "#6B7280";
+        Compass3OffsetColor = "#6B7280";
+        _compassCount = 0;
+        _completedCompassCount = 0;
     }
 
     partial void OnIsCalibratingChanged(bool value) => UpdateButtonStates();
@@ -855,6 +1009,16 @@ public partial class SensorsCalibrationPageViewModel : ViewModelBase
 
     [RelayCommand]
     private void CloseErrorDialog() => ShowErrorDialog = false;
+
+    [RelayCommand]
+    private void CloseRebootPrompt() => ShowRebootPrompt = false;
+
+    [RelayCommand]
+    private async Task RebootFromPromptAsync()
+    {
+        ShowRebootPrompt = false;
+        await RebootAsync();
+    }
 
     [RelayCommand]
     private void ToggleDebugLogs() => ShowDebugLogs = !ShowDebugLogs;
@@ -1039,20 +1203,17 @@ public partial class SensorsCalibrationPageViewModel : ViewModelBase
 
         AddDebugLog("[CompassCal] Starting onboard compass calibration...");
         
-        // Reset progress
-        Compass1Progress = 0;
-        Compass2Progress = 0;
-        Compass3Progress = 0;
-        Compass1Result = string.Empty;
-        Compass2Result = string.Empty;
-        Compass3Result = string.Empty;
-        _compassCount = 0;
-        _completedCompassCount = 0;
+        // Reset progress and UI
+        ResetCompassCalibrationUI();
 
         CompassCalStatus = "Starting calibration...";
+        CompassInstructions = "Preparing to calibrate. Please wait...";
         IsOnboardCompassCalActive = true;
+        IsCompassCalibrationActive = true;
         CanAcceptCompassCal = false;
         CanCancelCompassCal = true;
+        CanStartCompassCal = false;
+        CompassCalButtonText = "Calibrating...";
 
         var success = await _calibrationService.StartOnboardCompassCalibrationAsync(0, true, true);
         
@@ -1060,6 +1221,10 @@ public partial class SensorsCalibrationPageViewModel : ViewModelBase
         {
             ShowError("Calibration Failed", "Failed to start compass calibration. Check connection and try again.");
             IsOnboardCompassCalActive = false;
+            IsCompassCalibrationActive = false;
+            CanStartCompassCal = true;
+            CompassCalButtonText = "Start Calibration";
+            CompassCalStatus = "Failed to start calibration";
         }
     }
 
@@ -1077,6 +1242,9 @@ public partial class SensorsCalibrationPageViewModel : ViewModelBase
             CompassCalStatus = "Calibration accepted. Please reboot the autopilot.";
             CanAcceptCompassCal = false;
             CanCancelCompassCal = false;
+            CanStartCompassCal = true;
+            CompassCalButtonText = "Start Calibration";
+            ShowRebootPromptDialog("Compass calibration accepted! Please reboot the autopilot to apply the new calibration values.");
         }
         else
         {
@@ -1097,13 +1265,14 @@ public partial class SensorsCalibrationPageViewModel : ViewModelBase
         {
             CompassCalStatus = "Calibration cancelled.";
             IsOnboardCompassCalActive = false;
+            IsCompassCalibrationActive = false;
             CanAcceptCompassCal = false;
             CanCancelCompassCal = false;
+            CanStartCompassCal = true;
+            CompassCalButtonText = "Start Calibration";
             
             // Reset progress
-            Compass1Progress = 0;
-            Compass2Progress = 0;
-            Compass3Progress = 0;
+            ResetCompassCalibrationUI();
         }
     }
 
