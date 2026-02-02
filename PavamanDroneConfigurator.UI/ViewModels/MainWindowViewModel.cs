@@ -32,6 +32,9 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty]
     private bool _canAccessAirframe;
 
+    [ObservableProperty]
+    private object? _currentView;
+
     public ConnectionPageViewModel ConnectionPage { get; }
     public DroneDetailsPageViewModel DroneDetailsPage { get; }
     public AirframePageViewModel AirframePage { get; }
@@ -245,6 +248,12 @@ public partial class MainWindowViewModel : ViewModelBase
         var parametersReady = _parameterService.IsParameterDownloadComplete;
         CanAccessParameters = connected && parametersReady;
         CanAccessAirframe = connected && parametersReady;
+    }
+
+    public void SetCurrentPage(ViewModelBase page, object view)
+    {
+        CurrentPage = page;
+        CurrentView = view;
     }
 
     protected override void Dispose(bool disposing)

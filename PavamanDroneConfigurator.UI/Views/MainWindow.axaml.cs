@@ -1,122 +1,152 @@
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using PavamanDroneConfigurator.UI.ViewModels;
+using PavamanDroneConfigurator.UI.ViewModels.Admin;
 using System;
 using System.Linq;
-using System.Reflection;
+using Avalonia.Controls.Notifications;
+using views = PavamanDroneConfigurator.UI.Views;
+using adminViews = PavamanDroneConfigurator.UI.Views.Admin;
 
 namespace PavamanDroneConfigurator.UI.Views;
 
 public partial class MainWindow : Window
 {
     private Button? _lastActiveButton;
+    private WindowNotificationManager? _notificationManager;
 
     public MainWindow()
     {
         InitializeComponent();
         
-        // Set initial active state when the window is loaded
+        _notificationManager = new WindowNotificationManager(this)
+        {
+            Position = NotificationPosition.TopRight,
+            MaxItems = 3
+        };
+        
         Loaded += OnWindowLoaded;
     }
 
     private void OnWindowLoaded(object? sender, RoutedEventArgs e)
     {
-        Console.WriteLine("[MainWindow] Window loaded, finding initial button...");
-        
+        if (DataContext is not MainWindowViewModel vm) return;
+
         try
         {
-            // Find and activate the Connection button by default
             if (this.FindControl<StackPanel>("NavigationMenu") is StackPanel navMenu)
             {
                 var firstButton = navMenu.Children.OfType<Button>().FirstOrDefault();
-                if (firstButton != null)
+                if (firstButton != null && firstButton.CommandParameter is ViewModelBase pageVm)
                 {
-                    Console.WriteLine($"[MainWindow] Found first nav button: {firstButton.Content}");
-                    SetActiveButton(firstButton);
+                    var view = CreateView(pageVm);
+                    if (view != null)
+                    {
+                        vm.SetCurrentPage(pageVm, view);
+                        SetActiveButton(firstButton);
+                    }
                 }
             }
         }
         catch (Exception ex)
         {
-            // Log error but don't crash app
-            System.Diagnostics.Debug.WriteLine($"Error setting initial navigation: {ex.Message}");
+            ShowNotification("Navigation Error", ex.Message, NotificationType.Error);
         }
     }
 
     private void NavButton_Click(object? sender, RoutedEventArgs e)
     {
-        if (sender is not Button button)
-            return;
-
-        Console.WriteLine($"[MainWindow] NavButton_Click: {button.Content}");
-        
-        if (DataContext is not MainWindowViewModel vm)
+        try
         {
-            Console.WriteLine("[MainWindow] ERROR: DataContext is not MainWindowViewModel");
-            return;
-        }
+            if (sender is not Button button) return;
+            if (DataContext is not MainWindowViewModel vm) return;
 
-        ViewModelBase? page = null;
+            ViewModelBase? page = button.CommandParameter as ViewModelBase;
 
-        // First try to get page from CommandParameter binding
-        if (button.CommandParameter is ViewModelBase boundPage)
-        {
-            page = boundPage;
-            Console.WriteLine($"[MainWindow] Got page from CommandParameter: {page.GetType().Name}");
-        }
-        // Fallback: use Tag to find the property on the ViewModel
-        else if (button.Tag is string propertyName && !string.IsNullOrEmpty(propertyName))
-        {
-            Console.WriteLine($"[MainWindow] CommandParameter is null, using Tag fallback: {propertyName}");
-            
-            // Use reflection to get the page property from MainWindowViewModel
-            var property = vm.GetType().GetProperty(propertyName);
-            if (property != null)
+            if (page == null && button.Tag is string propertyName && !string.IsNullOrEmpty(propertyName))
             {
-                var value = property.GetValue(vm);
-                if (value is ViewModelBase vmPage)
+                var prop = vm.GetType().GetProperty(propertyName);
+                if (prop?.GetValue(vm) is ViewModelBase reflectedVm)
                 {
-                    page = vmPage;
-                    Console.WriteLine($"[MainWindow] Got page via reflection: {page.GetType().Name}");
+                    page = reflectedVm;
+                }
+            }
+
+            if (page != null)
+            {
+                var view = CreateView(page);
+                if (view != null)
+                {
+                    vm.SetCurrentPage(page, view);
+                    SetActiveButton(button);
+                    ShowNotification("Navigation", $"Switched to {button.Content}", NotificationType.Success);
                 }
                 else
                 {
-                    Console.WriteLine($"[MainWindow] Property {propertyName} returned null or non-ViewModelBase: {value?.GetType().Name ?? "null"}");
+                    ShowNotification("Navigation Failed", $"No view for {page.GetType().Name}", NotificationType.Error);
                 }
             }
             else
             {
-                Console.WriteLine($"[MainWindow] Property {propertyName} not found on MainWindowViewModel");
+                ShowNotification("Navigation Failed", "No target page", NotificationType.Error);
             }
         }
-        else
+        catch (Exception ex)
         {
-            Console.WriteLine($"[MainWindow] No CommandParameter and no Tag - cannot navigate");
+            ShowNotification("Navigation Error", ex.Message, NotificationType.Error);
         }
+    }
 
-        // Navigate if we got a valid page
-        if (page != null)
+    private Control? CreateView(ViewModelBase vm)
+    {
+        return vm switch
         {
-            Console.WriteLine($"[MainWindow] Navigating to: {page.GetType().Name}");
-            vm.CurrentPage = page;
-            SetActiveButton(button);
-        }
+            ConnectionPageViewModel => new views.ConnectionPage { DataContext = vm },
+            DroneDetailsPageViewModel => new views.DroneDetailsPage { DataContext = vm },
+            AirframePageViewModel => new views.AirframePage { DataContext = vm },
+            ParametersPageViewModel => new views.ParametersPage { DataContext = vm },
+            SafetyPageViewModel => new views.SafetyPage { DataContext = vm },
+            ProfilePageViewModel => new views.ProfilePage { DataContext = vm },
+            FlightModePageViewModel => new views.FlightModesPage { DataContext = vm },
+            PowerPageViewModel => new views.PowerPage { DataContext = vm },
+            MotorEscPageViewModel => new views.MotorEscPage { DataContext = vm },
+            PidTuningPageViewModel => new views.PidTuningPage { DataContext = vm },
+            SerialConfigPageViewModel => new views.SerialConfigPage { DataContext = vm },
+            RcCalibrationPageViewModel => new views.RcCalibrationPage { DataContext = vm },
+            SensorsCalibrationPageViewModel => new views.SensorsCalibrationPage { DataContext = vm },
+            LogAnalyzerPageViewModel => new views.LogAnalyzerPage { DataContext = vm },
+            ResetParametersPageViewModel => new views.ResetParametersPage { DataContext = vm },
+            SprayingConfigPageViewModel => new views.SprayingConfigPage { DataContext = vm },
+            CameraConfigPageViewModel => new views.CameraConfigPage { DataContext = vm },
+            AdvancedSettingsPageViewModel => new views.AdvancedSettingsPage { DataContext = vm },
+            FirmwarePageViewModel => new views.FirmwarePage { DataContext = vm },
+            AdminDashboardViewModel => new adminViews.AdminDashboardView { DataContext = vm },
+            AdminPanelViewModel => new adminViews.AdminPanelView { DataContext = vm },
+            _ => null
+        };
     }
 
     private void SetActiveButton(Button activeButton)
     {
-        // Remove active class from previous button
         if (_lastActiveButton != null && _lastActiveButton.Classes.Contains("nav-button-active"))
         {
             _lastActiveButton.Classes.Remove("nav-button-active");
         }
 
-        // Add active class to new button
         if (!activeButton.Classes.Contains("nav-button-active"))
         {
             activeButton.Classes.Add("nav-button-active");
         }
 
         _lastActiveButton = activeButton;
+    }
+
+    private void ShowNotification(string title, string message, NotificationType type)
+    {
+        try
+        {
+            _notificationManager?.Show(new Notification(title, message, type));
+        }
+        catch { }
     }
 }

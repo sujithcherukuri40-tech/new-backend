@@ -1,759 +1,250 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="using:PavamanDroneConfigurator.UI.ViewModels.Admin"
-             xmlns:converters="using:Avalonia.Data.Converters"
-             mc:Ignorable="d" d:DesignWidth="1000" d:DesignHeight="700"
              x:Class="PavamanDroneConfigurator.UI.Views.Admin.AdminDashboardView"
-             x:DataType="vm:AdminDashboardViewModel">
+             x:DataType="vm:AdminDashboardViewModel"
+             Background="#F9FAFB">
 
-    <UserControl.Styles>
-        <!-- macOS-style Card -->
-        <Style Selector="Border.card">
-            <Setter Property="Background" Value="White"/>
-            <Setter Property="CornerRadius" Value="8"/>
-            <Setter Property="BoxShadow" Value="0 2 8 0 #10000000"/>
-        </Style>
-
-        <!-- Status Badge -->
-        <Style Selector="Border.badge-approved">
-            <Setter Property="Background" Value="#DCFCE7"/>
-            <Setter Property="CornerRadius" Value="4"/>
-            <Setter Property="Padding" Value="8,4"/>
-        </Style>
-
-        <Style Selector="Border.badge-pending">
-            <Setter Property="Background" Value="#FEF3C7"/>
-            <Setter Property="CornerRadius" Value="4"/>
-            <Setter Property="Padding" Value="8,4"/>
-        </Style>
-
-        <Style Selector="Border.badge-admin">
-            <Setter Property="Background" Value="#DBEAFE"/>
-            <Setter Property="CornerRadius" Value="4"/>
-            <Setter Property="Padding" Value="8,4"/>
-        </Style>
-
-        <Style Selector="Border.badge-user">
-            <Setter Property="Background" Value="#F3F4F6"/>
-            <Setter Property="CornerRadius" Value="4"/>
-            <Setter Property="Padding" Value="8,4"/>
-        </Style>
-
-        <!-- Action Button -->
-        <Style Selector="Button.action-approve">
-            <Setter Property="Background" Value="#10B981"/>
-            <Setter Property="Foreground" Value="White"/>
-            <Setter Property="CornerRadius" Value="6"/>
-            <Setter Property="Padding" Value="12,6"/>
-            <Setter Property="FontSize" Value="13"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Cursor" Value="Hand"/>
-        </Style>
-
-        <Style Selector="Button.action-approve:pointerover">
-            <Setter Property="Background" Value="#059669"/>
-        </Style>
-
-        <Style Selector="Button.action-disapprove">
-            <Setter Property="Background" Value="#EF4444"/>
-            <Setter Property="Foreground" Value="White"/>
-            <Setter Property="CornerRadius" Value="6"/>
-            <Setter Property="Padding" Value="12,6"/>
-            <Setter Property="FontSize" Value="13"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Cursor" Value="Hand"/>
-        </Style>
-
-        <Style Selector="Button.action-disapprove:pointerover">
-            <Setter Property="Background" Value="#DC2626"/>
-        </Style>
-
-        <Style Selector="Button.action-secondary">
-            <Setter Property="Background" Value="#F3F4F6"/>
-            <Setter Property="Foreground" Value="#374151"/>
-            <Setter Property="CornerRadius" Value="6"/>
-            <Setter Property="Padding" Value="12,6"/>
-            <Setter Property="FontSize" Value="13"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Cursor" Value="Hand"/>
-        </Style>
-
-        <Style Selector="Button.action-secondary:pointerover">
-            <Setter Property="Background" Value="#E5E7EB"/>
-        </Style>
-
-        <!-- ComboBox Style -->
-        <Style Selector="ComboBox.role-select">
-            <Setter Property="MinWidth" Value="100"/>
-            <Setter Property="FontSize" Value="13"/>
-            <Setter Property="Padding" Value="8,6"/>
-            <Setter Property="CornerRadius" Value="6"/>
-            <Setter Property="Background" Value="White"/>
-            <Setter Property="BorderBrush" Value="#D1D5DB"/>
-            <Setter Property="BorderThickness" Value="1"/>
-        </Style>
-    </UserControl.Styles>
-
-    <Grid RowDefinitions="Auto,*" Margin="24">
-        <!-- Header -->
-        <StackPanel Grid.Row="0" Spacing="12" Margin="0,0,0,24">
-            <TextBlock Text="👥 User Management"
-                       FontSize="32"
-                       FontWeight="Bold"
-                       Foreground="#111827"/>
+    <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="32" MaxWidth="1400" Spacing="24">
             
-            <TextBlock Text="Manage user access requests, roles, and permissions"
-                       FontSize="14"
-                       Foreground="#6B7280"/>
-        </StackPanel>
+            <!-- Header -->
+            <Grid ColumnDefinitions="*,Auto">
+                <StackPanel Spacing="8">
+                    <TextBlock Text="?? Admin Dashboard"
+                               FontSize="28"
+                               FontWeight="Bold"
+                               Foreground="#111827"/>
+                    <TextBlock Text="User management and system overview"
+                               FontSize="14"
+                               Foreground="#6B7280"/>
+                </StackPanel>
+                <Button Grid.Column="1"
+                        Content="?? Refresh"
+                        Background="#3B82F6"
+                        Foreground="White"
+                        Padding="20,12"
+                        CornerRadius="8"
+                        FontWeight="SemiBold"
+                        Command="{Binding RefreshCommand}"
+                        VerticalAlignment="Center"/>
+            </Grid>
 
-        <!-- Content -->
-        <Border Grid.Row="1" Classes="card" Padding="0">
-            <Grid RowDefinitions="Auto,Auto,*,Auto">
-                <!-- Toolbar with Search and Filters -->
-                <Border Grid.Row="0" 
-                        Background="#F9FAFB" 
-                        Padding="16"
-                        CornerRadius="8,8,0,0"
-                        BorderBrush="#E5E7EB"
-                        BorderThickness="0,0,0,1">
-                    <Grid ColumnDefinitions="Auto,*,Auto">
-                        <!-- Refresh Button -->
-                        <Button Grid.Column="0"
-                                Content="🔄 Refresh"
-                                Classes="action-secondary"
-                                Command="{Binding RefreshCommand}"
-                                Margin="0,0,12,0"/>
-                        
-                        <!-- Search and Filter Section -->
-                        <StackPanel Grid.Column="1" 
-                                    Orientation="Horizontal" 
-                                    Spacing="12"
-                                    HorizontalAlignment="Left">
-                            <!-- Search Box -->
-                            <TextBox Watermark="🔍 Search by name or email..."
-                                     Text="{Binding SearchText, Mode=TwoWay}"
-                                     Width="250"
-                                     CornerRadius="6"
-                                     Padding="10,6"
-                                     FontSize="13"
-                                     BorderBrush="#D1D5DB"
-                                     BorderThickness="1"/>
-                            
-                            <!-- Status Filter -->
-                            <ComboBox SelectedIndex="{Binding StatusFilter, Mode=TwoWay}"
-                                      Width="130"
-                                      Classes="role-select">
-                                <ComboBoxItem Content="All Status"/>
-                                <ComboBoxItem Content="✅ Approved"/>
-                                <ComboBoxItem Content="⏳ Pending"/>
-                            </ComboBox>
-                            
-                            <!-- Role Filter -->
-                            <ComboBox SelectedIndex="{Binding RoleFilter, Mode=TwoWay}"
-                                      Width="130"
-                                      Classes="role-select">
-                                <ComboBoxItem Content="All Roles"/>
-                                <ComboBoxItem Content="👑 Admin"/>
-                                <ComboBoxItem Content="👤 User"/>
-                            </ComboBox>
-                            
-                            <!-- Clear Filters Button -->
-                            <Button Content="✖ Clear"
-                                    Classes="action-secondary"
-                                    Command="{Binding ClearFiltersCommand}"
-                                    FontSize="12"
-                                    Padding="10,6"/>
-                        </StackPanel>
-                        
-                        <!-- Stats and Add User Button -->
-                        <StackPanel Grid.Column="2" 
-                                    Orientation="Horizontal" 
-                                    Spacing="16">
-                            <StackPanel Orientation="Horizontal" Spacing="6">
-                                <TextBlock Text="Total:" 
-                                           VerticalAlignment="Center" 
-                                           Foreground="#6B7280"
-                                           FontSize="13"/>
-                                <TextBlock Text="{Binding FilteredUsers.Count, FallbackValue=0}" 
-                                           FontWeight="SemiBold" 
-                                           Foreground="#111827" 
-                                           VerticalAlignment="Center"
-                                           FontSize="14"/>
-                            </StackPanel>
-
-                            <Border Width="1" Background="#E5E7EB"/>
-
-                            <StackPanel Orientation="Horizontal" Spacing="6">
-                                <TextBlock Text="⏳ Pending:" 
-                                           VerticalAlignment="Center" 
-                                           Foreground="#F59E0B"
-                                           FontSize="13"
-                                           FontWeight="SemiBold"/>
-                                <TextBlock Text="{Binding PendingCount, FallbackValue=0}" 
-                                           FontWeight="Bold" 
-                                           Foreground="#F59E0B" 
-                                           VerticalAlignment="Center"
-                                           FontSize="14"/>
-                            </StackPanel>
-
-                            <Border Width="1" Background="#E5E7EB"/>
-
-                            <!-- Add User Button -->
-                            <Button Content="➕ Add User"
-                                    Command="{Binding OpenAddUserDialogCommand}"
-                                    Background="#3B82F6"
-                                    Foreground="White"
-                                    CornerRadius="6"
-                                    Padding="16,8"
-                                    FontSize="13"
-                                    FontWeight="SemiBold"
-                                    BorderThickness="0"
-                                    Cursor="Hand">
-                                <Button.Styles>
-                                    <Style Selector="Button:pointerover">
-                                        <Setter Property="Background" Value="#2563EB"/>
-                                    </Style>
-                                    <Style Selector="Button:pressed">
-                                        <Setter Property="Background" Value="#1D4ED8"/>
-                                    </Style>
-                                </Button.Styles>
-                            </Button>
-                        </StackPanel>
-                    </Grid>
+            <!-- Stats Cards -->
+            <Grid ColumnDefinitions="*,*,*,*,*" ColumnSpacing="16">
+                <!-- Total Users -->
+                <Border Background="White" CornerRadius="12" Padding="20" BoxShadow="0 2 8 0 #10000000">
+                    <StackPanel>
+                        <TextBlock Text="?? Total Users" FontSize="13" Foreground="#6B7280"/>
+                        <TextBlock Text="{Binding TotalCount}" FontSize="36" FontWeight="Bold" Foreground="#111827" Margin="0,8,0,0"/>
+                    </StackPanel>
                 </Border>
+                <!-- Pending -->
+                <Border Grid.Column="1" Background="#FFFBEB" CornerRadius="12" Padding="20" BoxShadow="0 2 8 0 #10000000">
+                    <StackPanel>
+                        <TextBlock Text="? Pending" FontSize="13" Foreground="#92400E"/>
+                        <TextBlock Text="{Binding PendingCount}" FontSize="36" FontWeight="Bold" Foreground="#F59E0B" Margin="0,8,0,0"/>
+                    </StackPanel>
+                </Border>
+                <!-- Approved -->
+                <Border Grid.Column="2" Background="#ECFDF5" CornerRadius="12" Padding="20" BoxShadow="0 2 8 0 #10000000">
+                    <StackPanel>
+                        <TextBlock Text="? Approved" FontSize="13" Foreground="#065F46"/>
+                        <TextBlock Text="{Binding ApprovedCount}" FontSize="36" FontWeight="Bold" Foreground="#10B981" Margin="0,8,0,0"/>
+                    </StackPanel>
+                </Border>
+                <!-- Admins -->
+                <Border Grid.Column="3" Background="#EEF2FF" CornerRadius="12" Padding="20" BoxShadow="0 2 8 0 #10000000">
+                    <StackPanel>
+                        <TextBlock Text="??? Admins" FontSize="13" Foreground="#3730A3"/>
+                        <TextBlock Text="{Binding AdminCount}" FontSize="36" FontWeight="Bold" Foreground="#6366F1" Margin="0,8,0,0"/>
+                    </StackPanel>
+                </Border>
+                <!-- Regular Users -->
+                <Border Grid.Column="4" Background="#F0F9FF" CornerRadius="12" Padding="20" BoxShadow="0 2 8 0 #10000000">
+                    <StackPanel>
+                        <TextBlock Text="?? Users" FontSize="13" Foreground="#0369A1"/>
+                        <TextBlock Text="{Binding UserCount}" FontSize="36" FontWeight="Bold" Foreground="#0EA5E9" Margin="0,8,0,0"/>
+                    </StackPanel>
+                </Border>
+            </Grid>
 
-                <!-- Status Message -->
-                <Border Grid.Row="1"
-                        Background="#EFF6FF"
-                        Padding="12"
-                        BorderBrush="#BFDBFE"
-                        BorderThickness="0,0,0,1"
-                        IsVisible="{Binding StatusMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
-                    <TextBlock Text="{Binding StatusMessage}"
+            <!-- Toolbar -->
+            <Border Background="White" CornerRadius="12" Padding="16" BoxShadow="0 2 8 0 #10000000">
+                <Grid ColumnDefinitions="*,Auto">
+                    <StackPanel Orientation="Horizontal" Spacing="12">
+                        <TextBox Watermark="?? Search by name or email..."
+                                 Text="{Binding SearchText, Mode=TwoWay}"
+                                 Width="300"
+                                 CornerRadius="8"
+                                 Padding="12,10"
+                                 FontSize="14"/>
+                        <ComboBox SelectedIndex="{Binding StatusFilter}"
+                                  Width="150"
+                                  CornerRadius="8"
+                                  Padding="12,8">
+                            <ComboBoxItem Content="All Status"/>
+                            <ComboBoxItem Content="? Approved"/>
+                            <ComboBoxItem Content="? Pending"/>
+                        </ComboBox>
+                        <ComboBox SelectedIndex="{Binding RoleFilter}"
+                                  Width="150"
+                                  CornerRadius="8"
+                                  Padding="12,8">
+                            <ComboBoxItem Content="All Roles"/>
+                            <ComboBoxItem Content="??? Admin"/>
+                            <ComboBoxItem Content="?? User"/>
+                        </ComboBox>
+                        <Button Content="Clear Filters"
+                                Background="#F3F4F6"
+                                Foreground="#374151"
+                                Padding="16,10"
+                                CornerRadius="8"
+                                Command="{Binding ClearFiltersCommand}"/>
+                    </StackPanel>
+                    
+                    <TextBlock Grid.Column="1" 
+                               Text="{Binding StatusMessage}" 
+                               Foreground="#6B7280"
                                FontSize="13"
-                               Foreground="#1E40AF"/>
-                </Border>
+                               VerticalAlignment="Center"/>
+                </Grid>
+            </Border>
 
-                <!-- Table Header -->
-                <Border Grid.Row="2"
-                        Background="#F3F4F6"
-                        BorderBrush="#E5E7EB"
-                        BorderThickness="0,0,0,1"
-                        Padding="16,10"
-                        VerticalAlignment="Top">
-                    <Grid ColumnDefinitions="2*,2.5*,1.2*,1.8*,1.2*,1.2*,2.5*">
-                        <TextBlock Grid.Column="0" Text="Full Name" FontWeight="Bold" FontSize="12" Foreground="#374151" Margin="0,0,12,0"/>
-                        <TextBlock Grid.Column="1" Text="Email" FontWeight="Bold" FontSize="12" Foreground="#374151" Margin="0,0,12,0"/>
-                        <TextBlock Grid.Column="2" Text="Status" FontWeight="Bold" FontSize="12" Foreground="#374151" Margin="0,0,12,0"/>
-                        <TextBlock Grid.Column="3" Text="👑 Role" FontWeight="Bold" FontSize="12" Foreground="#374151" Margin="0,0,12,0"/>
-                        <TextBlock Grid.Column="4" Text="Registered" FontWeight="Bold" FontSize="12" Foreground="#374151" Margin="0,0,12,0"/>
-                        <TextBlock Grid.Column="5" Text="Last Login" FontWeight="Bold" FontSize="12" Foreground="#374151" Margin="0,0,12,0"/>
-                        <TextBlock Grid.Column="6" Text="Actions" FontWeight="Bold" FontSize="12" Foreground="#374151"/>
-                    </Grid>
-                </Border>
-
-                <!-- Users List with ScrollViewer -->
-                <ScrollViewer Grid.Row="2" 
-                              VerticalScrollBarVisibility="Auto"
-                              Margin="0,41,0,0">
+            <!-- Users Table -->
+            <Border Background="White" CornerRadius="12" BoxShadow="0 2 8 0 #10000000" ClipToBounds="True">
+                <StackPanel>
+                    <!-- Header -->
+                    <Border Background="#F8FAFC" Padding="20,14" BorderBrush="#E2E8F0" BorderThickness="0,0,0,1">
+                        <Grid ColumnDefinitions="1.5*,2*,0.8*,0.8*,1.2*,1.2*,1.8*">
+                            <TextBlock Grid.Column="0" Text="NAME" FontWeight="Bold" FontSize="11" Foreground="#64748B" LetterSpacing="0.5"/>
+                            <TextBlock Grid.Column="1" Text="EMAIL" FontWeight="Bold" FontSize="11" Foreground="#64748B" LetterSpacing="0.5"/>
+                            <TextBlock Grid.Column="2" Text="STATUS" FontWeight="Bold" FontSize="11" Foreground="#64748B" LetterSpacing="0.5"/>
+                            <TextBlock Grid.Column="3" Text="ROLE" FontWeight="Bold" FontSize="11" Foreground="#64748B" LetterSpacing="0.5"/>
+                            <TextBlock Grid.Column="4" Text="JOINED" FontWeight="Bold" FontSize="11" Foreground="#64748B" LetterSpacing="0.5"/>
+                            <TextBlock Grid.Column="5" Text="LAST LOGIN" FontWeight="Bold" FontSize="11" Foreground="#64748B" LetterSpacing="0.5"/>
+                            <TextBlock Grid.Column="6" Text="ACTIONS" FontWeight="Bold" FontSize="11" Foreground="#64748B" LetterSpacing="0.5"/>
+                        </Grid>
+                    </Border>
+                    
+                    <!-- User Rows -->
                     <ItemsControl ItemsSource="{Binding FilteredUsers}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
-                                <Border Background="White"
-                                        BorderBrush="#E5E7EB"
-                                        BorderThickness="0,0,0,1"
-                                        Padding="16,12">
-                                    <Grid ColumnDefinitions="2*,2.5*,1.2*,1.8*,1.2*,1.2*,2.5*">
-                                        <!-- Full Name -->
-                                        <TextBlock Grid.Column="0"
-                                                   Text="{Binding FullName}"
-                                                   FontWeight="SemiBold"
-                                                   Foreground="#111827"
+                                <Border BorderBrush="#F1F5F9" BorderThickness="0,0,0,1" Padding="20,16">
+                                    <Grid ColumnDefinitions="1.5*,2*,0.8*,0.8*,1.2*,1.2*,1.8*">
+                                        <!-- Name -->
+                                        <TextBlock Grid.Column="0" 
+                                                   Text="{Binding FullName}" 
+                                                   FontWeight="SemiBold" 
                                                    FontSize="14"
-                                                   VerticalAlignment="Center"
-                                                   Margin="0,0,12,0"/>
-
+                                                   Foreground="#1E293B"
+                                                   VerticalAlignment="Center"/>
+                                        
                                         <!-- Email -->
-                                        <TextBlock Grid.Column="1"
-                                                   Text="{Binding Email}"
-                                                   Foreground="#6B7280"
+                                        <TextBlock Grid.Column="1" 
+                                                   Text="{Binding Email}" 
+                                                   Foreground="#64748B" 
                                                    FontSize="13"
-                                                   VerticalAlignment="Center"
-                                                   Margin="0,0,12,0"/>
-
-                                        <!-- Status -->
-                                        <Border Grid.Column="2"
-                                                Classes.badge-approved="{Binding IsApproved}"
-                                                Classes.badge-pending="{Binding !IsApproved}"
-                                                HorizontalAlignment="Left"
-                                                Padding="8,4"
-                                                CornerRadius="4"
-                                                Margin="0,0,12,0"
-                                                VerticalAlignment="Center">
-                                            <TextBlock Text="{Binding StatusText}"
-                                                       FontSize="12" 
-                                                       FontWeight="SemiBold"
-                                                       Foreground="{Binding StatusColor}"/>
-                                        </Border>
-
-                                        <!-- Role Selection -->
+                                                   VerticalAlignment="Center"/>
+                                        
+                                        <!-- Status Badge -->
+                                        <TextBlock Grid.Column="2"
+                                                   Text="{Binding StatusText}"
+                                                   FontSize="12"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{Binding StatusColor}"
+                                                   VerticalAlignment="Center"/>
+                                        
+                                        <!-- Role Selector -->
                                         <ComboBox Grid.Column="3"
-                                                  Classes="role-select"
                                                   SelectedItem="{Binding SelectedRole, Mode=TwoWay}"
                                                   ItemsSource="{Binding AvailableRoles}"
-                                                  HorizontalAlignment="Stretch"
-                                                  MinWidth="110"
-                                                  Background="#FFFFFF"
-                                                  BorderBrush="#3B82F6"
-                                                  BorderThickness="1.5"
-                                                  FontWeight="SemiBold"
-                                                  VerticalAlignment="Center"
-                                                  Margin="0,0,12,0">
-                                            <ComboBox.ItemTemplate>
-                                                <DataTemplate>
-                                                    <TextBlock Text="{Binding}" FontWeight="SemiBold"/>
-                                                </DataTemplate>
-                                            </ComboBox.ItemTemplate>
-                                        </ComboBox>
-
-                                        <!-- Registered Date -->
-                                        <TextBlock Grid.Column="4"
-                                                   Text="{Binding CreatedAt, StringFormat='{}{0:MMM dd, yyyy}'}"
-                                                   Foreground="#6B7280"
-                                                   FontSize="13"
-                                                   VerticalAlignment="Center"
-                                                   Margin="0,0,12,0"/>
-
+                                                  Width="85"
+                                                  FontSize="12"
+                                                  CornerRadius="6"
+                                                  Padding="8,6"
+                                                  VerticalAlignment="Center"/>
+                                        
+                                        <!-- Joined Date -->
+                                        <TextBlock Grid.Column="4" 
+                                                   Text="{Binding CreatedAt, StringFormat='{}{0:MMM dd, yyyy}'}" 
+                                                   Foreground="#64748B"
+                                                   FontSize="12"
+                                                   VerticalAlignment="Center"/>
+                                        
                                         <!-- Last Login -->
-                                        <TextBlock Grid.Column="5"
-                                                   Text="{Binding LastLoginAt, StringFormat='{}{0:MMM dd, yyyy}'}"
-                                                   Foreground="#6B7280"
-                                                   FontSize="13"
-                                                   VerticalAlignment="Center"
-                                                   Margin="0,0,12,0"/>
-
+                                        <TextBlock Grid.Column="5" 
+                                                   Text="{Binding LastLoginDisplay}" 
+                                                   Foreground="#64748B"
+                                                   FontSize="12"
+                                                   VerticalAlignment="Center"/>
+                                        
                                         <!-- Actions -->
-                                        <StackPanel Grid.Column="6"
+                                        <StackPanel Grid.Column="6" 
                                                     Orientation="Horizontal" 
                                                     Spacing="8"
                                                     VerticalAlignment="Center">
-                                            <!-- Approve/Disapprove Button -->
-                                            <Button Classes.action-approve="{Binding !IsApproved}"
-                                                    Classes.action-disapprove="{Binding IsApproved}"
-                                                    Content="{Binding ApprovalButtonText}"
+                                            <!-- Approve/Revoke Button -->
+                                            <Button Content="{Binding ApprovalButtonText}"
+                                                    Background="#3B82F6"
+                                                    Foreground="White"
+                                                    Padding="14,8"
+                                                    CornerRadius="6"
+                                                    FontSize="12"
+                                                    FontWeight="SemiBold"
+                                                    BorderThickness="0"
                                                     Command="{Binding $parent[UserControl].((vm:AdminDashboardViewModel)DataContext).ApproveUserCommand}"
-                                                    CommandParameter="{Binding}"/>
-                                       
-                                            <!-- Update Role Button -->
-                                            <Button Content="Update Role"
-                                                    Classes="action-secondary"
-                                                    Command="{Binding $parent[UserControl].((vm:AdminDashboardViewModel)DataContext).UpdateRoleCommand}"
                                                     CommandParameter="{Binding}"/>
                                             
                                             <!-- Delete Button -->
-                                            <Button Content="🗑"
-                                                    Command="{Binding $parent[UserControl].((vm:AdminDashboardViewModel)DataContext).OpenDeleteConfirmationCommand}"
-                                                    CommandParameter="{Binding}"
-                                                    ToolTip.Tip="Delete user"
-                                                    Background="#EF4444"
-                                                    Foreground="White"
+                                            <Button Content="???"
+                                                    Background="#FEF2F2"
+                                                    Foreground="#DC2626"
+                                                    Padding="10,8"
                                                     CornerRadius="6"
-                                                    Padding="10,6"
                                                     FontSize="14"
                                                     BorderThickness="0"
-                                                    Cursor="Hand"
-                                                    IsEnabled="{Binding CanDelete}"
-                                                    VerticalAlignment="Center">
-                                                <Button.Styles>
-                                                    <Style Selector="Button:pointerover">
-                                                        <Setter Property="Background" Value="#DC2626"/>
-                                                    </Style>
-                                                    <Style Selector="Button:pressed">
-                                                        <Setter Property="Background" Value="#B91C1C"/>
-                                                    </Style>
-                                                    <Style Selector="Button:disabled">
-                                                        <Setter Property="Background" Value="#F3F4F6"/>
-                                                        <Setter Property="Foreground" Value="#9CA3AF"/>
-                                                        <Setter Property="Cursor" Value="NotAllowed"/>
-                                                    </Style>
-                                                </Button.Styles>
-                                            </Button>
+                                                    ToolTip.Tip="Delete User"
+                                                    Command="{Binding $parent[UserControl].((vm:AdminDashboardViewModel)DataContext).DeleteUserCommand}"
+                                                    CommandParameter="{Binding}"/>
                                         </StackPanel>
                                     </Grid>
                                 </Border>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
-                </ScrollViewer>
-
-                <!-- Empty State Overlay (ZIndex 1 - below loading) -->
-                <Border Grid.Row="2"
-                        Background="White"
-                        IsVisible="{Binding ShowEmptyState}"
-                        ZIndex="1">
-                    <StackPanel VerticalAlignment="Center" 
-                                HorizontalAlignment="Center"
-                                Spacing="16"
-                                Margin="40">
-                        <TextBlock Text="👥"
-                                   FontSize="48"
-                                   HorizontalAlignment="Center"
-                                   Opacity="0.3"/>
-                        <TextBlock Text="No Users Found"
-                                   FontSize="20"
-                                   FontWeight="SemiBold"
-                                   Foreground="#6B7280"
-                                   HorizontalAlignment="Center"/>
-                        <TextBlock Text="There are no users matching your current filters. Try adjusting your search or clearing filters."
-                                   FontSize="14"
-                                   Foreground="#9CA3AF"
-                                   HorizontalAlignment="Center"
-                                   TextAlignment="Center"
-                                   MaxWidth="400"
-                                   TextWrapping="Wrap"/>
-                        <Button Content="Clear Filters"
-                                Command="{Binding ClearFiltersCommand}"
-                                Classes="action-secondary"
-                                HorizontalAlignment="Center"
-                                Margin="0,8,0,0"/>
-                    </StackPanel>
-                </Border>
-
-                <!-- Loading Overlay (ZIndex 2 - on top) -->
-                <Border Grid.Row="2"
-                        Background="#CCF9FAFB"
-                        IsVisible="{Binding IsBusy}"
-                        ZIndex="2">
-                    <StackPanel VerticalAlignment="Center" 
-                                HorizontalAlignment="Center"
-                                Spacing="16">
-                        <ProgressBar IsIndeterminate="True"
-                                     Width="200"
-                                     Height="4"
-                                     Foreground="#3B82F6"/>
-                        <TextBlock Text="Loading users..."
-                                   FontSize="14"
-                                   Foreground="#6B7280"
-                                   HorizontalAlignment="Center"/>
-                    </StackPanel>
-                </Border>
-
-                <!-- Footer -->
-                <Border Grid.Row="3"
-                        Background="#F9FAFB"
-                        Padding="16"
-                        CornerRadius="0,0,8,8"
-                        BorderBrush="#E5E7EB"
-                        BorderThickness="0,1,0,0">
-                    <TextBlock FontSize="12" Foreground="#6B7280">
-                        <Run Text="💡 Tip:"/>
-                        <Run Text="Select a role from the dropdown before approving new users. The button will show 'Approve as [Role]'. Approved users can login immediately with their assigned role."/>
-                    </TextBlock>
-                </Border>
-            </Grid>
-        </Border>
-
-        <!-- Add User Modal Dialog -->
-        <Border Grid.RowSpan="2"
-                Background="#CC000000"
-                IsVisible="{Binding IsAddUserDialogOpen}"
-                IsHitTestVisible="{Binding IsAddUserDialogOpen}"
-                ZIndex="1000">
-            <Border Background="White"
-                    MaxWidth="500"
-                    CornerRadius="12"
-                    BoxShadow="0 20 60 0 #40000000"
-                    Padding="32"
-                    HorizontalAlignment="Center"
-                    VerticalAlignment="Center">
-                <StackPanel Spacing="24">
-                    <!-- Dialog Header -->
-                    <StackPanel Spacing="8">
-                        <TextBlock Text="➕ Add New User"
-                                   FontSize="24"
-                                   FontWeight="Bold"
-                                   Foreground="#111827"/>
-                        <TextBlock Text="Create a new user account. They will need to be approved before gaining access."
-                                   FontSize="13"
-                                   Foreground="#6B7280"
-                                   TextWrapping="Wrap"/>
-                    </StackPanel>
-
-                    <!-- Form Fields -->
-                    <StackPanel Spacing="16">
-                        <!-- Full Name -->
-                        <StackPanel Spacing="6">
-                            <TextBlock Text="Full Name *"
-                                       FontSize="13"
-                                       FontWeight="SemiBold"
-                                       Foreground="#374151"/>
-                            <TextBox Text="{Binding NewUserFullName, Mode=TwoWay}"
-                                     Watermark="Enter full name"
-                                     CornerRadius="6"
-                                     Padding="12,10"
-                                     FontSize="14"
-                                     BorderBrush="{Binding NewUserFullNameError, Converter={x:Static StringConverters.IsNullOrEmpty}, ConverterParameter=#D1D5DB|#EF4444}"
-                                     BorderThickness="1"/>
-                            <TextBlock Text="{Binding NewUserFullNameError}"
-                                       IsVisible="{Binding NewUserFullNameError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
-                                       Foreground="#EF4444"
-                                       FontSize="12"
-                                       Margin="4,0,0,0"/>
-                        </StackPanel>
-
-                        <!-- Email -->
-                        <StackPanel Spacing="6">
-                            <TextBlock Text="Email Address *"
-                                       FontSize="13"
-                                       FontWeight="SemiBold"
-                                       Foreground="#374151"/>
-                            <TextBox Text="{Binding NewUserEmail, Mode=TwoWay}"
-                                     Watermark="user@example.com"
-                                     CornerRadius="6"
-                                     Padding="12,10"
-                                     FontSize="14"
-                                     BorderBrush="{Binding NewUserEmailError, Converter={x:Static StringConverters.IsNullOrEmpty}, ConverterParameter=#D1D5DB|#EF4444}"
-                                     BorderThickness="1"/>
-                            <TextBlock Text="{Binding NewUserEmailError}"
-                                       IsVisible="{Binding NewUserEmailError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
-                                       Foreground="#EF4444"
-                                       FontSize="12"
-                                       Margin="4,0,0,0"/>
-                        </StackPanel>
-
-                        <!-- Role -->
-                        <StackPanel Spacing="6">
-                            <TextBlock Text="Role *"
-                                       FontSize="13"
-                                       FontWeight="SemiBold"
-                                       Foreground="#374151"/>
-                            <ComboBox ItemsSource="{Binding AvailableRolesForNewUser}"
-                                      SelectedItem="{Binding NewUserRole, Mode=TwoWay}"
-                                      CornerRadius="6"
-                                      Padding="12,10"
-                                      FontSize="14"
-                                      BorderBrush="#D1D5DB"
-                                      BorderThickness="1"
-                                      HorizontalAlignment="Stretch"/>
-                            <TextBlock Text="Users will be created with 'Pending' status and require approval."
-                                       FontSize="11"
-                                       Foreground="#9CA3AF"
-                                       Margin="4,0,0,0"/>
-                        </StackPanel>
-                    </StackPanel>
-
-                    <!-- Dialog Actions -->
-                    <Grid ColumnDefinitions="*,Auto,Auto" Margin="0,8,0,0">
-                        <!-- Loading Indicator -->
-                        <StackPanel Grid.Column="0" 
-                                    Orientation="Horizontal" 
-                                    Spacing="8"
-                                    IsVisible="{Binding IsBusy}">
-                            <ProgressBar IsIndeterminate="True" 
-                                         Width="20" 
-                                         Height="20"
-                                         VerticalAlignment="Center"/>
-                            <TextBlock Text="Creating user..."
-                                       FontSize="12"
-                                       Foreground="#6B7280"
-                                       VerticalAlignment="Center"/>
-                        </StackPanel>
-
-                        <!-- Cancel Button -->
-                        <Button Grid.Column="1"
-                                Content="Cancel"
-                                Command="{Binding CancelAddUserCommand}"
-                                Background="Transparent"
-                                Foreground="#6B7280"
-                                BorderBrush="#D1D5DB"
-                                BorderThickness="1"
-                                CornerRadius="6"
-                                Padding="20,10"
-                                FontSize="13"
-                                FontWeight="SemiBold"
-                                Margin="0,0,12,0"
-                                IsEnabled="{Binding !IsBusy}"
-                                Cursor="Hand">
-                            <Button.Styles>
-                                <Style Selector="Button:pointerover">
-                                    <Setter Property="Background" Value="#F3F4F6"/>
-                                </Style>
-                            </Button.Styles>
-                        </Button>
-
-                        <!-- Create User Button -->
-                        <Button Grid.Column="2"
-                                Content="✅ Create User"
-                                Command="{Binding CreateUserCommand}"
-                                Background="#3B82F6"
-                                Foreground="White"
-                                BorderThickness="0"
-                                CornerRadius="6"
-                                Padding="20,10"
-                                FontSize="13"
-                                FontWeight="SemiBold"
-                                IsEnabled="{Binding !IsBusy}"
-                                Cursor="Hand">
-                            <Button.Styles>
-                                <Style Selector="Button:pointerover">
-                                    <Setter Property="Background" Value="#2563EB"/>
-                                </Style>
-                                <Style Selector="Button:pressed">
-                                    <Setter Property="Background" Value="#1D4ED8"/>
-                                </Style>
-                                <Style Selector="Button:disabled">
-                                    <Setter Property="Background" Value="#D1D5DB"/>
-                                    <Setter Property="Cursor" Value="NotAllowed"/>
-                                </Style>
-                            </Button.Styles>
-                        </Button>
-                    </Grid>
-                </StackPanel>
-            </Border>
-        </Border>
-
-        <!-- Delete Confirmation Modal Dialog -->
-        <Border Grid.RowSpan="2"
-                Background="#CC000000"
-                IsVisible="{Binding IsDeleteConfirmationDialogOpen}"
-                IsHitTestVisible="{Binding IsDeleteConfirmationDialogOpen}"
-                ZIndex="1001">
-            <Border Background="White"
-                    MaxWidth="480"
-                    CornerRadius="12"
-                    BoxShadow="0 20 60 0 #40000000"
-                    Padding="32"
-                    HorizontalAlignment="Center"
-                    VerticalAlignment="Center">
-                <StackPanel Spacing="24">
-                    <!-- Warning Icon -->
-                    <Border Width="56"
-                            Height="56"
-                            CornerRadius="28"
-                            Background="#FEF2F2"
-                            HorizontalAlignment="Center">
-                        <TextBlock Text="⚠️"
-                                   FontSize="28"
-                                   HorizontalAlignment="Center"
-                                   VerticalAlignment="Center"/>
-                    </Border>
-
-                    <!-- Dialog Header -->
-                    <StackPanel Spacing="8">
-                        <TextBlock Text="Delete User?"
-                                   FontSize="22"
-                                   FontWeight="Bold"
-                                   Foreground="#111827"
-                                   HorizontalAlignment="Center"/>
-                        <TextBlock FontSize="14"
-                                   Foreground="#6B7280"
-                                   TextWrapping="Wrap"
-                                   HorizontalAlignment="Center"
-                                   TextAlignment="Center">
-                            <Run Text="Are you sure you want to permanently delete"/>
-                            <Run Text="{Binding UserToDelete.FullName, FallbackValue=this user}" FontWeight="SemiBold" Foreground="#111827"/>
-                            <Run Text="?"/>
-                        </TextBlock>
-                        <TextBlock Text="This action cannot be undone."
-                                   FontSize="13"
-                                   Foreground="#EF4444"
-                                   FontWeight="SemiBold"
-                                   HorizontalAlignment="Center"
-                                   Margin="0,4,0,0"/>
-                    </StackPanel>
-
-                    <!-- User Details Card -->
-                    <Border Background="#F9FAFB"
-                            CornerRadius="8"
-                            Padding="16"
-                            BorderBrush="#E5E7EB"
-                            BorderThickness="1">
-                        <StackPanel Spacing="8">
-                            <StackPanel Orientation="Horizontal" Spacing="8">
-                                <TextBlock Text="📧"
-                                           FontSize="14"
-                                           VerticalAlignment="Center"/>
-                                <TextBlock Text="{Binding UserToDelete.Email, FallbackValue=user@example.com}"
-                                           FontSize="13"
-                                           Foreground="#374151"
-                                           VerticalAlignment="Center"/>
-                            </StackPanel>
-                            <StackPanel Orientation="Horizontal" Spacing="8">
-                                <TextBlock Text="👤"
-                                           FontSize="14"
-                                           VerticalAlignment="Center"/>
-                                <TextBlock Text="{Binding UserToDelete.Role, FallbackValue=User}"
-                                           FontSize="13"
-                                           Foreground="#6B7280"
-                                           VerticalAlignment="Center"/>
-                            </StackPanel>
+                    
+                    <!-- Empty State -->
+                    <Border Padding="60" IsVisible="{Binding ShowEmptyState}">
+                        <StackPanel HorizontalAlignment="Center" Spacing="16">
+                            <TextBlock Text="??" FontSize="64" HorizontalAlignment="Center" Opacity="0.4"/>
+                            <TextBlock Text="No users found" FontSize="18" FontWeight="SemiBold" Foreground="#64748B" HorizontalAlignment="Center"/>
+                            <TextBlock Text="Try adjusting your search or filter criteria" FontSize="14" Foreground="#94A3B8" HorizontalAlignment="Center"/>
+                            <Button Content="Clear All Filters"
+                                    Command="{Binding ClearFiltersCommand}"
+                                    Background="#3B82F6"
+                                    Foreground="White"
+                                    Padding="20,10"
+                                    CornerRadius="8"
+                                    HorizontalAlignment="Center"
+                                    Margin="0,8,0,0"/>
                         </StackPanel>
                     </Border>
-
-                    <!-- Dialog Actions -->
-                    <Grid ColumnDefinitions="*,*">
-                        <!-- Cancel Button -->
-                        <Button Grid.Column="0"
-                                Content="Cancel"
-                                Command="{Binding CancelDeleteCommand}"
-                                Background="Transparent"
-                                Foreground="#6B7280"
-                                BorderBrush="#D1D5DB"
-                                BorderThickness="1"
-                                CornerRadius="6"
-                                Padding="0,12"
-                                FontSize="14"
-                                FontWeight="SemiBold"
-                                Margin="0,0,8,0"
-                                IsEnabled="{Binding !IsBusy}"
-                                Cursor="Hand"
-                                HorizontalAlignment="Stretch"
-                                HorizontalContentAlignment="Center">
-                            <Button.Styles>
-                                <Style Selector="Button:pointerover">
-                                    <Setter Property="Background" Value="#F3F4F6"/>
-                                </Style>
-                            </Button.Styles>
-                        </Button>
-
-                        <!-- Delete Button -->
-                        <Button Grid.Column="1"
-                                Content="🗑 Delete User"
-                                Command="{Binding ConfirmDeleteCommand}"
-                                Background="#EF4444"
-                                Foreground="White"
-                                BorderThickness="0"
-                                CornerRadius="6"
-                                Padding="0,12"
-                                FontSize="14"
-                                FontWeight="Bold"
-                                Margin="8,0,0,0"
-                                IsEnabled="{Binding !IsBusy}"
-                                Cursor="Hand"
-                                HorizontalAlignment="Stretch"
-                                HorizontalContentAlignment="Center">
-                            <Button.Styles>
-                                <Style Selector="Button:pointerover">
-                                    <Setter Property="Background" Value="#DC2626"/>
-                                </Style>
-                                <Style Selector="Button:pressed">
-                                    <Setter Property="Background" Value="#B91C1C"/>
-                                </Style>
-                                <Style Selector="Button:disabled">
-                                    <Setter Property="Background" Value="#D1D5DB"/>
-                                    <Setter Property="Cursor" Value="NotAllowed"/>
-                                </Style>
-                            </Button.Styles>
-                        </Button>
-                    </Grid>
                 </StackPanel>
             </Border>
-        </Border>
-    </Grid>
+
+            <!-- Loading Overlay -->
+            <Border Background="#F0F9FAFB" 
+                    CornerRadius="12"
+                    Padding="60"
+                    IsVisible="{Binding IsBusy}">
+                <StackPanel HorizontalAlignment="Center" Spacing="16">
+                    <ProgressBar IsIndeterminate="True" Width="250" Height="4" Foreground="#3B82F6"/>
+                    <TextBlock Text="Loading users..." FontSize="14" Foreground="#64748B" HorizontalAlignment="Center"/>
+                </StackPanel>
+            </Border>
+            
+        </StackPanel>
+    </ScrollViewer>
 </UserControl>

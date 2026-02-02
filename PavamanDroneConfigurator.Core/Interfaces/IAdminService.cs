@@ -21,6 +21,11 @@ public interface IAdminService
     /// Change a user's role.
     /// </summary>
     Task<bool> ChangeUserRoleAsync(string userId, string newRole, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Delete a user permanently.
+    /// </summary>
+    Task<bool> DeleteUserAsync(string userId, CancellationToken cancellationToken = default);
 }
 
 /// <summary>

@@ -20,7 +20,6 @@ using PavamanDroneConfigurator.UI.Views.Auth;
 using System;
 using System.IO;
 using System.Linq;
-using System.Threading.Tasks;
 using DotNetEnv;
 
 namespace PavamanDroneConfigurator.UI;
@@ -39,11 +38,6 @@ public partial class App : Application
         if (File.Exists(envPath))
         {
             Env.Load(envPath);
-            Console.WriteLine("? Loaded environment variables from .env file");
-        }
-        else
-        {
-            Console.WriteLine("??  No .env file found, using system environment variables");
         }
         
         BuildConfiguration();
@@ -71,7 +65,7 @@ public partial class App : Application
         services.AddLogging(builder =>
         {
             builder.AddConsole();
-            builder.SetMinimumLevel(LogLevel.Information);
+            builder.SetMinimumLevel(LogLevel.Information); // Show important auth logs
         });
 
         services.AddSingleton<ITokenStorage, SecureTokenStorage>();
@@ -89,18 +83,9 @@ public partial class App : Application
             
             client.BaseAddress = new Uri(authApiUrl);
             client.DefaultRequestHeaders.Add("Accept", "application/json");
-            
-            var timeoutSeconds = int.TryParse(
-                Environment.GetEnvironmentVariable("API_TIMEOUT_SECONDS"), 
-                out var timeout) ? timeout : 30;
-            
-            client.Timeout = TimeSpan.FromSeconds(timeoutSeconds);
-            
-            Console.WriteLine($"?? Auth API URL: {authApiUrl}");
-            Console.WriteLine($"?? Using AWS API: {useAwsApi}");
+            client.Timeout = TimeSpan.FromSeconds(10); // Reasonable timeout for auth calls
         });
         
-        // Register admin service with same HTTP client configuration
         services.AddHttpClient<Core.Interfaces.IAdminService, AdminApiService>(client =>
         {
             var useAwsApi = Configuration?.GetValue<bool>("Auth:UseAwsApi") ?? false;
@@ -134,36 +119,26 @@ public partial class App : Application
             {
                 services.AddDbContext<DroneDbContext>(options =>
                     options.UseNpgsql(connectionString)
-                        .EnableSensitiveDataLogging()
-                        .LogTo(Console.WriteLine, LogLevel.Information)
                 );
             }
         }
 
         services.AddSingleton<DatabaseTestService>();
-
         services.AddSingleton<ArduPilotXmlParser>();
         services.AddSingleton<ArduPilotMetadataDownloader>();
         services.AddSingleton<VehicleTypeDetector>();
-
         services.AddSingleton<IArduPilotMetadataLoader, ArduPilotMetadataLoader>();
-
         services.AddSingleton<IMavLinkMessageLogger, MavLinkMessageLogger>();
-
         services.AddSingleton<CalibrationPreConditionChecker>();
         services.AddSingleton<CalibrationAbortMonitor>();
         services.AddSingleton<CalibrationValidationHelper>();
         services.AddSingleton<AccelerometerCalibrationService>();
-
         services.AddSingleton<Stm32Bootloader>();
         services.AddSingleton<FirmwareDownloader>();
         services.AddSingleton<IFirmwareService, FirmwareService>();
-
         services.AddSingleton<IParameterMetadataRepository, ParameterMetadataRepository>();
-
         services.AddSingleton<IConnectionService, ConnectionService>();
         services.AddSingleton<IParameterService, ParameterService>();
-        // Use the full CalibrationService implementation
         services.AddSingleton<ICalibrationService, CalibrationService>();
         services.AddSingleton<ISafetyService, SafetyService>();
         services.AddSingleton<IAirframeService, AirframeService>();
@@ -238,16 +213,12 @@ public partial class App : Application
                 {
                     try
                     {
-                        if (desktop.MainWindow != null)
-                        {
-                            var oldWindow = desktop.MainWindow;
-                            ShowMainWindow(desktop);
-                            oldWindow.Close();
-                        }
+                        var oldWindow = desktop.MainWindow;
+                        ShowMainWindow(desktop);
+                        oldWindow?.Close();
                     }
-                    catch (Exception ex)
+                    catch
                     {
-                        Console.WriteLine($"Error transitioning to main window: {ex.Message}");
                         ShowMainWindow(desktop);
                     }
                 });
@@ -259,29 +230,26 @@ public partial class App : Application
                 Dispatcher.UIThread.Post(() => desktop.Shutdown());
             };
 
-            var authShell = new AuthShell
-            {
-                DataContext = authShellViewModel
-            };
-
+            var authShell = new AuthShell { DataContext = authShellViewModel };
             desktop.MainWindow = authShell;
+            authShell.Show();
             
-            authShell.Opened += async (_, _) =>
+            // IMMEDIATELY initialize - don't wait for Opened event
+            _ = Task.Run(async () =>
             {
                 try
                 {
-                    await authShell.InitializeAsync();
+                    await authShellViewModel.InitializeAsync();
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"Auth shell initialization error: {ex.Message}");
+                    Console.WriteLine($"Auth initialization error: {ex.Message}");
                 }
-            };
+            });
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Auth initialization failed: {ex.Message}");
-            ShowMainWindow(desktop);
+            Console.WriteLine($"Failed to show auth shell: {ex.Message}");
         }
     }
 
@@ -293,7 +261,6 @@ public partial class App : Application
         {
             var mainViewModel = Services.GetRequiredService<MainWindowViewModel>();
             
-            // Subscribe to logout event from profile page
             if (mainViewModel.ProfilePage != null)
             {
                 mainViewModel.ProfilePage.LogoutRequested += (_, _) =>
@@ -306,24 +273,17 @@ public partial class App : Application
                             ShowAuthShell(desktop);
                             oldWindow?.Close();
                         }
-                        catch (Exception ex)
-                        {
-                            Console.WriteLine($"Error during logout: {ex.Message}");
-                        }
+                        catch { }
                     });
                 };
             }
             
-            var mainWindow = new MainWindow
-            {
-                DataContext = mainViewModel,
-            };
+            var mainWindow = new MainWindow { DataContext = mainViewModel };
             desktop.MainWindow = mainWindow;
             mainWindow.Show();
         }
-        catch (Exception ex)
+        catch
         {
-            Console.WriteLine($"Failed to show main window: {ex.Message}");
             _isShuttingDown = true;
             desktop.Shutdown();
         }

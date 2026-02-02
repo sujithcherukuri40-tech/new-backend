@@ -2,482 +2,138 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:PavamanDroneConfigurator.UI.ViewModels"
              x:Class="PavamanDroneConfigurator.UI.Views.ResetParametersPage"
-             x:DataType="vm:ResetParametersPageViewModel">
+             x:DataType="vm:ResetParametersPageViewModel"
+             Background="#F9FAFB">
 
-    <UserControl.Styles>
-        <!-- PRODUCTION-GRADE TYPOGRAPHY (Inter font family) -->
-        <Style Selector="TextBlock">
-            <Setter Property="FontFamily" Value="Inter, Segoe UI, sans-serif"/>
-        </Style>
-        
-        <Style Selector="TextBlock.PageTitle">
-            <Setter Property="FontSize" Value="22"/>
-            <Setter Property="FontWeight" Value="600"/>
-            <Setter Property="Foreground" Value="#111827"/>
-            <Setter Property="Margin" Value="0,0,0,8"/>
-        </Style>
-        
-        <Style Selector="TextBlock.PageSubtitle">
-            <Setter Property="FontSize" Value="13"/>
-            <Setter Property="FontWeight" Value="400"/>
-            <Setter Property="Foreground" Value="#6B7280"/>
-            <Setter Property="Margin" Value="0,0,0,32"/>
-        </Style>
-        
-        <!-- CONNECTION STATUS PILL -->
-        <Style Selector="Border.StatusPill">
-            <Setter Property="Background" Value="#EEF2FF"/>
-            <Setter Property="CornerRadius" Value="12"/>
-            <Setter Property="Padding" Value="16,10"/>
-            <Setter Property="Margin" Value="0,0,0,24"/>
-        </Style>
-        
-        <Style Selector="Border.StatusPill.Disconnected">
-            <Setter Property="Background" Value="#FEF3C7"/>
-        </Style>
-        
-        <!-- WARNING CARD (Refined & Professional) -->
-        <Style Selector="Border.WarningCard">
-            <Setter Property="Background" Value="#FFFBEB"/>
-            <Setter Property="CornerRadius" Value="16"/>
-            <Setter Property="Padding" Value="20"/>
-            <Setter Property="Margin" Value="0,0,0,24"/>
-            <Setter Property="BorderThickness" Value="0,0,0,0"/>
-            <Setter Property="BoxShadow" Value="0 8px 24px rgba(0,0,0,0.06)"/>
-        </Style>
-        
-        <!-- LEFT ACCENT BAR -->
-        <Style Selector="Border.AccentBar">
-            <Setter Property="Width" Value="4"/>
-            <Setter Property="CornerRadius" Value="2"/>
-            <Setter Property="Margin" Value="0,0,16,0"/>
-        </Style>
-        
-        <Style Selector="Border.AccentBar.Warning">
-            <Setter Property="Background" Value="#F59E0B"/>
-        </Style>
-        
-        <!-- STEP CARD SYSTEM -->
-        <Style Selector="Border.StepCard">
-            <Setter Property="Background" Value="#FFFFFF"/>
-            <Setter Property="CornerRadius" Value="16"/>
-            <Setter Property="Padding" Value="20"/>
-            <Setter Property="Margin" Value="0,0,0,16"/>
-            <Setter Property="BoxShadow" Value="0 8px 24px rgba(0,0,0,0.06)"/>
-        </Style>
-        
-        <!-- STEP NUMBER CIRCLE -->
-        <Style Selector="Border.StepNumber">
-            <Setter Property="Width" Value="40"/>
-            <Setter Property="Height" Value="40"/>
-            <Setter Property="CornerRadius" Value="20"/>
-            <Setter Property="Margin" Value="0,0,16,0"/>
-        </Style>
-        
-        <Style Selector="Border.StepNumber.Step1">
-            <Setter Property="Background" Value="#FEE2E2"/>
-        </Style>
-        
-        <Style Selector="Border.StepNumber.Step2">
-            <Setter Property="Background" Value="#E5E7EB"/>
-        </Style>
-        
-        <Style Selector="Border.StepNumber.Step3">
-            <Setter Property="Background" Value="#DBEAFE"/>
-        </Style>
-        
-        <Style Selector="TextBlock.StepNumberText">
-            <Setter Property="FontSize" Value="18"/>
-            <Setter Property="FontWeight" Value="600"/>
-            <Setter Property="HorizontalAlignment" Value="Center"/>
-            <Setter Property="VerticalAlignment" Value="Center"/>
-        </Style>
-        
-        <Style Selector="TextBlock.StepNumberText.Step1">
-            <Setter Property="Foreground" Value="#DC2626"/>
-        </Style>
-        
-        <Style Selector="TextBlock.StepNumberText.Step2">
-            <Setter Property="Foreground" Value="#6B7280"/>
-        </Style>
-        
-        <Style Selector="TextBlock.StepNumberText.Step3">
-            <Setter Property="Foreground" Value="#007AFF"/>
-        </Style>
-        
-        <!-- STEP TITLES -->
-        <Style Selector="TextBlock.StepTitle">
-            <Setter Property="FontSize" Value="16"/>
-            <Setter Property="FontWeight" Value="600"/>
-            <Setter Property="Foreground" Value="#111827"/>
-            <Setter Property="Margin" Value="0,0,0,4"/>
-        </Style>
-        
-        <Style Selector="TextBlock.StepDescription">
-            <Setter Property="FontSize" Value="13"/>
-            <Setter Property="FontWeight" Value="400"/>
-            <Setter Property="Foreground" Value="#6B7280"/>
-            <Setter Property="TextWrapping" Value="Wrap"/>
-        </Style>
-        
-        <!-- BUTTON DESIGN (Production-grade) -->
-        <Style Selector="Button.StepButton">
-            <Setter Property="Height" Value="44"/>
-            <Setter Property="Padding" Value="24,0"/>
-            <Setter Property="CornerRadius" Value="10"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="FontSize" Value="14"/>
-            <Setter Property="FontWeight" Value="600"/>
-            <Setter Property="MinWidth" Value="180"/>
-            <Setter Property="Cursor" Value="Hand"/>
-        </Style>
-        
-        <!-- Destructive Action (Soft Red) -->
-        <Style Selector="Button.StepButton.Danger">
-            <Setter Property="Background" Value="#FF453A"/>
-            <Setter Property="Foreground" Value="#FFFFFF"/>
-        </Style>
-        
-        <Style Selector="Button.StepButton.Danger:pointerover /template/ ContentPresenter">
-            <Setter Property="Background" Value="#DC2626"/>
-        </Style>
-        
-        <Style Selector="Button.StepButton.Danger:pressed /template/ ContentPresenter">
-            <Setter Property="Background" Value="#B91C1C"/>
-        </Style>
-        
-        <Style Selector="Button.StepButton.Danger:disabled /template/ ContentPresenter">
-            <Setter Property="Background" Value="#E5E7EB"/>
-            <Setter Property="Foreground" Value="#9CA3AF"/>
-        </Style>
-        
-        <!-- Neutral Action (Gray) -->
-        <Style Selector="Button.StepButton.Neutral">
-            <Setter Property="Background" Value="#6B7280"/>
-            <Setter Property="Foreground" Value="#FFFFFF"/>
-        </Style>
-        
-        <Style Selector="Button.StepButton.Neutral:pointerover /template/ ContentPresenter">
-            <Setter Property="Background" Value="#4B5563"/>
-        </Style>
-        
-        <Style Selector="Button.StepButton.Neutral:pressed /template/ ContentPresenter">
-            <Setter Property="Background" Value="#374151"/>
-        </Style>
-        
-        <Style Selector="Button.StepButton.Neutral:disabled /template/ ContentPresenter">
-            <Setter Property="Background" Value="#E5E7EB"/>
-            <Setter Property="Foreground" Value="#9CA3AF"/>
-        </Style>
-        
-        <!-- Primary Action (Blue) -->
-        <Style Selector="Button.StepButton.Primary">
-            <Setter Property="Background" Value="#007AFF"/>
-            <Setter Property="Foreground" Value="#FFFFFF"/>
-        </Style>
-        
-        <Style Selector="Button.StepButton.Primary:pointerover /template/ ContentPresenter">
-            <Setter Property="Background" Value="#0066CC"/>
-        </Style>
-        
-        <Style Selector="Button.StepButton.Primary:pressed /template/ ContentPresenter">
-            <Setter Property="Background" Value="#0055AA"/>
-        </Style>
-        
-        <Style Selector="Button.StepButton.Primary:disabled /template/ ContentPresenter">
-            <Setter Property="Background" Value="#E5E7EB"/>
-            <Setter Property="Foreground" Value="#9CA3AF"/>
-        </Style>
-        
-        <!-- STATUS SECTION (Collapsed by default) -->
-        <Style Selector="Border.StatusSection">
-            <Setter Property="Background" Value="#FFFFFF"/>
-            <Setter Property="CornerRadius" Value="16"/>
-            <Setter Property="Padding" Value="20"/>
-            <Setter Property="Margin" Value="0,8,0,0"/>
-            <Setter Property="BoxShadow" Value="0 8px 24px rgba(0,0,0,0.06)"/>
-        </Style>
-        
-        <Style Selector="TextBlock.StatusTitle">
-            <Setter Property="FontSize" Value="16"/>
-            <Setter Property="FontWeight" Value="600"/>
-            <Setter Property="Foreground" Value="#111827"/>
-            <Setter Property="Margin" Value="0,0,0,12"/>
-        </Style>
-        
-        <!-- MONOSPACE FONT (Logs) -->
-        <Style Selector="Border.MonoLog">
-            <Setter Property="Background" Value="#1E293B"/>
-            <Setter Property="CornerRadius" Value="8"/>
-            <Setter Property="Padding" Value="12"/>
-        </Style>
-        
-        <Style Selector="TextBlock.MonoLogText">
-            <Setter Property="FontFamily" Value="JetBrains Mono, Consolas, monospace"/>
-            <Setter Property="FontSize" Value="12"/>
-            <Setter Property="Foreground" Value="#10B981"/>
-        </Style>
-        
-        <!-- PROGRESS INDICATOR -->
-        <Style Selector="ProgressBar.Calm">
-            <Setter Property="Height" Value="4"/>
-            <Setter Property="Foreground" Value="#007AFF"/>
-            <Setter Property="Background" Value="#E5E7EB"/>
-            <Setter Property="CornerRadius" Value="2"/>
-        </Style>
-    </UserControl.Styles>
-
-    <ScrollViewer HorizontalScrollBarVisibility="Disabled" 
-                  VerticalScrollBarVisibility="Auto">
-        <StackPanel Margin="32,24" MaxWidth="800">
+    <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="32" MaxWidth="800" Spacing="24">
             
-            <!-- HEADER -->
-            <StackPanel>
-                <TextBlock Classes="PageTitle" Text="Factory Reset"/>
-                <TextBlock Classes="PageSubtitle" 
-                           Text="Reset all parameters to factory defaults with guided workflow"/>
+            <!-- Header -->
+            <StackPanel Spacing="8">
+                <TextBlock Text="Factory Reset"
+                           FontSize="28"
+                           FontWeight="Bold"
+                           Foreground="#111827"/>
+                <TextBlock Text="Reset all parameters to factory defaults"
+                           FontSize="14"
+                           Foreground="#6B7280"/>
             </StackPanel>
 
-            <!-- CONNECTION STATUS PILL (Compact) -->
-            <Border Classes="StatusPill"
-                    Classes.Disconnected="{Binding !IsConnected}">
+            <!-- Connection Status -->
+            <Border Background="#EEF2FF" CornerRadius="8" Padding="16">
                 <StackPanel Orientation="Horizontal" Spacing="10">
-                    <!-- Connected Icon -->
-                    <Ellipse Width="10" Height="10" 
-                             Fill="#10B981" 
-                             IsVisible="{Binding IsConnected}"/>
-                    <!-- Disconnected Icon -->
-                    <Ellipse Width="10" Height="10" 
-                             Fill="#F59E0B" 
-                             IsVisible="{Binding !IsConnected}"/>
-                    
-                    <TextBlock FontSize="13" FontWeight="500" 
-                               Foreground="#4338CA"
-                               Text="? Connected to flight controller" 
-                               IsVisible="{Binding IsConnected}"/>
-                    <TextBlock FontSize="13" FontWeight="500" 
-                               Foreground="#D97706"
-                               Text="? Not connected – connect to proceed" 
-                               IsVisible="{Binding !IsConnected}"/>
+                    <Ellipse Width="10" Height="10" Fill="#10B981" IsVisible="{Binding IsConnected}"/>
+                    <Ellipse Width="10" Height="10" Fill="#F59E0B" IsVisible="{Binding IsDisconnected}"/>
+                    <TextBlock Text="Connected" FontWeight="SemiBold" IsVisible="{Binding IsConnected}"/>
+                    <TextBlock Text="Not Connected" FontWeight="SemiBold" IsVisible="{Binding IsDisconnected}"/>
                 </StackPanel>
             </Border>
 
-            <!-- WARNING SECTION (Refined & Calm) -->
-            <Border Classes="WarningCard">
-                <Grid ColumnDefinitions="Auto,*">
-                    <!-- Left Accent Bar -->
-                    <Border Classes="AccentBar Warning" Grid.Column="0"/>
-                    
-                    <StackPanel Grid.Column="1" Spacing="12">
-                        <TextBlock FontSize="16" FontWeight="600" 
-                                   Foreground="#92400E">
-                            Factory Reset Warning
-                        </TextBlock>
-                        
-                        <TextBlock FontSize="13" FontWeight="400" 
-                                   Foreground="#78350F" 
-                                   TextWrapping="Wrap"
-                                   LineHeight="20">
-                            This operation resets all flight controller parameters to factory defaults. All custom configurations will be permanently lost.
-                        </TextBlock>
-                        
-                        <!-- Compact Bullet List -->
-                        <StackPanel Spacing="6" Margin="0,4,0,0">
-                            <TextBlock FontSize="13" Foreground="#78350F">
-                                • PID tuning and flight modes
-                            </TextBlock>
-                            <TextBlock FontSize="13" Foreground="#78350F">
-                                • Safety settings and failsafes
-                            </TextBlock>
-                            <TextBlock FontSize="13" Foreground="#78350F">
-                                • Sensor calibration offsets
-                            </TextBlock>
-                            <TextBlock FontSize="13" Foreground="#78350F">
-                                • Motor and ESC configurations
-                            </TextBlock>
-                        </StackPanel>
-                        
-                        <TextBlock FontSize="12" FontWeight="500" 
-                                   Foreground="#92400E" 
-                                   Margin="0,8,0,0">
-                            Recommendation: Export current parameters before proceeding.
-                        </TextBlock>
+            <!-- Warning Card -->
+            <Border Background="#FFFBEB" 
+                    CornerRadius="12" 
+                    Padding="20"
+                    BorderBrush="#F59E0B"
+                    BorderThickness="0,0,0,3">
+                <StackPanel Spacing="12">
+                    <TextBlock Text="?? Warning" 
+                               FontSize="16" 
+                               FontWeight="Bold" 
+                               Foreground="#92400E"/>
+                    <TextBlock Text="This will reset ALL parameters to factory defaults. All custom configurations will be permanently lost."
+                               TextWrapping="Wrap"
+                               Foreground="#78350F"/>
+                </StackPanel>
+            </Border>
+
+            <!-- Step 1: Reset -->
+            <Border Background="White" 
+                    CornerRadius="12" 
+                    Padding="20"
+                    BoxShadow="0 2 8 0 #10000000">
+                <Grid ColumnDefinitions="Auto,*,Auto">
+                    <Border Width="40" Height="40" CornerRadius="20" Background="#FEE2E2">
+                        <TextBlock Text="1" FontSize="18" FontWeight="Bold" Foreground="#DC2626"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <StackPanel Grid.Column="1" Margin="16,0" VerticalAlignment="Center">
+                        <TextBlock Text="Reset Parameters" FontWeight="SemiBold" FontSize="16"/>
+                        <TextBlock Text="Send reset command" Foreground="#6B7280" FontSize="13"/>
                     </StackPanel>
+                    <Button Grid.Column="2" 
+                            Content="Reset to Defaults"
+                            Background="#EF4444"
+                            Foreground="White"
+                            Padding="20,10"
+                            CornerRadius="8"
+                            Command="{Binding ResetParametersCommand}"
+                            IsEnabled="{Binding IsConnected}"/>
                 </Grid>
             </Border>
 
-            <!-- RESET WORKFLOW (Step Cards) -->
-            <StackPanel Spacing="16">
-                
-                <!-- Step 1: Reset Parameters -->
-                <Border Classes="StepCard">
-                    <Grid ColumnDefinitions="Auto,*,Auto">
-                        <!-- Step Number -->
-                        <Border Classes="StepNumber Step1" Grid.Column="0">
-                            <TextBlock Classes="StepNumberText Step1" Text="1"/>
-                        </Border>
-                        
-                        <!-- Step Info -->
-                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                            <TextBlock Classes="StepTitle" Text="Reset Parameters"/>
-                            <TextBlock Classes="StepDescription" 
-                                       Text="Send reset command to prepare for factory reset"/>
-                        </StackPanel>
-                        
-                        <!-- Action Button -->
-                        <Button Grid.Column="2" 
-                                Classes="StepButton Danger"
-                                Content="Reset to Factory Defaults"
-                                Command="{Binding ResetParametersCommand}"
-                                IsEnabled="{Binding IsConnected}"
-                                VerticalAlignment="Center"/>
-                    </Grid>
-                </Border>
-                
-                <!-- Step 2: Reboot Flight Controller -->
-                <Border Classes="StepCard">
-                    <Grid ColumnDefinitions="Auto,*,Auto">
-                        <!-- Step Number -->
-                        <Border Classes="StepNumber Step2" Grid.Column="0">
-                            <TextBlock Classes="StepNumberText Step2" Text="2"/>
-                        </Border>
-                        
-                        <!-- Step Info -->
-                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                            <TextBlock Classes="StepTitle" Text="Reboot Flight Controller"/>
-                            <TextBlock Classes="StepDescription" 
-                                       Text="Restart to apply the reset operation"/>
-                        </StackPanel>
-                        
-                        <!-- Action Button -->
-                        <Button Grid.Column="2" 
-                                Classes="StepButton Neutral"
-                                Content="Reboot Controller"
-                                Command="{Binding RebootDroneCommand}"
-                                IsEnabled="{Binding IsConnected}"
-                                VerticalAlignment="Center"/>
-                    </Grid>
-                </Border>
-                
-                <!-- Step 3: Reload Parameters -->
-                <Border Classes="StepCard">
-                    <Grid ColumnDefinitions="Auto,*,Auto">
-                        <!-- Step Number -->
-                        <Border Classes="StepNumber Step3" Grid.Column="0">
-                            <TextBlock Classes="StepNumberText Step3" Text="3"/>
-                        </Border>
-                        
-                        <!-- Step Info -->
-                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                            <TextBlock Classes="StepTitle" Text="Reload Parameters"/>
-                            <TextBlock Classes="StepDescription" 
-                                       Text="Download reset parameters after reconnection"/>
-                        </StackPanel>
-                        
-                        <!-- Action Button -->
-                        <Button Grid.Column="2" 
-                                Classes="StepButton Primary"
-                                Content="Reload Parameters"
-                                Command="{Binding RefreshParametersCommand}"
-                                IsEnabled="{Binding IsConnected}"
-                                VerticalAlignment="Center"/>
-                    </Grid>
-                </Border>
-            </StackPanel>
+            <!-- Step 2: Reboot -->
+            <Border Background="White" 
+                    CornerRadius="12" 
+                    Padding="20"
+                    BoxShadow="0 2 8 0 #10000000">
+                <Grid ColumnDefinitions="Auto,*,Auto">
+                    <Border Width="40" Height="40" CornerRadius="20" Background="#E5E7EB">
+                        <TextBlock Text="2" FontSize="18" FontWeight="Bold" Foreground="#6B7280"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <StackPanel Grid.Column="1" Margin="16,0" VerticalAlignment="Center">
+                        <TextBlock Text="Reboot Controller" FontWeight="SemiBold" FontSize="16"/>
+                        <TextBlock Text="Restart to apply reset" Foreground="#6B7280" FontSize="13"/>
+                    </StackPanel>
+                    <Button Grid.Column="2" 
+                            Content="Reboot"
+                            Background="#6B7280"
+                            Foreground="White"
+                            Padding="20,10"
+                            CornerRadius="8"
+                            Command="{Binding RebootDroneCommand}"
+                            IsEnabled="{Binding IsConnected}"/>
+                </Grid>
+            </Border>
 
-            <!-- RESET STATUS SECTION (Collapsed by default) -->
-            <Border Classes="StatusSection">
+            <!-- Step 3: Refresh -->
+            <Border Background="White" 
+                    CornerRadius="12" 
+                    Padding="20"
+                    BoxShadow="0 2 8 0 #10000000">
+                <Grid ColumnDefinitions="Auto,*,Auto">
+                    <Border Width="40" Height="40" CornerRadius="20" Background="#DBEAFE">
+                        <TextBlock Text="3" FontSize="18" FontWeight="Bold" Foreground="#3B82F6"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                    <StackPanel Grid.Column="1" Margin="16,0" VerticalAlignment="Center">
+                        <TextBlock Text="Refresh Parameters" FontWeight="SemiBold" FontSize="16"/>
+                        <TextBlock Text="Download new parameters" Foreground="#6B7280" FontSize="13"/>
+                    </StackPanel>
+                    <Button Grid.Column="2" 
+                            Content="Refresh"
+                            Background="#3B82F6"
+                            Foreground="White"
+                            Padding="20,10"
+                            CornerRadius="8"
+                            Command="{Binding RefreshParametersCommand}"
+                            IsEnabled="{Binding IsConnected}"/>
+                </Grid>
+            </Border>
+
+            <!-- Status Message -->
+            <Border Background="White" 
+                    CornerRadius="12" 
+                    Padding="20"
+                    BoxShadow="0 2 8 0 #10000000">
                 <StackPanel Spacing="12">
-                    <TextBlock Classes="StatusTitle" Text="Reset Status"/>
-                    
-                    <!-- Progress Indicators (Subtle) -->
-                    <StackPanel Orientation="Horizontal" Spacing="12" 
-                                IsVisible="{Binding IsResetting}">
-                        <ProgressBar Classes="Calm" 
-                                     IsIndeterminate="True" 
-                                     Width="120"/>
-                        <TextBlock Text="Resetting..." 
-                                   FontSize="13" 
-                                   Foreground="#6B7280"
-                                   VerticalAlignment="Center"/>
-                    </StackPanel>
-                    
-                    <StackPanel Orientation="Horizontal" Spacing="12" 
-                                IsVisible="{Binding IsRebooting}">
-                        <ProgressBar Classes="Calm" 
-                                     IsIndeterminate="True" 
-                                     Width="120"/>
-                        <TextBlock Text="Rebooting..." 
-                                   FontSize="13" 
-                                   Foreground="#6B7280"
-                                   VerticalAlignment="Center"/>
-                    </StackPanel>
-                    
-                    <!-- Status Message (Clean) -->
-                    <Border Background="#F9FAFB" 
-                            CornerRadius="8" 
-                            Padding="14">
-                        <TextBlock Text="{Binding StatusMessage}" 
-                                   TextWrapping="Wrap"
-                                   FontSize="13"
-                                   Foreground="#374151"
-                                   LineHeight="18"/>
-                    </Border>
-                    
-                    <!-- Success State -->
-                    <Border Background="#ECFDF5" 
-                            CornerRadius="12" 
-                            Padding="16"
-                            IsVisible="{Binding ResetComplete}">
-                        <StackPanel Orientation="Horizontal" Spacing="12">
-                            <Ellipse Width="8" Height="8" Fill="#10B981" VerticalAlignment="Top" Margin="0,6,0,0"/>
-                            <StackPanel Spacing="6">
-                                <TextBlock FontSize="14" FontWeight="600" 
-                                           Foreground="#065F46">
-                                    Reset Prepared Successfully
-                                </TextBlock>
-                                <TextBlock FontSize="12" Foreground="#047857" 
-                                           TextWrapping="Wrap">
-                                    Proceed to Step 2: Reboot the flight controller to apply the reset.
-                                </TextBlock>
-                            </StackPanel>
-                        </StackPanel>
-                    </Border>
-                    
-                    <!-- Error State -->
-                    <Border Background="#FEF2F2" 
-                            CornerRadius="12" 
-                            Padding="16"
-                            IsVisible="{Binding ResetFailed}">
-                        <StackPanel Orientation="Horizontal" Spacing="12">
-                            <Ellipse Width="8" Height="8" Fill="#DC2626" VerticalAlignment="Top" Margin="0,6,0,0"/>
-                            <StackPanel Spacing="6">
-                                <TextBlock FontSize="14" FontWeight="600" 
-                                           Foreground="#991B1B">
-                                    Reset Operation Failed
-                                </TextBlock>
-                                <TextBlock FontSize="12" Foreground="#B91C1C" 
-                                           TextWrapping="Wrap">
-                                    Verify connection status and retry. Check MAVLink logs below for details.
-                                </TextBlock>
-                            </StackPanel>
-                        </StackPanel>
-                    </Border>
-                    
-                    <!-- MAVLink Log (Monospace, Collapsed) -->
-                    <StackPanel Spacing="8"
-                                IsVisible="{Binding LastDroneMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
-                        <TextBlock Text="Latest MAVLink Message:" 
-                                   FontSize="12" 
-                                   FontWeight="600" 
-                                   Foreground="#6B7280"/>
-                        <Border Classes="MonoLog">
-                            <TextBlock Classes="MonoLogText"
-                                       Text="{Binding LastDroneMessage}"/>
-                        </Border>
-                    </StackPanel>
+                    <TextBlock Text="Status" FontWeight="SemiBold" FontSize="16"/>
+                    <TextBlock Text="{Binding StatusMessage}" 
+                               TextWrapping="Wrap"
+                               Foreground="#374151"/>
                 </StackPanel>
             </Border>
+            
         </StackPanel>
     </ScrollViewer>
 </UserControl>

@@ -24,11 +24,11 @@ public sealed class AdminApiService : IAdminService
 
     public AdminApiService(
         HttpClient httpClient,
-        ITokenStorage _tokenStorage,
+        ITokenStorage tokenStorage,
         ILogger<AdminApiService> logger)
     {
         _httpClient = httpClient;
-        this._tokenStorage = _tokenStorage;
+        _tokenStorage = tokenStorage;
         _logger = logger;
     }
 
@@ -127,6 +127,32 @@ public sealed class AdminApiService : IAdminService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to change role for user {UserId}", userId);
+            return false;
+        }
+    }
+
+    public async Task<bool> DeleteUserAsync(string userId, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var accessToken = await _tokenStorage.GetAccessTokenAsync(cancellationToken);
+            if (string.IsNullOrEmpty(accessToken))
+            {
+                throw new InvalidOperationException("No access token available");
+            }
+
+            using var request = new HttpRequestMessage(HttpMethod.Delete, $"/admin/users/{userId}");
+            request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
+
+            var response = await _httpClient.SendAsync(request, cancellationToken);
+            response.EnsureSuccessStatusCode();
+
+            _logger.LogInformation("User {UserId} deleted", userId);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to delete user {UserId}", userId);
             return false;
         }
     }
