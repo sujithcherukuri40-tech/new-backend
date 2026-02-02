@@ -3,80 +3,172 @@
              xmlns:vm="using:PavamanDroneConfigurator.UI.ViewModels"
              x:Class="PavamanDroneConfigurator.UI.Views.ProfilePage"
              x:DataType="vm:ProfilePageViewModel"
-             Background="#F9FAFB">
+             Background="{DynamicResource BackgroundBrush}">
 
     <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
-        <StackPanel Margin="32" MaxWidth="800" Spacing="24">
+        <StackPanel Margin="{DynamicResource PagePadding}" MaxWidth="800" Spacing="24">
             
-            <!-- Header -->
+            <!-- ???????????????????????????????????????????????????????????????????????????????????
+                 PAGE HEADER
+            ??????????????????????????????????????????????????????????????????????????????????? -->
             <StackPanel Spacing="8">
-                <TextBlock Text="Profile &amp; Settings"
-                           FontSize="28"
-                           FontWeight="Bold"
-                           Foreground="#111827"/>
-                <TextBlock Text="Manage your account and preferences"
-                           FontSize="14"
-                           Foreground="#6B7280"/>
+                <TextBlock Text="Profile &amp; Settings" Classes="page-title"/>
+                <TextBlock Text="Manage your account and preferences" Classes="page-subtitle"/>
             </StackPanel>
 
-            <!-- User Info Card -->
-            <Border Background="White" 
-                    CornerRadius="12" 
-                    Padding="24"
-                    BoxShadow="0 2 8 0 #10000000">
-                <StackPanel Spacing="16">
+            <!-- ???????????????????????????????????????????????????????????????????????????????????
+                 USER INFO CARD
+            ??????????????????????????????????????????????????????????????????????????????????? -->
+            <Border Classes="card-elevated">
+                <StackPanel Spacing="20">
+                    <StackPanel Orientation="Horizontal" Spacing="12">
+                        <!-- User Avatar -->
+                        <Border Width="64" Height="64" 
+                                CornerRadius="{DynamicResource RadiusFull}"
+                                Background="{DynamicResource PrimaryLightBrush}">
+                            <TextBlock Text="??" 
+                                       FontSize="28"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center"/>
+                        </Border>
+                        <StackPanel VerticalAlignment="Center" Spacing="4">
+                            <TextBlock Text="{Binding UserFullName}" 
+                                       FontSize="{DynamicResource FontSizeXL}"
+                                       FontWeight="Bold"
+                                       Foreground="{DynamicResource TextPrimaryBrush}"/>
+                            <TextBlock Text="{Binding UserEmail}" 
+                                       FontSize="{DynamicResource FontSizeBase}"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"/>
+                        </StackPanel>
+                    </StackPanel>
                     
-                    <!-- User Details -->
-                    <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="12" ColumnSpacing="16">
-                        <TextBlock Grid.Row="0" Grid.Column="0" Text="Name:" FontWeight="SemiBold" Foreground="#6B7280"/>
-                        <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding UserFullName}" Foreground="#111827"/>
+                    <Border Height="1" Background="{DynamicResource DividerBrush}"/>
+                    
+                    <!-- User Details Grid -->
+                    <Grid ColumnDefinitions="Auto,*,Auto,*" RowDefinitions="Auto,Auto" 
+                          RowSpacing="16" ColumnSpacing="24">
                         
-                        <TextBlock Grid.Row="1" Grid.Column="0" Text="Email:" FontWeight="SemiBold" Foreground="#6B7280"/>
-                        <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding UserEmail}" Foreground="#111827"/>
+                        <StackPanel Grid.Row="0" Grid.Column="0" Spacing="2">
+                            <TextBlock Text="Role" Classes="caption"/>
+                            <Border Classes="badge-info" HorizontalAlignment="Left">
+                                <TextBlock Text="{Binding UserRole}" 
+                                           FontSize="{DynamicResource FontSizeSM}"
+                                           FontWeight="SemiBold"
+                                           Foreground="{DynamicResource PrimaryBrush}"/>
+                            </Border>
+                        </StackPanel>
                         
-                        <TextBlock Grid.Row="2" Grid.Column="0" Text="Role:" FontWeight="SemiBold" Foreground="#6B7280"/>
-                        <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding UserRole}" Foreground="#111827"/>
-                        
-                        <TextBlock Grid.Row="3" Grid.Column="0" Text="Status:" FontWeight="SemiBold" Foreground="#6B7280"/>
-                        <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding UserStatus}" Foreground="#111827"/>
+                        <StackPanel Grid.Row="0" Grid.Column="2" Spacing="2">
+                            <TextBlock Text="Status" Classes="caption"/>
+                            <Border Classes="badge-success" HorizontalAlignment="Left">
+                                <TextBlock Text="{Binding UserStatus}" 
+                                           FontSize="{DynamicResource FontSizeSM}"
+                                           FontWeight="SemiBold"
+                                           Foreground="{DynamicResource SuccessDarkBrush}"/>
+                            </Border>
+                        </StackPanel>
                     </Grid>
                     
                     <!-- Logout Button -->
-                    <Button Content="Logout"
-                            Background="#EF4444"
-                            Foreground="White"
-                            Padding="24,12"
-                            CornerRadius="8"
+                    <Button Content="??  Logout"
+                            Classes="btn-danger"
                             HorizontalAlignment="Left"
                             Command="{Binding LogoutCommand}"
                             IsEnabled="{Binding CanLogout}"/>
                 </StackPanel>
             </Border>
 
-            <!-- Configuration Profiles Card -->
-            <Border Background="White" 
-                    CornerRadius="12" 
-                    Padding="24"
-                    BoxShadow="0 2 8 0 #10000000">
-                <StackPanel Spacing="16">
-                    <TextBlock Text="Configuration Profiles"
-                               FontSize="18"
-                               FontWeight="SemiBold"
-                               Foreground="#111827"/>
+            <!-- ???????????????????????????????????????????????????????????????????????????????????
+                 CONFIGURATION PROFILES CARD
+            ??????????????????????????????????????????????????????????????????????????????????? -->
+            <Border Classes="card">
+                <StackPanel Spacing="20">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <StackPanel Grid.Column="0" Spacing="4">
+                            <TextBlock Text="Configuration Profiles" Classes="section-title" Margin="0"/>
+                            <TextBlock Text="Save and load drone configuration profiles" Classes="caption"/>
+                        </StackPanel>
+                        <Button Grid.Column="1"
+                                Content="?  Refresh"
+                                Classes="btn-secondary"
+                                Padding="16,10"
+                                Command="{Binding LoadProfilesCommand}"/>
+                    </Grid>
                     
-                    <Button Content="Refresh Profiles"
-                            Background="#3B82F6"
-                            Foreground="White"
-                            Padding="16,10"
-                            CornerRadius="6"
-                            HorizontalAlignment="Left"
-                            Command="{Binding LoadProfilesCommand}"/>
+                    <!-- Status Message -->
+                    <Border Classes="alert-info" IsVisible="{Binding StatusMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                        <TextBlock Text="{Binding StatusMessage}" 
+                                   FontSize="{DynamicResource FontSizeBase}"
+                                   Foreground="{DynamicResource TextSecondaryBrush}"/>
+                    </Border>
                     
-                    <TextBlock Text="{Binding StatusMessage}" 
-                               Foreground="#6B7280"
-                               FontSize="13"/>
+                    <!-- Empty State -->
+                    <Border Background="{DynamicResource SecondaryLightBrush}"
+                            CornerRadius="{DynamicResource RadiusBase}"
+                            Padding="32"
+                            HorizontalAlignment="Stretch">
+                        <StackPanel Spacing="12" HorizontalAlignment="Center">
+                            <TextBlock Text="??" FontSize="32" HorizontalAlignment="Center"/>
+                            <TextBlock Text="No profiles found" 
+                                       FontSize="{DynamicResource FontSizeMD}"
+                                       FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                       HorizontalAlignment="Center"/>
+                            <TextBlock Text="Connect to a drone to save configuration profiles" 
+                                       FontSize="{DynamicResource FontSizeSM}"
+                                       Foreground="{DynamicResource TextMutedBrush}"
+                                       HorizontalAlignment="Center"/>
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
             </Border>
+
+            <!-- ???????????????????????????????????????????????????????????????????????????????????
+                 APPLICATION SETTINGS CARD
+            ??????????????????????????????????????????????????????????????????????????????????? -->
+            <Border Classes="card">
+                <StackPanel Spacing="16">
+                    <TextBlock Text="Application Settings" Classes="section-title"/>
+                    
+                    <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto" RowSpacing="16">
+                        <!-- Theme Setting -->
+                        <StackPanel Grid.Row="0" Grid.Column="0" Spacing="2">
+                            <TextBlock Text="Theme" Classes="body" FontWeight="SemiBold"/>
+                            <TextBlock Text="Choose your preferred color theme" Classes="caption"/>
+                        </StackPanel>
+                        <ComboBox Grid.Row="0" Grid.Column="1" 
+                                  Classes="input"
+                                  Width="160"
+                                  SelectedIndex="0">
+                            <ComboBoxItem>Light</ComboBoxItem>
+                            <ComboBoxItem>Dark</ComboBoxItem>
+                            <ComboBoxItem>System</ComboBoxItem>
+                        </ComboBox>
+                        
+                        <!-- Auto-connect Setting -->
+                        <StackPanel Grid.Row="1" Grid.Column="0" Spacing="2">
+                            <TextBlock Text="Auto-connect" Classes="body" FontWeight="SemiBold"/>
+                            <TextBlock Text="Automatically connect to last used drone" Classes="caption"/>
+                        </StackPanel>
+                        <ToggleSwitch Grid.Row="1" Grid.Column="1" 
+                                      OnContent="On" 
+                                      OffContent="Off"/>
+                        
+                        <!-- Telemetry Logging -->
+                        <StackPanel Grid.Row="2" Grid.Column="0" Spacing="2">
+                            <TextBlock Text="Telemetry Logging" Classes="body" FontWeight="SemiBold"/>
+                            <TextBlock Text="Save telemetry data for analysis" Classes="caption"/>
+                        </StackPanel>
+                        <ToggleSwitch Grid.Row="2" Grid.Column="1" 
+                                      OnContent="On" 
+                                      OffContent="Off"
+                                      IsChecked="True"/>
+                    </Grid>
+                </StackPanel>
+            </Border>
+            
+            <!-- Bottom Spacing -->
+            <Panel Height="24"/>
             
         </StackPanel>
     </ScrollViewer>

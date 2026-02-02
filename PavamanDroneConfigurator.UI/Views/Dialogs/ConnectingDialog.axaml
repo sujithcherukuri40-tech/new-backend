@@ -1,0 +1,92 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:PavamanDroneConfigurator.UI.ViewModels.Dialogs"
+             mc:Ignorable="d"
+             x:Class="PavamanDroneConfigurator.UI.Views.Dialogs.ConnectingDialog"
+             x:DataType="vm:ConnectingDialogViewModel"
+             IsVisible="{Binding IsVisible}">
+
+    <!-- ???????????????????????????????????????????????????????????????????????????????????????????
+         CONNECTING DIALOG
+         Modal overlay with animated spinner and step-based progress
+    ??????????????????????????????????????????????????????????????????????????????????????????? -->
+    
+    <Grid>
+        <!-- Overlay Background -->
+        <Border Background="{DynamicResource OverlayBrush}" 
+                IsHitTestVisible="True"/>
+        
+        <!-- Dialog Container -->
+        <Border Classes="dialog-container"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                MinWidth="380"
+                MaxWidth="440">
+            <StackPanel Spacing="24">
+                
+                <!-- Spinner Animation -->
+                <Grid HorizontalAlignment="Center" Width="64" Height="64">
+                    <!-- Outer ring -->
+                    <Ellipse Width="64" Height="64"
+                             Stroke="{DynamicResource SecondaryLightBrush}"
+                             StrokeThickness="4"
+                             Fill="Transparent"/>
+                    <!-- Animated arc -->
+                    <Ellipse Width="64" Height="64"
+                             Stroke="{DynamicResource PrimaryBrush}"
+                             StrokeThickness="4"
+                             StrokeDashArray="2,4"
+                             Fill="Transparent"
+                             RenderTransformOrigin="0.5,0.5">
+                        <Ellipse.RenderTransform>
+                            <RotateTransform Angle="0"/>
+                        </Ellipse.RenderTransform>
+                    </Ellipse>
+                    <!-- Center icon -->
+                    <TextBlock Text="??" 
+                               FontSize="24"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"/>
+                </Grid>
+
+                <!-- Title -->
+                <TextBlock Text="Connecting to Drone" 
+                           FontSize="{DynamicResource FontSizeXL}"
+                           FontWeight="SemiBold"
+                           Foreground="{DynamicResource TextPrimaryBrush}"
+                           HorizontalAlignment="Center"/>
+
+                <!-- Step Progress -->
+                <StackPanel Spacing="12">
+                    <TextBlock Text="{Binding StepText}" 
+                               FontSize="{DynamicResource FontSizeMD}"
+                               Foreground="{DynamicResource TextSecondaryBrush}"
+                               HorizontalAlignment="Center"/>
+                    
+                    <!-- Progress dots -->
+                    <StackPanel Orientation="Horizontal" 
+                                HorizontalAlignment="Center" 
+                                Spacing="8">
+                        <Ellipse Width="8" Height="8" 
+                                 Fill="{DynamicResource PrimaryBrush}"/>
+                        <Ellipse Width="8" Height="8" 
+                                 Fill="{DynamicResource SecondaryLightBrush}"/>
+                        <Ellipse Width="8" Height="8" 
+                                 Fill="{DynamicResource SecondaryLightBrush}"/>
+                        <Ellipse Width="8" Height="8" 
+                                 Fill="{DynamicResource SecondaryLightBrush}"/>
+                    </StackPanel>
+                </StackPanel>
+
+                <!-- Cancel Button -->
+                <Button Content="Cancel" 
+                        Classes="btn-ghost"
+                        HorizontalAlignment="Center"
+                        Command="{Binding HideCommand}"
+                        Padding="24,10"/>
+            </StackPanel>
+        </Border>
+    </Grid>
+</UserControl>

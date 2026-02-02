@@ -3,294 +3,395 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="using:PavamanDroneConfigurator.UI.ViewModels"
-             mc:Ignorable="d" d:DesignWidth="900" d:DesignHeight="700"
+             mc:Ignorable="d" d:DesignWidth="900" d:DesignHeight="800"
              x:Class="PavamanDroneConfigurator.UI.Views.ConnectionPage"
-             x:DataType="vm:ConnectionPageViewModel">
-
-    <UserControl.Styles>
-        <!-- Modern Card Style -->
-        <Style Selector="Border.card">
-            <Setter Property="Background" Value="#FFFFFF"/>
-            <Setter Property="BorderBrush" Value="#E5E7EB"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="CornerRadius" Value="12"/>
-            <Setter Property="Padding" Value="24"/>
-            <Setter Property="BoxShadow" Value="0 1 3 0 #10000000"/>
-        </Style>
-
-        <!-- Section Header Style -->
-        <Style Selector="TextBlock.section-title">
-            <Setter Property="FontSize" Value="15"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="Foreground" Value="#111827"/>
-            <Setter Property="Margin" Value="0,0,0,12"/>
-        </Style>
-
-        <!-- Label Style -->
-        <Style Selector="TextBlock.label">
-            <Setter Property="FontSize" Value="13"/>
-            <Setter Property="FontWeight" Value="Medium"/>
-            <Setter Property="Foreground" Value="#374151"/>
-            <Setter Property="Margin" Value="0,0,0,6"/>
-        </Style>
-
-        <!-- Input Style -->
-        <Style Selector="TextBox, ComboBox">
-            <Setter Property="MinHeight" Value="38"/>
-            <Setter Property="Padding" Value="12,8"/>
-            <Setter Property="CornerRadius" Value="6"/>
-            <Setter Property="BorderBrush" Value="#D1D5DB"/>
-            <Setter Property="BorderThickness" Value="1"/>
-        </Style>
-
-        <!-- Primary Button -->
-        <Style Selector="Button.primary">
-            <Setter Property="Background" Value="#3B82F6"/>
-            <Setter Property="Foreground" Value="White"/>
-            <Setter Property="Padding" Value="32,12"/>
-            <Setter Property="CornerRadius" Value="8"/>
-            <Setter Property="FontSize" Value="14"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="BorderThickness" Value="0"/>
-        </Style>
-
-        <Style Selector="Button.primary:pointerover">
-            <Setter Property="Background" Value="#2563EB"/>
-        </Style>
-
-        <Style Selector="Button.primary:disabled">
-            <Setter Property="Background" Value="#9CA3AF"/>
-            <Setter Property="Opacity" Value="0.6"/>
-        </Style>
-
-        <!-- Secondary Button -->
-        <Style Selector="Button.secondary">
-            <Setter Property="Background" Value="White"/>
-            <Setter Property="Foreground" Value="#374151"/>
-            <Setter Property="BorderBrush" Value="#D1D5DB"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="Padding" Value="32,12"/>
-            <Setter Property="CornerRadius" Value="8"/>
-            <Setter Property="FontSize" Value="14"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-        </Style>
-
-        <Style Selector="Button.secondary:pointerover">
-            <Setter Property="Background" Value="#F9FAFB"/>
-        </Style>
-
-        <!-- Status Badge -->
-        <Style Selector="Border.status-badge">
-            <Setter Property="CornerRadius" Value="9999"/>
-            <Setter Property="Padding" Value="12,6"/>
-        </Style>
-
-        <!-- Progress Bar Style -->
-        <Style Selector="ProgressBar">
-            <Setter Property="Height" Value="6"/>
-            <Setter Property="CornerRadius" Value="3"/>
-        </Style>
-    </UserControl.Styles>
+             x:DataType="vm:ConnectionPageViewModel"
+             Background="{DynamicResource BackgroundBrush}">
 
     <ScrollViewer>
-        <StackPanel Margin="32,24" Spacing="24" MaxWidth="800">
-            <!-- Header -->
+        <StackPanel Margin="{DynamicResource PagePadding}" Spacing="24" MaxWidth="800">
+            
+            <!-- ???????????????????????????????????????????????????????????????????????????????????
+                 PAGE HEADER
+            ??????????????????????????????????????????????????????????????????????????????????? -->
             <StackPanel Spacing="8">
-                <TextBlock Text="Connection" FontSize="32" FontWeight="Bold" Foreground="#111827"/>
-                <TextBlock Text="Configure and manage your drone connection" FontSize="14" Foreground="#6B7280"/>
+                <TextBlock Text="Connection" Classes="page-title"/>
+                <TextBlock Text="Configure and manage your drone connection" Classes="page-subtitle"/>
             </StackPanel>
 
-            <!-- Connection Status Card -->
-            <Border Classes="card">
-                <StackPanel Spacing="16">
+            <!-- ???????????????????????????????????????????????????????????????????????????????????
+                 CONNECTION STATUS CARD
+            ??????????????????????????????????????????????????????????????????????????????????? -->
+            <Border Classes="card-elevated">
+                <StackPanel Spacing="20">
                     <TextBlock Text="Connection Status" Classes="section-title"/>
                     
-                    <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
-                        <Ellipse Width="12" Height="12" Fill="{Binding ConnectionStatusBrush}"/>
-                        <TextBlock Text="{Binding ConnectionStatusText}" 
-                                   FontSize="16" 
-                                   FontWeight="SemiBold"
-                                   Foreground="#111827"/>
-                    </StackPanel>
+                    <!-- Status Indicator Row -->
+                    <Grid ColumnDefinitions="Auto,*,Auto">
+                        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+                            <!-- Status Dot with Glow Effect -->
+                            <Grid>
+                                <Ellipse Width="14" Height="14" 
+                                         Fill="{Binding ConnectionStatusBrush}"
+                                         Opacity="0.3"/>
+                                <Ellipse Width="10" Height="10" 
+                                         Fill="{Binding ConnectionStatusBrush}"
+                                         HorizontalAlignment="Center"
+                                         VerticalAlignment="Center"/>
+                            </Grid>
+                            <TextBlock Text="{Binding ConnectionStatusText}" 
+                                       FontSize="{DynamicResource FontSizeLG}" 
+                                       FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextPrimaryBrush}"/>
+                        </StackPanel>
+                        
+                        <!-- Connected Badge -->
+                        <Border Grid.Column="2" 
+                                Classes="badge-success"
+                                IsVisible="{Binding IsConnected}">
+                            <TextBlock Text="? Active" 
+                                       FontSize="{DynamicResource FontSizeSM}" 
+                                       FontWeight="SemiBold"
+                                       Foreground="{DynamicResource SuccessDarkBrush}"/>
+                        </Border>
+                    </Grid>
 
                     <!-- Parameter Download Progress -->
-                    <StackPanel Spacing="8" IsVisible="{Binding IsDownloadingParameters}">
-                        <StackPanel Orientation="Horizontal" Spacing="8">
-                            <TextBlock Text="Downloading Parameters:" FontSize="13" Foreground="#6B7280"/>
-                            <TextBlock Text="{Binding ParameterProgressText}" FontSize="13" FontWeight="SemiBold" Foreground="#3B82F6"/>
+                    <Border Classes="alert-info" IsVisible="{Binding IsDownloadingParameters}">
+                        <StackPanel Spacing="12">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <TextBlock Text="??" FontSize="16"/>
+                                <TextBlock Text="Downloading Parameters" 
+                                           FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                <TextBlock Text="{Binding ParameterProgressText}" 
+                                           FontWeight="Bold" 
+                                           Foreground="{DynamicResource PrimaryBrush}"
+                                           FontFamily="{DynamicResource MonospaceFont}"/>
+                            </StackPanel>
+                            <ProgressBar Value="{Binding ParameterProgressPercentage}" 
+                                         Maximum="100" 
+                                         Classes="progress"
+                                         Height="8"
+                                         CornerRadius="4"/>
                         </StackPanel>
-                        <ProgressBar Value="{Binding ParameterProgressPercentage}" Maximum="100" Foreground="#3B82F6"/>
-                    </StackPanel>
+                    </Border>
 
                     <!-- Status Message -->
                     <TextBlock Text="{Binding StatusMessage}" 
-                               FontSize="13" 
-                               Foreground="#6B7280"
+                               Classes="body"
+                               Foreground="{DynamicResource TextSecondaryBrush}"
                                TextWrapping="Wrap"/>
                 </StackPanel>
             </Border>
 
-            <!-- Connection Type Selection -->
+            <!-- ???????????????????????????????????????????????????????????????????????????????????
+                 CONNECTION TYPE SELECTOR (Segmented Control)
+            ??????????????????????????????????????????????????????????????????????????????????? -->
             <Border Classes="card">
                 <StackPanel Spacing="16">
                     <TextBlock Text="Connection Type" Classes="section-title"/>
                     
-                    <StackPanel Orientation="Horizontal" Spacing="12">
-                        <RadioButton Content="Serial (USB)" 
-                                     GroupName="ConnectionType"
-                                     IsChecked="{Binding IsSerialConnection}"
-                                     IsEnabled="{Binding !IsConnected}"/>
-                        <RadioButton Content="TCP (Network)" 
-                                     GroupName="ConnectionType"
-                                     IsChecked="{Binding IsTcpConnection}"
-                                     IsEnabled="{Binding !IsConnected}"/>
-                        <RadioButton Content="Bluetooth (Wireless)" 
-                                     GroupName="ConnectionType"
-                                     IsChecked="{Binding IsBluetoothConnection}"
-                                     IsEnabled="{Binding !IsConnected}"/>
-                    </StackPanel>
+                    <!-- Segmented Pill Buttons -->
+                    <Border Classes="segmented-control" HorizontalAlignment="Left">
+                        <StackPanel Orientation="Horizontal" Spacing="4">
+                            <RadioButton GroupName="ConnectionType"
+                                         IsChecked="{Binding IsSerialConnection}"
+                                         IsEnabled="{Binding !IsConnected}">
+                                <RadioButton.Template>
+                                    <ControlTemplate>
+                                        <Border x:Name="PART_Border"
+                                                CornerRadius="{DynamicResource RadiusMD}"
+                                                Padding="20,10"
+                                                Cursor="Hand">
+                                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                                <TextBlock Text="??" FontSize="14"/>
+                                                <TextBlock Text="Serial (USB)" 
+                                                           FontWeight="{TemplateBinding FontWeight}"
+                                                           Foreground="{TemplateBinding Foreground}"/>
+                                            </StackPanel>
+                                        </Border>
+                                    </ControlTemplate>
+                                </RadioButton.Template>
+                                <RadioButton.Styles>
+                                    <Style Selector="RadioButton">
+                                        <Setter Property="Background" Value="Transparent"/>
+                                        <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}"/>
+                                        <Setter Property="FontWeight" Value="Medium"/>
+                                    </Style>
+                                    <Style Selector="RadioButton:checked">
+                                        <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+                                        <Setter Property="FontWeight" Value="SemiBold"/>
+                                    </Style>
+                                    <Style Selector="RadioButton:checked /template/ Border#PART_Border">
+                                        <Setter Property="Background" Value="{DynamicResource SurfaceBrush}"/>
+                                        <Setter Property="BoxShadow" Value="{DynamicResource ShadowSM}"/>
+                                    </Style>
+                                    <Style Selector="RadioButton:disabled">
+                                        <Setter Property="Opacity" Value="0.5"/>
+                                    </Style>
+                                </RadioButton.Styles>
+                            </RadioButton>
+                            
+                            <RadioButton GroupName="ConnectionType"
+                                         IsChecked="{Binding IsTcpConnection}"
+                                         IsEnabled="{Binding !IsConnected}">
+                                <RadioButton.Template>
+                                    <ControlTemplate>
+                                        <Border x:Name="PART_Border"
+                                                CornerRadius="{DynamicResource RadiusMD}"
+                                                Padding="20,10"
+                                                Cursor="Hand">
+                                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                                <TextBlock Text="??" FontSize="14"/>
+                                                <TextBlock Text="TCP (Network)" 
+                                                           FontWeight="{TemplateBinding FontWeight}"
+                                                           Foreground="{TemplateBinding Foreground}"/>
+                                            </StackPanel>
+                                        </Border>
+                                    </ControlTemplate>
+                                </RadioButton.Template>
+                                <RadioButton.Styles>
+                                    <Style Selector="RadioButton">
+                                        <Setter Property="Background" Value="Transparent"/>
+                                        <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}"/>
+                                        <Setter Property="FontWeight" Value="Medium"/>
+                                    </Style>
+                                    <Style Selector="RadioButton:checked">
+                                        <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+                                        <Setter Property="FontWeight" Value="SemiBold"/>
+                                    </Style>
+                                    <Style Selector="RadioButton:checked /template/ Border#PART_Border">
+                                        <Setter Property="Background" Value="{DynamicResource SurfaceBrush}"/>
+                                        <Setter Property="BoxShadow" Value="{DynamicResource ShadowSM}"/>
+                                    </Style>
+                                    <Style Selector="RadioButton:disabled">
+                                        <Setter Property="Opacity" Value="0.5"/>
+                                    </Style>
+                                </RadioButton.Styles>
+                            </RadioButton>
+                            
+                            <RadioButton GroupName="ConnectionType"
+                                         IsChecked="{Binding IsBluetoothConnection}"
+                                         IsEnabled="{Binding !IsConnected}">
+                                <RadioButton.Template>
+                                    <ControlTemplate>
+                                        <Border x:Name="PART_Border"
+                                                CornerRadius="{DynamicResource RadiusMD}"
+                                                Padding="20,10"
+                                                Cursor="Hand">
+                                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                                <TextBlock Text="??" FontSize="14"/>
+                                                <TextBlock Text="Bluetooth" 
+                                                           FontWeight="{TemplateBinding FontWeight}"
+                                                           Foreground="{TemplateBinding Foreground}"/>
+                                            </StackPanel>
+                                        </Border>
+                                    </ControlTemplate>
+                                </RadioButton.Template>
+                                <RadioButton.Styles>
+                                    <Style Selector="RadioButton">
+                                        <Setter Property="Background" Value="Transparent"/>
+                                        <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}"/>
+                                        <Setter Property="FontWeight" Value="Medium"/>
+                                    </Style>
+                                    <Style Selector="RadioButton:checked">
+                                        <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+                                        <Setter Property="FontWeight" Value="SemiBold"/>
+                                    </Style>
+                                    <Style Selector="RadioButton:checked /template/ Border#PART_Border">
+                                        <Setter Property="Background" Value="{DynamicResource SurfaceBrush}"/>
+                                        <Setter Property="BoxShadow" Value="{DynamicResource ShadowSM}"/>
+                                    </Style>
+                                    <Style Selector="RadioButton:disabled">
+                                        <Setter Property="Opacity" Value="0.5"/>
+                                    </Style>
+                                </RadioButton.Styles>
+                            </RadioButton>
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
             </Border>
 
-            <!-- Serial Configuration -->
+            <!-- ???????????????????????????????????????????????????????????????????????????????????
+                 SERIAL CONFIGURATION
+            ??????????????????????????????????????????????????????????????????????????????????? -->
             <Border Classes="card" IsVisible="{Binding IsSerialConnection}">
-                <StackPanel Spacing="16">
+                <StackPanel Spacing="20">
                     <TextBlock Text="Serial Configuration" Classes="section-title"/>
                     
-                    <StackPanel Spacing="12">
-                        <StackPanel>
+                    <Grid ColumnDefinitions="*,*" ColumnSpacing="16">
+                        <!-- Serial Port -->
+                        <StackPanel Grid.Column="0" Spacing="6">
                             <TextBlock Text="Serial Port" Classes="label"/>
                             <ComboBox ItemsSource="{Binding AvailableSerialPorts}"
                                       SelectedItem="{Binding SelectedSerialPort}"
                                       IsEnabled="{Binding !IsConnected}"
+                                      Classes="input"
                                       HorizontalAlignment="Stretch">
                                 <ComboBox.ItemTemplate>
                                     <DataTemplate>
-                                        <StackPanel Spacing="4">
-                                            <TextBlock Text="{Binding FriendlyName}" FontWeight="SemiBold"/>
-                                            <TextBlock Text="{Binding PortName}" FontSize="11" Foreground="#6B7280"/>
+                                        <StackPanel Spacing="2" Margin="0,4">
+                                            <TextBlock Text="{Binding FriendlyName}" 
+                                                       FontWeight="SemiBold"
+                                                       FontSize="{DynamicResource FontSizeBase}"/>
+                                            <TextBlock Text="{Binding PortName}" 
+                                                       FontSize="{DynamicResource FontSizeSM}" 
+                                                       Foreground="{DynamicResource TextMutedBrush}"
+                                                       FontFamily="{DynamicResource MonospaceFont}"/>
                                         </StackPanel>
                                     </DataTemplate>
                                 </ComboBox.ItemTemplate>
                             </ComboBox>
                         </StackPanel>
 
-                        <StackPanel>
+                        <!-- Baud Rate -->
+                        <StackPanel Grid.Column="1" Spacing="6">
                             <TextBlock Text="Baud Rate" Classes="label"/>
                             <ComboBox ItemsSource="{Binding AvailableBaudRates}"
                                       SelectedItem="{Binding SelectedBaudRate}"
                                       IsEnabled="{Binding !IsConnected}" 
+                                      Classes="input"
                                       HorizontalAlignment="Stretch">
                                 <ComboBox.ItemTemplate>
                                     <DataTemplate>
-                                        <TextBlock Text="{Binding Display}"/>
+                                        <TextBlock Text="{Binding Display}"
+                                                   FontFamily="{DynamicResource MonospaceFont}"/>
                                     </DataTemplate>
                                 </ComboBox.ItemTemplate>
                             </ComboBox>
-                        </StackPanel>
-                    </StackPanel>
-                </StackPanel>
-            </Border>
-
-            <!-- TCP Configuration -->
-            <Border Classes="card" IsVisible="{Binding IsTcpConnection}">
-                <StackPanel Spacing="16">
-                    <TextBlock Text="TCP Configuration" Classes="section-title"/>
-                    
-                    <Grid ColumnDefinitions="2*,*" RowDefinitions="Auto,Auto" ColumnSpacing="12" RowSpacing="12">
-                        <StackPanel Grid.Row="0" Grid.Column="0">
-                            <TextBlock Text="IP Address" Classes="label"/>
-                            <TextBox Text="{Binding IpAddress}" 
-                                     IsEnabled="{Binding !IsConnected}"
-                                     Watermark="192.168.1.100"/>
-                        </StackPanel>
-
-                        <StackPanel Grid.Row="0" Grid.Column="1">
-                            <TextBlock Text="Port" Classes="label"/>
-                            <TextBox Text="{Binding TcpPort}" 
-                                     IsEnabled="{Binding !IsConnected}"
-                                     Watermark="5760"/>
                         </StackPanel>
                     </Grid>
                 </StackPanel>
             </Border>
 
-            <!-- Bluetooth Configuration -->
+            <!-- ???????????????????????????????????????????????????????????????????????????????????
+                 TCP CONFIGURATION
+            ??????????????????????????????????????????????????????????????????????????????????? -->
+            <Border Classes="card" IsVisible="{Binding IsTcpConnection}">
+                <StackPanel Spacing="20">
+                    <TextBlock Text="TCP Configuration" Classes="section-title"/>
+                    
+                    <Grid ColumnDefinitions="2*,*" ColumnSpacing="16">
+                        <!-- IP Address -->
+                        <StackPanel Grid.Column="0" Spacing="6">
+                            <TextBlock Text="IP Address" Classes="label"/>
+                            <TextBox Text="{Binding IpAddress}" 
+                                     IsEnabled="{Binding !IsConnected}"
+                                     Classes="input"
+                                     Watermark="192.168.1.100"
+                                     FontFamily="{DynamicResource MonospaceFont}"/>
+                        </StackPanel>
+
+                        <!-- Port -->
+                        <StackPanel Grid.Column="1" Spacing="6">
+                            <TextBlock Text="Port" Classes="label"/>
+                            <TextBox Text="{Binding TcpPort}" 
+                                     IsEnabled="{Binding !IsConnected}"
+                                     Classes="input"
+                                     Watermark="5760"
+                                     FontFamily="{DynamicResource MonospaceFont}"/>
+                        </StackPanel>
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <!-- ???????????????????????????????????????????????????????????????????????????????????
+                 BLUETOOTH CONFIGURATION
+            ??????????????????????????????????????????????????????????????????????????????????? -->
             <Border Classes="card" IsVisible="{Binding IsBluetoothConnection}">
-                <StackPanel Spacing="16">
-                    <StackPanel Orientation="Horizontal" Spacing="12">
-                        <TextBlock Text="Bluetooth Configuration" Classes="section-title" VerticalAlignment="Center"/>
-                        <Button Content="Scan Devices" 
+                <StackPanel Spacing="20">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock Grid.Column="0" Text="Bluetooth Configuration" Classes="section-title" VerticalAlignment="Center"/>
+                        <Button Grid.Column="1" 
+                                Content="Scan Devices" 
                                 Command="{Binding ScanBluetoothDevicesCommand}"
                                 IsEnabled="{Binding !IsConnected}"
-                                Classes="secondary"
-                                Padding="16,6"
-                                FontSize="12"/>
-                    </StackPanel>
+                                Classes="btn-secondary"
+                                Padding="16,8"/>
+                    </Grid>
                     
-                    <StackPanel>
+                    <StackPanel Spacing="6">
                         <TextBlock Text="Bluetooth Device" Classes="label"/>
                         <ComboBox ItemsSource="{Binding AvailableBluetoothDevices}"
                                   SelectedItem="{Binding SelectedBluetoothDevice}"
                                   IsEnabled="{Binding !IsConnected}"
+                                  Classes="input"
                                   HorizontalAlignment="Stretch">
                             <ComboBox.ItemTemplate>
                                 <DataTemplate>
-                                    <StackPanel Spacing="4">
-                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <Grid ColumnDefinitions="*,Auto" Margin="0,4">
+                                        <StackPanel Grid.Column="0" Spacing="2">
                                             <TextBlock Text="{Binding DeviceName}" FontWeight="SemiBold"/>
-                                            <Border Classes="status-badge" 
-                                                    Background="#DBEAFE" 
-                                                    IsVisible="{Binding IsPaired}">
-                                                <TextBlock Text="Paired" FontSize="10" Foreground="#1E40AF" FontWeight="SemiBold"/>
-                                            </Border>
+                                            <TextBlock Text="{Binding DeviceAddress}" 
+                                                       FontSize="{DynamicResource FontSizeSM}" 
+                                                       Foreground="{DynamicResource TextMutedBrush}"
+                                                       FontFamily="{DynamicResource MonospaceFont}"/>
                                         </StackPanel>
-                                        <TextBlock Text="{Binding DeviceAddress}" FontSize="11" Foreground="#6B7280"/>
-                                    </StackPanel>
+                                        <Border Grid.Column="1" 
+                                                Classes="badge-info" 
+                                                IsVisible="{Binding IsPaired}"
+                                                VerticalAlignment="Center">
+                                            <TextBlock Text="Paired" 
+                                                       FontSize="{DynamicResource FontSizeXS}" 
+                                                       Foreground="{DynamicResource PrimaryBrush}"
+                                                       FontWeight="SemiBold"/>
+                                        </Border>
+                                    </Grid>
                                 </DataTemplate>
                             </ComboBox.ItemTemplate>
                         </ComboBox>
                     </StackPanel>
 
-                    <TextBlock Text="Ensure your Bluetooth device is powered on and in pairing mode" 
-                               FontSize="12" 
-                               Foreground="#6B7280"
+                    <TextBlock Text="?? Ensure your Bluetooth device is powered on and in pairing mode" 
+                               Classes="caption"
                                FontStyle="Italic"/>
                 </StackPanel>
             </Border>
 
-            <!-- Action Buttons -->
+            <!-- ???????????????????????????????????????????????????????????????????????????????????
+                 ACTION BUTTONS
+            ??????????????????????????????????????????????????????????????????????????????????? -->
             <StackPanel Orientation="Horizontal" Spacing="12" Margin="0,8,0,0">
                 <Button Content="Connect" 
                         Command="{Binding ConnectCommand}" 
                         IsEnabled="{Binding !IsConnected}"
-                        Classes="primary"/>
+                        Classes="btn-primary"/>
                 <Button Content="Disconnect" 
                         Command="{Binding DisconnectCommand}" 
                         IsEnabled="{Binding IsConnected}"
-                        Classes="secondary"/>
+                        Classes="btn-secondary"/>
             </StackPanel>
 
-            <!-- Connection Info -->
-            <Border Classes="card" Background="#F9FAFB" IsVisible="{Binding IsConnected}">
-                <StackPanel Spacing="12">
-                    <TextBlock Text="Connection Information" Classes="section-title"/>
+            <!-- ???????????????????????????????????????????????????????????????????????????????????
+                 CONNECTION INFO (when connected)
+            ??????????????????????????????????????????????????????????????????????????????????? -->
+            <Border Classes="card-muted" IsVisible="{Binding IsConnected}">
+                <StackPanel Spacing="16">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <TextBlock Text="?" FontSize="16" Foreground="{DynamicResource SuccessBrush}"/>
+                        <TextBlock Text="Connection Information" Classes="section-title" Margin="0"/>
+                    </StackPanel>
                     
-                    <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto" ColumnSpacing="16" RowSpacing="8">
-                        <TextBlock Grid.Row="0" Grid.Column="0" Text="System ID:" Foreground="#6B7280" FontSize="13"/>
-                        <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding SystemId}" FontWeight="SemiBold" FontSize="13"/>
+                    <Grid ColumnDefinitions="Auto,*,Auto,*" RowDefinitions="Auto,Auto" ColumnSpacing="24" RowSpacing="12">
+                        <TextBlock Grid.Row="0" Grid.Column="0" Text="System ID" Classes="caption"/>
+                        <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding SystemId}" Classes="value" FontFamily="{DynamicResource MonospaceFont}"/>
                         
-                        <TextBlock Grid.Row="1" Grid.Column="0" Text="Component ID:" Foreground="#6B7280" FontSize="13"/>
-                        <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding ComponentId}" FontWeight="SemiBold" FontSize="13"/>
+                        <TextBlock Grid.Row="0" Grid.Column="2" Text="Component ID" Classes="caption"/>
+                        <TextBlock Grid.Row="0" Grid.Column="3" Text="{Binding ComponentId}" Classes="value" FontFamily="{DynamicResource MonospaceFont}"/>
                         
-                        <TextBlock Grid.Row="2" Grid.Column="0" Text="FC ID:" Foreground="#6B7280" FontSize="13"/>
-                        <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding FcId}" FontWeight="SemiBold" FontSize="13"/>
+                        <TextBlock Grid.Row="1" Grid.Column="0" Text="FC ID" Classes="caption"/>
+                        <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding FcId}" Classes="value" FontFamily="{DynamicResource MonospaceFont}"/>
                         
-                        <TextBlock Grid.Row="3" Grid.Column="0" Text="Parameters Loaded:" Foreground="#6B7280" FontSize="13"/>
-                        <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding ParameterCount}" FontWeight="SemiBold" FontSize="13"/>
+                        <TextBlock Grid.Row="1" Grid.Column="2" Text="Parameters" Classes="caption"/>
+                        <TextBlock Grid.Row="1" Grid.Column="3" Text="{Binding ParameterCount}" Classes="value" FontFamily="{DynamicResource MonospaceFont}"/>
                     </Grid>
                 </StackPanel>
             </Border>
+            
+            <!-- Bottom Spacing -->
+            <Panel Height="24"/>
+            
         </StackPanel>
     </ScrollViewer>
 </UserControl>

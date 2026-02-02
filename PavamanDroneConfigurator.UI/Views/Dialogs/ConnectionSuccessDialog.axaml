@@ -1,0 +1,118 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:PavamanDroneConfigurator.UI.ViewModels.Dialogs"
+             mc:Ignorable="d"
+             x:Class="PavamanDroneConfigurator.UI.Views.Dialogs.ConnectionSuccessDialog"
+             x:DataType="vm:ConnectionSuccessDialogViewModel"
+             IsVisible="{Binding IsVisible}">
+
+    <!-- ???????????????????????????????????????????????????????????????????????????????????????????
+         CONNECTION SUCCESS DIALOG
+         Shows drone connection details with animated checkmark
+    ??????????????????????????????????????????????????????????????????????????????????????????? -->
+    
+    <Grid>
+        <!-- Overlay Background -->
+        <Border Background="{DynamicResource OverlayBrush}" 
+                IsHitTestVisible="True"/>
+        
+        <!-- Dialog Container -->
+        <Border Classes="dialog-container"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                MinWidth="420"
+                MaxWidth="500">
+            <StackPanel Spacing="24">
+                
+                <!-- Success Icon -->
+                <Grid HorizontalAlignment="Center" Width="80" Height="80">
+                    <Ellipse Width="80" Height="80"
+                             Fill="{DynamicResource SuccessLightBrush}"/>
+                    <TextBlock Text="?" 
+                               FontSize="40"
+                               FontWeight="Bold"
+                               Foreground="{DynamicResource SuccessBrush}"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"/>
+                </Grid>
+
+                <!-- Title -->
+                <StackPanel Spacing="8" HorizontalAlignment="Center">
+                    <TextBlock Text="Connected Successfully!" 
+                               FontSize="{DynamicResource FontSize2XL}"
+                               FontWeight="Bold"
+                               Foreground="{DynamicResource TextPrimaryBrush}"
+                               HorizontalAlignment="Center"/>
+                    <TextBlock Text="Your drone is ready for configuration" 
+                               FontSize="{DynamicResource FontSizeMD}"
+                               Foreground="{DynamicResource TextSecondaryBrush}"
+                               HorizontalAlignment="Center"/>
+                </StackPanel>
+
+                <!-- Connection Details Card -->
+                <Border Background="{DynamicResource SecondaryLightBrush}"
+                        CornerRadius="{DynamicResource RadiusBase}"
+                        Padding="20">
+                    <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto" 
+                          ColumnSpacing="24" RowSpacing="16">
+                        
+                        <!-- Firmware -->
+                        <StackPanel Grid.Row="0" Grid.Column="0" Spacing="2">
+                            <TextBlock Text="Firmware" 
+                                       FontSize="{DynamicResource FontSizeSM}"
+                                       Foreground="{DynamicResource TextMutedBrush}"/>
+                            <TextBlock Text="{Binding FirmwareVersion}" 
+                                       FontSize="{DynamicResource FontSizeMD}"
+                                       FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextPrimaryBrush}"
+                                       FontFamily="{DynamicResource MonospaceFont}"/>
+                        </StackPanel>
+                        
+                        <!-- Vehicle Type -->
+                        <StackPanel Grid.Row="0" Grid.Column="1" Spacing="2">
+                            <TextBlock Text="Vehicle Type" 
+                                       FontSize="{DynamicResource FontSizeSM}"
+                                       Foreground="{DynamicResource TextMutedBrush}"/>
+                            <TextBlock Text="{Binding VehicleType}" 
+                                       FontSize="{DynamicResource FontSizeMD}"
+                                       FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextPrimaryBrush}"/>
+                        </StackPanel>
+                        
+                        <!-- Connection Type -->
+                        <StackPanel Grid.Row="1" Grid.Column="0" Spacing="2">
+                            <TextBlock Text="Connection" 
+                                       FontSize="{DynamicResource FontSizeSM}"
+                                       Foreground="{DynamicResource TextMutedBrush}"/>
+                            <TextBlock Text="{Binding ConnectionType}" 
+                                       FontSize="{DynamicResource FontSizeMD}"
+                                       FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextPrimaryBrush}"/>
+                        </StackPanel>
+                        
+                        <!-- Parameters -->
+                        <StackPanel Grid.Row="1" Grid.Column="1" Spacing="2">
+                            <TextBlock Text="Parameters" 
+                                       FontSize="{DynamicResource FontSizeSM}"
+                                       Foreground="{DynamicResource TextMutedBrush}"/>
+                            <TextBlock Text="{Binding ParameterCount}" 
+                                       FontSize="{DynamicResource FontSizeMD}"
+                                       FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextPrimaryBrush}"
+                                       FontFamily="{DynamicResource MonospaceFont}"/>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <!-- Continue Button -->
+                <Button Content="Continue" 
+                        Classes="btn-success"
+                        HorizontalAlignment="Center"
+                        Padding="48,14"
+                        Command="{Binding HideCommand}"/>
+            </StackPanel>
+        </Border>
+    </Grid>
+</UserControl>
