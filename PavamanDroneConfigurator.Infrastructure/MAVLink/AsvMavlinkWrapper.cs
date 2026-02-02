@@ -1402,24 +1402,41 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
 
         public string GetFcId()
         {
-            if (Uid2 == null || Uid2.Length != 18)
-                return "FC-UNAVAILABLE";
-
-            bool allZeros = true;
-            foreach (byte b in Uid2)
+            // FC ID should be derived from firmware build ID (FlightSwVersion + FlightCustomVersion)
+            // FlightSwVersion contains the encoded version, FlightCustomVersion contains the git hash
+            
+            // Use FlightSwVersion as the primary ID source
+            if (FlightSwVersion > 0)
             {
-                if (b != 0)
+                // Format: firmware version + first 4 bytes of git hash for uniqueness
+                var gitPrefix = FlightCustomVersion != null && FlightCustomVersion.Length >= 4
+                    ? BitConverter.ToString(FlightCustomVersion, 0, 4).Replace("-", "").ToUpperInvariant()
+                    : "0000";
+                
+                return $"FW-{FlightSwVersion:X8}-{gitPrefix}";
+            }
+            
+            // Fallback: use git hash (FlightCustomVersion) if available
+            if (FlightCustomVersion != null && FlightCustomVersion.Length > 0)
+            {
+                bool allZeros = true;
+                foreach (byte b in FlightCustomVersion)
                 {
-                    allZeros = false;
-                    break;
+                    if (b != 0)
+                    {
+                        allZeros = false;
+                        break;
+                    }
+                }
+
+                if (!allZeros)
+                {
+                    var hex = BitConverter.ToString(FlightCustomVersion).Replace("-", "").ToUpperInvariant();
+                    return $"FW-{hex}";
                 }
             }
 
-            if (allZeros)
-                return "FC-UNAVAILABLE";
-
-            var hex = BitConverter.ToString(Uid2).Replace("-", "").ToUpperInvariant();
-            return $"FC-{hex}";
+            return "FW-UNAVAILABLE";
         }
 
         public string GetGitHash()

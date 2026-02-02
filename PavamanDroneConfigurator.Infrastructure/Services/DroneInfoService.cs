@@ -285,10 +285,13 @@ public class DroneInfoService : IDroneInfoService
 
     private string GenerateFcId()
     {
-        // Generate FCID from system ID and component ID
-        if (_currentInfo == null) return "Unknown";
+        // Generate FCID from firmware build information
+        // In real usage, this comes from AUTOPILOT_VERSION message's FlightSwVersion + FlightCustomVersion
+        // This is a fallback when that data isn't available
+        if (_currentInfo == null) return "FW-UNAVAILABLE";
         
-        return $"FC-{_currentInfo.SystemId:D3}-{_currentInfo.ComponentId:D3}-{DateTime.UtcNow.Year}";
+        // Use system/component IDs as a temporary identifier until AUTOPILOT_VERSION is received
+        return $"FW-{_currentInfo.SystemId:D3}{_currentInfo.ComponentId:D3}0000-0000";
     }
 
     private static string GetVehicleTypeName(byte vehicleType)
