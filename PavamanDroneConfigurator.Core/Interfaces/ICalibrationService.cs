@@ -157,6 +157,57 @@ public interface ICalibrationService
     /// </summary>
     event EventHandler<CalibrationStatusTextEventArgs>? StatusTextReceived;
 
+    /// <summary>
+    /// Event raised when FC sends MAV_CMD_ACCELCAL_VEHICLE_POS requesting a specific position.
+    /// MissionPlanner-style: FC tells GCS what position to place vehicle in.
+    /// </summary>
+    event EventHandler<AccelCalPositionRequestedEventArgs>? AccelCalPositionRequested;
+
+    /// <summary>
+    /// Event raised when compass calibration progress is received (MAG_CAL_PROGRESS)
+    /// </summary>
+    event EventHandler<CompassCalProgressEventArgs>? CompassCalProgressReceived;
+
+    /// <summary>
+    /// Event raised when compass calibration report is received (MAG_CAL_REPORT)
+    /// </summary>
+    event EventHandler<CompassCalReportEventArgs>? CompassCalReportReceived;
+
+    /// <summary>
+    /// Event raised when compass calibration state changes
+    /// </summary>
+    event EventHandler<CompassCalibrationStateModel>? CompassCalibrationStateChanged;
+
+    #endregion
+
+    #region Compass Calibration
+
+    /// <summary>
+    /// Start onboard magnetometer calibration (MAV_CMD_DO_START_MAG_CAL).
+    /// This is the preferred method for ArduPilot 3.3+.
+    /// User must rotate vehicle through all orientations for full sphere coverage.
+    /// </summary>
+    /// <param name="magMask">Bitmask of compasses to calibrate (0 = all)</param>
+    /// <param name="retryOnFailure">Automatically retry on failure</param>
+    /// <param name="autosave">Save calibration without user confirmation</param>
+    Task<bool> StartOnboardCompassCalibrationAsync(int magMask = 0, bool retryOnFailure = true, bool autosave = true);
+
+    /// <summary>
+    /// Accept the completed compass calibration (MAV_CMD_DO_ACCEPT_MAG_CAL).
+    /// Only valid when calibration reports success.
+    /// </summary>
+    Task<bool> AcceptCompassCalibrationAsync();
+
+    /// <summary>
+    /// Cancel an ongoing compass calibration (MAV_CMD_DO_CANCEL_MAG_CAL).
+    /// </summary>
+    Task<bool> CancelCompassCalibrationAsync();
+
+    /// <summary>
+    /// Get current compass calibration state
+    /// </summary>
+    CompassCalibrationStateModel? CompassCalibrationState { get; }
+
     #endregion
 }
 
@@ -216,4 +267,56 @@ public enum CalibrationStep
     Rotate,
     /// <summary>Keep vehicle still</summary>
     KeepStill
+}
+
+/// <summary>
+/// Event args for FC requesting a specific vehicle position during accel calibration.
+/// Raised when FC sends MAV_CMD_ACCELCAL_VEHICLE_POS to GCS.
+/// </summary>
+public class AccelCalPositionRequestedEventArgs : EventArgs
+{
+    /// <summary>
+    /// The position FC is requesting (1-6, or SUCCESS/FAILED terminal states).
+    /// </summary>
+    public AccelCalVehiclePosition Position { get; set; }
+
+    /// <summary>
+    /// Human-readable position name (e.g., "LEVEL", "on its LEFT side").
+    /// </summary>
+    public string PositionName { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Current step number (1-6).
+    /// </summary>
+    public int StepNumber { get; set; }
+
+    /// <summary>
+    /// Total number of steps (always 6 for accel calibration).
+    /// </summary>
+    public int TotalSteps { get; set; } = 6;
+}
+
+/// <summary>
+/// Event args for compass calibration progress (from MAG_CAL_PROGRESS)
+/// </summary>
+public class CompassCalProgressEventArgs : EventArgs
+{
+    public byte CompassId { get; set; }
+    public MagCalStatus Status { get; set; }
+    public int Attempt { get; set; }
+    public int CompletionPercent { get; set; }
+    public (float X, float Y, float Z) Direction { get; set; }
+}
+
+/// <summary>
+/// Event args for compass calibration report (from MAG_CAL_REPORT)
+/// </summary>
+public class CompassCalReportEventArgs : EventArgs
+{
+    public byte CompassId { get; set; }
+    public MagCalStatus Status { get; set; }
+    public bool IsAutosaved { get; set; }
+    public float Fitness { get; set; }
+    public (float X, float Y, float Z) Offsets { get; set; }
+    public bool IsAcceptable { get; set; }
 }

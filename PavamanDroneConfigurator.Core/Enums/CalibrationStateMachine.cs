@@ -58,6 +58,7 @@ public enum CalibrationStateMachine
 /// <summary>
 /// ArduPilot accelerometer calibration vehicle positions.
 /// Maps to MAV_CMD_ACCELCAL_VEHICLE_POS parameter values.
+/// FROM ARDUPILOTMEGA DIALECT - use exact values from MAVLink XML.
 /// </summary>
 public enum AccelCalVehiclePosition
 {
@@ -77,7 +78,19 @@ public enum AccelCalVehiclePosition
     NoseUp = 5,
     
     /// <summary>Position 6: Vehicle upside down (on its back)</summary>
-    Back = 6
+    Back = 6,
+    
+    /// <summary>
+    /// Calibration successful (terminal state from FC).
+    /// ArduPilotMega dialect value: 16777215
+    /// </summary>
+    Success = 16777215,
+    
+    /// <summary>
+    /// Calibration failed (terminal state from FC).
+    /// ArduPilotMega dialect value: 16777216
+    /// </summary>
+    Failed = 16777216
 }
 
 /// <summary>

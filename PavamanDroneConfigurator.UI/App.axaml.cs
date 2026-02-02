@@ -33,13 +33,13 @@ public partial class App : Application
     public override void Initialize()
     {
         AvaloniaXamlLoader.Load(this);
-        
+
         var envPath = Path.Combine(AppContext.BaseDirectory, ".env");
         if (File.Exists(envPath))
         {
             Env.Load(envPath);
         }
-        
+
         BuildConfiguration();
         ConfigureServices();
     }
@@ -49,7 +49,7 @@ public partial class App : Application
         var builder = new ConfigurationBuilder()
             .SetBasePath(AppContext.BaseDirectory)
             .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true);
-        
+
         Configuration = builder.Build();
     }
 
@@ -69,23 +69,23 @@ public partial class App : Application
         });
 
         services.AddSingleton<ITokenStorage, SecureTokenStorage>();
-        
+
         services.AddHttpClient<IAuthService, AuthApiService>(client =>
         {
             var useAwsApi = Configuration?.GetValue<bool>("Auth:UseAwsApi") ?? false;
             var authApiUrl = useAwsApi
-                ? (Environment.GetEnvironmentVariable("AWS_API_URL") 
+                ? (Environment.GetEnvironmentVariable("AWS_API_URL")
                    ?? Configuration?.GetValue<string>("Auth:AwsApiUrl")
                    ?? "http://localhost:5000")
                 : (Environment.GetEnvironmentVariable("AUTH_API_URL")
-                   ?? Configuration?.GetValue<string>("Auth:ApiUrl") 
+                   ?? Configuration?.GetValue<string>("Auth:ApiUrl")
                    ?? "http://localhost:5000");
-            
+
             client.BaseAddress = new Uri(authApiUrl);
             client.DefaultRequestHeaders.Add("Accept", "application/json");
             client.Timeout = TimeSpan.FromSeconds(10); // Reasonable timeout for auth calls
         });
-        
+
         services.AddHttpClient<Core.Interfaces.IAdminService, AdminApiService>(client =>
         {
             var useAwsApi = Configuration?.GetValue<bool>("Auth:UseAwsApi") ?? false;
@@ -94,21 +94,21 @@ public partial class App : Application
                    ?? Configuration?.GetValue<string>("Auth:AwsApiUrl")
                    ?? "http://localhost:5000")
                 : (Environment.GetEnvironmentVariable("AUTH_API_URL")
-                   ?? Configuration?.GetValue<string>("Auth:ApiUrl") 
+                   ?? Configuration?.GetValue<string>("Auth:ApiUrl")
                    ?? "http://localhost:5000");
-            
+
             client.BaseAddress = new Uri(authApiUrl);
             client.DefaultRequestHeaders.Add("Accept", "application/json");
             client.Timeout = TimeSpan.FromSeconds(30);
         });
-        
+
         services.AddSingleton<AuthSessionViewModel>();
-        
+
         services.AddTransient<LoginViewModel>();
         services.AddTransient<RegisterViewModel>();
         services.AddTransient<PendingApprovalViewModel>();
         services.AddTransient<AuthShellViewModel>();
-        
+
         services.AddTransient<UI.ViewModels.Admin.AdminPanelViewModel>();
         services.AddTransient<UI.ViewModels.Admin.AdminDashboardViewModel>();
 
@@ -204,11 +204,11 @@ public partial class App : Application
         try
         {
             var authShellViewModel = Services.GetRequiredService<AuthShellViewModel>();
-            
+
             authShellViewModel.AuthenticationCompleted += (_, _) =>
             {
                 if (_isShuttingDown) return;
-                
+
                 Dispatcher.UIThread.Post(() =>
                 {
                     try
@@ -233,7 +233,7 @@ public partial class App : Application
             var authShell = new AuthShell { DataContext = authShellViewModel };
             desktop.MainWindow = authShell;
             authShell.Show();
-            
+
             // IMMEDIATELY initialize - don't wait for Opened event
             _ = Task.Run(async () =>
             {
@@ -260,7 +260,7 @@ public partial class App : Application
         try
         {
             var mainViewModel = Services.GetRequiredService<MainWindowViewModel>();
-            
+
             if (mainViewModel.ProfilePage != null)
             {
                 mainViewModel.ProfilePage.LogoutRequested += (_, _) =>
@@ -277,7 +277,7 @@ public partial class App : Application
                     });
                 };
             }
-            
+
             var mainWindow = new MainWindow { DataContext = mainViewModel };
             desktop.MainWindow = mainWindow;
             mainWindow.Show();

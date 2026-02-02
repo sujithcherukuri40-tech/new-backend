@@ -11,11 +11,18 @@ using PavamanDroneConfigurator.Core.Interfaces;
 using PavamanDroneConfigurator.Core.Models;
 using PavamanDroneConfigurator.Infrastructure.Services;
 
+// Use explicit namespace for AccelCalPositionRequestedEventArgs to avoid ambiguity
+using AccelCalPositionRequestedEventArgs = PavamanDroneConfigurator.Core.Interfaces.AccelCalPositionRequestedEventArgs;
+
 namespace PavamanDroneConfigurator.UI.ViewModels;
 
 /// <summary>
-/// ViewModel for Sensors Calibration page - Mission Planner style.
-/// Simple and direct: FC drives the workflow, we just display and forward user actions.
+/// ViewModel for Sensors Calibration page.
+/// Implements MissionPlanner-style accelerometer calibration:
+/// - Single button: "Calibrate Accel" -> "Click when Done" -> "Done"
+/// - First click starts calibration
+/// - Subsequent clicks confirm vehicle position
+/// - FC controls the flow via STATUSTEXT and COMMAND_LONG messages
 /// </summary>
 public partial class SensorsCalibrationPageViewModel : ViewModelBase
 {
@@ -61,10 +68,16 @@ public partial class SensorsCalibrationPageViewModel : ViewModelBase
     private ObservableCollection<string> _debugLogs = new();
     
     [ObservableProperty]
-    private bool _showMavLinkLog = true; // Default: visible
+    private bool _showMavLinkLog = true;
 
     [ObservableProperty]
     private ObservableCollection<MavLinkLogEntry> _mavLinkMessages = new();
+
+    [ObservableProperty]
+    private bool _showRebootPrompt;
+
+    [ObservableProperty]
+    private string _rebootPromptMessage = "Calibration complete! Please reboot the autopilot to apply changes.";
 
     #endregion
 
@@ -142,7 +155,7 @@ public partial class SensorsCalibrationPageViewModel : ViewModelBase
 
     #endregion
 
-    #region Accelerometer Properties
+    #region Accelerometer Properties (MissionPlanner Style)
 
     [ObservableProperty]
     private string _accelCalibrationStatus = "Not calibrated";
@@ -151,7 +164,7 @@ public partial class SensorsCalibrationPageViewModel : ViewModelBase
     private bool _isAccelCalibrated;
 
     [ObservableProperty]
-    private string _accelInstructions = "Click Calibrate Accel to start 6-axis accelerometer calibration";
+    private string _accelInstructions = "Click 'Calibrate Accel' to start 6-position accelerometer calibration.";
 
     [ObservableProperty]
     private int _accelCalibrationProgress;
@@ -169,16 +182,27 @@ public partial class SensorsCalibrationPageViewModel : ViewModelBase
     private string _currentCalibrationImage = "avares://PavamanDroneConfigurator.UI/Assets/Images/Caliberation-images/Level.png";
 
     /// <summary>
-    /// MissionPlanner's button text: "Calibrate Accel" → "Click when Done" → "Done"
+    /// MissionPlanner-style button text:
+    /// - "Calibrate Accel" when idle
+    /// - "Click when Done" during calibration
+    /// - "Done" when calibration finished
     /// </summary>
     [ObservableProperty]
     private string _accelButtonText = "Calibrate Accel";
 
     /// <summary>
-    /// MissionPlanner: Button is disabled only when calibration completes
+    /// Button enabled state:
+    /// - True when idle and connected
+    /// - True during calibration (to confirm positions)
+    /// - False when calibration complete (until reset)
     /// </summary>
     [ObservableProperty]
     private bool _isAccelButtonEnabled = true;
+
+    /// <summary>
+    /// Current position requested by FC (from MAV_CMD_ACCELCAL_VEHICLE_POS)
+    /// </summary>
+    private AccelCalVehiclePosition _currentRequestedPosition;
 
     // Step border and background colors for UI
     [ObservableProperty] private string _step1BorderColor = "#E2E8F0";
@@ -193,6 +217,14 @@ public partial class SensorsCalibrationPageViewModel : ViewModelBase
     [ObservableProperty] private string _step5BackgroundColor = "#F8FAFC";
     [ObservableProperty] private string _step6BorderColor = "#E2E8F0";
     [ObservableProperty] private string _step6BackgroundColor = "#F8FAFC";
+
+    // Colors for step indicators
+    private const string PendingBorderColor = "#E2E8F0";
+    private const string PendingBackgroundColor = "#F8FAFC";
+    private const string WaitingBorderColor = "#EF4444"; // Red - waiting for user
+    private const string WaitingBackgroundColor = "#FEE2E2";
+    private const string CompleteBorderColor = "#10B981"; // Green - completed
+    private const string CompleteBackgroundColor = "#D1FAE5";
 
     #endregion
 
@@ -211,7 +243,7 @@ public partial class SensorsCalibrationPageViewModel : ViewModelBase
     private int _compassCalibrationProgress;
 
     [ObservableProperty]
-    private string _compassInstructions = "Click Start to begin compass calibration";
+    private string _compassInstructions = "Click 'Start Calibration' and rotate the vehicle in all directions.";
 
     #endregion
 
@@ -224,7 +256,7 @@ public partial class SensorsCalibrationPageViewModel : ViewModelBase
     private bool _isLevelCalibrated;
 
     [ObservableProperty]
-    private string _levelInstructions = "Click Calibrate Level to calibrate level horizon";
+    private string _levelInstructions = "Place vehicle on a level surface and click Calibrate.";
 
     #endregion
 
@@ -265,17 +297,68 @@ public partial class SensorsCalibrationPageViewModel : ViewModelBase
 
     #endregion
 
-    private static readonly string[] CalibrationImagePaths =
-    {
-        "avares://PavamanDroneConfigurator.UI/Assets/Images/Caliberation-images/Level.png",
-        "avares://PavamanDroneConfigurator.UI/Assets/Images/Caliberation-images/Left-Side.png",
-        "avares://PavamanDroneConfigurator.UI/Assets/Images/Caliberation-images/Right-Side.png",
-        "avares://PavamanDroneConfigurator.UI/Assets/Images/Caliberation-images/Nose-Down.png",
-        "avares://PavamanDroneConfigurator.UI/Assets/Images/Caliberation-images/Nose-Up.png",
-        "avares://PavamanDroneConfigurator.UI/Assets/Images/Caliberation-images/Back-Side.png"
-    };
-
     private SensorCalibrationConfiguration? _currentConfiguration;
+
+    #region Compass Calibration Properties (MissionPlanner Onboard Style)
+
+    [ObservableProperty]
+    private bool _isOnboardCompassCalActive;
+
+    [ObservableProperty]
+    private int _compass1Progress;
+
+    [ObservableProperty]
+    private int _compass2Progress;
+
+    [ObservableProperty]
+    private int _compass3Progress;
+
+    [ObservableProperty]
+    private string _compass1Status = "Not started";
+
+    [ObservableProperty]
+    private string _compass2Status = "Not started";
+
+    [ObservableProperty]
+    private string _compass3Status = "Not started";
+
+    [ObservableProperty]
+    private string _compass1Result = string.Empty;
+
+    [ObservableProperty]
+    private string _compass2Result = string.Empty;
+
+    [ObservableProperty]
+    private string _compass3Result = string.Empty;
+
+    [ObservableProperty]
+    private string _compass1OffsetColor = "#6B7280"; // Gray
+
+    [ObservableProperty]
+    private string _compass2OffsetColor = "#6B7280";
+
+    [ObservableProperty]
+    private string _compass3OffsetColor = "#6B7280";
+
+    [ObservableProperty]
+    private bool _canAcceptCompassCal;
+
+    [ObservableProperty]
+    private bool _canCancelCompassCal;
+
+    [ObservableProperty]
+    private bool _canStartCompassCal = true;
+
+    [ObservableProperty]
+    private string _compassCalStatus = "Ready to calibrate";
+
+    [ObservableProperty]
+    private string _compassCalButtonText = "Start Calibration";
+
+    private int _compassCount;
+    private int _completedCompassCount;
+
+    #endregion
 
     public SensorsCalibrationPageViewModel(
         ILogger<SensorsCalibrationPageViewModel> logger,
@@ -290,18 +373,538 @@ public partial class SensorsCalibrationPageViewModel : ViewModelBase
         _connectionService = connectionService;
         _mavLinkLogger = mavLinkLogger;
 
+        // Subscribe to connection events
         _connectionService.ConnectionStateChanged += OnConnectionStateChanged;
+        _mavLinkLogger.MessageLogged += OnMavLinkMessageLogged;
+
+        // Subscribe to calibration service events
         _calibrationService.CalibrationStateChanged += OnCalibrationStateChanged;
         _calibrationService.CalibrationProgressChanged += OnCalibrationProgressChanged;
-        _calibrationService.CalibrationStepRequired += OnCalibrationStepRequired;
-        _calibrationService.StatusTextReceived += OnStatusTextReceived;
-        _mavLinkLogger.MessageLogged += OnMavLinkMessageLogged;
+        _calibrationService.StatusTextReceived += OnCalibrationStatusTextReceived;
+        _calibrationService.AccelCalPositionRequested += OnAccelCalPositionRequested;
+        
+        // Subscribe to compass calibration events
+        _calibrationService.CompassCalProgressReceived += OnCompassCalProgressReceived;
+        _calibrationService.CompassCalReportReceived += OnCompassCalReportReceived;
+        _calibrationService.CompassCalibrationStateChanged += OnCompassCalStateChanged;
 
         InitializeFlowTypeOptions();
         UpdateConnectionStatus(_connectionService.IsConnected);
         
-        AddDebugLog("ViewModel initialized");
+        AddDebugLog("ViewModel initialized - MissionPlanner-style IMU and Compass calibration ready");
     }
+
+    #region Event Handlers
+
+    private void OnConnectionStateChanged(object? sender, bool connected)
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            UpdateConnectionStatus(connected);
+            if (connected)
+                _ = RefreshAsync();
+            else
+            {
+                IsAccelerometerAvailable = false;
+                IsGyroscopeAvailable = false;
+                IsCompassAvailable = false;
+                IsBarometerAvailable = false;
+                AccelSensorStatus = "Not connected";
+                GyroSensorStatus = "Not connected";
+                CompassSensorStatus = "Not connected";
+                BaroSensorStatus = "Not connected";
+            }
+        });
+    }
+
+    private void OnMavLinkMessageLogged(object? sender, MavLinkLogEntry e)
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            MavLinkMessages.Insert(0, e);
+            if (MavLinkMessages.Count > 100)
+                MavLinkMessages.RemoveAt(MavLinkMessages.Count - 1);
+        });
+    }
+
+    /// <summary>
+    /// Handle calibration state changes from CalibrationService
+    /// </summary>
+    private void OnCalibrationStateChanged(object? sender, CalibrationStateModel e)
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (e.Type == CalibrationType.Accelerometer)
+            {
+                HandleAccelCalibrationStateChange(e);
+            }
+            else if (e.Type == CalibrationType.Level)
+            {
+                LevelCalibrationStatus = e.Message;
+                IsLevelCalibrationActive = e.State == CalibrationState.InProgress ||
+                                           e.State == CalibrationState.WaitingForUserAction;
+                
+                if (e.State == CalibrationState.Completed)
+                {
+                    IsLevelCalibrated = true;
+                    LevelInstructions = "Level calibration complete!";
+                    ShowRebootPromptDialog("Level calibration complete! Please reboot the autopilot to apply changes.");
+                }
+            }
+            else if (e.Type == CalibrationType.Barometer)
+            {
+                PressureCalibrationStatus = e.Message;
+                IsPressureCalibrationActive = e.State == CalibrationState.InProgress;
+                
+                if (e.State == CalibrationState.Completed)
+                {
+                    IsPressureCalibrated = true;
+                    PressureInstructions = "Barometer calibration complete!";
+                }
+            }
+            
+            // Update overall calibrating flag
+            IsCalibrating = _calibrationService.IsCalibrating;
+            UpdateButtonStates();
+        });
+    }
+
+    /// <summary>
+    /// Handle accelerometer calibration state changes (MissionPlanner style)
+    /// </summary>
+    private void HandleAccelCalibrationStateChange(CalibrationStateModel e)
+    {
+        AddDebugLog($"[AccelCal] State: {e.State} SM: {e.StateMachine} Pos: {e.CurrentPosition} Msg: {e.Message}");
+
+        AccelCalibrationStatus = e.Message;
+        AccelCalibrationProgress = e.Progress;
+        IsAccelCalibrationActive = e.State == CalibrationState.InProgress ||
+                                   e.State == CalibrationState.WaitingForUserAction;
+
+        switch (e.State)
+        {
+            case CalibrationState.InProgress:
+            case CalibrationState.WaitingForUserAction:
+                // MissionPlanner: button text changes to "Click when Done"
+                AccelButtonText = "Click when Done";
+                IsAccelButtonEnabled = e.CanConfirmPosition;
+                AccelInstructions = e.Message;
+                break;
+
+            case CalibrationState.Completed:
+                // MissionPlanner: button text changes to "Done", button disabled
+                AccelButtonText = "Done";
+                IsAccelButtonEnabled = false;
+                IsAccelCalibrated = true;
+                AccelInstructions = "Calibration successful! Reboot required to apply changes.";
+                ResetAllStepIndicatorsToComplete();
+                ShowRebootPromptDialog("Accelerometer calibration complete! Please reboot the autopilot to apply changes.");
+                break;
+
+            case CalibrationState.Failed:
+                // Reset to allow retry
+                AccelButtonText = "Calibrate Accel";
+                IsAccelButtonEnabled = true;
+                AccelInstructions = $"Calibration failed: {e.Message}. Click to retry.";
+                ResetAllStepIndicators();
+                break;
+
+            case CalibrationState.Idle:
+            case CalibrationState.NotStarted:
+                AccelButtonText = "Calibrate Accel";
+                IsAccelButtonEnabled = IsConnected && IsAccelerometerAvailable;
+                ResetAllStepIndicators();
+                break;
+        }
+    }
+
+    /// <summary>
+    /// Handle progress updates from CalibrationService
+    /// </summary>
+    private void OnCalibrationProgressChanged(object? sender, CalibrationProgressEventArgs e)
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (e.Type == CalibrationType.Accelerometer)
+            {
+                AccelCalibrationProgress = e.ProgressPercent;
+                if (e.CurrentStep.HasValue)
+                {
+                    AccelStepNumber = e.CurrentStep.Value;
+                }
+            }
+            else if (e.Type == CalibrationType.Barometer)
+            {
+                PressureCalibrationProgress = e.ProgressPercent;
+            }
+        });
+    }
+
+    /// <summary>
+    /// Handle STATUSTEXT messages during calibration for debugging
+    /// </summary>
+    private void OnCalibrationStatusTextReceived(object? sender, CalibrationStatusTextEventArgs e)
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            AddDebugLog($"[FC STATUSTEXT] [{e.Severity}] {e.Text}");
+            
+            // Update instructions if it's a placement instruction
+            var lower = e.Text.ToLowerInvariant();
+            if (lower.Contains("place vehicle") || lower.Contains("calibration"))
+            {
+                AccelInstructions = e.Text;
+            }
+            
+            // Check for compass calibration messages
+            if (lower.Contains("compass") && lower.Contains("calibrat"))
+            {
+                CompassCalStatus = e.Text;
+            }
+        });
+    }
+
+    /// <summary>
+    /// Handle FC requesting a specific vehicle position (MissionPlanner style).
+    /// FC sends MAV_CMD_ACCELCAL_VEHICLE_POS with param1 = position (1-6).
+    /// </summary>
+    private void OnAccelCalPositionRequested(object? sender, AccelCalPositionRequestedEventArgs e)
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            AddDebugLog($"[AccelCal] FC requested position: {e.Position} ({e.PositionName}) - Step {e.StepNumber}/6");
+
+            _currentRequestedPosition = e.Position;
+            AccelStepNumber = e.StepNumber;
+            AccelCurrentStep = e.PositionName;
+            AccelInstructions = $"Place vehicle {e.PositionName} and click 'Click when Done'";
+
+            // Update step indicators to show current position as waiting
+            UpdateStepIndicatorForPosition(e.Position);
+
+            // Update calibration image based on position
+            UpdateCalibrationImage(e.Position);
+
+            // Enable button for user to confirm position
+            IsAccelButtonEnabled = true;
+            CanClickWhenInPosition = true;
+        });
+    }
+
+    private void OnCompassCalProgressReceived(object? sender, CompassCalProgressEventArgs e)
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            AddDebugLog($"[CompassCal] Progress: compass={e.CompassId} status={e.Status} pct={e.CompletionPercent}%");
+
+            // Update progress bars and status based on compass_id
+            switch (e.CompassId)
+            {
+                case 0:
+                    Compass1Progress = e.CompletionPercent;
+                    Compass1Status = GetCalStatusText(e.Status, e.CompletionPercent);
+                    break;
+                case 1:
+                    Compass2Progress = e.CompletionPercent;
+                    Compass2Status = GetCalStatusText(e.Status, e.CompletionPercent);
+                    break;
+                case 2:
+                    Compass3Progress = e.CompletionPercent;
+                    Compass3Status = GetCalStatusText(e.Status, e.CompletionPercent);
+                    break;
+            }
+
+            _compassCount = Math.Max(_compassCount, e.CompassId + 1);
+            
+            // Update overall status
+            CompassCalStatus = $"Calibrating... Rotate vehicle in all directions. ({e.CompletionPercent}%)";
+            CompassInstructions = "Rotate the vehicle slowly in all directions to cover all orientations.";
+        });
+    }
+
+    private void OnCompassCalReportReceived(object? sender, CompassCalReportEventArgs e)
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            var resultText = $"Fitness: {e.Fitness:F1}, Offsets: X:{e.Offsets.X:F1} Y:{e.Offsets.Y:F1} Z:{e.Offsets.Z:F1}";
+            var statusText = e.Status == MagCalStatus.Success ? "SUCCESS" : e.Status.ToString();
+            AddDebugLog($"[CompassCal] Report: compass={e.CompassId} status={statusText} {resultText}");
+
+            // Determine offset color based on magnitude
+            var maxOffset = Math.Max(Math.Max(Math.Abs(e.Offsets.X), Math.Abs(e.Offsets.Y)), Math.Abs(e.Offsets.Z));
+            var offsetColor = CompassOffsetThresholds.GetColorForOffset(maxOffset);
+
+            // Update result text, progress to 100%, and color
+            switch (e.CompassId)
+            {
+                case 0:
+                    Compass1Progress = 100;
+                    Compass1Result = resultText;
+                    Compass1Status = statusText;
+                    Compass1OffsetColor = offsetColor;
+                    break;
+                case 1:
+                    Compass2Progress = 100;
+                    Compass2Result = resultText;
+                    Compass2Status = statusText;
+                    Compass2OffsetColor = offsetColor;
+                    break;
+                case 2:
+                    Compass3Progress = 100;
+                    Compass3Result = resultText;
+                    Compass3Status = statusText;
+                    Compass3OffsetColor = offsetColor;
+                    break;
+            }
+
+            if (e.IsAutosaved)
+            {
+                _completedCompassCount++;
+                AddDebugLog($"[CompassCal] Compass {e.CompassId} autosaved. Completed: {_completedCompassCount}/{_compassCount}");
+                
+                if (_completedCompassCount >= _compassCount && _compassCount > 0)
+                {
+                    // All compasses complete and autosaved
+                    CanAcceptCompassCal = false;
+                    CanCancelCompassCal = false;
+                    CanStartCompassCal = true;
+                    CompassCalButtonText = "Start Calibration";
+                    CompassCalStatus = "Calibration complete and saved! Please reboot the autopilot.";
+                    CompassInstructions = "Compass calibration successful. Reboot required to apply changes.";
+                    IsOnboardCompassCalActive = false;
+                    IsCompassCalibrationActive = false;
+                    
+                    // Show reboot prompt
+                    ShowRebootPromptDialog("Compass calibration complete! Please reboot the autopilot to apply the new calibration values.");
+                }
+            }
+            else if (e.Status == MagCalStatus.Success && !e.IsAutosaved)
+            {
+                // Calibration successful but needs acceptance
+                CanAcceptCompassCal = true;
+                CompassCalStatus = "Calibration successful. Click Accept to save.";
+            }
+        });
+    }
+
+    private void OnCompassCalStateChanged(object? sender, CompassCalibrationStateModel e)
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            AddDebugLog($"[CompassCal] State changed: {e.State} - {e.Message}");
+            
+            CompassCalStatus = e.Message;
+            IsOnboardCompassCalActive = e.IsCalibrating;
+            IsCompassCalibrationActive = e.IsCalibrating;
+            CanAcceptCompassCal = e.CanAccept;
+            CanCancelCompassCal = e.CanCancel;
+            CanStartCompassCal = !e.IsCalibrating && !e.CanAccept;
+
+            // Update button text based on state
+            if (e.IsCalibrating)
+            {
+                CompassCalButtonText = "Calibrating...";
+            }
+            else if (e.CanAccept)
+            {
+                CompassCalButtonText = "Accept";
+            }
+            else
+            {
+                CompassCalButtonText = "Start Calibration";
+            }
+
+            // Update progress from state
+            foreach (var kvp in e.CompassProgress)
+            {
+                switch (kvp.Key)
+                {
+                    case 0:
+                        Compass1Progress = kvp.Value;
+                        break;
+                    case 1:
+                        Compass2Progress = kvp.Value;
+                        break;
+                    case 2:
+                        Compass3Progress = kvp.Value;
+                        break;
+                }
+            }
+
+            // Check for completion states
+            if (e.State == CompassCalibrationState.Accepted || e.State == CompassCalibrationState.Cancelled)
+            {
+                IsOnboardCompassCalActive = false;
+                IsCompassCalibrationActive = false;
+                CanStartCompassCal = true;
+                CompassCalButtonText = "Start Calibration";
+                
+                if (e.State == CompassCalibrationState.Accepted)
+                {
+                    ShowRebootPromptDialog("Compass calibration accepted! Please reboot the autopilot to apply changes.");
+                }
+            }
+            else if (e.State == CompassCalibrationState.Failed)
+            {
+                IsOnboardCompassCalActive = false;
+                IsCompassCalibrationActive = false;
+                CanStartCompassCal = true;
+                CompassCalButtonText = "Start Calibration";
+                CompassInstructions = "Calibration failed. Please try again.";
+            }
+
+            IsCalibrating = _calibrationService.IsCalibrating;
+            UpdateButtonStates();
+        });
+    }
+
+    private string GetCalStatusText(MagCalStatus status, int progress)
+    {
+        return status switch
+        {
+            MagCalStatus.NotStarted => "Not started",
+            MagCalStatus.WaitingToStart => "Waiting...",
+            MagCalStatus.RunningStepOne => $"Sphere fit: {progress}%", // Placeholder for actual step text
+            MagCalStatus.RunningStepTwo => $"Ellipsoid fit: {progress}%", // Placeholder for actual step text
+            MagCalStatus.Success => "Success",
+            MagCalStatus.Failed => "Failed",
+            MagCalStatus.BadOrientation => "Bad orientation",
+            MagCalStatus.BadRadius => "Bad radius",
+            _ => status.ToString()
+        };
+    }
+
+    private void ShowRebootPromptDialog(string message)
+    {
+        RebootPromptMessage = message;
+        ShowRebootPrompt = true;
+    }
+
+    #endregion
+
+    #region Step Indicator Helpers
+
+    private void UpdateStepIndicatorForPosition(AccelCalVehiclePosition position)
+    {
+        // Reset all to pending first
+        ResetAllStepIndicatorsToPending();
+
+        // Set current position as waiting (red)
+        switch (position)
+        {
+            case AccelCalVehiclePosition.Level:
+                Step1BorderColor = WaitingBorderColor;
+                Step1BackgroundColor = WaitingBackgroundColor;
+                break;
+            case AccelCalVehiclePosition.Left:
+                Step1BorderColor = CompleteBorderColor;
+                Step1BackgroundColor = CompleteBackgroundColor;
+                Step2BorderColor = WaitingBorderColor;
+                Step2BackgroundColor = WaitingBackgroundColor;
+                break;
+            case AccelCalVehiclePosition.Right:
+                Step1BorderColor = CompleteBorderColor;
+                Step1BackgroundColor = CompleteBackgroundColor;
+                Step2BorderColor = CompleteBorderColor;
+                Step2BackgroundColor = CompleteBackgroundColor;
+                Step3BorderColor = WaitingBorderColor;
+                Step3BackgroundColor = WaitingBackgroundColor;
+                break;
+            case AccelCalVehiclePosition.NoseDown:
+                Step1BorderColor = CompleteBorderColor;
+                Step1BackgroundColor = CompleteBackgroundColor;
+                Step2BorderColor = CompleteBorderColor;
+                Step2BackgroundColor = CompleteBackgroundColor;
+                Step3BorderColor = CompleteBorderColor;
+                Step3BackgroundColor = CompleteBackgroundColor;
+                Step4BorderColor = WaitingBorderColor;
+                Step4BackgroundColor = WaitingBackgroundColor;
+                break;
+            case AccelCalVehiclePosition.NoseUp:
+                Step1BorderColor = CompleteBorderColor;
+                Step1BackgroundColor = CompleteBackgroundColor;
+                Step2BorderColor = CompleteBorderColor;
+                Step2BackgroundColor = CompleteBackgroundColor;
+                Step3BorderColor = CompleteBorderColor;
+                Step3BackgroundColor = CompleteBackgroundColor;
+                Step4BorderColor = CompleteBorderColor;
+                Step4BackgroundColor = CompleteBackgroundColor;
+                Step5BorderColor = WaitingBorderColor;
+                Step5BackgroundColor = WaitingBackgroundColor;
+                break;
+            case AccelCalVehiclePosition.Back:
+                Step1BorderColor = CompleteBorderColor;
+                Step1BackgroundColor = CompleteBackgroundColor;
+                Step2BorderColor = CompleteBorderColor;
+                Step2BackgroundColor = CompleteBackgroundColor;
+                Step3BorderColor = CompleteBorderColor;
+                Step3BackgroundColor = CompleteBackgroundColor;
+                Step4BorderColor = CompleteBorderColor;
+                Step4BackgroundColor = CompleteBackgroundColor;
+                Step5BorderColor = CompleteBorderColor;
+                Step5BackgroundColor = CompleteBackgroundColor;
+                Step6BorderColor = WaitingBorderColor;
+                Step6BackgroundColor = WaitingBackgroundColor;
+                break;
+        }
+    }
+
+    private void ResetAllStepIndicatorsToPending()
+    {
+        Step1BorderColor = PendingBorderColor;
+        Step1BackgroundColor = PendingBackgroundColor;
+        Step2BorderColor = PendingBorderColor;
+        Step2BackgroundColor = PendingBackgroundColor;
+        Step3BorderColor = PendingBorderColor;
+        Step3BackgroundColor = PendingBackgroundColor;
+        Step4BorderColor = PendingBorderColor;
+        Step4BackgroundColor = PendingBackgroundColor;
+        Step5BorderColor = PendingBorderColor;
+        Step5BackgroundColor = PendingBackgroundColor;
+        Step6BorderColor = PendingBorderColor;
+        Step6BackgroundColor = PendingBackgroundColor;
+    }
+
+    private void ResetAllStepIndicators()
+    {
+        ResetAllStepIndicatorsToPending();
+        AccelCurrentStep = string.Empty;
+        CurrentCalibrationImage = "avares://PavamanDroneConfigurator.UI/Assets/Images/Caliberation-images/Level.png";
+    }
+
+    private void ResetAllStepIndicatorsToComplete()
+    {
+        Step1BorderColor = CompleteBorderColor;
+        Step1BackgroundColor = CompleteBackgroundColor;
+        Step2BorderColor = CompleteBorderColor;
+        Step2BackgroundColor = CompleteBackgroundColor;
+        Step3BorderColor = CompleteBorderColor;
+        Step3BackgroundColor = CompleteBackgroundColor;
+        Step4BorderColor = CompleteBorderColor;
+        Step4BackgroundColor = CompleteBackgroundColor;
+        Step5BorderColor = CompleteBorderColor;
+        Step5BackgroundColor = CompleteBackgroundColor;
+        Step6BorderColor = CompleteBorderColor;
+        Step6BackgroundColor = CompleteBackgroundColor;
+    }
+
+    private void UpdateCalibrationImage(AccelCalVehiclePosition position)
+    {
+        CurrentCalibrationImage = position switch
+        {
+            AccelCalVehiclePosition.Level => "avares://PavamanDroneConfigurator.UI/Assets/Images/Caliberation-images/Level.png",
+            AccelCalVehiclePosition.Left => "avares://PavamanDroneConfigurator.UI/Assets/Images/Caliberation-images/Left-Side.png",
+            AccelCalVehiclePosition.Right => "avares://PavamanDroneConfigurator.UI/Assets/Images/Caliberation-images/Right-Side.png",
+            AccelCalVehiclePosition.NoseDown => "avares://PavamanDroneConfigurator.UI/Assets/Images/Caliberation-images/Nose-Down.png",
+            AccelCalVehiclePosition.NoseUp => "avares://PavamanDroneConfigurator.UI/Assets/Images/Caliberation-images/Nose-Up.png",
+            AccelCalVehiclePosition.Back => "avares://PavamanDroneConfigurator.UI/Assets/Images/Caliberation-images/Back-Side.png",
+            _ => "avares://PavamanDroneConfigurator.UI/Assets/Images/Caliberation-images/Level.png"
+        };
+    }
+
+    #endregion
+
+    #region Helper Methods
 
     private void AddDebugLog(string message)
     {
@@ -329,8 +932,93 @@ public partial class SensorsCalibrationPageViewModel : ViewModelBase
         });
     }
 
+    private void InitializeFlowTypeOptions()
+    {
+        FlowTypeOptions.Add(new FlowTypeOption { Type = FlowType.Disabled, Label = "Disable" });
+        FlowTypeOptions.Add(new FlowTypeOption { Type = FlowType.RawSensor, Label = "Enable" });
+        FlowTypeOptions.Add(new FlowTypeOption { Type = FlowType.PX4FlowMAVLink, Label = "PX4Flow MAVLink" });
+        FlowTypeOptions.Add(new FlowTypeOption { Type = FlowType.PMW3901, Label = "PMW3901" });
+    }
+
+    private void UpdateConnectionStatus(bool connected)
+    {
+        IsConnected = connected;
+        ConnectionStatusColor = connected ? "#10B981" : "#EF4444";
+        ConnectionStatusText = connected ? "Connected" : "Disconnected";
+        AddDebugLog($"Connection: {ConnectionStatusText}");
+        UpdateButtonStates();
+    }
+
+    private void UpdateButtonStates()
+    {
+        OnPropertyChanged(nameof(CanCalibrateAccelerometer));
+        OnPropertyChanged(nameof(CanCalibrateCompass));
+        OnPropertyChanged(nameof(CanCalibrateLevelHorizon));
+        OnPropertyChanged(nameof(CanCalibrateBarometer));
+        
+        // Update accel button enabled state based on current calibration state
+        if (!IsConnected || !IsAccelerometerAvailable)
+        {
+            IsAccelButtonEnabled = false;
+        }
+        else if (AccelButtonText == "Done")
+        {
+            IsAccelButtonEnabled = false;
+        }
+        else if (!IsCalibrating)
+        {
+            IsAccelButtonEnabled = true;
+        }
+        
+        // Update compass button state
+        CanStartCompassCal = IsConnected && IsCompassAvailable && !IsOnboardCompassCalActive && !CanAcceptCompassCal;
+    }
+
+    private void ResetCompassCalibrationUI()
+    {
+        Compass1Progress = 0;
+        Compass2Progress = 0;
+        Compass3Progress = 0;
+        Compass1Status = "Not started";
+        Compass2Status = "Not started";
+        Compass3Status = "Not started";
+        Compass1Result = string.Empty;
+        Compass2Result = string.Empty;
+        Compass3Result = string.Empty;
+        Compass1OffsetColor = "#6B7280";
+        Compass2OffsetColor = "#6B7280";
+        Compass3OffsetColor = "#6B7280";
+        _compassCount = 0;
+        _completedCompassCount = 0;
+    }
+
+    partial void OnIsCalibratingChanged(bool value) => UpdateButtonStates();
+
+    partial void OnSelectedTabChanged(SensorCalibrationTab value)
+    {
+        IsAccelerometerTabSelected = value == SensorCalibrationTab.Accelerometer;
+        IsCompassTabSelected = value == SensorCalibrationTab.Compass;
+        IsLevelHorizonTabSelected = value == SensorCalibrationTab.LevelHorizon;
+        IsPressureTabSelected = value == SensorCalibrationTab.Pressure;
+        IsFlowTabSelected = value == SensorCalibrationTab.Flow;
+    }
+
+    #endregion
+
+    #region Commands - General
+
     [RelayCommand]
     private void CloseErrorDialog() => ShowErrorDialog = false;
+
+    [RelayCommand]
+    private void CloseRebootPrompt() => ShowRebootPrompt = false;
+
+    [RelayCommand]
+    private async Task RebootFromPromptAsync()
+    {
+        ShowRebootPrompt = false;
+        await RebootAsync();
+    }
 
     [RelayCommand]
     private void ToggleDebugLogs() => ShowDebugLogs = !ShowDebugLogs;
@@ -374,308 +1062,6 @@ public partial class SensorsCalibrationPageViewModel : ViewModelBase
         }
     }
 
-    private void InitializeFlowTypeOptions()
-    {
-        FlowTypeOptions.Add(new FlowTypeOption { Type = FlowType.Disabled, Label = "Disable" });
-        FlowTypeOptions.Add(new FlowTypeOption { Type = FlowType.RawSensor, Label = "Enable" });
-        FlowTypeOptions.Add(new FlowTypeOption { Type = FlowType.PX4FlowMAVLink, Label = "PX4Flow MAVLink" });
-        FlowTypeOptions.Add(new FlowTypeOption { Type = FlowType.PMW3901, Label = "PMW3901" });
-    }
-
-    private void UpdateConnectionStatus(bool connected)
-    {
-        IsConnected = connected;
-        ConnectionStatusColor = connected ? "#10B981" : "#EF4444";
-        ConnectionStatusText = connected ? "Connected" : "Disconnected";
-        AddDebugLog($"Connection: {ConnectionStatusText}");
-        UpdateButtonStates();
-    }
-
-    private void UpdateButtonStates()
-    {
-        OnPropertyChanged(nameof(CanCalibrateAccelerometer));
-        OnPropertyChanged(nameof(CanCalibrateCompass));
-        OnPropertyChanged(nameof(CanCalibrateLevelHorizon));
-        OnPropertyChanged(nameof(CanCalibrateBarometer));
-    }
-
-    partial void OnIsCalibratingChanged(bool value) => UpdateButtonStates();
-
-    partial void OnSelectedTabChanged(SensorCalibrationTab value)
-    {
-        IsAccelerometerTabSelected = value == SensorCalibrationTab.Accelerometer;
-        IsCompassTabSelected = value == SensorCalibrationTab.Compass;
-        IsLevelHorizonTabSelected = value == SensorCalibrationTab.LevelHorizon;
-        IsPressureTabSelected = value == SensorCalibrationTab.Pressure;
-        IsFlowTabSelected = value == SensorCalibrationTab.Flow;
-    }
-
-    #region Event Handlers
-
-    private void OnConnectionStateChanged(object? sender, bool connected)
-    {
-        Dispatcher.UIThread.Post(() =>
-        {
-            UpdateConnectionStatus(connected);
-            if (connected)
-                _ = RefreshAsync();
-            else
-            {
-                IsAccelerometerAvailable = false;
-                IsGyroscopeAvailable = false;
-                IsCompassAvailable = false;
-                IsBarometerAvailable = false;
-                AccelSensorStatus = "Not connected";
-                GyroSensorStatus = "Not connected";
-                CompassSensorStatus = "Not connected";
-                BaroSensorStatus = "Not connected";
-            }
-        });
-    }
-
-    private void OnCalibrationStateChanged(object? sender, CalibrationStateModel state)
-    {
-        Dispatcher.UIThread.Post(() =>
-        {
-            IsCalibrating = state.State == CalibrationState.InProgress;
-            StatusMessage = state.Message ?? "Ready";
-            CanClickWhenInPosition = state.CanConfirmPosition;
-            
-            AddDebugLog($"State: {state.State}, Type: {state.Type}, Position: {state.CurrentPosition}, CanConfirm: {state.CanConfirmPosition}");
-
-            // Update type-specific active states
-            IsAccelCalibrationActive = IsCalibrating && state.Type == CalibrationType.Accelerometer;
-            IsCompassCalibrationActive = IsCalibrating && state.Type == CalibrationType.Compass;
-            IsLevelCalibrationActive = IsCalibrating && state.Type == CalibrationType.LevelHorizon;
-            IsPressureCalibrationActive = IsCalibrating && state.Type == CalibrationType.Barometer;
-
-            // MissionPlanner button text logic for accelerometer
-            if (state.Type == CalibrationType.Accelerometer)
-            {
-                if (state.State == CalibrationState.InProgress)
-                {
-                    // MissionPlanner: Button text = "Click when Done" during calibration
-                    AccelButtonText = "Click when Done";
-                    IsAccelButtonEnabled = true;  // Button stays enabled during calibration
-                }
-                else if (state.State == CalibrationState.Completed)
-                {
-                    // MissionPlanner: Button text = "Done", button disabled
-                    AccelButtonText = "Done";
-                    IsAccelButtonEnabled = false;
-                    UpdateCalibrationComplete(state.Type, true, state.Message ?? "Calibration completed!");
-                }
-                else if (state.State == CalibrationState.Failed)
-                {
-                    // Reset button on failure
-                    AccelButtonText = "Calibrate Accel";
-                    IsAccelButtonEnabled = true;
-                    UpdateCalibrationComplete(state.Type, false, state.Message ?? "Calibration failed");
-                }
-                else if (state.State == CalibrationState.NotStarted)
-                {
-                    // Reset to initial state
-                    AccelButtonText = "Calibrate Accel";
-                    IsAccelButtonEnabled = true;
-                }
-            }
-            else
-            {
-                // Non-accelerometer calibrations
-                if (state.State == CalibrationState.Completed)
-                {
-                    UpdateCalibrationComplete(state.Type, true, state.Message ?? "Calibration completed!");
-                }
-                else if (state.State == CalibrationState.Failed)
-                {
-                    UpdateCalibrationComplete(state.Type, false, state.Message ?? "Calibration failed");
-                }
-            }
-        });
-    }
-
-    private void OnCalibrationProgressChanged(object? sender, CalibrationProgressEventArgs e)
-    {
-        Dispatcher.UIThread.Post(() =>
-        {
-            AddDebugLog($"Progress: {e.Type} - {e.ProgressPercent}% - Step {e.CurrentStep}/{e.TotalSteps}");
-            
-            if (e.Type == CalibrationType.Accelerometer)
-            {
-                AccelCalibrationProgress = e.ProgressPercent;
-                if (e.CurrentStep.HasValue)
-                {
-                    UpdateAccelStepIndicator(e.CurrentStep.Value, e.StateMachine);
-                }
-            }
-            else if (e.Type == CalibrationType.Compass)
-            {
-                CompassCalibrationProgress = e.ProgressPercent;
-            }
-            else if (e.Type == CalibrationType.Barometer)
-            {
-                PressureCalibrationProgress = e.ProgressPercent;
-            }
-        });
-    }
-
-    private void OnCalibrationStepRequired(object? sender, CalibrationStepEventArgs e)
-    {
-        Dispatcher.UIThread.Post(() =>
-        {
-            AddDebugLog($"Step required: {e.Type} - {e.Step} - CanConfirm: {e.CanConfirm}");
-            
-            if (e.Type == CalibrationType.Accelerometer)
-            {
-                AccelInstructions = e.Instructions ?? "Follow the instructions";
-                CanClickWhenInPosition = e.CanConfirm;
-                
-                int stepNum = e.Step switch
-                {
-                    CalibrationStep.Level => 1,
-                    CalibrationStep.LeftSide => 2,
-                    CalibrationStep.RightSide => 3,
-                    CalibrationStep.NoseDown => 4,
-                    CalibrationStep.NoseUp => 5,
-                    CalibrationStep.Back => 6,
-                    _ => AccelStepNumber
-                };
-                
-                UpdateAccelStepIndicator(stepNum, CalibrationStateMachine.WaitingForUserPosition);
-            }
-            else if (e.Type == CalibrationType.Compass)
-            {
-                CompassInstructions = e.Instructions ?? "Rotate vehicle in all directions";
-            }
-            else if (e.Type == CalibrationType.LevelHorizon)
-            {
-                LevelInstructions = e.Instructions ?? "Keep vehicle level";
-            }
-        });
-    }
-
-    private void OnStatusTextReceived(object? sender, CalibrationStatusTextEventArgs e)
-    {
-        AddDebugLog($"FC: {e.Text}");
-    }
-    
-    private void OnMavLinkMessageLogged(object? sender, MavLinkLogEntry e)
-    {
-        Dispatcher.UIThread.Post(() =>
-        {
-            MavLinkMessages.Insert(0, e); // Newest first
-            if (MavLinkMessages.Count > 100)
-                MavLinkMessages.RemoveAt(MavLinkMessages.Count - 1);
-        });
-    }
-
-    private void UpdateAccelStepIndicator(int currentStep, CalibrationStateMachine state)
-    {
-        AccelStepNumber = currentStep;
-        
-        // Update current step name
-        AccelCurrentStep = currentStep switch
-        {
-            1 => "LEVEL",
-            2 => "LEFT",
-            3 => "RIGHT",
-            4 => "NOSE DOWN",
-            5 => "NOSE UP",
-            6 => "BACK",
-            _ => ""
-        };
-        
-        // Update image
-        if (currentStep >= 1 && currentStep <= 6)
-        {
-            CurrentCalibrationImage = CalibrationImagePaths[currentStep - 1];
-        }
-        
-        // Determine colors based on step state
-        // Waiting (red): user needs to place drone
-        // Complete (green): FC validated position
-        // Pending (gray): not yet reached
-        
-        bool isWaiting = state == CalibrationStateMachine.WaitingForUserPosition ||
-                        state == CalibrationStateMachine.PositionRejected;
-        
-        // Helper to get colors for a step
-        void SetStepColors(int step, out string border, out string background)
-        {
-            if (step < currentStep)
-            {
-                // Completed step (green)
-                border = "#10B981";
-                background = "#D1FAE5";
-            }
-            else if (step == currentStep && isWaiting)
-            {
-                // Current waiting step (red)
-                border = "#EF4444";
-                background = "#FEE2E2";
-            }
-            else if (step == currentStep)
-            {
-                // Current sampling step (orange)
-                border = "#F59E0B";
-                background = "#FEF3C7";
-            }
-            else
-            {
-                // Pending step (gray)
-                border = "#E2E8F0";
-                background = "#F8FAFC";
-            }
-        }
-        
-        SetStepColors(1, out var b1, out var bg1);
-        Step1BorderColor = b1; Step1BackgroundColor = bg1;
-        
-        SetStepColors(2, out var b2, out var bg2);
-        Step2BorderColor = b2; Step2BackgroundColor = bg2;
-        
-        SetStepColors(3, out var b3, out var bg3);
-        Step3BorderColor = b3; Step3BackgroundColor = bg3;
-        
-        SetStepColors(4, out var b4, out var bg4);
-        Step4BorderColor = b4; Step4BackgroundColor = bg4;
-        
-        SetStepColors(5, out var b5, out var bg5);
-        Step5BorderColor = b5; Step5BackgroundColor = bg5;
-        
-        SetStepColors(6, out var b6, out var bg6);
-        Step6BorderColor = b6; Step6BackgroundColor = bg6;
-    }
-
-    private void UpdateCalibrationComplete(CalibrationType type, bool success, string message)
-    {
-        switch (type)
-        {
-            case CalibrationType.Accelerometer:
-                IsAccelCalibrated = success;
-                AccelCalibrationStatus = success ? "Calibrated" : "Failed";
-                AccelInstructions = message;
-                AccelCalibrationProgress = success ? 100 : 0;
-                if (success) UpdateAccelStepIndicator(6, CalibrationStateMachine.Completed);
-                break;
-            case CalibrationType.Compass:
-                CompassCalibrationStatus = success ? "Calibrated" : "Failed";
-                CompassInstructions = message;
-                CompassCalibrationProgress = success ? 100 : 0;
-                break;
-            case CalibrationType.LevelHorizon:
-                IsLevelCalibrated = success;
-                LevelCalibrationStatus = success ? "Calibrated" : "Failed";
-                LevelInstructions = message;
-                break;
-            case CalibrationType.Barometer:
-                IsPressureCalibrated = success;
-                PressureCalibrationStatus = success ? "Calibrated" : "Failed";
-                PressureInstructions = message;
-                break;
-        }
-    }
-
     #endregion
 
     #region Commands - Tab Selection
@@ -712,7 +1098,7 @@ public partial class SensorsCalibrationPageViewModel : ViewModelBase
         {
             IsBusy = true;
             StatusMessage = "Loading sensor configuration...";
-            AddDebugLog("Refreshing...");
+            AddDebugLog("Refreshing sensor configuration...");
 
             _currentConfiguration = await _sensorConfigService.GetSensorConfigurationAsync();
 
@@ -751,6 +1137,8 @@ public partial class SensorsCalibrationPageViewModel : ViewModelBase
                 StatusMessage = "Configuration loaded";
                 AddDebugLog($"Loaded: Accel={IsAccelCalibrated}, Level={IsLevelCalibrated}, Compasses={Compasses.Count}");
             }
+
+            UpdateButtonStates();
         }
         catch (Exception ex)
         {
@@ -763,253 +1151,426 @@ public partial class SensorsCalibrationPageViewModel : ViewModelBase
         }
     }
 
+    /// <summary>
+    /// MissionPlanner-style accelerometer calibration button.
+    /// - First click: Starts calibration (sends MAV_CMD_PREFLIGHT_CALIBRATION param5=1)
+    /// - Subsequent clicks: Confirms position (sends MAV_CMD_ACCELCAL_VEHICLE_POS)
+    /// </summary>
     [RelayCommand]
     private async Task CalibrateAccelerometerAsync()
     {
-        if (!CanCalibrateAccelerometer && !IsCalibrating)
+        if (!IsConnected)
         {
-            ShowError("Cannot Calibrate", "Check connection and sensor availability.");
+            ShowError("Not Connected", "Please connect to a vehicle first.");
             return;
         }
 
-        // MissionPlanner behavior: Same button for start AND confirm
-        // If calibrating AND can confirm → send position confirmation
-        // If not calibrating → start calibration
-        
-        if (IsCalibrating && IsAccelCalibrationActive)
+        if (!IsAccelerometerAvailable)
         {
-            // Already calibrating - this is position confirmation (MissionPlanner's second click)
-            if (CanClickWhenInPosition)
-            {
-                AddDebugLog($"User clicked 'Click when Done' - confirming position {AccelStepNumber}");
-                AddDebugLog($"Sending COMMAND_LONG(ACCELCAL_VEHICLE_POS, param1={AccelStepNumber})");
-                
-                var success = await _calibrationService.AcceptCalibrationStepAsync();
-                if (!success)
-                {
-                    AddDebugLog("Position confirmation failed - FC may not have requested a position yet");
-                }
-            }
-            else
-            {
-                AddDebugLog("Cannot confirm - waiting for FC to request position");
-            }
+            ShowError("Sensor Not Available", "Accelerometer sensor not detected.");
             return;
         }
 
-        // Start new calibration (MissionPlanner's first click)
-        AddDebugLog("=== Starting accelerometer calibration ===");
-        AddDebugLog("Sending MAV_CMD_PREFLIGHT_CALIBRATION (param5=1)");
-        
-        // Reset UI
-        AccelCalibrationProgress = 0;
-        AccelStepNumber = 0;
-        AccelCurrentStep = "";
-        CanClickWhenInPosition = false;
-        ResetStepColors();
-        
-        // Show waiting message (NOT a hardcoded position)
-        AccelInstructions = "Starting calibration... waiting for FC instructions";
-        AccelButtonText = "Click when Done";  // Change button text immediately
-        
-        var result = await _calibrationService.StartAccelerometerCalibrationAsync(fullSixAxis: true);
-        if (!result)
+        AddDebugLog($"[AccelCal] Button clicked - current button text: '{AccelButtonText}'");
+
+        // MissionPlanner behavior: If already calibrating, button click confirms position
+        // CalibrationService.StartAccelerometerCalibrationAsync handles this internally
+        var success = await _calibrationService.StartAccelerometerCalibrationAsync(true);
+
+        if (!success && !IsAccelCalibrationActive)
         {
-            ShowError("Start Failed", "Failed to start calibration. Check vehicle is disarmed.");
-            AccelInstructions = "Calibration failed to start";
-            AccelButtonText = "Calibrate Accel";  // Reset button
+            ShowError("Calibration Failed", "Failed to start accelerometer calibration. Check connection and try again.");
+        }
+    }
+
+    /// <summary>
+    /// Start onboard compass calibration (MissionPlanner style)
+    /// </summary>
+    [RelayCommand]
+    private async Task StartOnboardCompassCalAsync()
+    {
+        if (!IsConnected)
+        {
+            ShowError("Not Connected", "Please connect to a vehicle first.");
+            return;
+        }
+
+        if (!IsCompassAvailable)
+        {
+            ShowError("No Compass", "No compass sensors detected.");
+            return;
+        }
+
+        AddDebugLog("[CompassCal] Starting onboard compass calibration...");
+        
+        // Reset progress and UI
+        ResetCompassCalibrationUI();
+
+        CompassCalStatus = "Starting calibration...";
+        CompassInstructions = "Preparing to calibrate. Please wait...";
+        IsOnboardCompassCalActive = true;
+        IsCompassCalibrationActive = true;
+        CanAcceptCompassCal = false;
+        CanCancelCompassCal = true;
+        CanStartCompassCal = false;
+        CompassCalButtonText = "Calibrating...";
+
+        var success = await _calibrationService.StartOnboardCompassCalibrationAsync(0, true, true);
+        
+        if (!success)
+        {
+            ShowError("Calibration Failed", "Failed to start compass calibration. Check connection and try again.");
+            IsOnboardCompassCalActive = false;
+            IsCompassCalibrationActive = false;
+            CanStartCompassCal = true;
+            CompassCalButtonText = "Start Calibration";
+            CompassCalStatus = "Failed to start calibration";
+        }
+    }
+
+    /// <summary>
+    /// Accept compass calibration
+    /// </summary>
+    [RelayCommand]
+    private async Task AcceptCompassCalAsync()
+    {
+        AddDebugLog("[CompassCal] Accepting calibration...");
+        var success = await _calibrationService.AcceptCompassCalibrationAsync();
+        
+        if (success)
+        {
+            CompassCalStatus = "Calibration accepted. Please reboot the autopilot.";
+            CanAcceptCompassCal = false;
+            CanCancelCompassCal = false;
+            CanStartCompassCal = true;
+            CompassCalButtonText = "Start Calibration";
+            ShowRebootPromptDialog("Compass calibration accepted! Please reboot the autopilot to apply the new calibration values.");
         }
         else
         {
-            AddDebugLog("Calibration command sent, _incalibrate = true");
-            AddDebugLog("Subscribed to STATUSTEXT and COMMAND_LONG");
+            ShowError("Accept Failed", "Failed to accept calibration.");
         }
     }
-    
-    private void ResetStepColors()
-    {
-        // Reset all steps to pending (gray)
-        Step1BorderColor = "#E2E8F0"; Step1BackgroundColor = "#F8FAFC";
-        Step2BorderColor = "#E2E8F0"; Step2BackgroundColor = "#F8FAFC";
-        Step3BorderColor = "#E2E8F0"; Step3BackgroundColor = "#F8FAFC";
-        Step4BorderColor = "#E2E8F0"; Step4BackgroundColor = "#F8FAFC";
-        Step5BorderColor = "#E2E8F0"; Step5BackgroundColor = "#F8FAFC";
-        Step6BorderColor = "#E2E8F0"; Step6BackgroundColor = "#F8FAFC";
-    }
 
+    /// <summary>
+    /// Cancel compass calibration
+    /// </summary>
     [RelayCommand]
-    private async Task NextAccelStepAsync()
+    private async Task CancelCompassCalAsync()
     {
-        // This is now handled by CalibrateAccelerometerAsync when button is clicked during calibration
-        // But keep this for backwards compatibility with any existing UI bindings
-        if (!IsCalibrating || !CanClickWhenInPosition)
-        {
-            AddDebugLog("NextAccelStepAsync: Cannot confirm (IsCalibrating={IsCalibrating}, CanConfirm={CanClickWhenInPosition})");
-            return;
-        }
-
-        AddDebugLog($"NextAccelStepAsync: Confirming position {AccelStepNumber}");
-        var success = await _calibrationService.AcceptCalibrationStepAsync();
+        AddDebugLog("[CompassCal] Cancelling calibration...");
+        var success = await _calibrationService.CancelCompassCalibrationAsync();
         
-        if (!success)
+        if (success)
         {
-            AddDebugLog("Position confirmation failed");
+            CompassCalStatus = "Calibration cancelled.";
+            IsOnboardCompassCalActive = false;
+            IsCompassCalibrationActive = false;
+            CanAcceptCompassCal = false;
+            CanCancelCompassCal = false;
+            CanStartCompassCal = true;
+            CompassCalButtonText = "Start Calibration";
+            
+            // Reset progress
+            ResetCompassCalibrationUI();
         }
     }
 
+    /// <summary>
+    /// Compass calibration (implementation pending)
+    /// </summary>
     [RelayCommand]
     private async Task CalibrateCompassAsync()
     {
-        if (!CanCalibrateCompass)
-        {
-            ShowError("Cannot Calibrate", "Check connection and sensor availability.");
-            return;
-        }
-
-        AddDebugLog("Starting compass calibration...");
-        CompassCalibrationProgress = 0;
-        CompassInstructions = "Starting...";
-        
-        var success = await _calibrationService.StartCompassCalibrationAsync(onboardCalibration: false);
-        if (!success)
-        {
-            ShowError("Start Failed", "Failed to start compass calibration.");
-        }
+        await StartOnboardCompassCalAsync();
     }
 
-    [RelayCommand]
-    private async Task CalibrateLevelHorizonAsync()
-    {
-        if (!CanCalibrateLevelHorizon)
-        {
-            ShowError("Cannot Calibrate", "Check connection and sensor availability.");
-            return;
-        }
-
-        AddDebugLog("Starting level horizon calibration...");
-        LevelInstructions = "Calibrating...";
-        
-        var success = await _calibrationService.StartLevelHorizonCalibrationAsync();
-        if (!success)
-        {
-            ShowError("Start Failed", "Failed to start level horizon calibration.");
-        }
-    }
-
-    [RelayCommand]
-    private async Task CalibratePressureAsync()
-    {
-        if (!CanCalibrateBarometer)
-        {
-            ShowError("Cannot Calibrate", "Check connection and sensor availability.");
-            return;
-        }
-
-        AddDebugLog("Starting barometer calibration...");
-        PressureInstructions = "Calibrating...";
-        
-        var success = await _calibrationService.StartBarometerCalibrationAsync();
-        if (!success)
-        {
-            ShowError("Start Failed", "Failed to start barometer calibration.");
-        }
-    }
-
+    /// <summary>
+    /// Cancel the current calibration
+    /// </summary>
     [RelayCommand]
     private async Task CancelCalibrationAsync()
     {
-        if (!IsCalibrating)
-            return;
-
         AddDebugLog("Cancelling calibration...");
-        await _calibrationService.CancelCalibrationAsync();
-        StatusMessage = "Cancelled";
+        
+        try
+        {
+            await _calibrationService.CancelCalibrationAsync();
+            
+            // Reset accelerometer calibration state
+            IsAccelCalibrationActive = false;
+            AccelButtonText = "Calibrate Accel";
+            IsAccelButtonEnabled = true;
+            AccelInstructions = "Calibration cancelled. Click 'Calibrate Accel' to start again.";
+            ResetAllStepIndicators();
+            
+            StatusMessage = "Calibration cancelled";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to cancel calibration");
+            ShowError("Cancel Failed", ex.Message);
+        }
     }
 
+    /// <summary>
+    /// Reboot the flight controller
+    /// </summary>
     [RelayCommand]
     private async Task RebootAsync()
     {
         if (!IsConnected)
         {
-            ShowError("Not Connected", "Please connect first.");
+            ShowError("Not Connected", "Please connect to a vehicle first.");
             return;
         }
 
-        AddDebugLog("Rebooting FC...");
-        StatusMessage = "Rebooting...";
-        var success = await _calibrationService.RebootFlightControllerAsync();
-        StatusMessage = success ? "Reboot sent" : "Reboot failed";
+        AddDebugLog("Sending reboot command...");
+        
+        try
+        {
+            _connectionService.SendPreflightReboot(1, 0);
+            StatusMessage = "Reboot command sent";
+            AddDebugLog("Reboot command sent successfully");
+            await Task.CompletedTask;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to send reboot command");
+            ShowError("Reboot Failed", ex.Message);
+        }
     }
 
-    #endregion
-
-    #region Commands - Compass
-
+    /// <summary>
+    /// Set compass enabled/disabled state
+    /// </summary>
     [RelayCommand]
     private async Task SetCompassEnabledAsync(CompassInfo? compass)
     {
-        if (compass == null || !IsConnected) return;
+        if (compass == null || !IsConnected)
+            return;
 
-        var newState = !compass.IsEnabled;
-        var success = await _sensorConfigService.SetCompassEnabledAsync(compass.Index, newState);
-        if (success)
+        AddDebugLog($"Setting compass {compass.Priority} enabled={compass.IsEnabled}");
+        
+        try
         {
-            compass.IsEnabled = newState;
-            StatusMessage = $"Compass {compass.Index} {(newState ? "enabled" : "disabled")}";
+            await _sensorConfigService.SetCompassEnabledAsync(compass.Priority, compass.IsEnabled);
+            StatusMessage = $"Compass {compass.Priority} {(compass.IsEnabled ? "enabled" : "disabled")}";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to set compass enabled state");
+            ShowError("Error", ex.Message);
         }
     }
 
+    /// <summary>
+    /// Move compass up in priority order
+    /// </summary>
     [RelayCommand]
     private async Task MoveCompassUpAsync(CompassInfo? compass)
     {
-        if (compass == null || !IsConnected) return;
+        if (compass == null || !IsConnected)
+            return;
 
         var index = Compasses.IndexOf(compass);
-        if (index > 0)
+        if (index <= 0)
+            return;
+
+        AddDebugLog($"Moving compass {compass.Priority} up");
+        
+        try
         {
             Compasses.Move(index, index - 1);
-            await _sensorConfigService.SetCompassPriorityAsync(compass.Index, index - 1);
+            await UpdateCompassPrioritiesAsync();
+            StatusMessage = "Compass priority updated";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to move compass up");
+            ShowError("Error", ex.Message);
         }
     }
 
+    /// <summary>
+    /// Move compass down in priority order
+    /// </summary>
     [RelayCommand]
     private async Task MoveCompassDownAsync(CompassInfo? compass)
     {
-        if (compass == null || !IsConnected) return;
+        if (compass == null || !IsConnected)
+            return;
 
         var index = Compasses.IndexOf(compass);
-        if (index < Compasses.Count - 1)
+        if (index < 0 || index >= Compasses.Count - 1)
+            return;
+
+        AddDebugLog($"Moving compass {compass.Priority} down");
+        
+        try
         {
             Compasses.Move(index, index + 1);
-            await _sensorConfigService.SetCompassPriorityAsync(compass.Index, index + 1);
+            await UpdateCompassPrioritiesAsync();
+            StatusMessage = "Compass priority updated";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to move compass down");
+            ShowError("Error", ex.Message);
         }
     }
 
-    #endregion
+    private async Task UpdateCompassPrioritiesAsync()
+    {
+        for (int i = 0; i < Compasses.Count; i++)
+        {
+            var compass = Compasses[i];
+            compass.Priority = i + 1;
+            
+            // Update priority in the flight controller
+            await _sensorConfigService.SetCompassPriorityAsync(compass.Index, i);
+        }
+    }
 
-    #region Commands - Flow Sensor
+    /// <summary>
+    /// Calibrate level horizon (simple level calibration)
+    /// </summary>
+    [RelayCommand]
+    private async Task CalibrateLevelHorizonAsync()
+    {
+        if (!IsConnected)
+        {
+            ShowError("Not Connected", "Please connect to a vehicle first.");
+            return;
+        }
 
+        if (!IsAccelerometerAvailable)
+        {
+            ShowError("Sensor Not Available", "Accelerometer required for level horizon calibration.");
+            return;
+        }
+
+        AddDebugLog("Starting level horizon calibration...");
+        LevelCalibrationStatus = "Calibrating...";
+        IsLevelCalibrationActive = true;
+        
+        try
+        {
+            var success = await _calibrationService.StartLevelHorizonCalibrationAsync();
+            
+            if (success)
+            {
+                IsLevelCalibrated = true;
+                LevelCalibrationStatus = "Calibration complete";
+                LevelInstructions = "Level calibration successful! Reboot to apply changes.";
+                StatusMessage = "Level calibration complete";
+            }
+            else
+            {
+                LevelCalibrationStatus = "Calibration failed";
+                LevelInstructions = "Level calibration failed. Place vehicle on a level surface and try again.";
+                ShowError("Calibration Failed", "Level horizon calibration failed.");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Level horizon calibration failed");
+            LevelCalibrationStatus = "Calibration failed";
+            ShowError("Calibration Error", ex.Message);
+        }
+        finally
+        {
+            IsLevelCalibrationActive = false;
+        }
+    }
+
+    /// <summary>
+    /// Calibrate barometer/pressure sensor
+    /// </summary>
+    [RelayCommand]
+    private async Task CalibratePressureAsync()
+    {
+        if (!IsConnected)
+        {
+            ShowError("Not Connected", "Please connect to a vehicle first.");
+            return;
+        }
+
+        if (!IsBarometerAvailable)
+        {
+            ShowError("Sensor Not Available", "Barometer sensor not detected.");
+            return;
+        }
+
+        AddDebugLog("Starting barometer calibration...");
+        PressureCalibrationStatus = "Calibrating...";
+        IsPressureCalibrationActive = true;
+        PressureCalibrationProgress = 0;
+        
+        try
+        {
+            var success = await _calibrationService.StartBarometerCalibrationAsync();
+            
+            if (success)
+            {
+                IsPressureCalibrated = true;
+                PressureCalibrationStatus = "Calibration complete";
+                PressureInstructions = "Barometer calibration successful!";
+                StatusMessage = "Barometer calibration complete";
+                PressureCalibrationProgress = 100;
+            }
+            else
+            {
+                PressureCalibrationStatus = "Calibration failed";
+                PressureInstructions = "Barometer calibration failed. Keep the vehicle still and try again.";
+                ShowError("Calibration Failed", "Barometer calibration failed.");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Barometer calibration failed");
+            PressureCalibrationStatus = "Calibration failed";
+            ShowError("Calibration Error", ex.Message);
+        }
+        finally
+        {
+            IsPressureCalibrationActive = false;
+        }
+    }
+
+    /// <summary>
+    /// Update flow sensor settings
+    /// </summary>
     [RelayCommand]
     private async Task UpdateFlowSettingsAsync()
     {
         if (!IsConnected)
         {
-            ShowError("Not Connected", "Please connect first.");
+            ShowError("Not Connected", "Please connect to a vehicle first.");
             return;
         }
 
-        IsBusy = true;
-        var settings = new FlowSensorSettings
+        AddDebugLog("Updating flow sensor settings...");
+        
+        try
         {
-            FlowType = SelectedFlowType,
-            XAxisScaleFactor = FlowXAxisScale,
-            YAxisScaleFactor = FlowYAxisScale,
-            SensorYawAlignment = FlowYawAlignment
-        };
+            var settings = new FlowSensorSettings
+            {
+                FlowType = SelectedFlowType,
+                XAxisScaleFactor = FlowXAxisScale,
+                YAxisScaleFactor = FlowYAxisScale,
+                SensorYawAlignment = FlowYawAlignment
+            };
 
-        var success = await _sensorConfigService.UpdateFlowSettingsAsync(settings);
-        StatusMessage = success ? "Flow settings updated" : "Failed to update";
-        IsBusy = false;
+            await _sensorConfigService.UpdateFlowSettingsAsync(settings);
+            StatusMessage = "Flow settings updated";
+            AddDebugLog("Flow settings updated successfully");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to update flow settings");
+            ShowError("Update Failed", ex.Message);
+        }
     }
 
     #endregion
@@ -1019,11 +1580,14 @@ public partial class SensorsCalibrationPageViewModel : ViewModelBase
         if (disposing)
         {
             _connectionService.ConnectionStateChanged -= OnConnectionStateChanged;
+            _mavLinkLogger.MessageLogged -= OnMavLinkMessageLogged;
             _calibrationService.CalibrationStateChanged -= OnCalibrationStateChanged;
             _calibrationService.CalibrationProgressChanged -= OnCalibrationProgressChanged;
-            _calibrationService.CalibrationStepRequired -= OnCalibrationStepRequired;
-            _calibrationService.StatusTextReceived -= OnStatusTextReceived;
-            _mavLinkLogger.MessageLogged -= OnMavLinkMessageLogged;
+            _calibrationService.StatusTextReceived -= OnCalibrationStatusTextReceived;
+            _calibrationService.AccelCalPositionRequested -= OnAccelCalPositionRequested;
+            _calibrationService.CompassCalProgressReceived -= OnCompassCalProgressReceived;
+            _calibrationService.CompassCalReportReceived -= OnCompassCalReportReceived;
+            _calibrationService.CompassCalibrationStateChanged -= OnCompassCalStateChanged;
         }
         base.Dispose(disposing);
     }

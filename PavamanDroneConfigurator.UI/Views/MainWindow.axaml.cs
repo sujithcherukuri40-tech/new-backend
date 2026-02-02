@@ -18,13 +18,13 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
-        
+
         _notificationManager = new WindowNotificationManager(this)
         {
             Position = NotificationPosition.TopRight,
             MaxItems = 3
         };
-        
+
         Loaded += OnWindowLoaded;
     }
 
@@ -36,7 +36,8 @@ public partial class MainWindow : Window
         {
             if (this.FindControl<StackPanel>("NavigationMenu") is StackPanel navMenu)
             {
-                var firstButton = navMenu.Children.OfType<Button>().FirstOrDefault();
+                var firstButton = navMenu.Children.OfType<Button>()
+                    .FirstOrDefault(b => b.Classes.Contains("nav-button"));
                 if (firstButton != null && firstButton.CommandParameter is ViewModelBase pageVm)
                 {
                     var view = CreateView(pageVm);

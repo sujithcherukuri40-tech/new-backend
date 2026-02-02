@@ -22,23 +22,6 @@ public enum SensorCalibrationTab
 }
 
 /// <summary>
-/// Special position values for MAV_CMD_ACCELCAL_VEHICLE_POS command.
-/// These are used to signal calibration completion or failure.
-/// </summary>
-public static class AccelCalSpecialPositions
-{
-    /// <summary>
-    /// Calibration completed successfully (16777215)
-    /// </summary>
-    public const int Success = 16777215;
-    
-    /// <summary>
-    /// Calibration failed (16777216)
-    /// </summary>
-    public const int Failed = 16777216;
-}
-
-/// <summary>
 /// Compass bus types matching ArduPilot COMPASS_DEV_IDx bus field
 /// </summary>
 public enum CompassBusType

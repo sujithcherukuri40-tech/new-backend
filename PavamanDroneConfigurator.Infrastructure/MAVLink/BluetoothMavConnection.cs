@@ -41,6 +41,8 @@ public class BluetoothMavConnection : IDisposable
     public event EventHandler<(ushort Command, byte Result)>? CommandAckReceived;
     public event EventHandler<CommandLongData>? CommandLongReceived;
     public event EventHandler<RawImuData>? RawImuReceived;
+    public event EventHandler<MagCalProgressData>? MagCalProgressReceived;
+    public event EventHandler<MagCalReportData>? MagCalReportReceived;
 
     public bool IsConnected => _isConnected;
 
@@ -101,6 +103,8 @@ public class BluetoothMavConnection : IDisposable
             _mavlinkWrapper.CommandAckReceived += OnMavlinkCommandAck;
             _mavlinkWrapper.CommandLongReceived += OnMavlinkCommandLong;
             _mavlinkWrapper.RawImuReceived += OnMavlinkRawImu;
+            _mavlinkWrapper.MagCalProgressReceived += OnMavlinkMagCalProgress;
+            _mavlinkWrapper.MagCalReportReceived += OnMavlinkMagCalReport;
             _mavlinkWrapper.Initialize(_stream, _stream);
 
             _isConnected = true;
@@ -177,7 +181,10 @@ public class BluetoothMavConnection : IDisposable
                 _mavlinkWrapper.CommandAckReceived -= OnMavlinkCommandAck;
                 _mavlinkWrapper.CommandLongReceived -= OnMavlinkCommandLong;
                 _mavlinkWrapper.RawImuReceived -= OnMavlinkRawImu;
-                _mavlinkWrapper.Dispose();
+                _mavlinkWrapper.MagCalProgressReceived -= OnMavlinkMagCalProgress;
+                _mavlinkWrapper.MagCalReportReceived -= OnMavlinkMagCalReport;
+                // Note: AsvMavlinkWrapper.Dispose() may not exist yet
+                try { _mavlinkWrapper.Dispose(); } catch { }
                 _mavlinkWrapper = null;
             }
 
@@ -391,6 +398,16 @@ public class BluetoothMavConnection : IDisposable
     private void OnMavlinkRawImu(object? sender, RawImuData e)
     {
         RawImuReceived?.Invoke(this, e);
+    }
+
+    private void OnMavlinkMagCalProgress(object? sender, MagCalProgressData e)
+    {
+        MagCalProgressReceived?.Invoke(this, e);
+    }
+
+    private void OnMavlinkMagCalReport(object? sender, MagCalReportData e)
+    {
+        MagCalReportReceived?.Invoke(this, e);
     }
 
     public void Dispose()

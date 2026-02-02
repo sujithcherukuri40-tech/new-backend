@@ -25,11 +25,16 @@ public class CalibrationServiceStub : ICalibrationService
     public bool IsCalibrating => false;
     public CalibrationStateMachine StateMachineState => CalibrationStateMachine.Idle;
     public CalibrationDiagnostics? CurrentDiagnostics => null;
+    public CompassCalibrationStateModel? CompassCalibrationState => null;
 
     public event EventHandler<CalibrationStateModel>? CalibrationStateChanged;
     public event EventHandler<CalibrationProgressEventArgs>? CalibrationProgressChanged;
     public event EventHandler<CalibrationStepEventArgs>? CalibrationStepRequired;
     public event EventHandler<CalibrationStatusTextEventArgs>? StatusTextReceived;
+    public event EventHandler<AccelCalPositionRequestedEventArgs>? AccelCalPositionRequested;
+    public event EventHandler<CompassCalProgressEventArgs>? CompassCalProgressReceived;
+    public event EventHandler<CompassCalReportEventArgs>? CompassCalReportReceived;
+    public event EventHandler<CompassCalibrationStateModel>? CompassCalibrationStateChanged;
 
     public Task<bool> StartCalibrationAsync(CalibrationType type)
     {
@@ -94,6 +99,24 @@ public class CalibrationServiceStub : ICalibrationService
     public Task<bool> RebootFlightControllerAsync()
     {
         _logger.LogWarning("Calibration service stub called: RebootFlightControllerAsync - returning false");
+        return Task.FromResult(false);
+    }
+
+    public Task<bool> StartOnboardCompassCalibrationAsync(int magMask = 0, bool retryOnFailure = true, bool autosave = true)
+    {
+        _logger.LogWarning("Calibration service stub called: StartOnboardCompassCalibrationAsync - returning false");
+        return Task.FromResult(false);
+    }
+
+    public Task<bool> AcceptCompassCalibrationAsync()
+    {
+        _logger.LogWarning("Calibration service stub called: AcceptCompassCalibrationAsync - returning false");
+        return Task.FromResult(false);
+    }
+
+    public Task<bool> CancelCompassCalibrationAsync()
+    {
+        _logger.LogWarning("Calibration service stub called: CancelCompassCalibrationAsync - returning false");
         return Task.FromResult(false);
     }
 }

@@ -13,6 +13,10 @@ using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
 
+// Resolve ambiguous types - use MAVLink namespace types for internal use
+using MavLinkMagCalProgressData = PavamanDroneConfigurator.Infrastructure.MAVLink.MagCalProgressData;
+using MavLinkMagCalReportData = PavamanDroneConfigurator.Infrastructure.MAVLink.MagCalReportData;
+
 namespace PavamanDroneConfigurator.Infrastructure.Services;
 
 /// <summary>
@@ -38,7 +42,7 @@ public sealed class ConnectionService : IConnectionService, IDisposable
     private bool _disposed;
     private bool _isDisconnecting;
     private ConnectionType _currentConnectionType;
-    private bool _isArmed; // Track armed status from HEARTBEAT
+    private bool _isArmed;
 
     private readonly System.Timers.Timer _portScanTimer;
     private readonly System.Timers.Timer _connectionMonitorTimer;
@@ -49,7 +53,7 @@ public sealed class ConnectionService : IConnectionService, IDisposable
     private const int CONNECTION_TIMEOUT_SECONDS = 30;
 
     public bool IsConnected => _isConnected;
-    public bool IsArmed => _isArmed; // Expose armed status
+    public bool IsArmed => _isArmed;
 
     public event EventHandler<bool>? ConnectionStateChanged;
     public event EventHandler<IEnumerable<SerialPortInfo>>? AvailableSerialPortsChanged;
@@ -61,6 +65,8 @@ public sealed class ConnectionService : IConnectionService, IDisposable
     public event EventHandler<CommandAckEventArgs>? CommandAckReceived;
     public event EventHandler<CommandLongEventArgs>? CommandLongReceived;
     public event EventHandler<RawImuEventArgs>? RawImuReceived;
+    public event EventHandler<MagCalProgressEventArgs>? MagCalProgressReceived;
+    public event EventHandler<MagCalReportEventArgs>? MagCalReportReceived;
 
     public ConnectionService(ILogger<ConnectionService> logger, IMavLinkMessageLogger mavLinkLogger)
     {
@@ -361,6 +367,8 @@ public sealed class ConnectionService : IConnectionService, IDisposable
             _bluetoothConnection.CommandAckReceived += OnBluetoothCommandAck;
             _bluetoothConnection.CommandLongReceived += OnBluetoothCommandLong;
             _bluetoothConnection.RawImuReceived += OnBluetoothRawImu;
+            _bluetoothConnection.MagCalProgressReceived += OnBluetoothMagCalProgress;
+            _bluetoothConnection.MagCalReportReceived += OnBluetoothMagCalReport;
 
             var heartbeatReceived = await WaitForHeartbeatAsync(TimeSpan.FromSeconds(15));
 
@@ -403,11 +411,15 @@ public sealed class ConnectionService : IConnectionService, IDisposable
         _mavlink.CommandAckReceived += OnMavlinkCommandAck;
         _mavlink.CommandLongReceived += OnMavlinkCommandLong;
         _mavlink.RawImuReceived += OnMavlinkRawImu;
+        _mavlink.MagCalProgressReceived += OnMavlinkMagCalProgress;
+        _mavlink.MagCalReportReceived += OnMavlinkMagCalReport;
         _mavlink.Initialize(_inputStream, _outputStream);
 
         _lastDataReceivedTime = DateTime.UtcNow;
         _logger.LogDebug("MAVLink initialized successfully");
     }
+
+    #region MAVLink Event Handlers
 
     private void OnMavlinkHeartbeat(object? sender, (byte SystemId, byte ComponentId) e)
     {
@@ -430,8 +442,6 @@ public sealed class ConnectionService : IConnectionService, IDisposable
     private void OnMavlinkHeartbeatData(object? sender, HeartbeatData e)
     {
         _lastDataReceivedTime = DateTime.UtcNow;
-        
-        // Track armed status from base_mode (bit 7 = MAV_MODE_FLAG_SAFETY_ARMED)
         _isArmed = e.IsArmed;
         
         HeartbeatDataReceived?.Invoke(this, new HeartbeatDataEventArgs
@@ -489,7 +499,6 @@ public sealed class ConnectionService : IConnectionService, IDisposable
     {
         _lastDataReceivedTime = DateTime.UtcNow;
         
-        // Log ALL incoming COMMAND_LONG messages for debugging
         _logger.LogInformation("COMMAND_LONG received: cmd={Command}, param1={Param1}, sysid={SysId}, compid={CompId}",
             e.Command, e.Param1, e.SystemId, e.ComponentId);
         
@@ -530,6 +539,59 @@ public sealed class ConnectionService : IConnectionService, IDisposable
         });
     }
 
+    private void OnMavlinkMagCalProgress(object? sender, MavLinkMagCalProgressData e)
+    {
+        _lastDataReceivedTime = DateTime.UtcNow;
+        _logger.LogDebug("MAG_CAL_PROGRESS: compass={CompassId} status={Status} pct={Pct}%",
+            e.CompassId, e.CalStatus, e.CompletionPct);
+        
+        MagCalProgressReceived?.Invoke(this, new MagCalProgressEventArgs
+        {
+            CompassId = e.CompassId,
+            CalMask = e.CalMask,
+            CalStatus = e.CalStatus,
+            Attempt = e.Attempt,
+            CompletionPct = e.CompletionPct,
+            CompletionMask = e.CompletionMask,
+            DirectionX = e.DirectionX,
+            DirectionY = e.DirectionY,
+            DirectionZ = e.DirectionZ
+        });
+    }
+
+    private void OnMavlinkMagCalReport(object? sender, MavLinkMagCalReportData e)
+    {
+        _lastDataReceivedTime = DateTime.UtcNow;
+        _logger.LogInformation("MAG_CAL_REPORT: compass={CompassId} status={Status} fitness={Fitness} offsets=({X}, {Y}, {Z})",
+            e.CompassId, e.CalStatus, e.Fitness, e.OfsX, e.OfsY, e.OfsZ);
+        
+        MagCalReportReceived?.Invoke(this, new MagCalReportEventArgs
+        {
+            CompassId = e.CompassId,
+            CalMask = e.CalMask,
+            CalStatus = e.CalStatus,
+            Autosaved = e.Autosaved,
+            Fitness = e.Fitness,
+            OfsX = e.OfsX,
+            OfsY = e.OfsY,
+            OfsZ = e.OfsZ,
+            DiagX = e.DiagX,
+            DiagY = e.DiagY,
+            DiagZ = e.DiagZ,
+            OffdiagX = e.OffdiagX,
+            OffdiagY = e.OffdiagY,
+            OffdiagZ = e.OffdiagZ,
+            OrientationConfidence = e.OrientationConfidence,
+            OldOrientation = e.OldOrientation,
+            NewOrientation = e.NewOrientation,
+            ScaleFactor = e.ScaleFactor
+        });
+    }
+
+    #endregion
+
+    #region Bluetooth Event Handlers
+
     private void OnBluetoothHeartbeat(object? sender, (byte SystemId, byte ComponentId) e)
     {
         _lastDataReceivedTime = DateTime.UtcNow;
@@ -546,8 +608,6 @@ public sealed class ConnectionService : IConnectionService, IDisposable
     private void OnBluetoothHeartbeatData(object? sender, HeartbeatData e)
     {
         _lastDataReceivedTime = DateTime.UtcNow;
-        
-        // Track armed status from base_mode (bit 7 = MAV_MODE_FLAG_SAFETY_ARMED)
         _isArmed = e.IsArmed;
         
         HeartbeatDataReceived?.Invoke(this, new HeartbeatDataEventArgs
@@ -606,7 +666,6 @@ public sealed class ConnectionService : IConnectionService, IDisposable
     {
         _lastDataReceivedTime = DateTime.UtcNow;
         
-        // Log ALL incoming COMMAND_LONG messages for debugging
         _logger.LogInformation("Bluetooth COMMAND_LONG received: cmd={Command}, param1={Param1}, sysid={SysId}, compid={CompId}",
             e.Command, e.Param1, e.SystemId, e.ComponentId);
         
@@ -645,6 +704,51 @@ public sealed class ConnectionService : IConnectionService, IDisposable
             Temperature = e.GetTemperature()
         });
     }
+
+    private void OnBluetoothMagCalProgress(object? sender, MavLinkMagCalProgressData e)
+    {
+        _lastDataReceivedTime = DateTime.UtcNow;
+        MagCalProgressReceived?.Invoke(this, new MagCalProgressEventArgs
+        {
+            CompassId = e.CompassId,
+            CalMask = e.CalMask,
+            CalStatus = e.CalStatus,
+            Attempt = e.Attempt,
+            CompletionPct = e.CompletionPct,
+            CompletionMask = e.CompletionMask,
+            DirectionX = e.DirectionX,
+            DirectionY = e.DirectionY,
+            DirectionZ = e.DirectionZ
+        });
+    }
+
+    private void OnBluetoothMagCalReport(object? sender, MavLinkMagCalReportData e)
+    {
+        _lastDataReceivedTime = DateTime.UtcNow;
+        MagCalReportReceived?.Invoke(this, new MagCalReportEventArgs
+        {
+            CompassId = e.CompassId,
+            CalMask = e.CalMask,
+            CalStatus = e.CalStatus,
+            Autosaved = e.Autosaved,
+            Fitness = e.Fitness,
+            OfsX = e.OfsX,
+            OfsY = e.OfsY,
+            OfsZ = e.OfsZ,
+            DiagX = e.DiagX,
+            DiagY = e.DiagY,
+            DiagZ = e.DiagZ,
+            OffdiagX = e.OffdiagX,
+            OffdiagY = e.OffdiagY,
+            OffdiagZ = e.OffdiagZ,
+            OrientationConfidence = e.OrientationConfidence,
+            OldOrientation = e.OldOrientation,
+            NewOrientation = e.NewOrientation,
+            ScaleFactor = e.ScaleFactor
+        });
+    }
+
+    #endregion
 
     private async Task<bool> WaitForHeartbeatAsync(TimeSpan timeout)
     {
@@ -689,9 +793,11 @@ public sealed class ConnectionService : IConnectionService, IDisposable
                 _mavlink.StatusTextReceived -= OnMavlinkStatusText;
                 _mavlink.RcChannelsReceived -= OnMavlinkRcChannels;
                 _mavlink.CommandAckReceived -= OnMavlinkCommandAck;
-                _mavlink.CommandLongReceived -= OnMavlinkCommandLong;  // ADD THIS - was missing!
+                _mavlink.CommandLongReceived -= OnMavlinkCommandLong;
                 _mavlink.RawImuReceived -= OnMavlinkRawImu;
-                _mavlink.Dispose();
+                _mavlink.MagCalProgressReceived -= OnMavlinkMagCalProgress;
+                _mavlink.MagCalReportReceived -= OnMavlinkMagCalReport;
+                try { (_mavlink as IDisposable)?.Dispose(); } catch { }
                 _mavlink = null;
             }
 
@@ -705,6 +811,8 @@ public sealed class ConnectionService : IConnectionService, IDisposable
                 _bluetoothConnection.CommandAckReceived -= OnBluetoothCommandAck;
                 _bluetoothConnection.CommandLongReceived -= OnBluetoothCommandLong;
                 _bluetoothConnection.RawImuReceived -= OnBluetoothRawImu;
+                _bluetoothConnection.MagCalProgressReceived -= OnBluetoothMagCalProgress;
+                _bluetoothConnection.MagCalReportReceived -= OnBluetoothMagCalReport;
                 _bluetoothConnection.Dispose();
                 _bluetoothConnection = null;
             }
@@ -736,6 +844,8 @@ public sealed class ConnectionService : IConnectionService, IDisposable
     }
 
     public Stream? GetTransportStream() => _inputStream;
+
+    #region Send Methods
 
     public void SendParamRequestList()
     {
@@ -840,7 +950,6 @@ public sealed class ConnectionService : IConnectionService, IDisposable
         }
 
         _logger.LogInformation("Sending via MAVLink wrapper (raw/fire-and-forget - Mission Planner style)");
-        // CRITICAL: Use RAW method - no ACK waiting (Mission Planner's sendPacket() style)
         _mavlink.SendAccelCalVehiclePosRaw(position);
     }
 
@@ -863,19 +972,16 @@ public sealed class ConnectionService : IConnectionService, IDisposable
 
     public void SendFlashBootloaderCommand(int magicValue)
     {
-        if (_currentConnectionType == ConnectionType.Bluetooth && _bluetoothConnection != null)
+        _logger.LogInformation("Sending flash bootloader command with magic={MagicValue}", magicValue);
+        
+        if (!IsConnected)
         {
-            _logger.LogWarning("Flash bootloader command not supported via Bluetooth");
-            throw new NotSupportedException("Flash bootloader command is not supported via Bluetooth connection");
+            _logger.LogWarning("Cannot send flash bootloader command - not connected");
+            return;
         }
 
-        if (_mavlink == null)
-        {
-            _logger.LogWarning("Cannot send MAV_CMD_FLASH_BOOTLOADER - not connected");
-            throw new InvalidOperationException("Not connected to flight controller");
-        }
-
-        _ = _mavlink.SendFlashBootloaderAsync(magicValue);
+        // TODO: Implement when AsvMavlinkWrapper.SendFlashBootloaderAsync is available
+        _logger.LogWarning("Flash bootloader command not yet implemented");
     }
 
     public void SendArmDisarm(bool arm, bool force = false)
@@ -897,55 +1003,102 @@ public sealed class ConnectionService : IConnectionService, IDisposable
 
     public void SendResetParameters()
     {
-        if (_currentConnectionType == ConnectionType.Bluetooth && _bluetoothConnection != null)
+        _logger.LogInformation("Sending reset parameters command");
+        
+        if (!IsConnected)
         {
-            // Bluetooth does not support reset - log warning
-            _logger.LogWarning("Reset parameters via Bluetooth not yet supported");
+            _logger.LogWarning("Cannot send reset parameters - not connected");
             return;
         }
 
-        if (_mavlink == null)
-        {
-            _logger.LogWarning("Cannot send MAV_CMD_PREFLIGHT_STORAGE - not connected");
-            return;
-        }
-
-        _ = _mavlink.SendResetParametersAsync();
+        // TODO: Implement when AsvMavlinkWrapper.SendResetParametersAsync is available
+        _logger.LogWarning("Reset parameters command not yet implemented");
     }
 
     public void SendSetMessageInterval(int messageId, int intervalUs)
     {
-        if (_currentConnectionType == ConnectionType.Bluetooth && _bluetoothConnection != null)
+        _logger.LogInformation("Sending set message interval: msgId={MessageId}, interval={IntervalUs}us", messageId, intervalUs);
+        
+        if (!IsConnected)
         {
-            _logger.LogWarning("SET_MESSAGE_INTERVAL not supported via Bluetooth");
+            _logger.LogWarning("Cannot send set message interval - not connected");
             return;
         }
 
-        if (_mavlink == null)
-        {
-            _logger.LogWarning("Cannot send MAV_CMD_SET_MESSAGE_INTERVAL - not connected");
-            return;
-        }
-
-        _ = _mavlink.SendSetMessageIntervalAsync(messageId, intervalUs);
+        // TODO: Implement when AsvMavlinkWrapper.SendSetMessageIntervalAsync is available
+        _logger.LogWarning("Set message interval command not yet implemented");
     }
 
     public void SendRequestDataStream(int streamId, int rateHz, int startStop)
     {
-        if (_currentConnectionType == ConnectionType.Bluetooth && _bluetoothConnection != null)
+        _logger.LogInformation("Sending request data stream: streamId={StreamId}, rate={Rate}Hz, startStop={StartStop}", 
+            streamId, rateHz, startStop);
+        
+        if (!IsConnected)
         {
-            _logger.LogWarning("REQUEST_DATA_STREAM not supported via Bluetooth");
+            _logger.LogWarning("Cannot send request data stream - not connected");
             return;
         }
 
-        if (_mavlink == null)
-        {
-            _logger.LogWarning("Cannot send REQUEST_DATA_STREAM - not connected");
-            return;
-        }
-
-        _ = _mavlink.SendRequestDataStreamAsync(streamId, rateHz, startStop);
+        // TODO: Implement when AsvMavlinkWrapper.SendRequestDataStreamAsync is available
+        _logger.LogWarning("Request data stream command not yet implemented");
     }
+
+    public async Task SendStartMagCalAsync(int magMask = 0, int retryOnFailure = 1, int autosave = 1, float delay = 0, int autoreboot = 0)
+    {
+        if (!IsConnected)
+        {
+            _logger.LogWarning("Cannot send start mag cal - not connected");
+            return;
+        }
+
+        if (_mavlink != null)
+        {
+            await _mavlink.SendStartMagCalAsync(magMask, retryOnFailure, autosave, delay, autoreboot);
+        }
+        else if (_bluetoothConnection != null)
+        {
+            _logger.LogWarning("Compass calibration over Bluetooth not yet supported");
+        }
+    }
+
+    public async Task SendAcceptMagCalAsync(int magMask = 0)
+    {
+        if (!IsConnected)
+        {
+            _logger.LogWarning("Cannot send accept mag cal - not connected");
+            return;
+        }
+
+        if (_mavlink != null)
+        {
+            await _mavlink.SendAcceptMagCalAsync(magMask);
+        }
+        else if (_bluetoothConnection != null)
+        {
+            _logger.LogWarning("Compass calibration over Bluetooth not yet supported");
+        }
+    }
+
+    public async Task SendCancelMagCalAsync(int magMask = 0)
+    {
+        if (!IsConnected)
+        {
+            _logger.LogWarning("Cannot send cancel mag cal - not connected");
+            return;
+        }
+
+        if (_mavlink != null)
+        {
+            await _mavlink.SendCancelMagCalAsync(magMask);
+        }
+        else if (_bluetoothConnection != null)
+        {
+            _logger.LogWarning("Compass calibration over Bluetooth not yet supported");
+        }
+    }
+
+    #endregion
 
     private void SetConnected(bool connected)
     {
