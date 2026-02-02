@@ -7,6 +7,8 @@
 
     <UserControl.Resources>
         <converters:BoolToSensorStatusColorConverter x:Key="SensorStatusColorConverter"/>
+        <converters:DirectionToColorConverter x:Key="DirectionToColorConverter"/>
+        <converters:DirectionToPrefixConverter x:Key="DirectionToPrefixConverter"/>
     </UserControl.Resources>
 
     <UserControl.Styles>
@@ -506,29 +508,81 @@
                             <Button Classes="Secondary" Content="Reboot" Command="{Binding RebootCommand}" IsEnabled="{Binding IsConnected}"/>
                         </StackPanel>
 
-                        <!-- Calibration controls -->
+                        <!-- Onboard Mag Calibration Section (MissionPlanner Style) -->
                         <Border Background="#F8FAFC" CornerRadius="12" Padding="14" BorderBrush="#E2E8F0" BorderThickness="1">
                             <StackPanel Spacing="12">
                                 <TextBlock FontWeight="Bold" Text="Onboard Mag Calibration" FontSize="14" Foreground="#1E293B"/>
+                                
+                                <TextBlock Text="Rotate the vehicle in all directions to achieve full sphere coverage. Progress bars show completion for each compass." 
+                                           FontSize="12" Foreground="#64748B" TextWrapping="Wrap"/>
+                                
+                                <!-- Control buttons -->
                                 <StackPanel Orientation="Horizontal" Spacing="12">
-                                    <Button Classes="Primary" Content="Start" Command="{Binding CalibrateCompassCommand}" 
-                                            IsVisible="{Binding CanCalibrateCompass}"/>
+                                    <Button Classes="Primary" Content="Start" 
+                                            Command="{Binding StartOnboardCompassCalCommand}" 
+                                            IsVisible="{Binding !IsOnboardCompassCalActive}"
+                                            IsEnabled="{Binding CanCalibrateCompass}"/>
                                     <Button Content="Accept" Padding="16,8" Background="#22C55E" Foreground="White"
-                                            Command="{Binding CancelCalibrationCommand}" IsVisible="{Binding IsCompassCalibrationActive}"/>
+                                            Command="{Binding AcceptCompassCalCommand}" 
+                                            IsVisible="{Binding CanAcceptCompassCal}"/>
                                     <Button Content="Cancel" Padding="16,8" Background="#FECACA" Foreground="#991B1B"
-                                            Command="{Binding CancelCalibrationCommand}" IsVisible="{Binding IsCompassCalibrationActive}"/>
+                                            Command="{Binding CancelCompassCalCommand}" 
+                                            IsVisible="{Binding CanCancelCompassCal}"/>
                                 </StackPanel>
 
-                                <Border Background="#FFF7ED" CornerRadius="8" Padding="10" IsVisible="{Binding IsCompassCalibrationActive}">
-                                    <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" RowSpacing="6">
-                                        <TextBlock Grid.Column="0" Grid.Row="0" Text="{Binding CompassInstructions}" FontWeight="Medium" TextWrapping="Wrap"/>
-                                        <TextBlock Grid.Column="1" Grid.Row="0" Text="{Binding CompassCalibrationProgress, StringFormat='{}{0}%'}" FontWeight="Bold"/>
-                                        <ProgressBar Grid.Column="0" Grid.Row="1" Grid.ColumnSpan="2" Height="6" Maximum="100" 
-                                                     Value="{Binding CompassCalibrationProgress}" Foreground="#F59E0B" Background="#FDE68A"/>
-                                    </Grid>
+                                <!-- Progress bars for each compass -->
+                                <Border Background="#FFF7ED" CornerRadius="8" Padding="12" IsVisible="{Binding IsOnboardCompassCalActive}">
+                                    <StackPanel Spacing="8">
+                                        <!-- Status message -->
+                                        <TextBlock Text="{Binding CompassCalStatus}" FontWeight="Medium" Foreground="#92400E"/>
+                                        
+                                        <!-- Compass 1 -->
+                                        <Grid ColumnDefinitions="80,*,50">
+                                            <TextBlock Grid.Column="0" Text="Compass 1" FontSize="12" VerticalAlignment="Center"/>
+                                            <ProgressBar Grid.Column="1" Height="12" Maximum="100" 
+                                                         Value="{Binding Compass1Progress}" 
+                                                         Foreground="#F59E0B" Background="#FDE68A" Margin="8,0"/>
+                                            <TextBlock Grid.Column="2" Text="{Binding Compass1Progress, StringFormat='{}{0}%'}" 
+                                                       FontWeight="Bold" FontSize="12" VerticalAlignment="Center"/>
+                                        </Grid>
+                                        
+                                        <!-- Compass 2 -->
+                                        <Grid ColumnDefinitions="80,*,50">
+                                            <TextBlock Grid.Column="0" Text="Compass 2" FontSize="12" VerticalAlignment="Center"/>
+                                            <ProgressBar Grid.Column="1" Height="12" Maximum="100" 
+                                                         Value="{Binding Compass2Progress}" 
+                                                         Foreground="#F59E0B" Background="#FDE68A" Margin="8,0"/>
+                                            <TextBlock Grid.Column="2" Text="{Binding Compass2Progress, StringFormat='{}{0}%'}" 
+                                                       FontWeight="Bold" FontSize="12" VerticalAlignment="Center"/>
+                                        </Grid>
+                                        
+                                        <!-- Compass 3 -->
+                                        <Grid ColumnDefinitions="80,*,50">
+                                            <TextBlock Grid.Column="0" Text="Compass 3" FontSize="12" VerticalAlignment="Center"/>
+                                            <ProgressBar Grid.Column="1" Height="12" Maximum="100" 
+                                                         Value="{Binding Compass3Progress}" 
+                                                         Foreground="#F59E0B" Background="#FDE68A" Margin="8,0"/>
+                                            <TextBlock Grid.Column="2" Text="{Binding Compass3Progress, StringFormat='{}{0}%'}" 
+                                                       FontWeight="Bold" FontSize="12" VerticalAlignment="Center"/>
+                                        </Grid>
+                                    </StackPanel>
                                 </Border>
 
-                                <!-- Quick status fields per compass -->
+                                <!-- Calibration results -->
+                                <Border Background="#F0FDF4" CornerRadius="8" Padding="12" 
+                                        IsVisible="{Binding Compass1Result, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                                    <StackPanel Spacing="4">
+                                        <TextBlock Text="Calibration Results:" FontWeight="Bold" Foreground="#166534"/>
+                                        <TextBlock Text="{Binding Compass1Result}" FontFamily="Consolas" FontSize="11" 
+                                                   Foreground="#15803D" IsVisible="{Binding Compass1Result, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+                                        <TextBlock Text="{Binding Compass2Result}" FontFamily="Consolas" FontSize="11" 
+                                                   Foreground="#15803D" IsVisible="{Binding Compass2Result, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+                                        <TextBlock Text="{Binding Compass3Result}" FontFamily="Consolas" FontSize="11" 
+                                                   Foreground="#15803D" IsVisible="{Binding Compass3Result, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- Current compass offsets (from parameters) -->
                                 <ItemsControl ItemsSource="{Binding Compasses}" Margin="0,4,0,0">
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>

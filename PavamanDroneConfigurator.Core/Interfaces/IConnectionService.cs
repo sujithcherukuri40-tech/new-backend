@@ -32,6 +32,8 @@ public interface IConnectionService
     event EventHandler<CommandAckEventArgs>? CommandAckReceived;
     event EventHandler<CommandLongEventArgs>? CommandLongReceived;
     event EventHandler<RawImuEventArgs>? RawImuReceived;
+    event EventHandler<MagCalProgressEventArgs>? MagCalProgressReceived;
+    event EventHandler<MagCalReportEventArgs>? MagCalReportReceived;
     
     // MAVLink send methods for ParameterService to call
     void SendParamRequestList();
@@ -68,6 +70,11 @@ public interface IConnectionService
     // Request data stream (legacy fallback for older firmware)
     // streamId: 1=RAW_SENSORS (includes IMU), rateHz: desired rate, startStop: 1=start, 0=stop
     void SendRequestDataStream(int streamId, int rateHz, int startStop);
+    
+    // Compass calibration commands (MAV_CMD_DO_START/ACCEPT/CANCEL_MAG_CAL = 42424/42425/42426)
+    Task SendStartMagCalAsync(int magMask = 0, int retryOnFailure = 1, int autosave = 1, float delay = 0, int autoreboot = 0);
+    Task SendAcceptMagCalAsync(int magMask = 0);
+    Task SendCancelMagCalAsync(int magMask = 0);
 }
 
 // Event args for PARAM_VALUE messages
@@ -143,14 +150,14 @@ public class CommandAckEventArgs : EventArgs
 // Event args for RAW_IMU messages
 public class RawImuEventArgs : EventArgs
 {
-    public double AccelX { get; set; } // m/s�
-    public double AccelY { get; set; } // m/s�
-    public double AccelZ { get; set; } // m/s�
+    public double AccelX { get; set; } // m/s²
+    public double AccelY { get; set; } // m/s²
+    public double AccelZ { get; set; } // m/s²
     public double GyroX { get; set; }  // rad/s
     public double GyroY { get; set; }  // rad/s
     public double GyroZ { get; set; }  // rad/s
     public ulong TimeUsec { get; set; }
-    public double Temperature { get; set; } // �C
+    public double Temperature { get; set; } // °C
 }
 
 // Event args for COMMAND_LONG messages
@@ -169,4 +176,44 @@ public class CommandLongEventArgs : EventArgs
     public byte TargetSystem { get; set; }
     public byte TargetComponent { get; set; }
     public byte Confirmation { get; set; }
+}
+
+// Event args for MAG_CAL_PROGRESS messages
+public class MagCalProgressEventArgs : EventArgs
+{
+    public byte CompassId { get; set; }
+    public byte CalMask { get; set; }
+    public byte CalStatus { get; set; }
+    public byte Attempt { get; set; }
+    public byte CompletionPct { get; set; }
+    public byte[] CompletionMask { get; set; } = new byte[10];
+    public float DirectionX { get; set; }
+    public float DirectionY { get; set; }
+    public float DirectionZ { get; set; }
+}
+
+// Event args for MAG_CAL_REPORT messages
+public class MagCalReportEventArgs : EventArgs
+{
+    public byte CompassId { get; set; }
+    public byte CalMask { get; set; }
+    public byte CalStatus { get; set; }
+    public byte Autosaved { get; set; }
+    public float Fitness { get; set; }
+    public float OfsX { get; set; }
+    public float OfsY { get; set; }
+    public float OfsZ { get; set; }
+    public float DiagX { get; set; }
+    public float DiagY { get; set; }
+    public float DiagZ { get; set; }
+    public float OffdiagX { get; set; }
+    public float OffdiagY { get; set; }
+    public float OffdiagZ { get; set; }
+    public byte OrientationConfidence { get; set; }
+    public byte OldOrientation { get; set; }
+    public byte NewOrientation { get; set; }
+    public float ScaleFactor { get; set; }
+    
+    public string GetOffsetString() => $"X: {OfsX:F1}, Y: {OfsY:F1}, Z: {OfsZ:F1}";
+    public float GetMaxAbsOffset() => Math.Max(Math.Max(Math.Abs(OfsX), Math.Abs(OfsY)), Math.Abs(OfsZ));
 }

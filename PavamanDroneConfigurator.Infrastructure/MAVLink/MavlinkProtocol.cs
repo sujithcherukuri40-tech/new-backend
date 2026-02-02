@@ -21,6 +21,15 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
         // Incompatibility flags (v2)
         public const byte MAVLINK_IFLAG_SIGNED = 0x01;
         
+        // Message IDs for compass calibration
+        public const byte MAVLINK_MSG_ID_MAG_CAL_PROGRESS = 191;
+        public const byte MAVLINK_MSG_ID_MAG_CAL_REPORT = 192;
+        
+        // Command IDs for compass calibration
+        public const ushort MAV_CMD_DO_START_MAG_CAL = 42424;
+        public const ushort MAV_CMD_DO_ACCEPT_MAG_CAL = 42425;
+        public const ushort MAV_CMD_DO_CANCEL_MAG_CAL = 42426;
+        
         /// <summary>
         /// CRC_EXTRA values for known MAVLink messages
         /// Generated from official MAVLink XML definitions
@@ -88,6 +97,10 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
             // Battery
             { 147, 154 }, // BATTERY_STATUS
             { 148, 49 },  // AUTOPILOT_VERSION
+            
+            // Magnetometer calibration (ArduPilotMega dialect)
+            { 191, 92 },  // MAG_CAL_PROGRESS
+            { 192, 36 },  // MAG_CAL_REPORT
             
             // Terrain
             { 253, 83 },  // STATUSTEXT

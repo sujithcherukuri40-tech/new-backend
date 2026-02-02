@@ -293,6 +293,43 @@ public partial class SensorsCalibrationPageViewModel : ViewModelBase
 
     private SensorCalibrationConfiguration? _currentConfiguration;
 
+    #region Compass Calibration Properties (MissionPlanner Onboard Style)
+
+    [ObservableProperty]
+    private bool _isOnboardCompassCalActive;
+
+    [ObservableProperty]
+    private int _compass1Progress;
+
+    [ObservableProperty]
+    private int _compass2Progress;
+
+    [ObservableProperty]
+    private int _compass3Progress;
+
+    [ObservableProperty]
+    private string _compass1Result = string.Empty;
+
+    [ObservableProperty]
+    private string _compass2Result = string.Empty;
+
+    [ObservableProperty]
+    private string _compass3Result = string.Empty;
+
+    [ObservableProperty]
+    private bool _canAcceptCompassCal;
+
+    [ObservableProperty]
+    private bool _canCancelCompassCal;
+
+    [ObservableProperty]
+    private string _compassCalStatus = "Ready";
+
+    private int _compassCount;
+    private int _completedCompassCount;
+
+    #endregion
+
     public SensorsCalibrationPageViewModel(
         ILogger<SensorsCalibrationPageViewModel> logger,
         ICalibrationService calibrationService,
@@ -315,11 +352,16 @@ public partial class SensorsCalibrationPageViewModel : ViewModelBase
         _calibrationService.CalibrationProgressChanged += OnCalibrationProgressChanged;
         _calibrationService.StatusTextReceived += OnCalibrationStatusTextReceived;
         _calibrationService.AccelCalPositionRequested += OnAccelCalPositionRequested;
+        
+        // Subscribe to compass calibration events
+        _calibrationService.CompassCalProgressReceived += OnCompassCalProgressReceived;
+        _calibrationService.CompassCalReportReceived += OnCompassCalReportReceived;
+        _calibrationService.CompassCalibrationStateChanged += OnCompassCalStateChanged;
 
         InitializeFlowTypeOptions();
         UpdateConnectionStatus(_connectionService.IsConnected);
         
-        AddDebugLog("ViewModel initialized - MissionPlanner-style IMU calibration ready");
+        AddDebugLog("ViewModel initialized - MissionPlanner-style IMU and Compass calibration ready");
     }
 
     #region Event Handlers
@@ -508,6 +550,100 @@ public partial class SensorsCalibrationPageViewModel : ViewModelBase
             // Enable button for user to confirm position
             IsAccelButtonEnabled = true;
             CanClickWhenInPosition = true;
+        });
+    }
+
+    private void OnCompassCalProgressReceived(object? sender, CompassCalProgressEventArgs e)
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            AddDebugLog($"[CompassCal] Progress: compass={e.CompassId} status={e.Status} pct={e.CompletionPercent}%");
+
+            // Update progress bars based on compass_id
+            switch (e.CompassId)
+            {
+                case 0:
+                    Compass1Progress = e.CompletionPercent;
+                    break;
+                case 1:
+                    Compass2Progress = e.CompletionPercent;
+                    break;
+                case 2:
+                    Compass3Progress = e.CompletionPercent;
+                    break;
+            }
+
+            _compassCount = Math.Max(_compassCount, e.CompassId + 1);
+        });
+    }
+
+    private void OnCompassCalReportReceived(object? sender, CompassCalReportEventArgs e)
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            var resultText = $"id:{e.CompassId} x:{e.Offsets.X:F1} y:{e.Offsets.Y:F1} z:{e.Offsets.Z:F1} fit:{e.Fitness:F1} {e.Status}";
+            AddDebugLog($"[CompassCal] Report: {resultText}");
+
+            // Update result text and progress to 100%
+            switch (e.CompassId)
+            {
+                case 0:
+                    Compass1Progress = 100;
+                    Compass1Result = resultText;
+                    break;
+                case 1:
+                    Compass2Progress = 100;
+                    Compass2Result = resultText;
+                    break;
+                case 2:
+                    Compass3Progress = 100;
+                    Compass3Result = resultText;
+                    break;
+            }
+
+            if (e.IsAutosaved)
+            {
+                _completedCompassCount++;
+                if (_completedCompassCount == _compassCount && _compassCount > 0)
+                {
+                    // All complete
+                    CanAcceptCompassCal = false;
+                    CanCancelCompassCal = false;
+                    CompassCalStatus = "Calibration complete! Please reboot the autopilot.";
+                    IsOnboardCompassCalActive = false;
+                }
+            }
+        });
+    }
+
+    private void OnCompassCalStateChanged(object? sender, CompassCalibrationStateModel e)
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            CompassCalStatus = e.Message;
+            IsOnboardCompassCalActive = e.IsCalibrating;
+            CanAcceptCompassCal = e.CanAccept;
+            CanCancelCompassCal = e.CanCancel;
+
+            // Update progress from state
+            foreach (var kvp in e.CompassProgress)
+            {
+                switch (kvp.Key)
+                {
+                    case 0:
+                        Compass1Progress = kvp.Value;
+                        break;
+                    case 1:
+                        Compass2Progress = kvp.Value;
+                        break;
+                    case 2:
+                        Compass3Progress = kvp.Value;
+                        break;
+                }
+            }
+
+            IsCalibrating = _calibrationService.IsCalibrating;
+            UpdateButtonStates();
         });
     }
 
@@ -884,17 +1020,251 @@ public partial class SensorsCalibrationPageViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// Compass calibration (implementation pending)
+    /// Start onboard compass calibration (MissionPlanner style)
     /// </summary>
     [RelayCommand]
-    private void CalibrateCompass()
+    private async Task StartOnboardCompassCalAsync()
     {
-        AddDebugLog("Compass calibration not yet implemented");
-        ShowError("Not Implemented", "Compass calibration implementation pending.");
+        if (!IsConnected)
+        {
+            ShowError("Not Connected", "Please connect to a vehicle first.");
+            return;
+        }
+
+        if (!IsCompassAvailable)
+        {
+            ShowError("No Compass", "No compass sensors detected.");
+            return;
+        }
+
+        AddDebugLog("[CompassCal] Starting onboard compass calibration...");
+        
+        // Reset progress
+        Compass1Progress = 0;
+        Compass2Progress = 0;
+        Compass3Progress = 0;
+        Compass1Result = string.Empty;
+        Compass2Result = string.Empty;
+        Compass3Result = string.Empty;
+        _compassCount = 0;
+        _completedCompassCount = 0;
+
+        CompassCalStatus = "Starting calibration...";
+        IsOnboardCompassCalActive = true;
+        CanAcceptCompassCal = false;
+        CanCancelCompassCal = true;
+
+        var success = await _calibrationService.StartOnboardCompassCalibrationAsync(0, true, true);
+        
+        if (!success)
+        {
+            ShowError("Calibration Failed", "Failed to start compass calibration. Check connection and try again.");
+            IsOnboardCompassCalActive = false;
+        }
     }
 
     /// <summary>
-    /// Level horizon calibration (param5=2)
+    /// Accept compass calibration
+    /// </summary>
+    [RelayCommand]
+    private async Task AcceptCompassCalAsync()
+    {
+        AddDebugLog("[CompassCal] Accepting calibration...");
+        var success = await _calibrationService.AcceptCompassCalibrationAsync();
+        
+        if (success)
+        {
+            CompassCalStatus = "Calibration accepted. Please reboot the autopilot.";
+            CanAcceptCompassCal = false;
+            CanCancelCompassCal = false;
+        }
+        else
+        {
+            ShowError("Accept Failed", "Failed to accept calibration.");
+        }
+    }
+
+    /// <summary>
+    /// Cancel compass calibration
+    /// </summary>
+    [RelayCommand]
+    private async Task CancelCompassCalAsync()
+    {
+        AddDebugLog("[CompassCal] Cancelling calibration...");
+        var success = await _calibrationService.CancelCompassCalibrationAsync();
+        
+        if (success)
+        {
+            CompassCalStatus = "Calibration cancelled.";
+            IsOnboardCompassCalActive = false;
+            CanAcceptCompassCal = false;
+            CanCancelCompassCal = false;
+            
+            // Reset progress
+            Compass1Progress = 0;
+            Compass2Progress = 0;
+            Compass3Progress = 0;
+        }
+    }
+
+    /// <summary>
+    /// Compass calibration (implementation pending)
+    /// </summary>
+    [RelayCommand]
+    private async Task CalibrateCompassAsync()
+    {
+        await StartOnboardCompassCalAsync();
+    }
+
+    /// <summary>
+    /// Cancel the current calibration
+    /// </summary>
+    [RelayCommand]
+    private async Task CancelCalibrationAsync()
+    {
+        AddDebugLog("Cancelling calibration...");
+        
+        try
+        {
+            await _calibrationService.CancelCalibrationAsync();
+            
+            // Reset accelerometer calibration state
+            IsAccelCalibrationActive = false;
+            AccelButtonText = "Calibrate Accel";
+            IsAccelButtonEnabled = true;
+            AccelInstructions = "Calibration cancelled. Click 'Calibrate Accel' to start again.";
+            ResetAllStepIndicators();
+            
+            StatusMessage = "Calibration cancelled";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to cancel calibration");
+            ShowError("Cancel Failed", ex.Message);
+        }
+    }
+
+    /// <summary>
+    /// Reboot the flight controller
+    /// </summary>
+    [RelayCommand]
+    private async Task RebootAsync()
+    {
+        if (!IsConnected)
+        {
+            ShowError("Not Connected", "Please connect to a vehicle first.");
+            return;
+        }
+
+        AddDebugLog("Sending reboot command...");
+        
+        try
+        {
+            _connectionService.SendPreflightReboot(1, 0);
+            StatusMessage = "Reboot command sent";
+            AddDebugLog("Reboot command sent successfully");
+            await Task.CompletedTask;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to send reboot command");
+            ShowError("Reboot Failed", ex.Message);
+        }
+    }
+
+    /// <summary>
+    /// Set compass enabled/disabled state
+    /// </summary>
+    [RelayCommand]
+    private async Task SetCompassEnabledAsync(CompassInfo? compass)
+    {
+        if (compass == null || !IsConnected)
+            return;
+
+        AddDebugLog($"Setting compass {compass.Priority} enabled={compass.IsEnabled}");
+        
+        try
+        {
+            await _sensorConfigService.SetCompassEnabledAsync(compass.Priority, compass.IsEnabled);
+            StatusMessage = $"Compass {compass.Priority} {(compass.IsEnabled ? "enabled" : "disabled")}";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to set compass enabled state");
+            ShowError("Error", ex.Message);
+        }
+    }
+
+    /// <summary>
+    /// Move compass up in priority order
+    /// </summary>
+    [RelayCommand]
+    private async Task MoveCompassUpAsync(CompassInfo? compass)
+    {
+        if (compass == null || !IsConnected)
+            return;
+
+        var index = Compasses.IndexOf(compass);
+        if (index <= 0)
+            return;
+
+        AddDebugLog($"Moving compass {compass.Priority} up");
+        
+        try
+        {
+            Compasses.Move(index, index - 1);
+            await UpdateCompassPrioritiesAsync();
+            StatusMessage = "Compass priority updated";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to move compass up");
+            ShowError("Error", ex.Message);
+        }
+    }
+
+    /// <summary>
+    /// Move compass down in priority order
+    /// </summary>
+    [RelayCommand]
+    private async Task MoveCompassDownAsync(CompassInfo? compass)
+    {
+        if (compass == null || !IsConnected)
+            return;
+
+        var index = Compasses.IndexOf(compass);
+        if (index < 0 || index >= Compasses.Count - 1)
+            return;
+
+        AddDebugLog($"Moving compass {compass.Priority} down");
+        
+        try
+        {
+            Compasses.Move(index, index + 1);
+            await UpdateCompassPrioritiesAsync();
+            StatusMessage = "Compass priority updated";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to move compass down");
+            ShowError("Error", ex.Message);
+        }
+    }
+
+    private async Task UpdateCompassPrioritiesAsync()
+    {
+        for (int i = 0; i < Compasses.Count; i++)
+        {
+            var compass = Compasses[i];
+            compass.Priority = i + 1;
+            
+            // Update priority in the flight controller
+            await _sensorConfigService.SetCompassPriorityAsync(compass.Index, i);
+        }
+    }
+
+    /// <summary>
+    /// Calibrate level horizon (simple level calibration)
     /// </summary>
     [RelayCommand]
     private async Task CalibrateLevelHorizonAsync()
@@ -905,18 +1275,48 @@ public partial class SensorsCalibrationPageViewModel : ViewModelBase
             return;
         }
 
-        AddDebugLog("Starting level horizon calibration...");
-        LevelInstructions = "Keep vehicle level and still during calibration...";
-        
-        var success = await _calibrationService.StartLevelHorizonCalibrationAsync();
-        if (!success)
+        if (!IsAccelerometerAvailable)
         {
-            ShowError("Calibration Failed", "Failed to start level horizon calibration.");
+            ShowError("Sensor Not Available", "Accelerometer required for level horizon calibration.");
+            return;
+        }
+
+        AddDebugLog("Starting level horizon calibration...");
+        LevelCalibrationStatus = "Calibrating...";
+        IsLevelCalibrationActive = true;
+        
+        try
+        {
+            var success = await _calibrationService.StartLevelHorizonCalibrationAsync();
+            
+            if (success)
+            {
+                IsLevelCalibrated = true;
+                LevelCalibrationStatus = "Calibration complete";
+                LevelInstructions = "Level calibration successful! Reboot to apply changes.";
+                StatusMessage = "Level calibration complete";
+            }
+            else
+            {
+                LevelCalibrationStatus = "Calibration failed";
+                LevelInstructions = "Level calibration failed. Place vehicle on a level surface and try again.";
+                ShowError("Calibration Failed", "Level horizon calibration failed.");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Level horizon calibration failed");
+            LevelCalibrationStatus = "Calibration failed";
+            ShowError("Calibration Error", ex.Message);
+        }
+        finally
+        {
+            IsLevelCalibrationActive = false;
         }
     }
 
     /// <summary>
-    /// Barometer calibration (param3=1)
+    /// Calibrate barometer/pressure sensor
     /// </summary>
     [RelayCommand]
     private async Task CalibratePressureAsync()
@@ -927,124 +1327,81 @@ public partial class SensorsCalibrationPageViewModel : ViewModelBase
             return;
         }
 
+        if (!IsBarometerAvailable)
+        {
+            ShowError("Sensor Not Available", "Barometer sensor not detected.");
+            return;
+        }
+
         AddDebugLog("Starting barometer calibration...");
-        PressureInstructions = "Calibrating barometer... keep vehicle still.";
+        PressureCalibrationStatus = "Calibrating...";
+        IsPressureCalibrationActive = true;
+        PressureCalibrationProgress = 0;
         
-        var success = await _calibrationService.StartBarometerCalibrationAsync();
-        if (!success)
+        try
         {
-            ShowError("Calibration Failed", "Failed to start barometer calibration.");
+            var success = await _calibrationService.StartBarometerCalibrationAsync();
+            
+            if (success)
+            {
+                IsPressureCalibrated = true;
+                PressureCalibrationStatus = "Calibration complete";
+                PressureInstructions = "Barometer calibration successful!";
+                StatusMessage = "Barometer calibration complete";
+                PressureCalibrationProgress = 100;
+            }
+            else
+            {
+                PressureCalibrationStatus = "Calibration failed";
+                PressureInstructions = "Barometer calibration failed. Keep the vehicle still and try again.";
+                ShowError("Calibration Failed", "Barometer calibration failed.");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Barometer calibration failed");
+            PressureCalibrationStatus = "Calibration failed";
+            ShowError("Calibration Error", ex.Message);
+        }
+        finally
+        {
+            IsPressureCalibrationActive = false;
         }
     }
 
     /// <summary>
-    /// Cancel any active calibration
+    /// Update flow sensor settings
     /// </summary>
-    [RelayCommand]
-    private async Task CancelCalibrationAsync()
-    {
-        if (!IsCalibrating)
-            return;
-
-        AddDebugLog("Cancelling calibration...");
-        await _calibrationService.CancelCalibrationAsync();
-        
-        // Reset UI
-        AccelButtonText = "Calibrate Accel";
-        IsAccelButtonEnabled = IsConnected && IsAccelerometerAvailable;
-        AccelInstructions = "Calibration cancelled. Click 'Calibrate Accel' to start again.";
-        ResetAllStepIndicators();
-        
-        StatusMessage = "Calibration cancelled";
-    }
-
-    /// <summary>
-    /// Reboot flight controller (required after calibration)
-    /// </summary>
-    [RelayCommand]
-    private async Task RebootAsync()
-    {
-        if (!IsConnected)
-        {
-            ShowError("Not Connected", "Please connect first.");
-            return;
-        }
-
-        AddDebugLog("Rebooting flight controller...");
-        StatusMessage = "Rebooting...";
-        var success = await _calibrationService.RebootFlightControllerAsync();
-        StatusMessage = success ? "Reboot command sent" : "Reboot failed";
-    }
-
-    #endregion
-
-    #region Commands - Compass
-
-    [RelayCommand]
-    private async Task SetCompassEnabledAsync(CompassInfo? compass)
-    {
-        if (compass == null || !IsConnected) return;
-
-        var newState = !compass.IsEnabled;
-        var success = await _sensorConfigService.SetCompassEnabledAsync(compass.Index, newState);
-        if (success)
-        {
-            compass.IsEnabled = newState;
-            StatusMessage = $"Compass {compass.Index} {(newState ? "enabled" : "disabled")}";
-        }
-    }
-
-    [RelayCommand]
-    private async Task MoveCompassUpAsync(CompassInfo? compass)
-    {
-        if (compass == null || !IsConnected) return;
-
-        var index = Compasses.IndexOf(compass);
-        if (index > 0)
-        {
-            Compasses.Move(index, index - 1);
-            await _sensorConfigService.SetCompassPriorityAsync(compass.Index, index - 1);
-        }
-    }
-
-    [RelayCommand]
-    private async Task MoveCompassDownAsync(CompassInfo? compass)
-    {
-        if (compass == null || !IsConnected) return;
-
-        var index = Compasses.IndexOf(compass);
-        if (index < Compasses.Count - 1)
-        {
-            Compasses.Move(index, index + 1);
-            await _sensorConfigService.SetCompassPriorityAsync(compass.Index, index + 1);
-        }
-    }
-
-    #endregion
-
-    #region Commands - Flow Sensor
-
     [RelayCommand]
     private async Task UpdateFlowSettingsAsync()
     {
         if (!IsConnected)
         {
-            ShowError("Not Connected", "Please connect first.");
+            ShowError("Not Connected", "Please connect to a vehicle first.");
             return;
         }
 
-        IsBusy = true;
-        var settings = new FlowSensorSettings
+        AddDebugLog("Updating flow sensor settings...");
+        
+        try
         {
-            FlowType = SelectedFlowType,
-            XAxisScaleFactor = FlowXAxisScale,
-            YAxisScaleFactor = FlowYAxisScale,
-            SensorYawAlignment = FlowYawAlignment
-        };
+            var settings = new FlowSensorSettings
+            {
+                FlowType = SelectedFlowType,
+                XAxisScaleFactor = FlowXAxisScale,
+                YAxisScaleFactor = FlowYAxisScale,
+                SensorYawAlignment = FlowYawAlignment
+            };
 
-        var success = await _sensorConfigService.UpdateFlowSettingsAsync(settings);
-        StatusMessage = success ? "Flow settings updated" : "Failed to update";
-        IsBusy = false;
+            await _sensorConfigService.UpdateFlowSettingsAsync(settings);
+            StatusMessage = "Flow settings updated";
+            AddDebugLog("Flow settings updated successfully");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to update flow settings");
+            ShowError("Update Failed", ex.Message);
+        }
     }
 
     #endregion
@@ -1059,6 +1416,9 @@ public partial class SensorsCalibrationPageViewModel : ViewModelBase
             _calibrationService.CalibrationProgressChanged -= OnCalibrationProgressChanged;
             _calibrationService.StatusTextReceived -= OnCalibrationStatusTextReceived;
             _calibrationService.AccelCalPositionRequested -= OnAccelCalPositionRequested;
+            _calibrationService.CompassCalProgressReceived -= OnCompassCalProgressReceived;
+            _calibrationService.CompassCalReportReceived -= OnCompassCalReportReceived;
+            _calibrationService.CompassCalibrationStateChanged -= OnCompassCalStateChanged;
         }
         base.Dispose(disposing);
     }
