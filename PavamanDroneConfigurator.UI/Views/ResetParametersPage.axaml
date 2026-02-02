@@ -264,46 +264,48 @@
 
             <!-- WARNING SECTION (Refined & Calm) -->
             <Border Classes="WarningCard">
-                <Grid ColumnDefinitions="Auto,*">
-                    <!-- Left Accent Bar -->
-                    <Border Classes="AccentBar Warning" Grid.Column="0"/>
-                    
-                    <StackPanel Grid.Column="1" Spacing="12">
-                        <TextBlock FontSize="16" FontWeight="600" 
-                                   Foreground="#92400E">
-                            Factory Reset Warning
-                        </TextBlock>
+                <StackPanel Spacing="12">
+                    <StackPanel Orientation="Horizontal" Spacing="16">
+                        <!-- Left Accent Bar -->
+                        <Border Classes="AccentBar Warning"/>
                         
-                        <TextBlock FontSize="13" FontWeight="400" 
-                                   Foreground="#78350F" 
-                                   TextWrapping="Wrap"
-                                   LineHeight="20">
-                            This operation resets all flight controller parameters to factory defaults. All custom configurations will be permanently lost.
-                        </TextBlock>
-                        
-                        <!-- Compact Bullet List -->
-                        <StackPanel Spacing="6" Margin="0,4,0,0">
-                            <TextBlock FontSize="13" Foreground="#78350F">
-                                • PID tuning and flight modes
+                        <StackPanel Spacing="12">
+                            <TextBlock FontSize="16" FontWeight="600" 
+                                       Foreground="#92400E">
+                                Factory Reset Warning
                             </TextBlock>
-                            <TextBlock FontSize="13" Foreground="#78350F">
-                                • Safety settings and failsafes
+                            
+                            <TextBlock FontSize="13" FontWeight="400" 
+                                       Foreground="#78350F" 
+                                       TextWrapping="Wrap"
+                                       LineHeight="20">
+                                This operation resets all flight controller parameters to factory defaults. All custom configurations will be permanently lost.
                             </TextBlock>
-                            <TextBlock FontSize="13" Foreground="#78350F">
-                                • Sensor calibration offsets
-                            </TextBlock>
-                            <TextBlock FontSize="13" Foreground="#78350F">
-                                • Motor and ESC configurations
+                            
+                            <!-- Compact Bullet List -->
+                            <StackPanel Spacing="6" Margin="0,4,0,0">
+                                <TextBlock FontSize="13" Foreground="#78350F">
+                                    • PID tuning and flight modes
+                                </TextBlock>
+                                <TextBlock FontSize="13" Foreground="#78350F">
+                                    • Safety settings and failsafes
+                                </TextBlock>
+                                <TextBlock FontSize="13" Foreground="#78350F">
+                                    • Sensor calibration offsets
+                                </TextBlock>
+                                <TextBlock FontSize="13" Foreground="#78350F">
+                                    • Motor and ESC configurations
+                                </TextBlock>
+                            </StackPanel>
+                            
+                            <TextBlock FontSize="12" FontWeight="500" 
+                                       Foreground="#92400E" 
+                                       Margin="0,8,0,0">
+                                Recommendation: Export current parameters before proceeding.
                             </TextBlock>
                         </StackPanel>
-                        
-                        <TextBlock FontSize="12" FontWeight="500" 
-                                   Foreground="#92400E" 
-                                   Margin="0,8,0,0">
-                            Recommendation: Export current parameters before proceeding.
-                        </TextBlock>
                     </StackPanel>
-                </Grid>
+                </StackPanel>
             </Border>
 
             <!-- RESET WORKFLOW (Step Cards) -->
@@ -311,77 +313,80 @@
                 
                 <!-- Step 1: Reset Parameters -->
                 <Border Classes="StepCard">
-                    <Grid ColumnDefinitions="Auto,*,Auto">
-                        <!-- Step Number -->
-                        <Border Classes="StepNumber Step1" Grid.Column="0">
-                            <TextBlock Classes="StepNumberText Step1" Text="1"/>
-                        </Border>
-                        
-                        <!-- Step Info -->
-                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                            <TextBlock Classes="StepTitle" Text="Reset Parameters"/>
-                            <TextBlock Classes="StepDescription" 
-                                       Text="Send reset command to prepare for factory reset"/>
+                    <StackPanel Spacing="16">
+                        <StackPanel Orientation="Horizontal" Spacing="16">
+                            <!-- Step Number -->
+                            <Border Classes="StepNumber Step1">
+                                <TextBlock Classes="StepNumberText Step1" Text="1"/>
+                            </Border>
+                            
+                            <!-- Step Info -->
+                            <StackPanel VerticalAlignment="Center">
+                                <TextBlock Classes="StepTitle" Text="Reset Parameters"/>
+                                <TextBlock Classes="StepDescription" 
+                                           Text="Send reset command to prepare for factory reset"/>
+                            </StackPanel>
                         </StackPanel>
                         
                         <!-- Action Button -->
-                        <Button Grid.Column="2" 
-                                Classes="StepButton Danger"
+                        <Button Classes="StepButton Danger"
                                 Content="Reset to Factory Defaults"
                                 Command="{Binding ResetParametersCommand}"
                                 IsEnabled="{Binding IsConnected}"
-                                VerticalAlignment="Center"/>
-                    </Grid>
+                                HorizontalAlignment="Right"/>
+                    </StackPanel>
                 </Border>
                 
                 <!-- Step 2: Reboot Flight Controller -->
                 <Border Classes="StepCard">
-                    <Grid ColumnDefinitions="Auto,*,Auto">
-                        <!-- Step Number -->
-                        <Border Classes="StepNumber Step2" Grid.Column="0">
-                            <TextBlock Classes="StepNumberText Step2" Text="2"/>
-                        </Border>
-                        
-                        <!-- Step Info -->
-                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                            <TextBlock Classes="StepTitle" Text="Reboot Flight Controller"/>
-                            <TextBlock Classes="StepDescription" 
-                                       Text="Restart to apply the reset operation"/>
+                    <StackPanel Spacing="16">
+                        <StackPanel Orientation="Horizontal" Spacing="16">
+                            <!-- Step Number -->
+                            <Border Classes="StepNumber Step2">
+                                <TextBlock Classes="StepNumberText Step2" Text="2"/>
+                            </Border>
+                            
+                            <!-- Step Info -->
+                            <StackPanel VerticalAlignment="Center">
+                                <TextBlock Classes="StepTitle" Text="Reboot Flight Controller"/>
+                                <TextBlock Classes="StepDescription" 
+                                           Text="Restart to apply the reset operation"/>
+                            </StackPanel>
                         </StackPanel>
                         
                         <!-- Action Button -->
-                        <Button Grid.Column="2" 
-                                Classes="StepButton Neutral"
+                        <Button Classes="StepButton Neutral"
                                 Content="Reboot Controller"
                                 Command="{Binding RebootDroneCommand}"
                                 IsEnabled="{Binding IsConnected}"
-                                VerticalAlignment="Center"/>
-                    </Grid>
+                                HorizontalAlignment="Right"/>
+                    </StackPanel>
                 </Border>
                 
                 <!-- Step 3: Reload Parameters -->
                 <Border Classes="StepCard">
-                    <Grid ColumnDefinitions="Auto,*,Auto">
-                        <!-- Step Number -->
-                        <Border Classes="StepNumber Step3" Grid.Column="0">
-                            <TextBlock Classes="StepNumberText Step3" Text="3"/>
-                        </Border>
-                        
-                        <!-- Step Info -->
-                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                            <TextBlock Classes="StepTitle" Text="Reload Parameters"/>
-                            <TextBlock Classes="StepDescription" 
-                                       Text="Download reset parameters after reconnection"/>
+                    <StackPanel Spacing="16">
+                        <StackPanel Orientation="Horizontal" Spacing="16">
+                            <!-- Step Number -->
+                            <Border Classes="StepNumber Step3">
+                                <TextBlock Classes="StepNumberText Step3" Text="3"/>
+                            </Border>
+                            
+                            <!-- Step Info -->
+                            <StackPanel VerticalAlignment="Center">
+                                <TextBlock Classes="StepTitle" Text="Reload Parameters"/>
+                                <TextBlock Classes="StepDescription" 
+                                           Text="Download reset parameters after reconnection"/>
+                            </StackPanel>
                         </StackPanel>
                         
                         <!-- Action Button -->
-                        <Button Grid.Column="2" 
-                                Classes="StepButton Primary"
+                        <Button Classes="StepButton Primary"
                                 Content="Reload Parameters"
                                 Command="{Binding RefreshParametersCommand}"
                                 IsEnabled="{Binding IsConnected}"
-                                VerticalAlignment="Center"/>
-                    </Grid>
+                                HorizontalAlignment="Right"/>
+                    </StackPanel>
                 </Border>
             </StackPanel>
 
