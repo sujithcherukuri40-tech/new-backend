@@ -18,6 +18,12 @@ public class DroneInfoService : IDroneInfoService
     private DroneInfo? _currentInfo;
     
     /// <summary>
+    /// Placeholder suffix used when firmware version data is not yet available.
+    /// Format: version placeholder + git hash placeholder
+    /// </summary>
+    private const string FirmwareIdPlaceholderSuffix = "0000-0000";
+    
+    /// <summary>
     /// Tracks the last notified state to avoid unnecessary event firing.
     /// Only fires DroneInfoUpdated when values actually change.
     /// </summary>
@@ -291,7 +297,7 @@ public class DroneInfoService : IDroneInfoService
         if (_currentInfo == null) return "FW-UNAVAILABLE";
         
         // Use system/component IDs as a temporary identifier until AUTOPILOT_VERSION is received
-        return $"FW-{_currentInfo.SystemId:D3}{_currentInfo.ComponentId:D3}0000-0000";
+        return $"FW-{_currentInfo.SystemId:D3}{_currentInfo.ComponentId:D3}{FirmwareIdPlaceholderSuffix}";
     }
 
     private static string GetVehicleTypeName(byte vehicleType)

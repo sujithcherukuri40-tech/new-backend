@@ -16,7 +16,7 @@
         </Style>
         
         <!-- Vehicle Card Style - Enhanced with hover effects -->
-        <Style Selector="Button.vehicle-card">
+        <Style Selector="Button.firmware-card">
             <Setter Property="Background" Value="{DynamicResource CardBrush}"/>
             <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
             <Setter Property="BorderThickness" Value="1"/>
@@ -28,16 +28,16 @@
             <Setter Property="Margin" Value="6"/>
         </Style>
         
-        <Style Selector="Button.vehicle-card:pointerover">
+        <Style Selector="Button.firmware-card:pointerover">
             <Setter Property="BorderBrush" Value="{DynamicResource PrimaryBrush}"/>
             <Setter Property="Background" Value="{DynamicResource HoverBrush}"/>
         </Style>
         
-        <Style Selector="Button.vehicle-card:pressed">
+        <Style Selector="Button.firmware-card:pressed">
             <Setter Property="BorderBrush" Value="{DynamicResource PrimaryHoverBrush}"/>
         </Style>
         
-        <Style Selector="Button.vehicle-card-selected">
+        <Style Selector="Button.firmware-card-selected">
             <Setter Property="BorderBrush" Value="{DynamicResource PrimaryBrush}"/>
             <Setter Property="BorderThickness" Value="2"/>
             <Setter Property="Background" Value="{DynamicResource PrimaryLightBrush}"/>
