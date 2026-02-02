@@ -5,248 +5,227 @@
              xmlns:vm="using:PavamanDroneConfigurator.UI.ViewModels"
              mc:Ignorable="d" d:DesignWidth="900" d:DesignHeight="700"
              x:Class="PavamanDroneConfigurator.UI.Views.DroneDetailsPage"
-             x:DataType="vm:DroneDetailsPageViewModel">
-
-    <UserControl.Styles>
-        <!-- Modern Card Style -->
-        <Style Selector="Border.card">
-            <Setter Property="Background" Value="#FFFFFF"/>
-            <Setter Property="BorderBrush" Value="#E5E7EB"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="CornerRadius" Value="12"/>
-            <Setter Property="Padding" Value="24"/>
-            <Setter Property="BoxShadow" Value="0 1 3 0 #10000000"/>
-        </Style>
-
-        <!-- Section Header Style -->
-        <Style Selector="TextBlock.section-title">
-            <Setter Property="FontSize" Value="15"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="Foreground" Value="#3B82F6"/>
-            <Setter Property="Margin" Value="0,0,0,16"/>
-        </Style>
-
-        <!-- Label Style -->
-        <Style Selector="TextBlock.label">
-            <Setter Property="FontSize" Value="14"/>
-            <Setter Property="FontWeight" Value="Medium"/>
-            <Setter Property="Foreground" Value="#374151"/>
-            <Setter Property="VerticalAlignment" Value="Center"/>
-        </Style>
-
-        <!-- Value Style -->
-        <Style Selector="TextBlock.value">
-            <Setter Property="FontSize" Value="14"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="Foreground" Value="#111827"/>
-            <Setter Property="VerticalAlignment" Value="Center"/>
-            <Setter Property="TextWrapping" Value="Wrap"/>
-        </Style>
-
-        <!-- Checksum Style (monospace for hashes) -->
-        <Style Selector="TextBlock.checksum">
-            <Setter Property="FontSize" Value="12"/>
-            <Setter Property="FontFamily" Value="Consolas, Courier New, monospace"/>
-            <Setter Property="Foreground" Value="#6B7280"/>
-            <Setter Property="VerticalAlignment" Value="Center"/>
-            <Setter Property="TextWrapping" Value="Wrap"/>
-        </Style>
-
-        <!-- Primary Button -->
-        <Style Selector="Button.primary">
-            <Setter Property="Background" Value="#3B82F6"/>
-            <Setter Property="Foreground" Value="White"/>
-            <Setter Property="Padding" Value="24,10"/>
-            <Setter Property="CornerRadius" Value="8"/>
-            <Setter Property="FontSize" Value="14"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Cursor" Value="Hand"/>
-        </Style>
-
-        <Style Selector="Button.primary:pointerover">
-            <Setter Property="Background" Value="#2563EB"/>
-        </Style>
-
-        <Style Selector="Button.primary:disabled">
-            <Setter Property="Background" Value="#9CA3AF"/>
-            <Setter Property="Opacity" Value="0.6"/>
-        </Style>
-
-        <!-- Image Container Style -->
-        <Style Selector="Border.image-container">
-            <Setter Property="Background" Value="#F3F4F6"/>
-            <Setter Property="CornerRadius" Value="12"/>
-            <Setter Property="Padding" Value="20"/>
-        </Style>
-
-        <!-- Status Badge -->
-        <Style Selector="Border.status-armed">
-            <Setter Property="Background" Value="#FEE2E2"/>
-            <Setter Property="CornerRadius" Value="6"/>
-            <Setter Property="Padding" Value="8,4"/>
-        </Style>
-
-        <Style Selector="Border.status-disarmed">
-            <Setter Property="Background" Value="#DCFCE7"/>
-            <Setter Property="CornerRadius" Value="6"/>
-            <Setter Property="Padding" Value="8,4"/>
-        </Style>
-    </UserControl.Styles>
+             x:DataType="vm:DroneDetailsPageViewModel"
+             Background="{DynamicResource BackgroundBrush}">
 
     <ScrollViewer>
-        <StackPanel Margin="32,24" Spacing="24" MaxWidth="1000">
-            <!-- Header -->
+        <StackPanel Margin="{DynamicResource PagePadding}" Spacing="24" MaxWidth="1000">
+            
+            <!-- ???????????????????????????????????????????????????????????????????????????????????
+                 PAGE HEADER
+            ??????????????????????????????????????????????????????????????????????????????????? -->
             <Grid ColumnDefinitions="*,Auto">
-                <StackPanel Spacing="8">
-                    <TextBlock Text="DRONE DETAILS" FontSize="28" FontWeight="Bold" Foreground="#3B82F6"/>
-                    <TextBlock Text="View your drone's identification and version information" 
-                               FontSize="14" 
-                               Foreground="#6B7280"/>
+                <StackPanel Grid.Column="0" Spacing="8">
+                    <TextBlock Text="Drone Details" Classes="page-title"/>
+                    <TextBlock Text="View your drone's identification and version information" Classes="page-subtitle"/>
                 </StackPanel>
                 
                 <Button Grid.Column="1"
-                        Content="? Refresh"
+                        Content="?  Refresh"
                         Command="{Binding RefreshCommand}"
                         IsEnabled="{Binding IsConnected}"
-                        Classes="primary"/>
+                        Classes="btn-primary"/>
             </Grid>
 
-            <!-- Loading Indicator -->
+            <!-- ???????????????????????????????????????????????????????????????????????????????????
+                 LOADING INDICATOR
+            ??????????????????????????????????????????????????????????????????????????????????? -->
             <Border Classes="card" IsVisible="{Binding IsLoading}">
-                <StackPanel Orientation="Horizontal" Spacing="12" HorizontalAlignment="Center">
-                    <ProgressBar IsIndeterminate="True" Width="200" Height="4"/>
-                    <TextBlock Text="Loading drone details..." Foreground="#6B7280"/>
+                <StackPanel Spacing="16" HorizontalAlignment="Center" Margin="40">
+                    <ProgressBar IsIndeterminate="True" 
+                                 Width="200" 
+                                 Height="6"
+                                 Classes="progress"/>
+                    <TextBlock Text="Loading drone details..." 
+                               Classes="body"
+                               Foreground="{DynamicResource TextSecondaryBrush}"
+                               HorizontalAlignment="Center"/>
                 </StackPanel>
             </Border>
 
-            <!-- Main Content -->
-            <Border Classes="card" IsVisible="{Binding !IsLoading}">
-                <Grid ColumnDefinitions="350,*" RowDefinitions="Auto">
+            <!-- ???????????????????????????????????????????????????????????????????????????????????
+                 MAIN CONTENT - DRONE INFO
+            ??????????????????????????????????????????????????????????????????????????????????? -->
+            <Border Classes="card-elevated" IsVisible="{Binding !IsLoading}">
+                <Grid ColumnDefinitions="350,*">
+                    
                     <!-- Left Side - Drone Image -->
-                    <Border Grid.Column="0" Classes="image-container" Margin="0,0,24,0">
+                    <Border Grid.Column="0" 
+                            Background="{DynamicResource SecondaryLightBrush}"
+                            CornerRadius="{DynamicResource RadiusLG}"
+                            Padding="24"
+                            Margin="0,0,24,0">
                         <Image Source="avares://PavamanDroneConfigurator.UI/Assets/Images/Drone-Image.png"
                                Stretch="Uniform"
-                               MaxHeight="350"
-                               MaxWidth="300"
+                               MaxHeight="300"
+                               MaxWidth="280"
                                HorizontalAlignment="Center"
                                VerticalAlignment="Center"/>
                     </Border>
 
                     <!-- Right Side - Drone Information -->
                     <StackPanel Grid.Column="1" Spacing="20">
+                        <TextBlock Text="Identification" Classes="section-title"/>
                         
-                        <!-- Drone ID -->
-                        <Grid ColumnDefinitions="150,*" RowDefinitions="Auto">
-                            <TextBlock Grid.Column="0" Text="Drone ID :" Classes="label"/>
-                            <TextBlock Grid.Column="1" Text="{Binding DroneId}" Classes="value"/>
-                        </Grid>
+                        <Grid ColumnDefinitions="160,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto" RowSpacing="16">
+                            
+                            <!-- Drone ID -->
+                            <TextBlock Grid.Row="0" Grid.Column="0" Text="Drone ID" Classes="caption"/>
+                            <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding DroneId}" 
+                                       Classes="value" FontFamily="{DynamicResource MonospaceFont}"/>
 
-                        <!-- FC ID -->
-                        <Grid ColumnDefinitions="150,*" RowDefinitions="Auto">
-                            <TextBlock Grid.Column="0" Text="FC ID :" Classes="label"/>
-                            <TextBlock Grid.Column="1" Text="{Binding FcId}" Classes="value"/>
-                        </Grid>
+                            <!-- FC ID -->
+                            <TextBlock Grid.Row="1" Grid.Column="0" Text="Flight Controller ID" Classes="caption"/>
+                            <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding FcId}" 
+                                       Classes="value" FontFamily="{DynamicResource MonospaceFont}"/>
 
-                        <!-- Firmware Version -->
-                        <Grid ColumnDefinitions="150,*" RowDefinitions="Auto">
-                            <TextBlock Grid.Column="0" Text="Firmware Version :" Classes="label"/>
-                            <TextBlock Grid.Column="1" Text="{Binding FirmwareVersion}" Classes="value"/>
-                        </Grid>
+                            <!-- Firmware Version -->
+                            <TextBlock Grid.Row="2" Grid.Column="0" Text="Firmware Version" Classes="caption"/>
+                            <Border Grid.Row="2" Grid.Column="1" Classes="badge-info" HorizontalAlignment="Left">
+                                <TextBlock Text="{Binding FirmwareVersion}" 
+                                           FontSize="{DynamicResource FontSizeSM}"
+                                           FontWeight="SemiBold"
+                                           Foreground="{DynamicResource PrimaryBrush}"/>
+                            </Border>
 
-                        <!-- Code Checksum -->
-                        <Grid ColumnDefinitions="150,*" RowDefinitions="Auto">
-                            <TextBlock Grid.Column="0" Text="Code Checksum :" Classes="label"/>
-                            <TextBlock Grid.Column="1" Text="{Binding CodeChecksum}" Classes="checksum"/>
-                        </Grid>
+                            <!-- Code Checksum -->
+                            <TextBlock Grid.Row="3" Grid.Column="0" Text="Code Checksum" Classes="caption"/>
+                            <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding CodeChecksum}" 
+                                       FontFamily="{DynamicResource MonospaceFont}"
+                                       FontSize="{DynamicResource FontSizeSM}"
+                                       Foreground="{DynamicResource TextMutedBrush}"
+                                       TextWrapping="Wrap"/>
 
-                        <!-- Data Checksum -->
-                        <Grid ColumnDefinitions="150,*" RowDefinitions="Auto">
-                            <TextBlock Grid.Column="0" Text="Data Checksum :" Classes="label"/>
-                            <TextBlock Grid.Column="1" Text="{Binding DataChecksum}" Classes="checksum"/>
+                            <!-- Data Checksum -->
+                            <TextBlock Grid.Row="4" Grid.Column="0" Text="Data Checksum" Classes="caption"/>
+                            <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding DataChecksum}" 
+                                       FontFamily="{DynamicResource MonospaceFont}"
+                                       FontSize="{DynamicResource FontSizeSM}"
+                                       Foreground="{DynamicResource TextMutedBrush}"
+                                       TextWrapping="Wrap"/>
                         </Grid>
-
                     </StackPanel>
                 </Grid>
             </Border>
 
-            <!-- Additional Information Card -->
+            <!-- ???????????????????????????????????????????????????????????????????????????????????
+                 ADDITIONAL INFORMATION CARD
+            ??????????????????????????????????????????????????????????????????????????????????? -->
             <Border Classes="card" IsVisible="{Binding IsConnected}">
-                <StackPanel Spacing="16">
-                    <TextBlock Text="Additional Information" Classes="section-title"/>
+                <StackPanel Spacing="20">
+                    <TextBlock Text="System Information" Classes="section-title"/>
                     
-                    <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto,Auto" ColumnSpacing="24" RowSpacing="16">
+                    <Grid ColumnDefinitions="*,*,*,*" RowDefinitions="Auto,Auto" ColumnSpacing="24" RowSpacing="20">
                         
                         <!-- Vehicle Type -->
-                        <StackPanel Grid.Row="0" Grid.Column="0">
-                            <TextBlock Text="Vehicle Type" FontSize="12" Foreground="#6B7280" Margin="0,0,0,4"/>
-                            <TextBlock Text="{Binding VehicleType}" FontSize="14" FontWeight="SemiBold" Foreground="#111827"/>
-                        </StackPanel>
+                        <Border Grid.Row="0" Grid.Column="0" 
+                                Background="{DynamicResource SecondaryLightBrush}"
+                                CornerRadius="{DynamicResource RadiusBase}"
+                                Padding="16">
+                            <StackPanel Spacing="4">
+                                <TextBlock Text="Vehicle Type" Classes="caption"/>
+                                <TextBlock Text="{Binding VehicleType}" Classes="value"/>
+                            </StackPanel>
+                        </Border>
 
                         <!-- Autopilot Type -->
-                        <StackPanel Grid.Row="0" Grid.Column="1">
-                            <TextBlock Text="Autopilot" FontSize="12" Foreground="#6B7280" Margin="0,0,0,4"/>
-                            <TextBlock Text="{Binding AutopilotType}" FontSize="14" FontWeight="SemiBold" Foreground="#111827"/>
-                        </StackPanel>
+                        <Border Grid.Row="0" Grid.Column="1"
+                                Background="{DynamicResource SecondaryLightBrush}"
+                                CornerRadius="{DynamicResource RadiusBase}"
+                                Padding="16">
+                            <StackPanel Spacing="4">
+                                <TextBlock Text="Autopilot" Classes="caption"/>
+                                <TextBlock Text="{Binding AutopilotType}" Classes="value"/>
+                            </StackPanel>
+                        </Border>
 
                         <!-- Board Type -->
-                        <StackPanel Grid.Row="1" Grid.Column="0">
-                            <TextBlock Text="Board Type" FontSize="12" Foreground="#6B7280" Margin="0,0,0,4"/>
-                            <TextBlock Text="{Binding BoardType}" FontSize="14" FontWeight="SemiBold" Foreground="#111827"/>
-                        </StackPanel>
+                        <Border Grid.Row="0" Grid.Column="2"
+                                Background="{DynamicResource SecondaryLightBrush}"
+                                CornerRadius="{DynamicResource RadiusBase}"
+                                Padding="16">
+                            <StackPanel Spacing="4">
+                                <TextBlock Text="Board Type" Classes="caption"/>
+                                <TextBlock Text="{Binding BoardType}" Classes="value"/>
+                            </StackPanel>
+                        </Border>
 
                         <!-- Flight Mode -->
-                        <StackPanel Grid.Row="1" Grid.Column="1">
-                            <TextBlock Text="Flight Mode" FontSize="12" Foreground="#6B7280" Margin="0,0,0,4"/>
-                            <TextBlock Text="{Binding FlightMode}" FontSize="14" FontWeight="SemiBold" Foreground="#111827"/>
-                        </StackPanel>
+                        <Border Grid.Row="0" Grid.Column="3"
+                                Background="{DynamicResource SecondaryLightBrush}"
+                                CornerRadius="{DynamicResource RadiusBase}"
+                                Padding="16">
+                            <StackPanel Spacing="4">
+                                <TextBlock Text="Flight Mode" Classes="caption"/>
+                                <TextBlock Text="{Binding FlightMode}" Classes="value"/>
+                            </StackPanel>
+                        </Border>
 
                         <!-- System ID -->
-                        <StackPanel Grid.Row="2" Grid.Column="0">
-                            <TextBlock Text="System ID" FontSize="12" Foreground="#6B7280" Margin="0,0,0,4"/>
-                            <TextBlock Text="{Binding SystemId}" FontSize="14" FontWeight="SemiBold" Foreground="#111827"/>
-                        </StackPanel>
+                        <Border Grid.Row="1" Grid.Column="0"
+                                Background="{DynamicResource SecondaryLightBrush}"
+                                CornerRadius="{DynamicResource RadiusBase}"
+                                Padding="16">
+                            <StackPanel Spacing="4">
+                                <TextBlock Text="System ID" Classes="caption"/>
+                                <TextBlock Text="{Binding SystemId}" Classes="value" FontFamily="{DynamicResource MonospaceFont}"/>
+                            </StackPanel>
+                        </Border>
 
                         <!-- Component ID -->
-                        <StackPanel Grid.Row="2" Grid.Column="1">
-                            <TextBlock Text="Component ID" FontSize="12" Foreground="#6B7280" Margin="0,0,0,4"/>
-                            <TextBlock Text="{Binding ComponentId}" FontSize="14" FontWeight="SemiBold" Foreground="#111827"/>
-                        </StackPanel>
+                        <Border Grid.Row="1" Grid.Column="1"
+                                Background="{DynamicResource SecondaryLightBrush}"
+                                CornerRadius="{DynamicResource RadiusBase}"
+                                Padding="16">
+                            <StackPanel Spacing="4">
+                                <TextBlock Text="Component ID" Classes="caption"/>
+                                <TextBlock Text="{Binding ComponentId}" Classes="value" FontFamily="{DynamicResource MonospaceFont}"/>
+                            </StackPanel>
+                        </Border>
 
                         <!-- Armed Status -->
-                        <StackPanel Grid.Row="3" Grid.Column="0">
-                            <TextBlock Text="Armed Status" FontSize="12" Foreground="#6B7280" Margin="0,0,0,4"/>
-                            <Border Classes.status-armed="{Binding IsArmed}"
-                                    Classes.status-disarmed="{Binding !IsArmed}"
-                                    HorizontalAlignment="Left">
-                                <TextBlock Text="{Binding IsArmed, Converter={StaticResource BoolToArmedTextConverter}}"
-                                           FontSize="12" 
-                                           FontWeight="SemiBold"
+                        <Border Grid.Row="1" Grid.Column="2"
+                                CornerRadius="{DynamicResource RadiusBase}"
+                                Padding="16">
+                            <Border.Background>
+                                <SolidColorBrush Color="{Binding IsArmed, Converter={StaticResource BoolToColorConverter}}"/>
+                            </Border.Background>
+                            <StackPanel Spacing="4">
+                                <TextBlock Text="Armed Status" Classes="caption"/>
+                                <TextBlock Text="{Binding IsArmed, Converter={StaticResource BoolToArmedTextConverter}}" 
+                                           Classes="value"
                                            Foreground="{Binding IsArmed, Converter={StaticResource BoolToArmedColorConverter}}"/>
-                            </Border>
-                        </StackPanel>
-
+                            </StackPanel>
+                        </Border>
                     </Grid>
                 </StackPanel>
             </Border>
 
-            <!-- Not Connected Message -->
-            <Border Classes="card" Background="#FEF3C7" IsVisible="{Binding !IsConnected}">
+            <!-- ???????????????????????????????????????????????????????????????????????????????????
+                 NOT CONNECTED WARNING
+            ??????????????????????????????????????????????????????????????????????????????????? -->
+            <Border Classes="alert-warning" IsVisible="{Binding !IsConnected}">
                 <StackPanel Orientation="Horizontal" Spacing="12">
-                    <TextBlock Text="?" FontSize="20"/>
+                    <TextBlock Text="??" FontSize="20"/>
                     <StackPanel Spacing="4">
-                        <TextBlock Text="Not Connected" FontWeight="SemiBold" Foreground="#92400E"/>
-                        <TextBlock Text="Connect to a drone to view its details" FontSize="13" Foreground="#A16207"/>
+                        <TextBlock Text="Not Connected" 
+                                   FontWeight="SemiBold" 
+                                   Foreground="{DynamicResource WarningDarkBrush}"/>
+                        <TextBlock Text="Connect to a drone to view its details" 
+                                   FontSize="{DynamicResource FontSizeBase}" 
+                                   Foreground="{DynamicResource WarningDarkBrush}"/>
                     </StackPanel>
                 </StackPanel>
             </Border>
 
             <!-- Status Message -->
             <TextBlock Text="{Binding StatusMessage}" 
-                       FontSize="13" 
-                       Foreground="#6B7280"
+                       Classes="caption"
                        HorizontalAlignment="Center"
                        Margin="0,8,0,0"/>
+            
+            <!-- Bottom Spacing -->
+            <Panel Height="24"/>
         </StackPanel>
     </ScrollViewer>
 </UserControl>

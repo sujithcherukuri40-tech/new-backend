@@ -3,19 +3,26 @@
              x:Class="PavamanDroneConfigurator.UI.App"
              xmlns:local="using:PavamanDroneConfigurator.UI"
              xmlns:converters="using:PavamanDroneConfigurator.UI.Converters"
-             RequestedThemeVariant="Default">
-             <!-- "Default" ThemeVariant follows system theme variant. "Dark" or "Light" are other available options. -->
+             RequestedThemeVariant="Light">
 
     <Application.Resources>
-        <converters:BoolToArmedColorConverter x:Key="BoolToArmedColorConverter"/>
-        <converters:BoolToArmedTextConverter x:Key="BoolToArmedTextConverter"/>
-        <converters:BoolToColorConverter x:Key="BoolToColorConverter"/>
-        <converters:ZeroToBoolConverter x:Key="ZeroToBoolConverter"/>
-        <converters:BoolToStringConverter x:Key="BoolToStringConverter"/>
-        <converters:DirectionToColorConverter x:Key="DirectionToColorConverter"/>
-        <converters:DirectionToPrefixConverter x:Key="DirectionToPrefixConverter"/>
-        <converters:BitmaskSelectionConverter x:Key="BitmaskSelectionConverter"/>
-        <converters:ParameterValueConverter x:Key="ParameterValueConverter"/>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <!-- Centralized Theme System -->
+                <ResourceInclude Source="avares://PavamanDroneConfigurator.UI/Themes/AppTheme.axaml"/>
+            </ResourceDictionary.MergedDictionaries>
+            
+            <!-- Converters -->
+            <converters:BoolToArmedColorConverter x:Key="BoolToArmedColorConverter"/>
+            <converters:BoolToArmedTextConverter x:Key="BoolToArmedTextConverter"/>
+            <converters:BoolToColorConverter x:Key="BoolToColorConverter"/>
+            <converters:ZeroToBoolConverter x:Key="ZeroToBoolConverter"/>
+            <converters:BoolToStringConverter x:Key="BoolToStringConverter"/>
+            <converters:DirectionToColorConverter x:Key="DirectionToColorConverter"/>
+            <converters:DirectionToPrefixConverter x:Key="DirectionToPrefixConverter"/>
+            <converters:BitmaskSelectionConverter x:Key="BitmaskSelectionConverter"/>
+            <converters:ParameterValueConverter x:Key="ParameterValueConverter"/>
+        </ResourceDictionary>
     </Application.Resources>
 
     <Application.DataTemplates>
@@ -24,5 +31,8 @@
   
     <Application.Styles>
         <FluentTheme />
+        
+        <!-- Component Styles as Styles -->
+        <StyleInclude Source="avares://PavamanDroneConfigurator.UI/Themes/Styles.axaml"/>
     </Application.Styles>
 </Application>

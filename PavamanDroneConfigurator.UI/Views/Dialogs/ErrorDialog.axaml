@@ -1,0 +1,97 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:PavamanDroneConfigurator.UI.ViewModels.Dialogs"
+             mc:Ignorable="d"
+             x:Class="PavamanDroneConfigurator.UI.Views.Dialogs.ErrorDialog"
+             x:DataType="vm:ErrorDialogViewModel"
+             IsVisible="{Binding IsVisible}">
+
+    <!-- ???????????????????????????????????????????????????????????????????????????????????????????
+         ERROR DIALOG
+         Professional error display with retry/close actions
+    ??????????????????????????????????????????????????????????????????????????????????????????? -->
+    
+    <Grid>
+        <!-- Overlay Background -->
+        <Border Background="{DynamicResource OverlayBrush}" 
+                IsHitTestVisible="True"/>
+        
+        <!-- Dialog Container -->
+        <Border Classes="dialog-container"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                MinWidth="400"
+                MaxWidth="480"
+                BorderBrush="{DynamicResource ErrorBrush}"
+                BorderThickness="0,3,0,0">
+            <StackPanel Spacing="24">
+                
+                <!-- Error Icon -->
+                <Grid HorizontalAlignment="Center" Width="64" Height="64">
+                    <!-- Background circle -->
+                    <Ellipse Width="64" Height="64"
+                             Fill="{DynamicResource ErrorLightBrush}"/>
+                    <!-- X icon -->
+                    <TextBlock Text="?" 
+                               FontSize="32"
+                               FontWeight="Bold"
+                               Foreground="{DynamicResource ErrorBrush}"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"/>
+                </Grid>
+
+                <!-- Title and Message -->
+                <StackPanel Spacing="12" HorizontalAlignment="Center">
+                    <TextBlock Text="{Binding Title}" 
+                               FontSize="{DynamicResource FontSizeXL}"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource TextPrimaryBrush}"
+                               HorizontalAlignment="Center"
+                               TextAlignment="Center"/>
+                    <TextBlock Text="{Binding Message}" 
+                               FontSize="{DynamicResource FontSizeMD}"
+                               Foreground="{DynamicResource TextSecondaryBrush}"
+                               HorizontalAlignment="Center"
+                               TextAlignment="Center"
+                               TextWrapping="Wrap"
+                               MaxWidth="360"/>
+                </StackPanel>
+
+                <!-- Error Code (if available) -->
+                <Border Background="{DynamicResource ErrorLightBrush}"
+                        CornerRadius="{DynamicResource RadiusMD}"
+                        Padding="16,10"
+                        HorizontalAlignment="Center"
+                        IsVisible="{Binding ErrorCode, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <TextBlock Text="Error Code:" 
+                                   FontSize="{DynamicResource FontSizeSM}"
+                                   Foreground="{DynamicResource ErrorDarkBrush}"/>
+                        <TextBlock Text="{Binding ErrorCode}" 
+                                   FontSize="{DynamicResource FontSizeSM}"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource ErrorDarkBrush}"
+                                   FontFamily="{DynamicResource MonospaceFont}"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Action Buttons -->
+                <StackPanel Orientation="Horizontal" 
+                            HorizontalAlignment="Center" 
+                            Spacing="12">
+                    <Button Content="Try Again" 
+                            Classes="btn-primary"
+                            IsVisible="{Binding CanRetry}"
+                            Command="{Binding RetryCommand}"
+                            Padding="32,12"/>
+                    <Button Content="Close" 
+                            Classes="btn-secondary"
+                            Command="{Binding CloseCommand}"
+                            Padding="32,12"/>
+                </StackPanel>
+            </StackPanel>
+        </Border>
+    </Grid>
+</UserControl>

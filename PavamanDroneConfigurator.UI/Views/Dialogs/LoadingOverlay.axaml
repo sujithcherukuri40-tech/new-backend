@@ -1,0 +1,85 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:PavamanDroneConfigurator.UI.ViewModels.Dialogs"
+             mc:Ignorable="d"
+             x:Class="PavamanDroneConfigurator.UI.Views.Dialogs.LoadingOverlay"
+             x:DataType="vm:LoadingOverlayViewModel"
+             IsVisible="{Binding IsVisible}">
+
+    <!-- ???????????????????????????????????????????????????????????????????????????????????????????
+         LOADING OVERLAY
+         Non-blocking translucent overlay with animated progress
+    ??????????????????????????????????????????????????????????????????????????????????????????? -->
+    
+    <Grid>
+        <!-- Semi-transparent overlay -->
+        <Border Background="#E0F8FAFC"
+                IsHitTestVisible="True"/>
+        
+        <!-- Loading Card -->
+        <Border Background="{DynamicResource SurfaceBrush}"
+                CornerRadius="{DynamicResource RadiusLG}"
+                Padding="32,28"
+                BoxShadow="{DynamicResource ShadowLG}"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                MinWidth="340">
+            <StackPanel Spacing="20">
+                
+                <!-- Progress Icon / Spinner -->
+                <Grid HorizontalAlignment="Center" Width="48" Height="48">
+                    <Ellipse Width="48" Height="48"
+                             Stroke="{DynamicResource SecondaryLightBrush}"
+                             StrokeThickness="4"
+                             Fill="Transparent"/>
+                    <Ellipse Width="48" Height="48"
+                             Stroke="{DynamicResource PrimaryBrush}"
+                             StrokeThickness="4"
+                             StrokeDashArray="1.5,3"
+                             Fill="Transparent"
+                             RenderTransformOrigin="0.5,0.5">
+                        <Ellipse.RenderTransform>
+                            <RotateTransform Angle="0"/>
+                        </Ellipse.RenderTransform>
+                    </Ellipse>
+                </Grid>
+
+                <!-- Step Text -->
+                <TextBlock Text="{Binding StepText}" 
+                           FontSize="{DynamicResource FontSizeLG}"
+                           FontWeight="SemiBold"
+                           Foreground="{DynamicResource TextPrimaryBrush}"
+                           HorizontalAlignment="Center"/>
+
+                <!-- Progress Bar and Count -->
+                <StackPanel Spacing="10">
+                    <ProgressBar Value="{Binding ProgressValue}" 
+                                 Maximum="100" 
+                                 Height="8"
+                                 CornerRadius="4"
+                                 Background="{DynamicResource SecondaryLightBrush}"
+                                 Foreground="{DynamicResource PrimaryBrush}"/>
+                    
+                    <Grid ColumnDefinitions="*,Auto,*">
+                        <TextBlock Grid.Column="1"
+                                   Text="{Binding ProgressText}" 
+                                   FontSize="{DynamicResource FontSizeSM}"
+                                   Foreground="{DynamicResource TextMutedBrush}"
+                                   FontFamily="{DynamicResource MonospaceFont}"
+                                   HorizontalAlignment="Center"/>
+                    </Grid>
+                </StackPanel>
+
+                <!-- Cancel option -->
+                <Button Content="Cancel" 
+                        Classes="btn-ghost"
+                        HorizontalAlignment="Center"
+                        Command="{Binding HideCommand}"
+                        Padding="20,8"
+                        FontSize="{DynamicResource FontSizeSM}"/>
+            </StackPanel>
+        </Border>
+    </Grid>
+</UserControl>

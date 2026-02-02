@@ -5,196 +5,134 @@
              xmlns:vm="using:PavamanDroneConfigurator.UI.ViewModels.Auth"
              mc:Ignorable="d" d:DesignWidth="480" d:DesignHeight="600"
              x:Class="PavamanDroneConfigurator.UI.Views.Auth.LoginView"
-             x:DataType="vm:LoginViewModel">
-
-    <UserControl.Styles>
-        <!-- macOS-style Input -->
-        <Style Selector="TextBox.auth-input">
-            <Setter Property="MinHeight" Value="44"/>
-            <Setter Property="Padding" Value="14,12"/>
-            <Setter Property="CornerRadius" Value="10"/>
-            <Setter Property="Background" Value="#FFFFFF"/>
-            <Setter Property="BorderBrush" Value="#E5E7EB"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="FontSize" Value="15"/>
-            <Setter Property="Foreground" Value="#1F2937"/>
-        </Style>
-
-        <Style Selector="TextBox.auth-input:focus">
-            <Setter Property="BorderBrush" Value="#3B82F6"/>
-            <Setter Property="BorderThickness" Value="1.5"/>
-        </Style>
-
-        <Style Selector="TextBox.auth-input:pointerover">
-            <Setter Property="BorderBrush" Value="#D1D5DB"/>
-        </Style>
-
-        <!-- Primary Button - macOS style -->
-        <Style Selector="Button.auth-primary">
-            <Setter Property="Background" Value="#3B82F6"/>
-            <Setter Property="Foreground" Value="White"/>
-            <Setter Property="Padding" Value="24,14"/>
-            <Setter Property="CornerRadius" Value="10"/>
-            <Setter Property="FontSize" Value="15"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="HorizontalAlignment" Value="Stretch"/>
-            <Setter Property="HorizontalContentAlignment" Value="Center"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="MinHeight" Value="48"/>
-        </Style>
-
-        <Style Selector="Button.auth-primary:pointerover">
-            <Setter Property="Background" Value="#2563EB"/>
-        </Style>
-
-        <Style Selector="Button.auth-primary:pressed">
-            <Setter Property="Background" Value="#1D4ED8"/>
-        </Style>
-
-        <Style Selector="Button.auth-primary:disabled">
-            <Setter Property="Background" Value="#9CA3AF"/>
-            <Setter Property="Opacity" Value="0.7"/>
-            <Setter Property="Cursor" Value="Arrow"/>
-        </Style>
-
-        <!-- Link Button -->
-        <Style Selector="Button.auth-link">
-            <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="Foreground" Value="#3B82F6"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Padding" Value="0"/>
-            <Setter Property="FontSize" Value="14"/>
-            <Setter Property="Cursor" Value="Hand"/>
-        </Style>
-
-        <Style Selector="Button.auth-link:pointerover">
-            <Setter Property="Foreground" Value="#2563EB"/>
-        </Style>
-
-        <!-- Error Alert -->
-        <Style Selector="Border.auth-error">
-            <Setter Property="Background" Value="#FEF2F2"/>
-            <Setter Property="BorderBrush" Value="#FECACA"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="CornerRadius" Value="10"/>
-            <Setter Property="Padding" Value="16,12"/>
-        </Style>
-
-        <!-- Field Label -->
-        <Style Selector="TextBlock.field-label">
-            <Setter Property="FontSize" Value="13"/>
-            <Setter Property="FontWeight" Value="Medium"/>
-            <Setter Property="Foreground" Value="#374151"/>
-            <Setter Property="Margin" Value="0,0,0,6"/>
-        </Style>
-    </UserControl.Styles>
+             x:DataType="vm:LoginViewModel"
+             Background="{DynamicResource BackgroundBrush}">
 
     <Grid>
         <ScrollViewer VerticalScrollBarVisibility="Auto">
             <StackPanel Spacing="0" 
                         HorizontalAlignment="Center" 
                         VerticalAlignment="Center"
-                        Width="360"
+                        Width="380"
                         Margin="40">
 
-                <!-- Logo & Branding -->
-                <StackPanel Spacing="12" Margin="0,0,0,40" HorizontalAlignment="Center">
-                    <Border Width="72"
-                            Height="72"
-                            CornerRadius="18"
-                            Background="#EEF2FF"
+                <!-- ???????????????????????????????????????????????????????????????????????????????????
+                     LOGO & BRANDING
+                ??????????????????????????????????????????????????????????????????????????????????? -->
+                <StackPanel Spacing="16" Margin="0,0,0,48" HorizontalAlignment="Center">
+                    <Border Width="80"
+                            Height="80"
+                            CornerRadius="{DynamicResource RadiusXL}"
+                            Background="{DynamicResource PrimaryLightBrush}"
+                            BoxShadow="{DynamicResource ShadowMD}"
                             HorizontalAlignment="Center">
                         <Image Source="avares://PavamanDroneConfigurator.UI/Assets/Images/logo.ico"
                                Stretch="Uniform"
-                               Margin="12"/>
+                               Margin="14"/>
                     </Border>
                     
                     <TextBlock Text="Welcome back"
-                               FontSize="28"
+                               FontSize="{DynamicResource FontSize3XL}"
                                FontWeight="Bold"
-                               Foreground="#111827"
+                               Foreground="{DynamicResource TextPrimaryBrush}"
+                               FontFamily="{DynamicResource PrimaryFont}"
                                HorizontalAlignment="Center"/>
                     
                     <TextBlock Text="Sign in to Pavaman Drone Configurator"
-                               FontSize="15"
-                               Foreground="#6B7280"
+                               FontSize="{DynamicResource FontSizeMD}"
+                               Foreground="{DynamicResource TextSecondaryBrush}"
+                               FontFamily="{DynamicResource PrimaryFont}"
                                HorizontalAlignment="Center"/>
                 </StackPanel>
 
-                <!-- Error Message -->
-                <Border Classes="auth-error"
-                        IsVisible="{Binding HasError}"
-                        Margin="0,0,0,20">
-                    <StackPanel Orientation="Horizontal" Spacing="10">
-                        <TextBlock Text="?"
-                                   FontSize="16"
-                                   Foreground="#DC2626"
-                                   VerticalAlignment="Center"/>
-                        <TextBlock Text="{Binding ErrorMessage}"
-                                   FontSize="14"
-                                   Foreground="#DC2626"
-                                   TextWrapping="Wrap"
-                                   VerticalAlignment="Center"/>
+                <!-- ???????????????????????????????????????????????????????????????????????????????????
+                     LOGIN CARD
+                ??????????????????????????????????????????????????????????????????????????????????? -->
+                <Border Background="{DynamicResource SurfaceBrush}"
+                        CornerRadius="{DynamicResource RadiusXL}"
+                        Padding="32"
+                        BoxShadow="{DynamicResource ShadowLG}">
+                    <StackPanel Spacing="24">
+                        
+                        <!-- Error Message -->
+                        <Border Classes="alert-error"
+                                IsVisible="{Binding HasError}">
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                <TextBlock Text="?"
+                                           FontSize="16"
+                                           Foreground="{DynamicResource ErrorBrush}"
+                                           VerticalAlignment="Center"/>
+                                <TextBlock Text="{Binding ErrorMessage}"
+                                           FontSize="{DynamicResource FontSizeBase}"
+                                           Foreground="{DynamicResource ErrorDarkBrush}"
+                                           TextWrapping="Wrap"
+                                           VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Email Field -->
+                        <StackPanel Spacing="6">
+                            <TextBlock Text="Email" Classes="label"/>
+                            <TextBox Classes="input"
+                                     Text="{Binding Email, Mode=TwoWay}"
+                                     Watermark="you@example.com"
+                                     IsEnabled="{Binding !IsLoading}"/>
+                        </StackPanel>
+
+                        <!-- Password Field -->
+                        <StackPanel Spacing="6">
+                            <TextBlock Text="Password" Classes="label"/>
+                            <TextBox Classes="input"
+                                     PasswordChar="•"
+                                     Text="{Binding Password, Mode=TwoWay}"
+                                     Watermark="Enter your password"
+                                     IsEnabled="{Binding !IsLoading}"/>
+                        </StackPanel>
+
+                        <!-- Login Button -->
+                        <Button Classes="btn-primary"
+                                Command="{Binding LoginCommand}"
+                                HorizontalAlignment="Stretch"
+                                Padding="24,14">
+                            <Panel>
+                                <TextBlock Text="Sign In"
+                                           IsVisible="{Binding !IsLoading}"
+                                           HorizontalAlignment="Center"
+                                           FontWeight="SemiBold"/>
+                                <StackPanel Orientation="Horizontal" 
+                                            Spacing="10"
+                                            IsVisible="{Binding IsLoading}"
+                                            HorizontalAlignment="Center">
+                                    <ProgressBar IsIndeterminate="True"
+                                                 Width="18"
+                                                 Height="18"
+                                                 Foreground="White"/>
+                                    <TextBlock Text="Signing in..."
+                                               Foreground="White"
+                                               FontWeight="SemiBold"/>
+                                </StackPanel>
+                            </Panel>
+                        </Button>
                     </StackPanel>
                 </Border>
 
-                <!-- Form Fields -->
-                <StackPanel Spacing="20">
-                    <!-- Email -->
-                    <StackPanel Spacing="0">
-                        <TextBlock Text="Email" Classes="field-label"/>
-                        <TextBox Classes="auth-input"
-                                 Text="{Binding Email, Mode=TwoWay}"
-                                 Watermark="you@example.com"
-                                 IsEnabled="{Binding !IsLoading}"/>
-                    </StackPanel>
-
-                    <!-- Password -->
-                    <StackPanel Spacing="0">
-                        <TextBlock Text="Password" Classes="field-label"/>
-                        <TextBox Classes="auth-input"
-                                 PasswordChar="?"
-                                 Text="{Binding Password, Mode=TwoWay}"
-                                 Watermark="Enter your password"
-                                 IsEnabled="{Binding !IsLoading}"/>
-                    </StackPanel>
-                </StackPanel>
-
-                <!-- Login Button -->
-                <Button Classes="auth-primary"
-                        Command="{Binding LoginCommand}"
-                        Margin="0,28,0,0">
-                    <Panel>
-                        <TextBlock Text="Sign In"
-                                   IsVisible="{Binding !IsLoading}"
-                                   HorizontalAlignment="Center"/>
-                        <StackPanel Orientation="Horizontal" 
-                                    Spacing="8"
-                                    IsVisible="{Binding IsLoading}"
-                                    HorizontalAlignment="Center">
-                            <ProgressBar IsIndeterminate="True"
-                                         Width="16"
-                                         Height="16"
-                                         Foreground="White"/>
-                            <TextBlock Text="Signing in..."
-                                       Foreground="White"/>
-                        </StackPanel>
-                    </Panel>
-                </Button>
-
-                <!-- Register Link -->
+                <!-- ???????????????????????????????????????????????????????????????????????????????????
+                     REGISTER LINK
+                ??????????????????????????????????????????????????????????????????????????????????? -->
                 <StackPanel Orientation="Horizontal" 
-                            Spacing="4"
+                            Spacing="6"
                             HorizontalAlignment="Center"
-                            Margin="0,24,0,0">
+                            Margin="0,28,0,0">
                     <TextBlock Text="Don't have an account?"
-                               FontSize="14"
-                               Foreground="#6B7280"/>
-                    <Button Classes="auth-link"
+                               FontSize="{DynamicResource FontSizeMD}"
+                               Foreground="{DynamicResource TextSecondaryBrush}"/>
+                    <Button Classes="btn-ghost"
                             Content="Create one"
                             Command="{Binding NavigateToRegisterCommand}"
-                            IsEnabled="{Binding !IsLoading}"/>
+                            IsEnabled="{Binding !IsLoading}"
+                            Foreground="{DynamicResource PrimaryBrush}"
+                            FontWeight="SemiBold"
+                            Padding="4,0"/>
                 </StackPanel>
             </StackPanel>
         </ScrollViewer>

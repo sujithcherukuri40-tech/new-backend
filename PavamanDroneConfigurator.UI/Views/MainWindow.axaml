@@ -9,271 +9,223 @@
         mc:Ignorable="d" d:DesignWidth="1280" d:DesignHeight="800"
         x:Class="PavamanDroneConfigurator.UI.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
-        Title="pavaman Drone Configurator"
+        Title="Pavaman Drone Configurator"
         Width="1280"
         Height="800"
         MinWidth="1024"
         MinHeight="600"
         Icon="avares://PavamanDroneConfigurator.UI/Assets/Images/logo.ico"
-        WindowStartupLocation="CenterScreen">
+        WindowStartupLocation="CenterScreen"
+        Background="{DynamicResource BackgroundBrush}">
 
-	<Design.DataContext>
-		<vm:MainWindowViewModel/>
-	</Design.DataContext>
+    <Design.DataContext>
+        <vm:MainWindowViewModel/>
+    </Design.DataContext>
 
-	<Window.Styles>
-		<!-- Modern Navigation Styles -->
-		<Style Selector="Border.sidebar">
-			<Setter Property="Background">
-				<Setter.Value>
-					<LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
-						<GradientStop Color="#1E3A8A" Offset="0"/>
-						<GradientStop Color="#1E40AF" Offset="1"/>
-					</LinearGradientBrush>
-				</Setter.Value>
-			</Setter>
-			<Setter Property="BoxShadow" Value="2 0 8 0 #40000000"/>
-		</Style>
-
-		<Style Selector="Button.nav-button">
-			<Setter Property="Background" Value="Transparent"/>
-			<Setter Property="Foreground" Value="White"/>
-			<Setter Property="BorderThickness" Value="0"/>
-			<Setter Property="Padding" Value="20,12"/>
-			<Setter Property="Margin" Value="8,2"/>
-			<Setter Property="CornerRadius" Value="8"/>
-			<Setter Property="HorizontalAlignment" Value="Stretch"/>
-			<Setter Property="HorizontalContentAlignment" Value="Left"/>
-			<Setter Property="FontSize" Value="13"/>
-			<Setter Property="FontWeight" Value="SemiBold"/>
-			<Setter Property="Cursor" Value="Hand"/>
-		</Style>
-
-		<Style Selector="Button.nav-button:pointerover">
-			<Setter Property="Background" Value="#60FFFFFF"/>
-		</Style>
-
-		<Style Selector="Button.nav-button:pressed">
-			<Setter Property="Background" Value="#40FFFFFF"/>
-		</Style>
-
-		<Style Selector="Button.nav-button:disabled">
-			<Setter Property="Foreground" Value="#80FFFFFF"/>
-			<Setter Property="Cursor" Value="Arrow"/>
-		</Style>
-
-		<Style Selector="Button.nav-button-active">
-			<Setter Property="Background" Value="#3B82F6"/>
-		</Style>
-
-		<Style Selector="TextBlock.sidebar-title">
-			<Setter Property="FontSize" Value="20"/>
-			<Setter Property="FontWeight" Value="Bold"/>
-			<Setter Property="Foreground" Value="White"/>
-			<Setter Property="Margin" Value="0,0,0,8"/>
-		</Style>
-
-		<Style Selector="TextBlock.sidebar-subtitle">
-			<Setter Property="FontSize" Value="12"/>
-			<Setter Property="Foreground" Value="#C7D2FE"/>
-			<Setter Property="Margin" Value="0,0,0,16"/>
-		</Style>
-
-		<Style Selector="TextBlock.nav-group-title">
-			<Setter Property="FontSize" Value="10"/>
-			<Setter Property="FontWeight" Value="Bold"/>
-			<Setter Property="Foreground" Value="#A5B4FC"/>
-			<Setter Property="Margin" Value="12,16,0,6"/>
-		</Style>
-	</Window.Styles>
-
-	<Grid ColumnDefinitions="260,*">
-		<!-- Modern Navigation Sidebar -->
-		<Border Grid.Column="0" Classes="sidebar">
-			<Grid RowDefinitions="Auto,*,Auto">
-				<!-- App Branding (Fixed at top) -->
-				<StackPanel Grid.Row="0" Spacing="4" Margin="16,20,16,0">
-					<!-- Logo -->
-					<Border Width="44"
-                            Height="44"
-                            CornerRadius="22"
-                            Background="White"
-                            Margin="0,0,0,10"
-                            HorizontalAlignment="Left">
-						<Image Source="avares://PavamanDroneConfigurator.UI/Assets/Images/logo.ico"
+    <Grid ColumnDefinitions="260,*">
+        
+        <!-- ═══════════════════════════════════════════════════════════════════════════════════
+             MODERN NAVIGATION SIDEBAR
+        ═══════════════════════════════════════════════════════════════════════════════════ -->
+        <Border Grid.Column="0" Classes="sidebar">
+            <Grid RowDefinitions="Auto,*,Auto">
+                
+                <!-- App Branding (Fixed at top) -->
+                <StackPanel Grid.Row="0" Spacing="4" Margin="20,24,20,0">
+                    <!-- Logo -->
+                    <Border Width="48"
+                            Height="48"
+                            CornerRadius="12"
+                            Background="{DynamicResource SurfaceBrush}"
+                            Margin="0,0,0,12"
+                            HorizontalAlignment="Left"
+                            BoxShadow="{DynamicResource ShadowSM}">
+                        <Image Source="avares://PavamanDroneConfigurator.UI/Assets/Images/logo.ico"
                                Stretch="Uniform"
-                               Margin="6"/>
-					</Border>
+                               Margin="8"/>
+                    </Border>
 
-					<TextBlock Text="pavaman" Classes="sidebar-title"/>
-					<TextBlock Text="Drone Configurator" Classes="sidebar-subtitle"/>
-				</StackPanel>
+                    <TextBlock Text="Pavaman" 
+                               FontSize="{DynamicResource FontSize2XL}"
+                               FontWeight="Bold"
+                               Foreground="{DynamicResource TextInverseBrush}"
+                               FontFamily="{DynamicResource PrimaryFont}"/>
+                    <TextBlock Text="Drone Configurator" 
+                               FontSize="{DynamicResource FontSizeSM}"
+                               Foreground="#C7D2FE"
+                               Margin="0,0,0,16"
+                               FontFamily="{DynamicResource PrimaryFont}"/>
+                </StackPanel>
 
-				<!-- Scrollable Navigation Menu -->
-				<ScrollViewer Grid.Row="1"
+                <!-- Scrollable Navigation Menu -->
+                <ScrollViewer Grid.Row="1"
                               VerticalScrollBarVisibility="Auto"
                               HorizontalScrollBarVisibility="Disabled"
                               Margin="0,0,0,8">
-					<StackPanel x:Name="NavigationMenu" Margin="8,0">
+                    <StackPanel x:Name="NavigationMenu" Margin="8,0">
 
-						<!-- Connection -->
-						<TextBlock Text="CONNECTION" Classes="nav-group-title"/>
-						<Button Content="📡  Connection"
+                        <!-- Connection -->
+                        <TextBlock Text="CONNECTION" Classes="nav-group-title"/>
+                        <Button Content="📡  Connection"
                                 Classes="nav-button"
                                 Tag="ConnectionPage"
                                 CommandParameter="{Binding ConnectionPage}"
                                 Click="NavButton_Click" />
 
-						<!-- Install Firmware Group -->
-						<TextBlock Text="INSTALL FIRMWARE" Classes="nav-group-title"/>
-						<Button Content="💾  Firmware Upgrade"
+                        <!-- Install Firmware Group -->
+                        <TextBlock Text="INSTALL FIRMWARE" Classes="nav-group-title"/>
+                        <Button Content="💾  Firmware Upgrade"
                                 Classes="nav-button"
                                 Tag="FirmwarePage"
                                 CommandParameter="{Binding FirmwarePage}"
                                 Click="NavButton_Click" />
 
-						<!-- Hardware Setup Group -->
-						<TextBlock Text="HARDWARE SETUP" Classes="nav-group-title"/>
-						<Button Content="🛩️  Airframe"
+                        <!-- Hardware Setup Group -->
+                        <TextBlock Text="HARDWARE SETUP" Classes="nav-group-title"/>
+                        <Button Content="🛩️  Airframe"
                                 Classes="nav-button"
                                 Tag="AirframePage"
                                 CommandParameter="{Binding AirframePage}"
                                 Click="NavButton_Click"
                                 IsEnabled="{Binding CanAccessAirframe}" />
 
-						<!-- Calibration Group -->
-						<TextBlock Text="CALIBRATION" Classes="nav-group-title"/>
-						<Button Content="📊  Sensors"
+                        <!-- Calibration Group -->
+                        <TextBlock Text="CALIBRATION" Classes="nav-group-title"/>
+                        <Button Content="📊  Sensors"
                                 Classes="nav-button"
                                 Tag="SensorsCalibrationPage"
                                 CommandParameter="{Binding SensorsCalibrationPage}"
                                 Click="NavButton_Click" />
-						<Button Content="🎮  RC Calibration"
+                        <Button Content="🎮  RC Calibration"
                                 Classes="nav-button"
                                 Tag="RcCalibrationPage"
                                 CommandParameter="{Binding RcCalibrationPage}"
                                 Click="NavButton_Click" />
-						<Button Content="🔀  Flight Modes"
+                        <Button Content="🔀  Flight Modes"
                                 Classes="nav-button"
                                 Tag="FlightModePage"
                                 CommandParameter="{Binding FlightModePage}"
                                 Click="NavButton_Click" />
-						<Button Content="⚡  Motor &amp; ESC"
+                        <Button Content="⚡  Motor &amp; ESC"
                                 Classes="nav-button"
                                 Tag="MotorEscPage"
                                 CommandParameter="{Binding MotorEscPage}"
                                 Click="NavButton_Click" />
-						<Button Content="🔋  Power"
+                        <Button Content="🔋  Power"
                                 Classes="nav-button"
                                 Tag="PowerPage"
                                 CommandParameter="{Binding PowerPage}"
                                 Click="NavButton_Click" />
 
-						<!-- Drone Safety Group -->
-						<TextBlock Text="DRONE SAFETY" Classes="nav-group-title"/>
-						<Button Content="🛡️  Safety"
+                        <!-- Drone Safety Group -->
+                        <TextBlock Text="DRONE SAFETY" Classes="nav-group-title"/>
+                        <Button Content="🛡️  Safety"
                                 Classes="nav-button"
                                 Tag="SafetyPage"
                                 CommandParameter="{Binding SafetyPage}"
                                 Click="NavButton_Click" />
 
-						<!-- Advanced Configuration Group -->
-						<TextBlock Text="ADVANCED CONFIGURATION" Classes="nav-group-title"/>
-						<Button Content="📷  Camera"
+                        <!-- Advanced Configuration Group -->
+                        <TextBlock Text="ADVANCED CONFIGURATION" Classes="nav-group-title"/>
+                        <Button Content="📷  Camera"
                                 Classes="nav-button"
                                 Tag="CameraConfigPage"
                                 CommandParameter="{Binding CameraConfigPage}"
                                 Click="NavButton_Click" />
-						<Button Content="🔧  Serial Config"
+                        <Button Content="🔧  Serial Config"
                                 Classes="nav-button"
                                 Tag="SerialConfigPage"
                                 CommandParameter="{Binding SerialConfigPage}"
                                 Click="NavButton_Click" />
-						<Button Content="🎯  PID Tuning"
+                        <Button Content="🎯  PID Tuning"
                                 Classes="nav-button"
                                 Tag="PidTuningPage"
                                 CommandParameter="{Binding PidTuningPage}"
                                 Click="NavButton_Click" />
-						<Button Content="🌾  Spraying Config"
+                        <Button Content="🌾  Spraying Config"
                                 Classes="nav-button"
                                 Tag="SprayingConfigPage"
                                 CommandParameter="{Binding SprayingConfigPage}"
                                 Click="NavButton_Click" />
 
-						<!-- Information & Support Group -->
-						<TextBlock Text="INFORMATION &amp; SUPPORT" Classes="nav-group-title"/>
-						<Button Content="ℹ️  Drone Details"
+                        <!-- Information & Support Group -->
+                        <TextBlock Text="INFORMATION &amp; SUPPORT" Classes="nav-group-title"/>
+                        <Button Content="ℹ️  Drone Details"
                                 Classes="nav-button"
                                 Tag="DroneDetailsPage"
                                 CommandParameter="{Binding DroneDetailsPage}"
                                 Click="NavButton_Click" />
-						<Button Content="⚙️  Parameters"
+                        <Button Content="⚙️  Parameters"
                                 Classes="nav-button"
                                 Tag="ParametersPage"
                                 CommandParameter="{Binding ParametersPage}"
                                 Click="NavButton_Click"
                                 IsEnabled="{Binding CanAccessParameters}" />
-						<Button Content="📋  Profiles"
+                        <Button Content="📋  Profiles"
                                 Classes="nav-button"
                                 Tag="ProfilePage"
                                 CommandParameter="{Binding ProfilePage}"
                                 Click="NavButton_Click" />
-						<Button Content="📈  Log Analyzer"
+                        <Button Content="📈  Log Analyzer"
                                 Classes="nav-button"
                                 Tag="LogAnalyzerPage"
                                 CommandParameter="{Binding LogAnalyzerPage}"
                                 Click="NavButton_Click" />
-						<Button Content="🔄  Reset Parameters"
+                        <Button Content="🔄  Reset Parameters"
                                 Classes="nav-button"
                                 Tag="ResetParametersPage"
                                 CommandParameter="{Binding ResetParametersPage}"
                                 Click="NavButton_Click" />
 
-						<!-- Admin Panel (Admin Only) -->
-						<TextBlock Text="ADMIN" 
+                        <!-- Admin Panel (Admin Only) -->
+                        <TextBlock Text="ADMIN" 
                                    Classes="nav-group-title"
                                    IsVisible="{Binding IsAdmin}"/>
-						<Button Content="📊  Dashboard"
+                        <Button Content="📊  Dashboard"
                                 Classes="nav-button"
                                 Tag="AdminDashboardPage"
                                 CommandParameter="{Binding AdminDashboardPage}"
                                 Click="NavButton_Click"
                                 IsVisible="{Binding IsAdmin}" />
-						<Button Content="👥  User Management"
+                        <Button Content="👥  User Management"
                                 Classes="nav-button"
                                 Tag="AdminPanelPage"
                                 CommandParameter="{Binding AdminPanelPage}"
                                 Click="NavButton_Click"
                                 IsVisible="{Binding IsAdmin}" />
 
-					</StackPanel>
-				</ScrollViewer>
+                    </StackPanel>
+                </ScrollViewer>
 
-				<!-- Version Info (Fixed at bottom) -->
-				<Border Grid.Row="2"
-                        Background="#20FFFFFF"
-                        CornerRadius="8"
-                        Padding="12"
-                        Margin="16,8,16,16">
-					<StackPanel Spacing="4">
-						<TextBlock Text="Version 1.0.0"
-                                   FontSize="11"
+                <!-- Version Info (Fixed at bottom) -->
+                <Border Grid.Row="2"
+                        Background="#15FFFFFF"
+                        CornerRadius="{DynamicResource RadiusBase}"
+                        Padding="16,12"
+                        Margin="16,8,16,20">
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="Version 1.0.0"
+                                   FontSize="{DynamicResource FontSizeSM}"
                                    Foreground="#E0E7FF"
-                                   FontWeight="SemiBold"/>
-						<TextBlock Text="© 2025 pavaman"
-                                   FontSize="10"
-                                   Foreground="#A5B4FC"/>
-					</StackPanel>
-				</Border>
-			</Grid>
-		</Border>
+                                   FontWeight="SemiBold"
+                                   FontFamily="{DynamicResource PrimaryFont}"/>
+                        <TextBlock Text="© 2025 Pavaman Technologies"
+                                   FontSize="{DynamicResource FontSizeXS}"
+                                   Foreground="#A5B4FC"
+                                   FontFamily="{DynamicResource PrimaryFont}"/>
+                    </StackPanel>
+                </Border>
+            </Grid>
+        </Border>
 
-		<!-- Content Area with modern background -->
-		<Border Grid.Column="1" Background="#F9FAFB">
-			<Grid>
-				<ContentControl Content="{Binding CurrentView}" />
-			</Grid>
-		</Border>
-	</Grid>
+        <!-- ═══════════════════════════════════════════════════════════════════════════════════
+             CONTENT AREA
+        ═══════════════════════════════════════════════════════════════════════════════════ -->
+        <Border Grid.Column="1" Background="{DynamicResource BackgroundBrush}">
+            <Grid>
+                <ContentControl Content="{Binding CurrentView}" />
+            </Grid>
+        </Border>
+    </Grid>
 
 </Window>
