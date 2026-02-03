@@ -423,7 +423,8 @@ public class BluetoothMavConnection : IDisposable
     }
 
     /// <summary>
-    /// Discover available Bluetooth devices with improved error handling
+    /// Discover available Bluetooth devices with improved error handling and smart prioritization.
+    /// ? OPTIMIZED: Faster discovery (8s instead of 15s), paired devices shown first.
     /// </summary>
     public async Task<IEnumerable<CoreBluetoothDeviceInfo>> DiscoverDevicesAsync()
     {
@@ -431,46 +432,68 @@ public class BluetoothMavConnection : IDisposable
         
         try
         {
-            _logger.LogInformation("Discovering Bluetooth devices (this may take up to 30 seconds)...");
+            _logger.LogInformation("Discovering Bluetooth devices (optimized fast scan ~8 seconds)...");
             
             var client = new BluetoothClient();
             
+            // ? OPTIMIZATION: Reduced timeout from 15s to 8s for faster UX
             var discoverTask = Task.Run(() => client.DiscoverDevices().ToList());
-            var timeoutTask = Task.Delay(TimeSpan.FromSeconds(DEVICE_DISCOVERY_TIMEOUT_SECONDS));
+            var timeoutTask = Task.Delay(TimeSpan.FromSeconds(8)); // ? Reduced from 15s
             
             var completedTask = await Task.WhenAny(discoverTask, timeoutTask);
             
             if (completedTask == timeoutTask)
             {
-                _logger.LogWarning("Bluetooth device discovery timed out after {Seconds} seconds", DEVICE_DISCOVERY_TIMEOUT_SECONDS);
+                _logger.LogWarning("Bluetooth device discovery timed out after 8 seconds (fast scan)");
                 return devices;
             }
             
             var discovered = await discoverTask;
+            
+            // ? OPTIMIZATION: Separate paired and unpaired devices for prioritization
+            var pairedDevices = new List<CoreBluetoothDeviceInfo>();
+            var unpairedDevices = new List<CoreBluetoothDeviceInfo>();
             
             foreach (var device in discovered)
             {
                 try
                 {
                     var deviceName = device.DeviceName;
+                    var isPaired = device.Authenticated;
+                    var isConnected = device.Connected;
                     
-                    // Handle devices with no name
+                    // ? OPTIMIZATION: Smart device name handling
                     if (string.IsNullOrWhiteSpace(deviceName))
                     {
-                        deviceName = $"Unknown Device ({device.DeviceAddress})";
-                        _logger.LogDebug("Found device with no name: {Address}", device.DeviceAddress);
+                        // Better naming for unknown devices
+                        deviceName = isPaired 
+                            ? $"Paired Device ({device.DeviceAddress})" 
+                            : $"Unknown Device ({device.DeviceAddress})";
+                        _logger.LogDebug("Found device with no name: {Address}, paired={Paired}", 
+                            device.DeviceAddress, isPaired);
                     }
                     
-                    devices.Add(new CoreBluetoothDeviceInfo
+                    var deviceInfo = new CoreBluetoothDeviceInfo
                     {
                         DeviceAddress = device.DeviceAddress.ToString(),
                         DeviceName = deviceName,
-                        IsConnected = device.Connected,
-                        IsPaired = device.Authenticated
-                    });
+                        IsConnected = isConnected,
+                        IsPaired = isPaired
+                    };
                     
-                    _logger.LogDebug("Found Bluetooth device: {Name} ({Address}) - Paired: {Paired}", 
-                        deviceName, device.DeviceAddress, device.Authenticated);
+                    // ? OPTIMIZATION: Prioritize paired devices - they're more likely to be the drone
+                    if (isPaired)
+                    {
+                        pairedDevices.Add(deviceInfo);
+                        _logger.LogDebug("? Paired device: {Name} ({Address})", 
+                            deviceName, device.DeviceAddress);
+                    }
+                    else
+                    {
+                        unpairedDevices.Add(deviceInfo);
+                        _logger.LogDebug("  Unpaired device: {Name} ({Address})", 
+                            deviceName, device.DeviceAddress);
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -478,14 +501,25 @@ public class BluetoothMavConnection : IDisposable
                 }
             }
             
-            _logger.LogInformation("Found {Count} Bluetooth device(s)", devices.Count);
+            // ? OPTIMIZATION: Show paired devices FIRST in the UI (better UX)
+            // Users want to see their drone (which is paired) at the top of the list
+            devices.AddRange(pairedDevices.OrderBy(d => d.DeviceName));
+            devices.AddRange(unpairedDevices.OrderBy(d => d.DeviceName));
+            
+            _logger.LogInformation("Found {Total} Bluetooth device(s): {Paired} paired, {Unpaired} unpaired", 
+                devices.Count, pairedDevices.Count, unpairedDevices.Count);
             
             if (devices.Count == 0)
             {
-                _logger.LogWarning("No Bluetooth devices found. Ensure:");
-                _logger.LogWarning("  1. Bluetooth is enabled on this computer");
-                _logger.LogWarning("  2. Drone's Bluetooth module is powered on");
-                _logger.LogWarning("  3. Drone is in pairing mode (if required)");
+                _logger.LogWarning("No Bluetooth devices found. Troubleshooting tips:");
+                _logger.LogWarning("  1. Enable Bluetooth on this computer");
+                _logger.LogWarning("  2. Power on the drone's Bluetooth module");
+                _logger.LogWarning("  3. Pair the device first using Windows Bluetooth settings");
+                _logger.LogWarning("  4. Make sure the drone is within range (< 10 meters)");
+            }
+            else if (pairedDevices.Count > 0)
+            {
+                _logger.LogInformation("? {Count} paired device(s) ready to connect", pairedDevices.Count);
             }
         }
         catch (Exception ex)
