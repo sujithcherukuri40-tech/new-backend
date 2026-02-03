@@ -27,6 +27,9 @@ public partial class ParametersPageViewModel : ViewModelBase
     
     // Track original values for change detection
     private readonly Dictionary<string, float> _originalValues = new();
+    
+    // Track pending changes (not yet saved to vehicle)
+    private readonly Dictionary<string, float> _pendingChanges = new();
 
     // Track if parameters are fully loaded to prevent progress updates from overwriting
     private bool _parametersLoaded;
@@ -67,10 +70,14 @@ public partial class ParametersPageViewModel : ViewModelBase
     private int _modifiedParameterCount;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanUpdate))]
     private bool _hasUnsavedChanges;
     
     [ObservableProperty]
     private bool _isRefreshing;
+
+    [ObservableProperty]
+    private bool _isUpdating;
 
     // Group filtering (Mission Planner style)
     [ObservableProperty]
@@ -111,6 +118,8 @@ public partial class ParametersPageViewModel : ViewModelBase
     private bool _hasParamOptions;
 
     public bool HasStatusMessage => !string.IsNullOrEmpty(StatusMessage);
+    
+    public bool CanUpdate => HasUnsavedChanges && !IsUpdating && !IsRefreshing;
 
     public ParametersPageViewModel(
         IParameterService parameterService, 
@@ -242,6 +251,7 @@ public partial class ParametersPageViewModel : ViewModelBase
                 Parameters.Clear();
                 FilteredParameters.Clear();
                 _originalValues.Clear();
+                _pendingChanges.Clear();
                 _parameterCache.Clear(); // ? Clear cache on disconnect
                 TotalParameterCount = 0;
                 LoadedParameterCount = 0;
@@ -271,6 +281,7 @@ public partial class ParametersPageViewModel : ViewModelBase
             Parameters.Clear();
             FilteredParameters.Clear();
             _originalValues.Clear();
+            _pendingChanges.Clear();
             _parameterCache.Clear(); // ? Clear cache on download start
             TotalParameterCount = 0;
             LoadedParameterCount = 0;
@@ -337,6 +348,7 @@ public partial class ParametersPageViewModel : ViewModelBase
             Parameters.Clear();
             FilteredParameters.Clear();
             _originalValues.Clear();
+            _pendingChanges.Clear();
             _parameterCache.Clear(); // ? Clear cache when loading new parameters
             
             foreach (var p in allParams)
@@ -412,7 +424,7 @@ public partial class ParametersPageViewModel : ViewModelBase
         if (_isSaving)
             return;
         
-        // Validate the value before saving
+        // Validate the value before tracking as pending change
         if (parameter.MinValue.HasValue || parameter.MaxValue.HasValue)
         {
             float validatedValue = parameter.ValidateValue(parameter.Value, out bool isValid);
@@ -426,50 +438,185 @@ public partial class ParametersPageViewModel : ViewModelBase
             }
         }
         
+        // Track as pending change instead of immediately saving
+        TrackPendingChange(parameter);
+    }
+
+    private void TrackPendingChange(DroneParameter parameter)
+    {
+        var originalValue = _originalValues.TryGetValue(parameter.Name, out var orig) ? orig : parameter.OriginalValue;
+        
+        if (Math.Abs(parameter.Value - originalValue) < 0.0001f)
+        {
+            // Value reverted to original - remove from pending
+            _pendingChanges.Remove(parameter.Name);
+        }
+        else
+        {
+            // Track the pending change
+            _pendingChanges[parameter.Name] = parameter.Value;
+        }
+        
         UpdateModifiedCount();
-        _ = SaveParameterToVehicleAsync(parameter);
+        StatusMessage = _pendingChanges.Count > 0 
+            ? $"? {_pendingChanges.Count} parameter(s) modified - Click 'Update' to apply changes" 
+            : "Select a parameter to see details";
     }
 
     private void UpdateModifiedCount()
     {
-        ModifiedParameterCount = Parameters.Count(p => p.IsModified);
+        ModifiedParameterCount = _pendingChanges.Count;
         HasUnsavedChanges = ModifiedParameterCount > 0;
+        OnPropertyChanged(nameof(CanUpdate));
     }
 
-    private async Task SaveParameterToVehicleAsync(DroneParameter parameter)
+    /// <summary>
+    /// Shows confirmation dialog and updates all pending parameters to the vehicle.
+    /// </summary>
+    [RelayCommand]
+    private async Task UpdateParametersAsync()
     {
-        if (!_connectionService.IsConnected || _isSaving)
+        if (!_connectionService.IsConnected || _pendingChanges.Count == 0)
+        {
+            return;
+        }
+
+        // Build list of pending changes for the dialog
+        var pendingChangesList = new List<PendingParameterChange>();
+        foreach (var (name, newValue) in _pendingChanges)
+        {
+            var originalValue = _originalValues.TryGetValue(name, out var orig) ? orig : 0f;
+            pendingChangesList.Add(new PendingParameterChange
+            {
+                Name = name,
+                OriginalValue = originalValue,
+                NewValue = newValue
+            });
+        }
+
+        // Show confirmation dialog
+        var mainWindow = GetMainWindow();
+        if (mainWindow == null)
+        {
+            StatusMessage = "Error: Could not find main window.";
+            return;
+        }
+
+        var dialogViewModel = new ParameterUpdateDialogViewModel(pendingChangesList);
+        var dialog = new ParameterUpdateDialog
+        {
+            DataContext = dialogViewModel
+        };
+
+        var result = await dialog.ShowDialog<bool>(mainWindow);
+
+        if (!result)
+        {
+            StatusMessage = "Parameter update cancelled.";
+            return;
+        }
+
+        // User confirmed - apply all pending changes
+        await ApplyPendingChangesAsync();
+    }
+
+    private async Task ApplyPendingChangesAsync()
+    {
+        if (_isSaving || _pendingChanges.Count == 0)
         {
             return;
         }
 
         _isSaving = true;
+        IsUpdating = true;
+        OnPropertyChanged(nameof(CanUpdate));
+
         try
         {
-            StatusMessage = $"Updating {parameter.Name}...";
-            
-            var success = await _parameterService.SetParameterAsync(parameter.Name, parameter.Value);
-            
-            if (success)
+            var totalChanges = _pendingChanges.Count;
+            var successCount = 0;
+            var failedParams = new List<string>();
+
+            StatusMessage = $"Updating {totalChanges} parameter(s)...";
+
+            // Create a copy of pending changes to iterate
+            var changesToApply = _pendingChanges.ToList();
+
+            foreach (var (name, newValue) in changesToApply)
             {
-                parameter.MarkAsSaved();
-                _originalValues[parameter.Name] = parameter.Value;
-                UpdateModifiedCount();
-                StatusMessage = $"? Updated {parameter.Name} = {parameter.Value}";
+                var success = await _parameterService.SetParameterAsync(name, newValue);
+                
+                if (success)
+                {
+                    successCount++;
+                    
+                    // Update original value and mark parameter as saved
+                    _originalValues[name] = newValue;
+                    var param = Parameters.FirstOrDefault(p => p.Name == name);
+                    if (param != null)
+                    {
+                        param.MarkAsSaved();
+                    }
+                    
+                    // Remove from pending changes
+                    _pendingChanges.Remove(name);
+                }
+                else
+                {
+                    failedParams.Add(name);
+                }
+            }
+
+            UpdateModifiedCount();
+
+            if (failedParams.Count == 0)
+            {
+                StatusMessage = $"? Successfully updated {successCount} parameter(s)";
             }
             else
             {
-                StatusMessage = $"? Failed to update {parameter.Name}";
+                StatusMessage = $"? Updated {successCount}/{totalChanges} - Failed: {string.Join(", ", failedParams)}";
             }
         }
         catch (Exception ex)
         {
-            StatusMessage = $"Error updating {parameter.Name}: {ex.Message}";
+            StatusMessage = $"Error updating parameters: {ex.Message}";
         }
         finally
         {
             _isSaving = false;
+            IsUpdating = false;
+            OnPropertyChanged(nameof(CanUpdate));
         }
+    }
+
+    /// <summary>
+    /// Discards all pending changes and reverts parameters to original values.
+    /// </summary>
+    [RelayCommand]
+    private void DiscardChanges()
+    {
+        if (_pendingChanges.Count == 0)
+        {
+            return;
+        }
+
+        // Revert all parameters to original values
+        foreach (var (name, _) in _pendingChanges.ToList())
+        {
+            var param = Parameters.FirstOrDefault(p => p.Name == name);
+            if (param != null && _originalValues.TryGetValue(name, out var originalValue))
+            {
+                // Temporarily unsubscribe to prevent re-tracking the revert
+                param.PropertyChanged -= OnParameterPropertyChanged;
+                param.Value = originalValue;
+                param.PropertyChanged += OnParameterPropertyChanged;
+            }
+        }
+
+        _pendingChanges.Clear();
+        UpdateModifiedCount();
+        StatusMessage = "All changes discarded.";
     }
 
     [RelayCommand]
@@ -521,7 +668,7 @@ public partial class ParametersPageViewModel : ViewModelBase
         // Clear options input box after applying
         param.OptionsInputText = "";
 
-        StatusMessage = $"? {param.Name} set to {val:G}";
+        StatusMessage = $"? {param.Name} set to {val:G} - Click 'Update' to apply";
     }
 
     [RelayCommand]
@@ -531,6 +678,14 @@ public partial class ParametersPageViewModel : ViewModelBase
         {
             StatusMessage = "Not connected";
             return;
+        }
+
+        // Warn if there are pending changes
+        if (_pendingChanges.Count > 0)
+        {
+            StatusMessage = "?? Discarding pending changes before refresh...";
+            _pendingChanges.Clear();
+            UpdateModifiedCount();
         }
 
         await _parameterService.RefreshParametersAsync();
@@ -576,7 +731,7 @@ public partial class ParametersPageViewModel : ViewModelBase
                     UpdateModifiedCount();
 
                     var actionText = mergeWithExisting ? "merged" : "replaced";
-                    StatusMessage = $"? Successfully {actionText} {importedParams.Count} parameters from file";
+                    StatusMessage = $"? Successfully {actionText} {importedParams.Count} parameters - Click 'Update' to apply";
                 }
                 finally
                 {
@@ -849,6 +1004,7 @@ public partial class ParametersPageViewModel : ViewModelBase
             _searchCts?.Cancel();
             _searchCts?.Dispose();
             _parameterCache.Clear();
+            _pendingChanges.Clear();
             
             UnsubscribeFromParameterChanges();
             _connectionService.ConnectionStateChanged -= OnConnectionStateChanged;
