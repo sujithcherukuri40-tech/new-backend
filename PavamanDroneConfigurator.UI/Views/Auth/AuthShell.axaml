@@ -25,35 +25,75 @@
     </Window.Styles>
 
     <Grid>
-        <!-- Loading Overlay -->
-        <Border Background="#F9FAFB"
+        <!-- Splash Screen Overlay (shown during initialization) -->
+        <Border Background="#0F172A"
                 IsVisible="{Binding IsInitializing}"
                 ZIndex="100">
-            <StackPanel HorizontalAlignment="Center" 
-                        VerticalAlignment="Center"
-                        Spacing="24">
-                <Border Width="72"
-                        Height="72"
-                        CornerRadius="18"
-                        Background="#EEF2FF"
-                        HorizontalAlignment="Center">
-                    <Image Source="avares://PavamanDroneConfigurator.UI/Assets/Images/logo.ico"
-                           Stretch="Uniform"
-                           Margin="12"/>
-                </Border>
+            <Grid>
+                <!-- Background Image (if available) -->
+                <Image Source="avares://PavamanDroneConfigurator.UI/Assets/Images/background.jpg"
+                       Stretch="UniformToFill"
+                       Opacity="0.3"/>
                 
-                <StackPanel Spacing="12" HorizontalAlignment="Center">
-                    <ProgressBar IsIndeterminate="True"
-                                 Width="200"
-                                 Height="4"
-                                 Foreground="#3B82F6"
-                                 Background="#E5E7EB"/>
-                    <TextBlock Text="{Binding InitializingMessage}"
-                               FontSize="14"
-                               Foreground="#6B7280"
-                               HorizontalAlignment="Center"/>
+                <!-- Dark Overlay -->
+                <Border Background="#0F172A" Opacity="0.7"/>
+                
+                <!-- Content -->
+                <StackPanel HorizontalAlignment="Center" 
+                            VerticalAlignment="Center"
+                            Spacing="32">
+                    
+                    <!-- Logo -->
+                    <Border Width="120"
+                            Height="120"
+                            CornerRadius="60"
+                            Background="#1E293B"
+                            BorderBrush="#3B82F6"
+                            BorderThickness="3"
+                            HorizontalAlignment="Center"
+                            BoxShadow="0 10 30 0 #40000000">
+                        <Image Source="avares://PavamanDroneConfigurator.UI/Assets/Images/logo.ico"
+                               Stretch="Uniform"
+                               Margin="20"/>
+                    </Border>
+                    
+                    <!-- Title -->
+                    <StackPanel Spacing="8" HorizontalAlignment="Center">
+                        <TextBlock Text="Pavaman Drone Configurator"
+                                   FontSize="24"
+                                   FontWeight="Bold"
+                                   Foreground="White"
+                                   HorizontalAlignment="Center"/>
+                        <TextBlock Text="Professional Ground Control Station"
+                                   FontSize="12"
+                                   Foreground="#94A3B8"
+                                   HorizontalAlignment="Center"/>
+                    </StackPanel>
+                    
+                    <!-- Loading -->
+                    <StackPanel Spacing="16" HorizontalAlignment="Center">
+                        <!-- Animated Progress Bar -->
+                        <ProgressBar IsIndeterminate="True"
+                                     Width="200"
+                                     Height="4"
+                                     Foreground="#3B82F6"
+                                     Background="#475569"
+                                     HorizontalAlignment="Center"/>
+                        
+                        <TextBlock Text="{Binding InitializingMessage}"
+                                   FontSize="14"
+                                   Foreground="#94A3B8"
+                                   HorizontalAlignment="Center"/>
+                    </StackPanel>
+                    
+                    <!-- Version -->
+                    <TextBlock Text="Version 1.0.0"
+                               FontSize="10"
+                               Foreground="#475569"
+                               HorizontalAlignment="Center"
+                               Margin="0,32,0,0"/>
                 </StackPanel>
-            </StackPanel>
+            </Grid>
         </Border>
 
         <!-- Main Content -->

@@ -338,7 +338,10 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
     
     [ObservableProperty]
     private ObservableCollection<Controls.GpsTrackPoint> _gpsTrackPoints = new();
-
+    
+    [ObservableProperty]
+    private ObservableCollection<LogEvent> _criticalMapEvents = new();
+    
     [ObservableProperty]
     private GpsPoint? _currentMapPosition;
 
@@ -356,7 +359,7 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
     #region Display Options
 
     [ObservableProperty]
-    private bool _showMap;
+    private bool _showMap = true;
 
     [ObservableProperty]
     private bool _showTime = true;
@@ -1477,59 +1480,94 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
 
     private void LoadGpsTrack()
     {
-        GpsTrack.Clear();
-        GpsTrackPoints.Clear();
-
-        var latData = _logAnalyzerService.GetFieldData("GPS", "Lat");
-        var lngData = _logAnalyzerService.GetFieldData("GPS", "Lng");
-        var altData = _logAnalyzerService.GetFieldData("GPS", "Alt");
-
-        if (latData == null || lngData == null) return;
-
-        var minCount = Math.Min(latData.Count, lngData.Count);
-        var altCount = altData?.Count ?? 0;
-
-        for (int i = 0; i < minCount; i++)
+        try
         {
-            var lat = latData[i].Value;
-            var lng = lngData[i].Value;
-            
-            // Skip invalid coordinates
-            if (Math.Abs(lat) < 0.001 && Math.Abs(lng) < 0.001)
-                continue;
+            GpsTrack.Clear();
+            GpsTrackPoints.Clear();
+            CriticalMapEvents.Clear();
 
-            var alt = i < altCount ? altData![i].Value : 0;
-            var timestamp = latData[i].Timestamp / 1e6; // Convert to seconds
+            if (!IsLogLoaded)
+                return;
 
-            var point = new GpsPoint
+            var gpsData = _logAnalyzerService.GetFieldData("GPS", "Lat");
+            if (gpsData == null || gpsData.Count == 0)
             {
-                Latitude = lat,
-                Longitude = lng,
-                Altitude = alt,
-                Timestamp = timestamp
-            };
-            GpsTrack.Add(point);
-            
-            // Also add to map-specific collection
-            var trackPoint = new Controls.GpsTrackPoint
+                _logger.LogInformation("No GPS data found in log");
+                return;
+            }
+
+            var lngData = _logAnalyzerService.GetFieldData("GPS", "Lng");
+            var altData = _logAnalyzerService.GetFieldData("GPS", "Alt");
+
+            if (lngData == null)
             {
-                Latitude = lat,
-                Longitude = lng,
-                Altitude = alt,
-                Timestamp = timestamp
-            };
-            GpsTrackPoints.Add(trackPoint);
+                _logger.LogWarning("Longitude data missing");
+                return;
+            }
+
+            // Build GPS track
+            for (int i = 0; i < Math.Min(gpsData.Count, lngData.Count); i++)
+            {
+                var lat = gpsData[i].Value;
+                var lng = lngData[i].Value;
+                var alt = altData != null && i < altData.Count ? altData[i].Value : 0;
+                var timestamp = gpsData[i].Timestamp / 1_000_000.0; // Convert microseconds to seconds
+
+                // Skip invalid coordinates
+                if (Math.Abs(lat) < 0.001 && Math.Abs(lng) < 0.001)
+                    continue;
+
+                GpsTrack.Add(new GpsPoint
+                {
+                    Latitude = lat,
+                    Longitude = lng,
+                    Altitude = alt,
+                    Timestamp = timestamp
+                });
+
+                GpsTrackPoints.Add(new Controls.GpsTrackPoint
+                {
+                    Latitude = lat,
+                    Longitude = lng,
+                    Altitude = alt,
+                    Timestamp = timestamp
+                });
+            }
+
+            // Populate critical events for map display
+            // Filter events that are critical/error severity and have valid location data
+            if (DetectedEvents != null && DetectedEvents.Count > 0)
+            {
+                var criticalEvents = DetectedEvents
+                    .Where(e => e.Severity >= LogEventSeverity.Warning && e.HasLocation)
+                    .OrderBy(e => e.Timestamp)
+                    .ToList();
+
+                foreach (var evt in criticalEvents)
+                {
+                    CriticalMapEvents.Add(evt);
+                }
+
+                _logger.LogInformation("Loaded {Count} critical events for map display", CriticalMapEvents.Count);
+            }
+
+            if (GpsTrack.Count > 0)
+            {
+                var firstPoint = GpsTrack.First();
+                MapCenterLat = firstPoint.Latitude;
+                MapCenterLng = firstPoint.Longitude;
+                MapZoom = 15;
+
+                _logger.LogInformation("GPS track loaded with {Count} points and {EventCount} critical events", 
+                    GpsTrack.Count, CriticalMapEvents.Count);
+            }
         }
-
-        if (GpsTrack.Count > 0)
+        catch (Exception ex)
         {
-            MapCenterLat = GpsTrack[0].Latitude;
-            MapCenterLng = GpsTrack[0].Longitude;
+            _logger.LogError(ex, "Error loading GPS track");
         }
-
-        HasGpsData = GpsTrack.Count > 0;
     }
-
+    
     #endregion
 
     #region Export Commands

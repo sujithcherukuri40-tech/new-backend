@@ -1,0 +1,16 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="PavamanDroneConfigurator.UI.Controls.LoadingSpinner">
+    
+    <Grid Width="50" Height="50">
+        <!-- Indeterminate ProgressBar styled as a circle would be complex,
+             so using a simple indeterminate progress bar -->
+        <ProgressBar IsIndeterminate="True"
+                     Width="50"
+                     Height="4"
+                     Foreground="#3B82F6"
+                     Background="#E5E7EB"
+                     VerticalAlignment="Center"/>
+    </Grid>
+    
+</UserControl>

@@ -21,11 +21,13 @@ using MapsuiColor = Mapsui.Styles.Color;
 using MapsuiPen = Mapsui.Styles.Pen;
 using MapsuiBrush = Mapsui.Styles.Brush;
 using GeoPoint = NetTopologySuite.Geometries.Point;
+using PavamanDroneConfigurator.Core.Interfaces;
 
 namespace PavamanDroneConfigurator.UI.Controls;
 
 /// <summary>
 /// Map control for displaying GPS tracks from flight logs using OpenStreetMap tiles.
+/// Now includes support for showing critical/crash event markers.
 /// </summary>
 public class LogMapControl : UserControl
 {
@@ -34,6 +36,7 @@ public class LogMapControl : UserControl
     private GeometryFeature? _trackFeature;
     private WritableLayer? _trackLayer;
     private WritableLayer? _markerLayer;
+    private WritableLayer? _eventLayer;
     
     // Property for GPS track data
     public static readonly StyledProperty<IEnumerable<GpsTrackPoint>?> TrackPointsProperty =
@@ -43,6 +46,16 @@ public class LogMapControl : UserControl
     {
         get => GetValue(TrackPointsProperty);
         set => SetValue(TrackPointsProperty, value);
+    }
+
+    // Property for critical events
+    public static readonly StyledProperty<IEnumerable<LogEvent>?> CriticalEventsProperty =
+        AvaloniaProperty.Register<LogMapControl, IEnumerable<LogEvent>?>(nameof(CriticalEvents));
+
+    public IEnumerable<LogEvent>? CriticalEvents
+    {
+        get => GetValue(CriticalEventsProperty);
+        set => SetValue(CriticalEventsProperty, value);
     }
 
     // Property for center latitude
@@ -85,6 +98,12 @@ public class LogMapControl : UserControl
                 Dispatcher.UIThread.Post(() => UpdateTrack());
         });
 
+        CriticalEventsProperty.Changed.AddClassHandler<LogMapControl>((control, args) =>
+        {
+            if (control == this)
+                Dispatcher.UIThread.Post(() => UpdateCriticalEvents());
+        });
+
         CenterLatitudeProperty.Changed.AddClassHandler<LogMapControl>((control, args) =>
         {
             if (control == this)
@@ -115,13 +134,21 @@ public class LogMapControl : UserControl
             };
             _map.Layers.Add(_trackLayer);
 
-            // Create marker layer for events/waypoints
+            // Create marker layer for start/end markers
             _markerLayer = new WritableLayer
             {
                 Name = "Markers",
                 Style = null
             };
             _map.Layers.Add(_markerLayer);
+
+            // Create event layer for critical events
+            _eventLayer = new WritableLayer
+            {
+                Name = "Critical Events",
+                Style = null
+            };
+            _map.Layers.Add(_eventLayer);
 
             // Set initial center (default to world view)
             _map.Navigator?.CenterOn(0, 0);
@@ -144,6 +171,7 @@ public class LogMapControl : UserControl
         {
             // Clear existing track
             _trackLayer.Clear();
+            _markerLayer?.Clear();
             _trackFeature = null;
 
             var points = TrackPoints.ToList();
@@ -239,6 +267,97 @@ public class LogMapControl : UserControl
         }
     }
 
+    private void UpdateCriticalEvents()
+    {
+        if (_eventLayer == null || CriticalEvents == null)
+            return;
+
+        try
+        {
+            // Clear existing event markers
+            _eventLayer.Clear();
+
+            var events = CriticalEvents.ToList();
+            if (events.Count == 0)
+                return;
+
+            foreach (var evt in events)
+            {
+                // Only show events with valid location data
+                if (!evt.HasLocation)
+                    continue;
+
+                // Convert to Web Mercator
+                var mercator = SphericalMercator.FromLonLat(evt.Longitude!.Value, evt.Latitude!.Value);
+                var eventMarker = new GeometryFeature
+                {
+                    Geometry = new GeoPoint(mercator.x, mercator.y)
+                };
+
+                // Set marker style based on severity
+                var (color, symbolType, scale) = GetEventMarkerStyle(evt);
+                eventMarker.Styles.Add(new SymbolStyle
+                {
+                    Fill = new MapsuiBrush(color),
+                    Outline = new MapsuiPen(new MapsuiColor(255, 255, 255, 255), 2),
+                    SymbolType = symbolType,
+                    SymbolScale = scale
+                });
+
+                // Add label with event title
+                eventMarker.Styles.Add(new LabelStyle
+                {
+                    Text = evt.Title,
+                    BackColor = new MapsuiBrush(new MapsuiColor(0, 0, 0, 180)),
+                    ForeColor = MapsuiColor.White,
+                    Offset = new Offset(0, 20),
+                    Font = new Font { FontFamily = "Arial", Size = 10 },
+                    HorizontalAlignment = LabelStyle.HorizontalAlignmentEnum.Center
+                });
+
+                _eventLayer.Add(eventMarker);
+            }
+
+            _mapControl.InvalidateVisual();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error updating critical events: {ex.Message}");
+        }
+    }
+
+    private static (MapsuiColor Color, SymbolType Symbol, double Scale) GetEventMarkerStyle(LogEvent evt)
+    {
+        return evt.Severity switch
+        {
+            LogEventSeverity.Emergency => (
+                new MapsuiColor(139, 0, 0, 255),      // Dark red
+                SymbolType.Triangle,                   // Triangle for emergency
+                1.5                                    // Larger
+            ),
+            LogEventSeverity.Critical => (
+                new MapsuiColor(220, 38, 38, 255),    // Bright red
+                SymbolType.Rectangle,                  // Rectangle for critical
+                1.3
+            ),
+            LogEventSeverity.Error => (
+                new MapsuiColor(239, 68, 68, 255),    // Red
+                SymbolType.Ellipse,                    // Circle for errors
+                1.1
+            ),
+            LogEventSeverity.Warning => (
+                new MapsuiColor(234, 179, 8, 255),    // Yellow/Amber
+                SymbolType.Ellipse,
+                1.0
+            ),
+            _ => (
+                new MapsuiColor(156, 163, 175, 255),  // Gray for other events
+                SymbolType.Ellipse,
+                0.8
+            )
+        };
+    }
+
     private void UpdateCenter()
     {
         if (_map == null)
@@ -281,6 +400,7 @@ public class LogMapControl : UserControl
         {
             _trackLayer?.Clear();
             _markerLayer?.Clear();
+            _eventLayer?.Clear();
             _mapControl.InvalidateVisual();
         });
     }
@@ -294,6 +414,7 @@ public class LogMapControl : UserControl
             // Clear layers first
             _trackLayer?.Clear();
             _markerLayer?.Clear();
+            _eventLayer?.Clear();
             
             // Remove from map
             if (_trackLayer != null && _map?.Layers != null)
@@ -304,10 +425,15 @@ public class LogMapControl : UserControl
             {
                 _map.Layers.Remove(_markerLayer);
             }
+            if (_eventLayer != null && _map?.Layers != null)
+            {
+                _map.Layers.Remove(_eventLayer);
+            }
             
             // Dispose resources
             (_trackLayer as IDisposable)?.Dispose();
             (_markerLayer as IDisposable)?.Dispose();
+            (_eventLayer as IDisposable)?.Dispose();
             (_trackFeature as IDisposable)?.Dispose();
             (_map as IDisposable)?.Dispose();
         }
