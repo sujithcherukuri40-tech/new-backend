@@ -2,6 +2,7 @@ using InTheHand.Net;
 using InTheHand.Net.Bluetooth;
 using InTheHand.Net.Sockets;
 using Microsoft.Extensions.Logging;
+using PavamanDroneConfigurator.Infrastructure.Services;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -18,16 +19,24 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink;
 /// Bluetooth MAVLink Connection using SPP (Serial Port Profile)
 /// Modernized for .NET 9 using InTheHand.Net.Bluetooth
 /// Production-ready cross-platform Bluetooth RFCOMM implementation
+/// ? OPTIMIZED: Faster connection with reduced timeouts and improved retry logic
 /// </summary>
 public class BluetoothMavConnection : IDisposable
 {
     private readonly ILogger _logger;
+    private readonly IMavLinkMessageLogger? _mavLinkLogger;
     private readonly Guid _sppServiceClassId = new Guid("00001101-0000-1000-8000-00805F9B34FB"); // SPP UUID
     private BluetoothClient? _bluetoothClient;
     private Stream? _stream;
     private AsvMavlinkWrapper? _mavlinkWrapper;
     private bool _disposed;
     private bool _isConnected;
+    
+    // ? OPTIMIZED Connection parameters - REDUCED for faster connection
+    private const int CONNECTION_RETRY_ATTEMPTS = 2; // ? Reduced from 3 to 2
+    private const int CONNECTION_RETRY_DELAY_MS = 500; // ? Reduced from 1000ms to 500ms
+    private const int CONNECTION_TIMEOUT_SECONDS = 15; // ? Reduced from 30 to 15 seconds
+    private const int DEVICE_DISCOVERY_TIMEOUT_SECONDS = 15; // ? Reduced from 30 to 15 seconds
 
     // Events matching existing connection architecture
     public event EventHandler<(byte SystemId, byte ComponentId)>? HeartbeatReceived;
@@ -46,81 +55,158 @@ public class BluetoothMavConnection : IDisposable
 
     public bool IsConnected => _isConnected;
 
-    public BluetoothMavConnection(ILogger logger)
+    public BluetoothMavConnection(ILogger logger, IMavLinkMessageLogger? mavLinkLogger = null)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _mavLinkLogger = mavLinkLogger;
     }
 
     /// <summary>
     /// Connect to Bluetooth device using SPP/RFCOMM
-    /// Modern async implementation for .NET 9
-    /// Throws on failure - no retries
+    /// Modern async implementation for .NET 9 with retry logic
     /// </summary>
     public async Task<bool> ConnectAsync(string deviceAddress)
     {
         if (_disposed)
             throw new ObjectDisposedException(nameof(BluetoothMavConnection));
 
-        try
+        if (string.IsNullOrWhiteSpace(deviceAddress))
         {
-            // Close any previous connection
-            await CloseAsync();
-
-            _logger.LogInformation("Connecting to Bluetooth device: {Address}", deviceAddress);
-
-            // Parse Bluetooth address
-            var address = BluetoothAddress.Parse(deviceAddress);
-
-            // Create RFCOMM socket (SPP)
-            _bluetoothClient = new BluetoothClient();
-
-            // Blocking connect to SPP service
-            _logger.LogDebug("Establishing RFCOMM connection to SPP service...");
-            await Task.Run(() => _bluetoothClient.Connect(address, _sppServiceClassId));
-
-            if (!_bluetoothClient.Connected)
-            {
-                throw new IOException("Bluetooth RFCOMM connection failed");
-            }
-
-            // Get the network stream (combined input/output)
-            _stream = _bluetoothClient.GetStream();
-
-            if (_stream == null)
-            {
-                throw new IOException("Failed to get Bluetooth stream");
-            }
-
-            _logger.LogInformation("Bluetooth SPP connection established");
-
-            // Initialize MAVLink connection using ASV.Mavlink wrapper
-            _mavlinkWrapper = new AsvMavlinkWrapper(_logger);
-            _mavlinkWrapper.HeartbeatReceived += OnMavlinkHeartbeat;
-            _mavlinkWrapper.ParamValueReceived += OnMavlinkParamValue;
-            _mavlinkWrapper.HeartbeatDataReceived += OnMavlinkHeartbeatData;
-            _mavlinkWrapper.StatusTextReceived += OnMavlinkStatusText;
-            _mavlinkWrapper.RcChannelsReceived += OnMavlinkRcChannels;
-            _mavlinkWrapper.CommandAckReceived += OnMavlinkCommandAck;
-            _mavlinkWrapper.CommandLongReceived += OnMavlinkCommandLong;
-            _mavlinkWrapper.RawImuReceived += OnMavlinkRawImu;
-            _mavlinkWrapper.MagCalProgressReceived += OnMavlinkMagCalProgress;
-            _mavlinkWrapper.MagCalReportReceived += OnMavlinkMagCalReport;
-            _mavlinkWrapper.Initialize(_stream, _stream);
-
-            _isConnected = true;
-            ConnectionStateChanged?.Invoke(this, true);
-
-            _logger.LogInformation("Bluetooth MAVLink connection ready");
-            return true;
+            _logger.LogError("Invalid Bluetooth device address");
+            throw new ArgumentException("Device address cannot be empty", nameof(deviceAddress));
         }
-        catch (Exception ex)
+
+        // Close any previous connection
+        await CloseAsync();
+
+        Exception? lastException = null;
+
+        // Retry logic for robust connection
+        for (int attempt = 1; attempt <= CONNECTION_RETRY_ATTEMPTS; attempt++)
         {
-            _logger.LogError(ex, "Bluetooth connection failed");
+            BluetoothClient? tempClient = null;
             
-            // Clean up on failure
-            await CloseAsync();
-            throw;
+            try
+            {
+                _logger.LogInformation("Connecting to Bluetooth device: {Address} (attempt {Attempt}/{Total})", 
+                    deviceAddress, attempt, CONNECTION_RETRY_ATTEMPTS);
+
+                // Parse Bluetooth address
+                BluetoothAddress address;
+                try
+                {
+                    address = BluetoothAddress.Parse(deviceAddress);
+                }
+                catch (FormatException ex)
+                {
+                    _logger.LogError(ex, "Invalid Bluetooth address format: {Address}", deviceAddress);
+                    throw new ArgumentException($"Invalid Bluetooth address format: {deviceAddress}", nameof(deviceAddress), ex);
+                }
+
+                // Create RFCOMM socket (SPP)
+                tempClient = new BluetoothClient();
+                _bluetoothClient = tempClient;
+
+                // Blocking connect to SPP service with timeout
+                _logger.LogDebug("Establishing RFCOMM connection to SPP service...");
+                
+                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(CONNECTION_TIMEOUT_SECONDS));
+                
+                var connectTask = Task.Run(() => 
+                {
+                    try
+                    {
+                        tempClient.Connect(address, _sppServiceClassId);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Bluetooth connection attempt failed");
+                        throw;
+                    }
+                }, cts.Token);
+
+                try
+                {
+                    await connectTask;
+                }
+                catch (OperationCanceledException)
+                {
+                    throw new TimeoutException($"Bluetooth connection timed out after {CONNECTION_TIMEOUT_SECONDS} seconds");
+                }
+
+                if (!tempClient.Connected)
+                {
+                    throw new IOException("Bluetooth RFCOMM connection failed - client not connected");
+                }
+
+                // Get the network stream (combined input/output)
+                _stream = tempClient.GetStream();
+
+                if (_stream == null)
+                {
+                    throw new IOException("Failed to get Bluetooth stream");
+                }
+
+                if (!_stream.CanRead || !_stream.CanWrite)
+                {
+                    throw new IOException("Bluetooth stream is not readable/writable");
+                }
+
+                _logger.LogInformation("Bluetooth SPP connection established");
+
+                // Initialize MAVLink connection using ASV.Mavlink wrapper with logger
+                _mavlinkWrapper = new AsvMavlinkWrapper(_logger, _mavLinkLogger);
+                _mavlinkWrapper.HeartbeatReceived += OnMavlinkHeartbeat;
+                _mavlinkWrapper.ParamValueReceived += OnMavlinkParamValue;
+                _mavlinkWrapper.HeartbeatDataReceived += OnMavlinkHeartbeatData;
+                _mavlinkWrapper.StatusTextReceived += OnMavlinkStatusText;
+                _mavlinkWrapper.RcChannelsReceived += OnMavlinkRcChannels;
+                _mavlinkWrapper.CommandAckReceived += OnMavlinkCommandAck;
+                _mavlinkWrapper.CommandLongReceived += OnMavlinkCommandLong;
+                _mavlinkWrapper.RawImuReceived += OnMavlinkRawImu;
+                _mavlinkWrapper.MagCalProgressReceived += OnMavlinkMagCalProgress;
+                _mavlinkWrapper.MagCalReportReceived += OnMavlinkMagCalReport;
+                _mavlinkWrapper.Initialize(_stream, _stream);
+
+                _isConnected = true;
+                ConnectionStateChanged?.Invoke(this, true);
+
+                _logger.LogInformation("Bluetooth MAVLink connection ready - waiting for heartbeat");
+                return true;
+            }
+            catch (Exception ex)
+            {
+                lastException = ex;
+                _logger.LogWarning(ex, "Bluetooth connection attempt {Attempt} failed: {Message}", 
+                    attempt, ex.Message);
+                
+                // Clean up on failure - dispose temp client, not the field
+                try
+                {
+                    _stream?.Dispose();
+                    _stream = null;
+                    
+                    if (tempClient != null)
+                    {
+                        try { tempClient.Close(); } catch { }
+                        try { tempClient.Dispose(); } catch { }
+                    }
+                    
+                    _bluetoothClient = null;
+                }
+                catch { }
+
+                if (attempt < CONNECTION_RETRY_ATTEMPTS)
+                {
+                    _logger.LogInformation("Retrying Bluetooth connection in {Delay}ms...", CONNECTION_RETRY_DELAY_MS);
+                    await Task.Delay(CONNECTION_RETRY_DELAY_MS);
+                }
+            }
         }
+
+        // All attempts failed
+        _logger.LogError(lastException, "Failed to connect to Bluetooth device after {Attempts} attempts", CONNECTION_RETRY_ATTEMPTS);
+        throw new IOException($"Failed to establish Bluetooth connection after {CONNECTION_RETRY_ATTEMPTS} attempts", lastException);
     }
 
     /// <summary>
@@ -337,7 +423,7 @@ public class BluetoothMavConnection : IDisposable
     }
 
     /// <summary>
-    /// Discover available Bluetooth devices
+    /// Discover available Bluetooth devices with improved error handling
     /// </summary>
     public async Task<IEnumerable<CoreBluetoothDeviceInfo>> DiscoverDevicesAsync()
     {
@@ -345,23 +431,62 @@ public class BluetoothMavConnection : IDisposable
         
         try
         {
-            _logger.LogInformation("Discovering Bluetooth devices...");
+            _logger.LogInformation("Discovering Bluetooth devices (this may take up to 30 seconds)...");
             
             var client = new BluetoothClient();
-            var discovered = await Task.Run(() => client.DiscoverDevices().ToList());
+            
+            var discoverTask = Task.Run(() => client.DiscoverDevices().ToList());
+            var timeoutTask = Task.Delay(TimeSpan.FromSeconds(DEVICE_DISCOVERY_TIMEOUT_SECONDS));
+            
+            var completedTask = await Task.WhenAny(discoverTask, timeoutTask);
+            
+            if (completedTask == timeoutTask)
+            {
+                _logger.LogWarning("Bluetooth device discovery timed out after {Seconds} seconds", DEVICE_DISCOVERY_TIMEOUT_SECONDS);
+                return devices;
+            }
+            
+            var discovered = await discoverTask;
             
             foreach (var device in discovered)
             {
-                devices.Add(new CoreBluetoothDeviceInfo
+                try
                 {
-                    DeviceAddress = device.DeviceAddress.ToString(),
-                    DeviceName = device.DeviceName ?? "Unknown Device",
-                    IsConnected = device.Connected,
-                    IsPaired = device.Authenticated
-                });
+                    var deviceName = device.DeviceName;
+                    
+                    // Handle devices with no name
+                    if (string.IsNullOrWhiteSpace(deviceName))
+                    {
+                        deviceName = $"Unknown Device ({device.DeviceAddress})";
+                        _logger.LogDebug("Found device with no name: {Address}", device.DeviceAddress);
+                    }
+                    
+                    devices.Add(new CoreBluetoothDeviceInfo
+                    {
+                        DeviceAddress = device.DeviceAddress.ToString(),
+                        DeviceName = deviceName,
+                        IsConnected = device.Connected,
+                        IsPaired = device.Authenticated
+                    });
+                    
+                    _logger.LogDebug("Found Bluetooth device: {Name} ({Address}) - Paired: {Paired}", 
+                        deviceName, device.DeviceAddress, device.Authenticated);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Error processing Bluetooth device: {Address}", device.DeviceAddress);
+                }
             }
             
-            _logger.LogInformation("Found {Count} Bluetooth devices", devices.Count);
+            _logger.LogInformation("Found {Count} Bluetooth device(s)", devices.Count);
+            
+            if (devices.Count == 0)
+            {
+                _logger.LogWarning("No Bluetooth devices found. Ensure:");
+                _logger.LogWarning("  1. Bluetooth is enabled on this computer");
+                _logger.LogWarning("  2. Drone's Bluetooth module is powered on");
+                _logger.LogWarning("  3. Drone is in pairing mode (if required)");
+            }
         }
         catch (Exception ex)
         {

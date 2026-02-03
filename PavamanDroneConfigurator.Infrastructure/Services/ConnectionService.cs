@@ -182,12 +182,22 @@ public sealed class ConnectionService : IConnectionService, IDisposable
 
         try
         {
-            var connection = new BluetoothMavConnection(_logger);
+            _logger.LogInformation("Scanning for Bluetooth devices...");
+            var connection = new BluetoothMavConnection(_logger, _mavLinkLogger);
             devices = (await connection.DiscoverDevicesAsync()).ToList();
+            
+            if (devices.Count == 0)
+            {
+                _logger.LogWarning("No Bluetooth devices discovered");
+            }
+            else
+            {
+                _logger.LogInformation("Discovered {Count} Bluetooth device(s)", devices.Count);
+            }
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Error scanning Bluetooth devices");
+            _logger.LogError(ex, "Error scanning Bluetooth devices");
         }
 
         return devices;
