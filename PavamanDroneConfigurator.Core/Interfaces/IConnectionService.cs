@@ -46,6 +46,12 @@ public interface IConnectionService
     // Calibration command (MAV_CMD_PREFLIGHT_CALIBRATION = 241)
     void SendPreflightCalibration(int gyro, int mag, int groundPressure, int airspeed, int accel);
     
+    /// <summary>
+    /// Cancel any ongoing preflight calibration by sending MAV_CMD_PREFLIGHT_CALIBRATION with all zeros.
+    /// This is the standard way to abort calibration in ArduPilot.
+    /// </summary>
+    void SendCancelPreflightCalibration();
+    
     // Accelerometer calibration position acknowledgment (MAV_CMD_ACCELCAL_VEHICLE_POS = 42429)
     // This tells the FC that the vehicle is in position and ready for sampling
     void SendAccelCalVehiclePos(int position);

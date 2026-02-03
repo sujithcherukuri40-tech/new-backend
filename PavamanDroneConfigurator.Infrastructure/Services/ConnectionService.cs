@@ -932,6 +932,25 @@ public sealed class ConnectionService : IConnectionService, IDisposable
         _ = _mavlink.SendPreflightCalibrationAsync(gyro, mag, groundPressure, airspeed, accel);
     }
 
+    public void SendCancelPreflightCalibration()
+    {
+        _logger.LogInformation("Sending cancel preflight calibration command");
+        
+        if (_currentConnectionType == ConnectionType.Bluetooth && _bluetoothConnection != null)
+        {
+            _ = _bluetoothConnection.SendCancelPreflightCalibrationAsync();
+            return;
+        }
+
+        if (_mavlink == null)
+        {
+            _logger.LogWarning("Cannot send cancel calibration - not connected");
+            return;
+        }
+
+        _ = _mavlink.SendCancelPreflightCalibrationAsync();
+    }
+
     public void SendAccelCalVehiclePos(int position)
     {
         _logger.LogInformation("SendAccelCalVehiclePos: position={Position} [FIRE-AND-FORGET]", position);

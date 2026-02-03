@@ -277,6 +277,17 @@ public class BluetoothMavConnection : IDisposable
     }
 
     /// <summary>
+    /// Cancel any ongoing preflight calibration by sending MAV_CMD_PREFLIGHT_CALIBRATION with all zeros.
+    /// </summary>
+    public async Task SendCancelPreflightCalibrationAsync(CancellationToken ct = default)
+    {
+        if (!_isConnected || _mavlinkWrapper == null)
+            throw new InvalidOperationException("Bluetooth connection is not active");
+
+        await _mavlinkWrapper.SendCancelPreflightCalibrationAsync(ct);
+    }
+
+    /// <summary>
     /// Send MAV_CMD_PREFLIGHT_REBOOT_SHUTDOWN command to drone
     /// </summary>
     public async Task SendPreflightRebootAsync(int autopilot, int companion, CancellationToken ct = default)

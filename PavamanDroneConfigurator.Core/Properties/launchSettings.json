@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "PavamanDroneConfigurator.Core": {
+      "commandName": "Project",
+      "workingDirectory": "C:\\Users\\hrishikesh.PAVAMANK\\Desktop\\PavDroneConf\\PavamanDroneConfigurator.UI"
+    }
+  }
+}

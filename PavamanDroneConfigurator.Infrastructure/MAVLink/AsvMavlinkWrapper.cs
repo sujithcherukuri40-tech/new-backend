@@ -944,6 +944,22 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
                 gyro, mag, groundPressure, airspeed, accel, 0, 0, ct);
         }
 
+        /// <summary>
+        /// Cancel any ongoing preflight calibration by sending MAV_CMD_PREFLIGHT_CALIBRATION with all zeros.
+        /// This is how MissionPlanner cancels calibrations in ArduPilot.
+        /// </summary>
+        public async Task SendCancelPreflightCalibrationAsync(CancellationToken ct = default)
+        {
+            _logger.LogInformation("Sending MAV_CMD_PREFLIGHT_CALIBRATION cancel (all params = 0)");
+
+            _mavLinkLogger?.LogOutgoing("COMMAND_LONG",
+                "cmd=MAV_CMD_PREFLIGHT_CALIBRATION(241), CANCEL (all params = 0)");
+
+            // Sending all zeros cancels any ongoing calibration
+            await SendCommandLongFireAndForgetAsync(MAV_CMD_PREFLIGHT_CALIBRATION,
+                0, 0, 0, 0, 0, 0, 0, ct);
+        }
+
         public async Task SendPreflightRebootAsync(int autopilot = 1, int companion = 0, CancellationToken ct = default)
         {
             _logger.LogInformation("Sending MAV_CMD_PREFLIGHT_REBOOT_SHUTDOWN: autopilot={Autopilot} companion={Companion}",
