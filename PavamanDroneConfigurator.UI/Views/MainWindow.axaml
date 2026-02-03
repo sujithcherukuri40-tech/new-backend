@@ -64,14 +64,6 @@
                               Margin="0,0,0,8">
                     <StackPanel x:Name="NavigationMenu" Margin="8,0">
 
-                        <!-- Connection -->
-                        <TextBlock Text="CONNECTION" Classes="nav-group-title"/>
-                        <Button Content="📡  Connection"
-                                Classes="nav-button"
-                                Tag="ConnectionPage"
-                                CommandParameter="{Binding ConnectionPage}"
-                                Click="NavButton_Click" />
-
                         <!-- Install Firmware Group -->
                         <TextBlock Text="INSTALL FIRMWARE" Classes="nav-group-title"/>
                         <Button Content="💾  Firmware Upgrade"

@@ -108,6 +108,7 @@ public partial class App : Application
         services.AddTransient<RegisterViewModel>();
         services.AddTransient<PendingApprovalViewModel>();
         services.AddTransient<AuthShellViewModel>();
+        services.AddTransient<ConnectionShellViewModel>();
 
         services.AddTransient<UI.ViewModels.Admin.AdminPanelViewModel>();
         services.AddTransient<UI.ViewModels.Admin.AdminDashboardViewModel>();
@@ -214,12 +215,12 @@ public partial class App : Application
                     try
                     {
                         var oldWindow = desktop.MainWindow;
-                        ShowMainWindow(desktop);
+                        ShowConnectionShell(desktop);
                         oldWindow?.Close();
                     }
                     catch
                     {
-                        ShowMainWindow(desktop);
+                        ShowConnectionShell(desktop);
                     }
                 });
             };
@@ -250,6 +251,67 @@ public partial class App : Application
         catch (Exception ex)
         {
             Console.WriteLine($"Failed to show auth shell: {ex.Message}");
+        }
+    }
+
+    private void ShowConnectionShell(IClassicDesktopStyleApplicationLifetime desktop)
+    {
+        if (_isShuttingDown || Services == null) return;
+
+        try
+        {
+            Console.WriteLine("[App] ShowConnectionShell called");
+            var connectionShellViewModel = Services.GetRequiredService<ConnectionShellViewModel>();
+
+            connectionShellViewModel.ConnectionCompleted += (_, _) =>
+            {
+                Console.WriteLine("[App] ConnectionCompleted event received!");
+                if (_isShuttingDown) return;
+
+                Dispatcher.UIThread.Post(() =>
+                {
+                    try
+                    {
+                        Console.WriteLine("[App] Navigating to MainWindow...");
+                        var oldWindow = desktop.MainWindow;
+                        ShowMainWindow(desktop);
+                        oldWindow?.Close();
+                        Console.WriteLine("[App] MainWindow shown, old window closed");
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"[App] Error during navigation: {ex.Message}");
+                        ShowMainWindow(desktop);
+                    }
+                });
+            };
+
+            connectionShellViewModel.ConnectionCancelled += (_, _) =>
+            {
+                Console.WriteLine("[App] ConnectionCancelled event received");
+                Dispatcher.UIThread.Post(() =>
+                {
+                    try
+                    {
+                        var oldWindow = desktop.MainWindow;
+                        ShowAuthShell(desktop);
+                        oldWindow?.Close();
+                    }
+                    catch
+                    {
+                        ShowAuthShell(desktop);
+                    }
+                });
+            };
+
+            var connectionShell = new ConnectionShell { DataContext = connectionShellViewModel };
+            desktop.MainWindow = connectionShell;
+            connectionShell.Show();
+            Console.WriteLine("[App] ConnectionShell shown");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Failed to show connection shell: {ex.Message}");
         }
     }
 

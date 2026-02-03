@@ -62,8 +62,6 @@ public partial class MainWindowViewModel : ViewModelBase
     
     public bool IsAdmin { get; }
 
-    private bool _navigatedAfterConnect;
-
     public MainWindowViewModel(
         ConnectionPageViewModel connectionPage,
         DroneDetailsPageViewModel droneDetailsPage,
@@ -151,7 +149,8 @@ public partial class MainWindowViewModel : ViewModelBase
         _connectionService.ConnectionStateChanged += OnConnectionStateChanged;
         InitializeFromServices();
 
-        _currentPage = connectionPage; // ensure connection page is the first page after splash
+        // Start on the Airframe page (connection already completed before MainWindow)
+        _currentPage = airframePage;
     }
 
     private void OnParameterDownloadStarted(object? sender, EventArgs e)
@@ -192,7 +191,6 @@ public partial class MainWindowViewModel : ViewModelBase
         Dispatcher.UIThread.Post(() =>
         {
             UpdateAccessPermissions();
-            UpdateNavigationForConnectionState(connected);
         });
     }
 
@@ -202,25 +200,6 @@ public partial class MainWindowViewModel : ViewModelBase
         IsParameterDownloadComplete = _parameterService.IsParameterDownloadComplete;
         UpdateProgress();
         UpdateAccessPermissions();
-        UpdateNavigationForConnectionState(_connectionService.IsConnected);
-    }
-
-    private void UpdateNavigationForConnectionState(bool connected)
-    {
-        if (connected)
-        {
-            if (!_navigatedAfterConnect)
-            {
-                CurrentPage = ParametersPage; // open main application experience after connect
-                _navigatedAfterConnect = true;
-            }
-        }
-        else
-        {
-            // return to connection page and reset navigation state on disconnect
-            CurrentPage = ConnectionPage;
-            _navigatedAfterConnect = false;
-        }
     }
 
     private void UpdateProgress()
