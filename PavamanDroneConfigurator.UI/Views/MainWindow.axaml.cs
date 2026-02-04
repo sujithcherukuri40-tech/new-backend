@@ -123,6 +123,7 @@ public partial class MainWindow : Window
             FirmwarePageViewModel => new views.FirmwarePage { DataContext = vm },
             AdminDashboardViewModel => new adminViews.AdminDashboardView { DataContext = vm },
             AdminPanelViewModel => new adminViews.AdminPanelView { DataContext = vm },
+            FirmwareManagementViewModel => new adminViews.FirmwareManagementPage { DataContext = vm },
             _ => null
         };
     }

@@ -113,6 +113,7 @@ public partial class App : Application
 
         services.AddTransient<UI.ViewModels.Admin.AdminPanelViewModel>();
         services.AddTransient<UI.ViewModels.Admin.AdminDashboardViewModel>();
+        services.AddTransient<UI.ViewModels.Admin.FirmwareManagementViewModel>();
 
         if (Configuration != null)
         {

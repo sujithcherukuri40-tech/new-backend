@@ -90,6 +90,18 @@ public partial class FirmwarePage : UserControl
         }
     }
     
+    /// <summary>
+    /// Handles back button click to return to mode selection
+    /// </summary>
+    public void BackToModeSelection_Click(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is FirmwarePageViewModel viewModel)
+        {
+            viewModel.IsAutomaticMode = false;
+            viewModel.IsManualMode = false;
+        }
+    }
+    
     private void ShowError(string message)
     {
         // Simple error display - in a production app, you might want a proper dialog

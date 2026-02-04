@@ -3,14 +3,14 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:vm="using:PavamanDroneConfigurator.UI.ViewModels"
-        mc:Ignorable="d" d:DesignWidth="650" d:DesignHeight="420"
+        mc:Ignorable="d" d:DesignWidth="720" d:DesignHeight="500"
         x:Class="PavamanDroneConfigurator.UI.Views.EntryPage"
         x:DataType="vm:EntryPageViewModel"
         Title="Pavaman Drone Configurator"
-        Width="650"
-        Height="420"
-        MinWidth="600"
-        MinHeight="400"
+        Width="720"
+        Height="500"
+        MinWidth="680"
+        MinHeight="480"
         CanResize="False"
         WindowStartupLocation="CenterScreen"
         Icon="avares://PavamanDroneConfigurator.UI/Assets/Images/logo.ico"
@@ -27,7 +27,7 @@
             <Setter Property="Foreground" Value="White"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
             <Setter Property="FontSize" Value="14"/>
-            <Setter Property="Padding" Value="20,10"/>
+            <Setter Property="Padding" Value="24,12"/>
             <Setter Property="CornerRadius" Value="10"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Cursor" Value="Hand"/>
@@ -47,7 +47,7 @@
             <Setter Property="Foreground" Value="White"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
             <Setter Property="FontSize" Value="14"/>
-            <Setter Property="Padding" Value="20,10"/>
+            <Setter Property="Padding" Value="24,12"/>
             <Setter Property="CornerRadius" Value="10"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Cursor" Value="Hand"/>
@@ -66,8 +66,8 @@
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="Foreground" Value="#64748B"/>
             <Setter Property="FontWeight" Value="Medium"/>
-            <Setter Property="FontSize" Value="12"/>
-            <Setter Property="Padding" Value="16,8"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Padding" Value="20,10"/>
             <Setter Property="CornerRadius" Value="8"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="BorderBrush" Value="#E2E8F0"/>
@@ -83,8 +83,9 @@
             <Setter Property="Background" Value="#FFFFFF"/>
             <Setter Property="BorderBrush" Value="#E2E8F0"/>
             <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="CornerRadius" Value="14"/>
-            <Setter Property="Padding" Value="24,20"/>
+            <Setter Property="CornerRadius" Value="16"/>
+            <Setter Property="Padding" Value="32,32"/>
+            <Setter Property="Width" Value="260"/>
         </Style>
         
         <Style Selector="Border.action-card:pointerover">
@@ -93,58 +94,56 @@
     </Window.Styles>
 
     <!-- Main Grid Layout - No ScrollViewer -->
-    <Grid RowDefinitions="Auto,*,Auto" Margin="32,24,32,24">
+    <Grid RowDefinitions="Auto,*,Auto" Margin="40,32,40,28">
         
         <!-- Header Section -->
-        <StackPanel Grid.Row="0" HorizontalAlignment="Center" Spacing="4">
+        <StackPanel Grid.Row="0" HorizontalAlignment="Center" Spacing="6">
             
             <!-- Logo -->
-            <Border Width="56"
-                    Height="56"
-                    CornerRadius="14"
+            <Border Width="64"
+                    Height="64"
+                    CornerRadius="16"
                     Background="#E0F2FE"
                     HorizontalAlignment="Center"
-                    Margin="0,0,0,10">
+                    Margin="0,0,0,12">
                 <Image Source="avares://PavamanDroneConfigurator.UI/Assets/Images/logo.ico"
                        Stretch="Uniform"
-                       Margin="8"/>
+                       Margin="10"/>
             </Border>
             
             <!-- Title -->
             <TextBlock Text="Pavaman Drone Configurator"
-                       FontSize="20"
+                       FontSize="22"
                        FontWeight="SemiBold"
                        Foreground="#0F172A"
                        HorizontalAlignment="Center"/>
             
             <!-- Subtitle -->
             <TextBlock Text="Choose an option to get started"
-                       FontSize="13"
+                       FontSize="14"
                        Foreground="#64748B"
                        HorizontalAlignment="Center"/>
         </StackPanel>
 
         <!-- Main Content - Side by Side Cards -->
-        <Grid Grid.Row="1" 
-              ColumnDefinitions="*,*" 
-              ColumnSpacing="20"
-              HorizontalAlignment="Center"
-              VerticalAlignment="Center"
-              MaxWidth="480"
-              Margin="0,20,0,20">
+        <StackPanel Grid.Row="1" 
+                    Orientation="Horizontal"
+                    Spacing="24"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center">
             
             <!-- Flash Firmware Card (Left) -->
-            <Border Grid.Column="0" Classes="action-card">
-                <StackPanel Spacing="14">
+            <Border Classes="action-card">
+                <StackPanel Spacing="20">
                     
                     <!-- Icon -->
-                    <Border Width="48"
-                            Height="48"
-                            CornerRadius="12"
+                    <Border Width="60"
+                            Height="60"
+                            CornerRadius="14"
                             Background="#FEF3C7"
                             HorizontalAlignment="Center">
                         <PathIcon Data="M9 16h6v-6h4l-7-7-7 7h4zm-4 2h14v2H5z"
-                                  Width="22" Height="22"
+                                  Width="28" Height="28"
                                   Foreground="#F59E0B"
                                   HorizontalAlignment="Center"
                                   VerticalAlignment="Center"/>
@@ -152,30 +151,31 @@
                     
                     <!-- Title -->
                     <TextBlock Text="Flash Firmware"
-                               FontSize="16"
+                               FontSize="18"
                                FontWeight="SemiBold"
                                Foreground="#0F172A"
                                HorizontalAlignment="Center"/>
                     
-                    <!-- Action Button -->
+                    <!-- Action Button - Inside Card -->
                     <Button Classes="btn-secondary"
                             Content="Flash Firmware"
-                            Command="{Binding FlashFirmwareCommand}"/>
+                            Command="{Binding FlashFirmwareCommand}"
+                            HorizontalAlignment="Stretch"/>
                 </StackPanel>
             </Border>
             
             <!-- Connect to Drone Card (Right) -->
-            <Border Grid.Column="1" Classes="action-card">
-                <StackPanel Spacing="14">
+            <Border Classes="action-card">
+                <StackPanel Spacing="20">
                     
                     <!-- Icon -->
-                    <Border Width="48"
-                            Height="48"
-                            CornerRadius="12"
+                    <Border Width="60"
+                            Height="60"
+                            CornerRadius="14"
                             Background="#E0F2FE"
                             HorizontalAlignment="Center">
                         <PathIcon Data="M21 14h-1V7a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7H3a1 1 0 0 0-1 1v2a2 2 0 0 0 2 2h2v-2H4v-1h16v1h-2v2h2a2 2 0 0 0 2-2v-2a1 1 0 0 0-1-1zM6 7h12v7H6V7zm6 12a1 1 0 1 0 0-2 1 1 0 0 0 0 2z"
-                                  Width="22" Height="22"
+                                  Width="28" Height="28"
                                   Foreground="#38BDF8"
                                   HorizontalAlignment="Center"
                                   VerticalAlignment="Center"/>
@@ -183,21 +183,22 @@
                     
                     <!-- Title -->
                     <TextBlock Text="Connect to Drone"
-                               FontSize="16"
+                               FontSize="18"
                                FontWeight="SemiBold"
                                Foreground="#0F172A"
                                HorizontalAlignment="Center"/>
                     
-                    <!-- Action Button -->
+                    <!-- Action Button - Inside Card -->
                     <Button Classes="btn-primary"
                             Content="Connect to Drone"
-                            Command="{Binding ConnectToDroneCommand}"/>
+                            Command="{Binding ConnectToDroneCommand}"
+                            HorizontalAlignment="Stretch"/>
                 </StackPanel>
             </Border>
-        </Grid>
+        </StackPanel>
 
         <!-- Footer Section -->
-        <StackPanel Grid.Row="2" HorizontalAlignment="Center" Spacing="8">
+        <StackPanel Grid.Row="2" HorizontalAlignment="Center" Spacing="10">
             
             <!-- Exit Button -->
             <Button Classes="btn-exit"
@@ -207,7 +208,7 @@
             
             <!-- Version Info -->
             <TextBlock Text="v1.0.0 • Pavaman Technologies"
-                       FontSize="10"
+                       FontSize="11"
                        Foreground="#94A3B8"
                        HorizontalAlignment="Center"/>
         </StackPanel>
