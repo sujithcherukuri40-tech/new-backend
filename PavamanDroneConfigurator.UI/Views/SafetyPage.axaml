@@ -190,22 +190,28 @@
             <Setter Property="Foreground" Value="White"/>
         </Style>
         
-        <!-- Safety Navbar Tab Styles -->
+        <!-- Safety Navbar Tab Styles - Responsive -->
         <Style Selector="TabControl.SafetyNavbar">
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="Padding" Value="0"/>
         </Style>
         
+        <Style Selector="TabControl.SafetyNavbar /template/ ItemsPresenter#PART_ItemsPresenter">
+            <Setter Property="HorizontalAlignment" Value="Stretch"/>
+        </Style>
+        
         <Style Selector="TabControl.SafetyNavbar > TabItem">
             <Setter Property="Background" Value="#F1F5F9"/>
             <Setter Property="Foreground" Value="#64748B"/>
-            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="FontSize" Value="14"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="Padding" Value="20,12"/>
-            <Setter Property="Margin" Value="0,0,2,0"/>
-            <Setter Property="CornerRadius" Value="8,8,0,0"/>
+            <Setter Property="Padding" Value="32,14"/>
+            <Setter Property="Margin" Value="0,0,8,0"/>
+            <Setter Property="CornerRadius" Value="10,10,0,0"/>
             <Setter Property="BorderThickness" Value="1,1,1,0"/>
             <Setter Property="BorderBrush" Value="#E2E8F0"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+            <Setter Property="MinWidth" Value="120"/>
         </Style>
         
         <Style Selector="TabControl.SafetyNavbar > TabItem:pointerover">
@@ -217,6 +223,17 @@
             <Setter Property="Background" Value="#0B5ED7"/>
             <Setter Property="Foreground" Value="White"/>
             <Setter Property="BorderBrush" Value="#0B5ED7"/>
+        </Style>
+        
+        <!-- Responsive Content Card -->
+        <Style Selector="Border.ResponsiveCard">
+            <Setter Property="Background" Value="White"/>
+            <Setter Property="BorderBrush" Value="#E2E8F0"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="12"/>
+            <Setter Property="Padding" Value="32"/>
+            <Setter Property="HorizontalAlignment" Value="Stretch"/>
+            <Setter Property="Margin" Value="0,0,0,24"/>
         </Style>
     </UserControl.Styles>
 
@@ -271,9 +288,9 @@
             
             <!-- ==================== ARMING CHECK TAB ==================== -->
             <TabItem Header="Arming Check">
-                <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
-                    <StackPanel Margin="0,20,0,0" MaxWidth="900">
-                        <Border Classes="SectionCard">
+                <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto"
+                              Padding="0,24,0,0">
+                    <Border Classes="ResponsiveCard">
                             <StackPanel>
                                 <TextBlock Classes="SectionTitle" Text=" Pre-Flight Arming Checks"/>
                                 <TextBlock Classes="SectionSubtitle" Text="Required sensor and system checks before flight"/>
@@ -323,17 +340,16 @@
                                         </Grid>
                                     </StackPanel>
                                 </Grid>
-                            </StackPanel>
-                        </Border>
-                    </StackPanel>
+                        </StackPanel>
+                    </Border>
                 </ScrollViewer>
             </TabItem>
 
             <!-- ==================== GEOFENCE TAB ==================== -->
             <TabItem Header="Geofence">
-                <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
-                    <StackPanel Margin="0,20,0,0" MaxWidth="900">
-                        <Border Classes="SectionCard">
+                <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto"
+                              Padding="0,24,0,0">
+                    <Border Classes="ResponsiveCard">
                             <StackPanel>
                                 <Grid ColumnDefinitions="*,Auto">
                                     <TextBlock Grid.Column="0" Classes="SectionTitle" Text=" Geofence"/>
@@ -404,17 +420,16 @@
                                 <TextBlock Classes="HelpText" Text="Safety buffer before breach" 
                                            IsVisible="{Binding FenceEnabled}"
                                            Margin="0,8,0,0"/>
-                            </StackPanel>
-                        </Border>
-                    </StackPanel>
+                        </StackPanel>
+                    </Border>
                 </ScrollViewer>
             </TabItem>
 
             <!-- ==================== BATTERY TAB ==================== -->
             <TabItem Header="Battery">
-                <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
-                    <StackPanel Margin="0,20,0,0" MaxWidth="900">
-                        <Border Classes="SectionCard">
+                <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto"
+                              Padding="0,24,0,0">
+                    <Border Classes="ResponsiveCard">
                             <StackPanel>
                                 <TextBlock Classes="SectionTitle" Text=" Battery Failsafe"/>
                                 <TextBlock Classes="SectionSubtitle" Text="Actions when battery reaches critical levels"/>
@@ -482,17 +497,16 @@
                                                    Margin="0,0,8,0"/>
                                     <TextBlock Grid.Column="2" Classes="FieldLabel" Text="mAh" VerticalAlignment="Center"/>
                                 </Grid>
-                            </StackPanel>
-                        </Border>
-                    </StackPanel>
+                        </StackPanel>
+                    </Border>
                 </ScrollViewer>
             </TabItem>
 
             <!-- ==================== RTL TAB ==================== -->
             <TabItem Header="RTL">
-                <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
-                    <StackPanel Margin="0,20,0,0" MaxWidth="900">
-                        <Border Classes="SectionCard">
+                <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto"
+                              Padding="0,24,0,0">
+                    <Border Classes="ResponsiveCard">
                             <StackPanel>
                                 <TextBlock Classes="SectionTitle" Text=" Return To Launch (RTL)"/>
                                 <TextBlock Classes="SectionSubtitle" Text="Automatic return to home settings"/>
@@ -538,17 +552,17 @@
                                     <TextBlock Grid.Column="0" Grid.Row="7" Grid.ColumnSpan="2" Classes="HelpText" 
                                                Text="0 = use default waypoint speed"/>
                                 </Grid>
-                            </StackPanel>
-                        </Border>
-                    </StackPanel>
+                        </StackPanel>
+                    </Border>
                 </ScrollViewer>
             </TabItem>
 
             <!-- ==================== ADDITIONAL TAB ==================== -->
             <TabItem Header="Additional">
-                <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
-                    <StackPanel Margin="0,20,0,0" MaxWidth="900">
-                        <Border Classes="SectionCard">
+                <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto"
+                              Padding="0,24,0,0">
+                    <StackPanel>
+                        <Border Classes="ResponsiveCard">
                             <StackPanel>
                                 <TextBlock Classes="SectionTitle" Text=" Additional Failsafes"/>
                                 <TextBlock Classes="SectionSubtitle" Text="RC, GCS, EKF, and other safety systems"/>
@@ -589,7 +603,7 @@
                         </Border>
                         
                         <!-- FOOTER INFO -->
-                        <Border Background="#E7F3FF" CornerRadius="8" Padding="16" Margin="0,16,0,0">
+                        <Border Background="#E7F3FF" CornerRadius="8" Padding="16" Margin="0,0,0,24">
                             <StackPanel Orientation="Horizontal" Spacing="8">
                                 <TextBlock Text="" FontSize="16" VerticalAlignment="Center"/>
                                 <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="#0B5ED7">
