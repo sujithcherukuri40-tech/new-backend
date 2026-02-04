@@ -748,11 +748,10 @@ public partial class SensorsCalibrationPageViewModel : ViewModelBase
 
     private void OnCompassCalProgressReceived(object? sender, CompassCalProgressEventArgs e)
     {
+        // Use Invoke (not InvokeAsync) for immediate UI updates
         Dispatcher.UIThread.Post(() =>
         {
-            AddDebugLog($"[CompassCal] Progress: compass={e.CompassId} status={e.Status} pct={e.CompletionPercent}%");
-
-            // Update progress bars and status based on compass_id
+            // Update progress bars directly - no change detection needed for rapid updates
             switch (e.CompassId)
             {
                 case 0:
@@ -771,9 +770,17 @@ public partial class SensorsCalibrationPageViewModel : ViewModelBase
 
             _compassCount = Math.Max(_compassCount, e.CompassId + 1);
             
-            // Update overall status
-            CompassCalStatus = $"Calibrating... Rotate vehicle in all directions. ({e.CompletionPercent}%)";
-            CompassInstructions = "Rotate the vehicle slowly in all directions to cover all orientations.";
+            // Update status message
+            CompassCalStatus = $"Calibrating... Rotate vehicle ({e.CompletionPercent}%)";
+            
+            // Ensure calibration active flags are set
+            if (!IsOnboardCompassCalActive)
+            {
+                IsOnboardCompassCalActive = true;
+                IsCompassCalibrationActive = true;
+                CanCancelCompassCal = true;
+                CanStartCompassCal = false;
+            }
         });
     }
 
@@ -844,10 +851,10 @@ public partial class SensorsCalibrationPageViewModel : ViewModelBase
 
     private void OnCompassCalStateChanged(object? sender, CompassCalibrationStateModel e)
     {
+        // Use Post for immediate UI updates
         Dispatcher.UIThread.Post(() =>
         {
-            AddDebugLog($"[CompassCal] State changed: {e.State} - {e.Message}");
-            
+            // Update all state properties directly
             CompassCalStatus = e.Message;
             IsOnboardCompassCalActive = e.IsCalibrating;
             IsCompassCalibrationActive = e.IsCalibrating;
@@ -857,17 +864,11 @@ public partial class SensorsCalibrationPageViewModel : ViewModelBase
 
             // Update button text based on state
             if (e.IsCalibrating)
-            {
                 CompassCalButtonText = "Calibrating...";
-            }
             else if (e.CanAccept)
-            {
                 CompassCalButtonText = "Accept";
-            }
             else
-            {
                 CompassCalButtonText = "Start Calibration";
-            }
 
             // Update progress from state
             foreach (var kvp in e.CompassProgress)
@@ -886,7 +887,7 @@ public partial class SensorsCalibrationPageViewModel : ViewModelBase
                 }
             }
 
-            // Check for completion states
+            // Handle completion states
             if (e.State == CompassCalibrationState.Accepted || e.State == CompassCalibrationState.Cancelled)
             {
                 IsOnboardCompassCalActive = false;

@@ -3,22 +3,39 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:vm="using:PavamanDroneConfigurator.UI.ViewModels"
-        mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="500"
+        mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="550"
         x:Class="PavamanDroneConfigurator.UI.Views.ConnectionShell"
         x:DataType="vm:ConnectionShellViewModel"
         Title="Pavaman Drone Configurator - Connect"
         Width="800"
-        Height="500"
+        Height="550"
         MinWidth="600"
-        MinHeight="400"
-        CanResize="False"
+        MinHeight="450"
+        CanResize="True"
         WindowStartupLocation="CenterScreen"
         Icon="avares://PavamanDroneConfigurator.UI/Assets/Images/logo.ico"
-        Background="#FFFFFF">
+        Background="#F8FAFC">
 
     <Window.Styles>
         <Style Selector="Window">
             <Setter Property="FontFamily" Value="Inter, Segoe UI, San Francisco, Helvetica Neue, Arial"/>
+        </Style>
+
+        <!-- Back Button Style -->
+        <Style Selector="Button.btn-back">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="#64748B"/>
+            <Setter Property="FontWeight" Value="Medium"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Padding" Value="12,8"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="BorderBrush" Value="#E2E8F0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+        </Style>
+        <Style Selector="Button.btn-back:pointerover">
+            <Setter Property="Background" Value="#FFFFFF"/>
+            <Setter Property="BorderBrush" Value="#CBD5E1"/>
         </Style>
 
         <Style Selector="Button.btn-cyan">
@@ -26,8 +43,8 @@
             <Setter Property="Foreground" Value="White"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
             <Setter Property="FontSize" Value="14"/>
-            <Setter Property="Padding" Value="28,14"/>
-            <Setter Property="CornerRadius" Value="24"/>
+            <Setter Property="Padding" Value="24,12"/>
+            <Setter Property="CornerRadius" Value="10"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Cursor" Value="Hand"/>
         </Style>
@@ -44,8 +61,8 @@
             <Setter Property="Foreground" Value="#38BDF8"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
             <Setter Property="FontSize" Value="14"/>
-            <Setter Property="Padding" Value="28,14"/>
-            <Setter Property="CornerRadius" Value="24"/>
+            <Setter Property="Padding" Value="24,12"/>
+            <Setter Property="CornerRadius" Value="10"/>
             <Setter Property="BorderThickness" Value="2"/>
             <Setter Property="BorderBrush" Value="#38BDF8"/>
             <Setter Property="Cursor" Value="Hand"/>
@@ -62,190 +79,260 @@
             <Setter Property="Background" Value="White"/>
             <Setter Property="BorderBrush" Value="#E2E8F0"/>
             <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="CornerRadius" Value="12"/>
-            <Setter Property="Padding" Value="16,12"/>
+            <Setter Property="CornerRadius" Value="10"/>
+            <Setter Property="Padding" Value="14,10"/>
             <Setter Property="FontSize" Value="14"/>
-            <Setter Property="MinHeight" Value="48"/>
+            <Setter Property="MinHeight" Value="44"/>
+        </Style>
+
+        <Style Selector="TextBox.conn-input">
+            <Setter Property="Background" Value="White"/>
+            <Setter Property="BorderBrush" Value="#E2E8F0"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="10"/>
+            <Setter Property="Padding" Value="14,10"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="MinHeight" Value="44"/>
         </Style>
 
         <Style Selector="TextBlock.section-title-cyan">
-            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="FontSize" Value="13"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
             <Setter Property="Foreground" Value="#38BDF8"/>
+            <Setter Property="LetterSpacing" Value="0.5"/>
         </Style>
 
         <Style Selector="TextBlock.conn-label">
             <Setter Property="FontSize" Value="13"/>
             <Setter Property="FontWeight" Value="Medium"/>
-            <Setter Property="Foreground" Value="#64748B"/>
-            <Setter Property="Margin" Value="0,0,0,8"/>
+            <Setter Property="Foreground" Value="#475569"/>
+            <Setter Property="Margin" Value="0,0,0,6"/>
+        </Style>
+
+        <!-- Card Style -->
+        <Style Selector="Border.conn-card">
+            <Setter Property="Background" Value="#FFFFFF"/>
+            <Setter Property="BorderBrush" Value="#E2E8F0"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="16"/>
+            <Setter Property="Padding" Value="24"/>
         </Style>
     </Window.Styles>
 
     <Grid RowDefinitions="Auto,*">
-        <StackPanel Grid.Row="0" 
-                    Margin="40,32,40,24"
-                    HorizontalAlignment="Center">
-            <Border Width="64"
-                    Height="64"
-                    CornerRadius="16"
-                    Background="#F0F9FF"
-                    HorizontalAlignment="Center"
-                    Margin="0,0,0,16">
-                <Image Source="avares://PavamanDroneConfigurator.UI/Assets/Images/logo.ico"
-                       Stretch="Uniform"
-                       Margin="12"/>
-            </Border>
-            <TextBlock Text="Pavaman Drone Configurator"
-                       FontSize="18"
-                       FontWeight="SemiBold"
-                       Foreground="#0F172A"
-                       HorizontalAlignment="Center"/>
-        </StackPanel>
+        
+        <!-- Header with Back Button -->
+        <Border Grid.Row="0"
+                Background="#FFFFFF"
+                BorderBrush="#E2E8F0"
+                BorderThickness="0,0,0,1"
+                Padding="24,16">
+            <Grid ColumnDefinitions="Auto,*,Auto">
+                
+                <!-- Back Button -->
+                <Button Grid.Column="0"
+                        Classes="btn-back"
+                        Command="{Binding CancelCommand}"
+                        ToolTip.Tip="Return to Entry Page">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <PathIcon Data="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"
+                                  Width="14" Height="14"
+                                  Foreground="#64748B"/>
+                        <TextBlock Text="Back" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Button>
+                
+                <!-- Center Title -->
+                <StackPanel Grid.Column="1" 
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            Orientation="Horizontal"
+                            Spacing="12">
+                    <Border Width="36"
+                            Height="36"
+                            CornerRadius="10"
+                            Background="#E0F2FE">
+                        <Image Source="avares://PavamanDroneConfigurator.UI/Assets/Images/logo.ico"
+                               Stretch="Uniform"
+                               Margin="6"/>
+                    </Border>
+                    <TextBlock Text="Connect to Drone"
+                               FontSize="18"
+                               FontWeight="SemiBold"
+                               Foreground="#0F172A"
+                               VerticalAlignment="Center"/>
+                </StackPanel>
+                
+                <!-- Placeholder for symmetry -->
+                <Border Grid.Column="2" Width="80"/>
+            </Grid>
+        </Border>
 
+        <!-- Main Content -->
         <ScrollViewer Grid.Row="1"
                       VerticalScrollBarVisibility="Auto"
                       HorizontalScrollBarVisibility="Disabled"
-                      Margin="60,0,60,40">
-            <StackPanel Spacing="24">
-
-                <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto">
-                    <TextBlock Grid.Column="0" 
-                               Text="COMM LINK SETTINGS" 
-                               Classes="section-title-cyan"
-                               VerticalAlignment="Center"/>
-                    
-                    <ComboBox Grid.Column="1"
-                              Classes="conn-combo"
-                              Width="140"
-                              Margin="32,0,0,0"
-                              SelectedIndex="{Binding ConnectionType, Converter={x:Static vm:ConnectionTypeToIndexConverter.Instance}}"
-                              IsEnabled="{Binding !IsConnected}">
-                        <ComboBoxItem Content="Serial"/>
-                        <ComboBoxItem Content="TCP"/>
-                        <ComboBoxItem Content="Bluetooth"/>
-                    </ComboBox>
-
-                    <Border Grid.Column="2"/>
-
-                    <Button Grid.Column="3"
-                            Content="Connect"
-                            Classes="btn-cyan"
-                            Margin="0,0,16,0"
-                            Command="{Binding ConnectCommand}"
-                            IsEnabled="{Binding CanConnect}"/>
-
-                    <Button Grid.Column="4"
-                            Content="Disconnect"
-                            Classes="btn-cyan-outline"
-                            Command="{Binding DisconnectCommand}"
-                            IsEnabled="{Binding IsConnected}"/>
-                </Grid>
-
-                <StackPanel Spacing="16" IsVisible="{Binding IsSerialConnection}">
-                    <StackPanel Spacing="6">
-                        <TextBlock Text="Serial Port" Classes="conn-label"/>
-                        <ComboBox Classes="conn-combo"
-                                  ItemsSource="{Binding AvailableSerialPorts}"
-                                  SelectedItem="{Binding SelectedSerialPort}"
-                                  IsEnabled="{Binding !IsConnected}"
-                                  HorizontalAlignment="Stretch">
-                            <ComboBox.ItemTemplate>
-                                <DataTemplate>
-                                    <TextBlock Text="{Binding FriendlyName}"/>
-                                </DataTemplate>
-                            </ComboBox.ItemTemplate>
-                        </ComboBox>
-                    </StackPanel>
-
-                    <StackPanel Spacing="6">
-                        <TextBlock Text="Baud Rate" Classes="conn-label"/>
-                        <ComboBox Classes="conn-combo"
-                                  ItemsSource="{Binding AvailableBaudRates}"
-                                  SelectedItem="{Binding SelectedBaudRate}"
-                                  IsEnabled="{Binding !IsConnected}"
-                                  HorizontalAlignment="Stretch">
-                            <ComboBox.ItemTemplate>
-                                <DataTemplate>
-                                    <TextBlock Text="{Binding Display}"/>
-                                </DataTemplate>
-                            </ComboBox.ItemTemplate>
-                        </ComboBox>
-                    </StackPanel>
-                </StackPanel>
-
-                <StackPanel Spacing="16" IsVisible="{Binding IsTcpConnection}">
-                    <Grid ColumnDefinitions="2*,*" ColumnSpacing="16">
-                        <StackPanel Grid.Column="0" Spacing="6">
-                            <TextBlock Text="IP Address" Classes="conn-label"/>
-                            <TextBox Text="{Binding IpAddress}"
-                                     IsEnabled="{Binding !IsConnected}"
-                                     Watermark="192.168.1.100"
-                                     Padding="16,12"
-                                     CornerRadius="12"/>
-                        </StackPanel>
-                        <StackPanel Grid.Column="1" Spacing="6">
-                            <TextBlock Text="Port" Classes="conn-label"/>
-                            <TextBox Text="{Binding TcpPort}"
-                                     IsEnabled="{Binding !IsConnected}"
-                                     Watermark="5760"
-                                     Padding="16,12"
-                                     CornerRadius="12"/>
-                        </StackPanel>
-                    </Grid>
-                </StackPanel>
-
-                <StackPanel Spacing="16" IsVisible="{Binding IsBluetoothConnection}">
-                    <Grid ColumnDefinitions="*,Auto">
-                        <TextBlock Grid.Column="0" Text="Bluetooth Device" Classes="conn-label" VerticalAlignment="Center"/>
-                        <Button Grid.Column="1" 
-                                Content="Scan Devices" 
-                                Classes="btn-cyan-outline"
-                                Command="{Binding ScanBluetoothDevicesCommand}"
-                                IsEnabled="{Binding !IsConnected}"
-                                Padding="20,10"/>
-                    </Grid>
-                    <ComboBox Classes="conn-combo"
-                              ItemsSource="{Binding AvailableBluetoothDevices}"
-                              SelectedItem="{Binding SelectedBluetoothDevice}"
-                              IsEnabled="{Binding !IsConnected}"
-                              HorizontalAlignment="Stretch">
-                        <ComboBox.ItemTemplate>
-                            <DataTemplate>
-                                <StackPanel>
-                                    <TextBlock Text="{Binding DeviceName}" FontWeight="SemiBold"/>
-                                    <TextBlock Text="{Binding DeviceAddress}" FontSize="12" Foreground="#94A3B8"/>
-                                </StackPanel>
-                            </DataTemplate>
-                        </ComboBox.ItemTemplate>
-                    </ComboBox>
-                </StackPanel>
-
-                <Border Background="#F0F9FF"
-                        CornerRadius="16"
-                        Padding="24"
-                        IsVisible="{Binding IsDownloadingParameters}">
+                      Padding="40,24,40,32">
+            
+            <StackPanel Spacing="20" MaxWidth="600" HorizontalAlignment="Center">
+                
+                <!-- Connection Type & Buttons Card -->
+                <Border Classes="conn-card">
                     <StackPanel Spacing="16">
-                        <StackPanel Orientation="Horizontal" Spacing="12">
-                            <TextBlock Text="??" FontSize="18"/>
-                            <TextBlock Text="Downloading Parameters" FontWeight="SemiBold" FontSize="15" Foreground="#0F172A"/>
-                            <TextBlock Text="{Binding ParameterProgressText}" FontWeight="Bold" FontSize="15" Foreground="#38BDF8"/>
-                        </StackPanel>
-                        <ProgressBar Value="{Binding ParameterProgressPercentage}" 
-                                     Maximum="100" 
-                                     Height="10"
-                                     CornerRadius="5"
-                                     Foreground="#38BDF8"
-                                     Background="#E0F2FE"/>
+                        
+                        <!-- Section Title -->
+                        <TextBlock Text="COMM LINK SETTINGS" 
+                                   Classes="section-title-cyan"/>
+                        
+                        <!-- Connection Type & Action Buttons -->
+                        <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="12">
+                            <ComboBox Grid.Column="0"
+                                      Classes="conn-combo"
+                                      Width="140"
+                                      SelectedIndex="{Binding ConnectionType, Converter={x:Static vm:ConnectionTypeToIndexConverter.Instance}}"
+                                      IsEnabled="{Binding !IsConnected}">
+                                <ComboBoxItem Content="Serial"/>
+                                <ComboBoxItem Content="TCP"/>
+                                <ComboBoxItem Content="Bluetooth"/>
+                            </ComboBox>
+
+                            <Border Grid.Column="1"/>
+
+                            <Button Grid.Column="2"
+                                    Content="Connect"
+                                    Classes="btn-cyan"
+                                    Command="{Binding ConnectCommand}"
+                                    IsEnabled="{Binding CanConnect}"/>
+
+                            <Button Grid.Column="3"
+                                    Content="Disconnect"
+                                    Classes="btn-cyan-outline"
+                                    Command="{Binding DisconnectCommand}"
+                                    IsEnabled="{Binding IsConnected}"/>
+                        </Grid>
                     </StackPanel>
                 </Border>
 
+                <!-- Serial Connection Options -->
+                <Border Classes="conn-card" IsVisible="{Binding IsSerialConnection}">
+                    <StackPanel Spacing="16">
+                        <StackPanel Spacing="4">
+                            <TextBlock Text="Serial Port" Classes="conn-label"/>
+                            <ComboBox Classes="conn-combo"
+                                      ItemsSource="{Binding AvailableSerialPorts}"
+                                      SelectedItem="{Binding SelectedSerialPort}"
+                                      IsEnabled="{Binding !IsConnected}"
+                                      HorizontalAlignment="Stretch">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding FriendlyName}"/>
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
+                        </StackPanel>
+
+                        <StackPanel Spacing="4">
+                            <TextBlock Text="Baud Rate" Classes="conn-label"/>
+                            <ComboBox Classes="conn-combo"
+                                      ItemsSource="{Binding AvailableBaudRates}"
+                                      SelectedItem="{Binding SelectedBaudRate}"
+                                      IsEnabled="{Binding !IsConnected}"
+                                      HorizontalAlignment="Stretch">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Display}"/>
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <!-- TCP Connection Options -->
+                <Border Classes="conn-card" IsVisible="{Binding IsTcpConnection}">
+                    <Grid ColumnDefinitions="2*,*" ColumnSpacing="16">
+                        <StackPanel Grid.Column="0" Spacing="4">
+                            <TextBlock Text="IP Address" Classes="conn-label"/>
+                            <TextBox Classes="conn-input"
+                                     Text="{Binding IpAddress}"
+                                     IsEnabled="{Binding !IsConnected}"
+                                     Watermark="192.168.1.100"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Spacing="4">
+                            <TextBlock Text="Port" Classes="conn-label"/>
+                            <TextBox Classes="conn-input"
+                                     Text="{Binding TcpPort}"
+                                     IsEnabled="{Binding !IsConnected}"
+                                     Watermark="5760"/>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <!-- Bluetooth Connection Options -->
+                <Border Classes="conn-card" IsVisible="{Binding IsBluetoothConnection}">
+                    <StackPanel Spacing="16">
+                        <Grid ColumnDefinitions="*,Auto">
+                            <TextBlock Grid.Column="0" 
+                                       Text="Bluetooth Device" 
+                                       Classes="conn-label" 
+                                       VerticalAlignment="Center"/>
+                            <Button Grid.Column="1" 
+                                    Content="Scan Devices" 
+                                    Classes="btn-cyan-outline"
+                                    Command="{Binding ScanBluetoothDevicesCommand}"
+                                    IsEnabled="{Binding !IsConnected}"
+                                    Padding="16,8"/>
+                        </Grid>
+                        <ComboBox Classes="conn-combo"
+                                  ItemsSource="{Binding AvailableBluetoothDevices}"
+                                  SelectedItem="{Binding SelectedBluetoothDevice}"
+                                  IsEnabled="{Binding !IsConnected}"
+                                  HorizontalAlignment="Stretch">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate>
+                                    <StackPanel>
+                                        <TextBlock Text="{Binding DeviceName}" FontWeight="SemiBold"/>
+                                        <TextBlock Text="{Binding DeviceAddress}" FontSize="12" Foreground="#94A3B8"/>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+                    </StackPanel>
+                </Border>
+
+                <!-- Parameter Download Progress -->
+                <Border Background="#E0F2FE"
+                        CornerRadius="12"
+                        Padding="20"
+                        IsVisible="{Binding IsDownloadingParameters}">
+                    <StackPanel Spacing="12">
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <TextBlock Text="??" FontSize="16"/>
+                            <TextBlock Text="Downloading Parameters" 
+                                       FontWeight="SemiBold" 
+                                       FontSize="14" 
+                                       Foreground="#0F172A"/>
+                            <TextBlock Text="{Binding ParameterProgressText}" 
+                                       FontWeight="Bold" 
+                                       FontSize="14" 
+                                       Foreground="#0EA5E9"/>
+                        </StackPanel>
+                        <ProgressBar Value="{Binding ParameterProgressPercentage}" 
+                                     Maximum="100" 
+                                     Height="8"
+                                     CornerRadius="4"
+                                     Foreground="#38BDF8"
+                                     Background="#BFDBFE"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Status Message -->
                 <TextBlock Text="{Binding StatusMessage}"
                            FontSize="14"
                            Foreground="#64748B"
                            TextWrapping="Wrap"
                            HorizontalAlignment="Center"
-                           Margin="0,8,0,0"/>
+                           Margin="0,4,0,0"/>
 
             </StackPanel>
         </ScrollViewer>
