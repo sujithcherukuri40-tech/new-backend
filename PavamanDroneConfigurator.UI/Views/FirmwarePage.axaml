@@ -276,11 +276,12 @@
                             
                             <!-- Title & Badge -->
                             <StackPanel Grid.Row="1" Spacing="12">
-                                <TextBlock Text="Upload Locally"
-                                           FontSize="24"
+                                <TextBlock Text="Load Custom Firmware"
+                                           FontSize="22"
                                            FontWeight="Bold"
                                            Foreground="{DynamicResource TextPrimaryBrush}"
-                                           HorizontalAlignment="Center"/>
+                                           HorizontalAlignment="Center"
+                                           TextAlignment="Center"/>
                                 <Border Background="{DynamicResource SecondaryLightBrush}"
                                         CornerRadius="16"
                                         Padding="16,6"
@@ -677,7 +678,7 @@
                 
                 <!-- Page Title -->
                 <StackPanel Spacing="8" Margin="0,16,0,32">
-                    <TextBlock Text="Upload Custom Firmware"
+                    <TextBlock Text="Load Custom Firmware"
                                FontSize="28"
                                FontWeight="Bold"
                                Foreground="{DynamicResource PrimaryBrush}"/>
