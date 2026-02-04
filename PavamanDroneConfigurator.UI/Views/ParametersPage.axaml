@@ -279,13 +279,12 @@
                 BorderThickness="0,0,0,2"
                 Background="#F9FAFB"
                 Margin="20,12,20,0">
-            <Grid ColumnDefinitions="180,80,70,70,140,*">
+            <Grid ColumnDefinitions="180,80,70,140,*">
                 <TextBlock Grid.Column="0" Text="Name" Classes="header"/>
                 <TextBlock Grid.Column="1" Text="Value" Classes="header"/>
-                <TextBlock Grid.Column="2" Text="Default" Classes="header"/>
-                <TextBlock Grid.Column="3" Text="Units" Classes="header"/>
-                <TextBlock Grid.Column="4" Text="Options" Classes="header"/>
-                <TextBlock Grid.Column="5" Text="Desc" Classes="header"/>
+                <TextBlock Grid.Column="2" Text="Units" Classes="header"/>
+                <TextBlock Grid.Column="3" Text="Options" Classes="header"/>
+                <TextBlock Grid.Column="4" Text="Desc" Classes="header"/>
             </Grid>
         </Border>
 
@@ -328,7 +327,7 @@
                         <Border Classes="row" 
                                 PointerPressed="OnParameterRowPressed"
                                 Tag="{Binding}">
-                            <Grid ColumnDefinitions="180,80,70,70,140,*" MinHeight="36">
+                            <Grid ColumnDefinitions="180,80,70,140,*" MinHeight="36">
                                 
                                 <!-- Name -->
                                 <TextBlock Grid.Column="0" 
@@ -347,20 +346,14 @@
                                          Background="#F5F5F5"
                                          ToolTip.Tip="Current value (read-only)"/>
 
-                                <!-- Default -->
-                                <TextBlock Grid.Column="2" 
-                                           Text="{Binding DefaultDisplay}"
-                                           Classes="cell"
-                                           Foreground="#9CA3AF"/>
-
                                 <!-- Units -->
-                                <TextBlock Grid.Column="3" 
+                                <TextBlock Grid.Column="2" 
                                            Text="{Binding Units, TargetNullValue=''}"
                                            Classes="cell"
                                            Foreground="#6B7280"/>
 
                                 <!-- Options Column (USER EDITABLE - Enum ComboBox OR Bitmask Checkboxes OR TextBox) -->
-                                <Panel Grid.Column="4" Margin="4,4">
+                                <Panel Grid.Column="3" Margin="4,4">
                                     <!-- Bitmask Checkboxes (for parameters like ARMING_CHECK, GCS_PID_MASK) -->
                                     <StackPanel IsVisible="{Binding HasBitmaskOptions}">
                                         <ItemsControl ItemsSource="{Binding Options}">
@@ -396,7 +389,7 @@
                                 </Panel>
 
                                 <!-- Description -->
-                                <TextBlock Grid.Column="5" 
+                                <TextBlock Grid.Column="4" 
                                            Text="{Binding Description, TargetNullValue='No description'}" 
                                            Classes="desc-text"
                                            MaxLines="2"

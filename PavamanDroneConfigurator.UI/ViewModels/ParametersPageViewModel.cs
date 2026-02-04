@@ -146,7 +146,7 @@ public partial class ParametersPageViewModel : ViewModelBase
         // Check if already connected and has parameters
         if (_connectionService.IsConnected && _parameterService.IsParameterDownloadComplete)
         {
-            _ = LoadParametersIntoGridAsync();
+            _ = LoadParametersIntoGridAsync(enableEditing: true);
         }
     }
 
@@ -337,7 +337,7 @@ public partial class ParametersPageViewModel : ViewModelBase
         });
     }
 
-    private async Task LoadParametersIntoGridAsync()
+    private async Task LoadParametersIntoGridAsync(bool enableEditing = false)
     {
         try
         {
@@ -398,6 +398,14 @@ public partial class ParametersPageViewModel : ViewModelBase
             TotalParameterCount = Parameters.Count;
             ModifiedParameterCount = 0;
             HasUnsavedChanges = false;
+            
+            // Enable editing if requested (for constructor scenario)
+            if (enableEditing)
+            {
+                CanEditParameters = true;
+                _parametersLoaded = true;
+                StatusMessage = $"Successfully loaded {Parameters.Count} parameters - Select a parameter to see details";
+            }
             
             OnPropertyChanged(nameof(Parameters));
             OnPropertyChanged(nameof(FilteredParameters));
