@@ -79,6 +79,12 @@ public partial class SensorsCalibrationPageViewModel : ViewModelBase
     [ObservableProperty]
     private string _rebootPromptMessage = "Calibration complete! Please reboot the autopilot to apply changes.";
 
+    [ObservableProperty]
+    private bool _showCalibrationFailedDialog;
+
+    [ObservableProperty]
+    private string _calibrationFailedMessage = "The calibration could not be completed.";
+
     #endregion
 
     #region Calibration Active States
@@ -182,7 +188,7 @@ public partial class SensorsCalibrationPageViewModel : ViewModelBase
     private string _currentCalibrationImage = "avares://PavamanDroneConfigurator.UI/Assets/Images/Caliberation-images/Level.png";
 
     /// <summary>
-    /// MissionPlanner-style button text:
+    /// Mission Planner-style button text:
     /// - "Calibrate Accel" when idle
     /// - "Click when Done" during calibration
     /// - "Done" when calibration finished
@@ -522,11 +528,17 @@ public partial class SensorsCalibrationPageViewModel : ViewModelBase
                 break;
 
             case CalibrationState.Failed:
-                // Reset to allow retry
+                // Reset to allow retry and show failed dialog
                 AccelButtonText = "Calibrate Accel";
                 IsAccelButtonEnabled = true;
                 AccelInstructions = $"Calibration failed: {e.Message}. Click to retry.";
                 ResetAllStepIndicators();
+                
+                // Show calibration failed popup
+                CalibrationFailedMessage = !string.IsNullOrEmpty(e.Message) 
+                    ? e.Message 
+                    : "The accelerometer calibration could not be completed. Please ensure the vehicle is held steady in each position and try again.";
+                ShowCalibrationFailedDialog = true;
                 break;
 
             case CalibrationState.Idle:
@@ -1125,6 +1137,23 @@ public partial class SensorsCalibrationPageViewModel : ViewModelBase
     }
 
     [RelayCommand]
+    private void CloseCalibrationFailedDialog() => ShowCalibrationFailedDialog = false;
+
+    [RelayCommand]
+    private async Task RetryCalibrationAsync()
+    {
+        ShowCalibrationFailedDialog = false;
+        
+        // Reset state and retry accelerometer calibration
+        ResetAllStepIndicators();
+        AccelButtonText = "Calibrate Accel";
+        IsAccelButtonEnabled = true;
+        AccelInstructions = "Click 'Calibrate Accel' to start 6-position accelerometer calibration.";
+        
+        await CalibrateAccelerometerAsync();
+    }
+
+    [RelayCommand]
     private void ToggleDebugLogs() => ShowDebugLogs = !ShowDebugLogs;
 
     [RelayCommand]
@@ -1635,7 +1664,7 @@ public partial class SensorsCalibrationPageViewModel : ViewModelBase
             {
                 IsLevelCalibrated = true;
                 LevelCalibrationStatus = "Calibration complete";
-                LevelInstructions = "Level calibration successful! Reboot to apply changes.";
+                LevelInstructions = "Barometer calibration successful!";
                 StatusMessage = "Level calibration complete";
             }
             else
