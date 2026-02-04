@@ -1082,8 +1082,16 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
             _logger.LogInformation("Sending MAV_CMD_DO_START_MAG_CAL: mask={Mask} retry={Retry} autosave={Autosave}",
                 magMask, retryOnFailure, autosave);
 
-            return await SendCommandLongAsync(MAV_CMD_DO_START_MAG_CAL,
+            _mavLinkLogger?.LogOutgoing("COMMAND_LONG",
+                $"cmd=MAV_CMD_DO_START_MAG_CAL(42424), param1(mask)={magMask}, param2(retry)={retryOnFailure}, param3(autosave)={autosave}, param4(delay)={delay}, param5(autoreboot)={autoreboot}");
+
+            // Use fire-and-forget similar to accelerometer calibration
+            // The FC will send MAG_CAL_PROGRESS and MAG_CAL_REPORT messages
+            // Using SendCommandLongAsync can cause timeout issues if FC is slow to ACK
+            await SendCommandLongFireAndForgetAsync(MAV_CMD_DO_START_MAG_CAL,
                 magMask, retryOnFailure, autosave, delay, autoreboot, 0, 0, ct);
+
+            return CommandResult.Accepted;
         }
 
         public async Task<CommandResult> SendAcceptMagCalAsync(int magMask = 0, CancellationToken ct = default)
