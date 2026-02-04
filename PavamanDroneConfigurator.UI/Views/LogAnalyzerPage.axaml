@@ -324,148 +324,161 @@
             
             <!-- PLOT TAB -->
             <TabItem Header="Plot">
-                <Grid ColumnDefinitions="*,280">
-                    <!-- Graph Area -->
-                    <Grid Grid.Column="0" RowDefinitions="Auto,*,Auto" Background="White">
-                        <!-- Legend -->
-                        <Border Grid.Row="0" Background="#F8F8F8" Padding="12" BorderBrush="#E1E1E1" BorderThickness="0,0,0,1">
-                            <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
-                                <StackPanel>
-                                    <TextBlock Text="Selected Graph Fields" Foreground="#333333" FontSize="14" FontWeight="Bold" HorizontalAlignment="Center" Margin="0,0,0,8"/>
-                                    <ItemsControl ItemsSource="{Binding SelectedGraphFields}">
-                                        <ItemsControl.ItemsPanel>
-                                            <ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate>
-                                        </ItemsControl.ItemsPanel>
-                                        <ItemsControl.ItemTemplate>
-                                            <DataTemplate x:DataType="models:LogFieldInfo">
-                                                <Border Background="White" BorderBrush="#DDDDDD" BorderThickness="1" Padding="8,4" Margin="4" >
-                                                    <StackPanel Orientation="Horizontal" Spacing="6">
-                                                        <Rectangle Width="16" Height="4" Fill="{Binding Color}" VerticalAlignment="Center" />
-                                                        <TextBlock Text="{Binding DisplayName}" Foreground="{Binding Color}" FontSize="11" FontWeight="SemiBold"/>
-                                                        <TextBlock Foreground="#888888" FontSize="10">
-                                                            <Run Text="(Min:"/><Run Text="{Binding MinValue, StringFormat=F2}"/>
-                                                            <Run Text=" Max:"/><Run Text="{Binding MaxValue, StringFormat=F2}"/>
-                                                            <Run Text=" Mean:"/><Run Text="{Binding MeanValue, StringFormat=F2}"/><Run Text=")"/>
-                                                        </TextBlock>
-                                                    </StackPanel>
-                                                </Border>
-                                            </DataTemplate>
-                                        </ItemsControl.ItemTemplate>
-                                    </ItemsControl>
-                                </StackPanel>
-                            </ScrollViewer>
-                        </Border>
+                <Grid RowDefinitions="*,Auto,300">
+                    
+                    <!-- Graph Area (Top) -->
+                    <Grid Grid.Row="0">
+                        <controls:LogGraphControl x:Name="GraphControl"
+                                                   IsVisible="{Binding HasGraphData}"/>
                         
-                        <!-- Graph -->
-                        <Border Grid.Row="1" Margin="4">
-                            <Grid>
-                                <controls:LogGraphControl x:Name="GraphControl" IsVisible="{Binding HasGraphData}"/>
-                                <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" IsVisible="{Binding !HasGraphData}">
-                                    <TextBlock Text="Select data series from the right panel" Foreground="#999999" FontSize="14"/>
-                                    <TextBlock Text="to display on the graph" Foreground="#BBBBBB" FontSize="12" HorizontalAlignment="Center" Margin="0,4,0,0"/>
-                                </StackPanel>
-                            </Grid>
-                        </Border>
-                        
-                        <!-- Cursor Readout -->
-                        <Border Grid.Row="2" Background="#F8F8F8" Padding="12" BorderBrush="#E1E1E1" BorderThickness="0,1,0,0">
-                            <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
-                                <StackPanel Orientation="Horizontal" Spacing="20">
-                                    <TextBlock Text="{Binding CursorTimeDisplay}" Foreground="#333333" FontSize="12" FontWeight="Bold"/>
-                                    <ItemsControl ItemsSource="{Binding CursorReadouts}">
-                                        <ItemsControl.ItemsPanel>
-                                            <ItemsPanelTemplate><StackPanel Orientation="Horizontal" Spacing="16"/></ItemsPanelTemplate>
-                                        </ItemsControl.ItemsPanel>
-                                        <ItemsControl.ItemTemplate>
-                                            <DataTemplate x:DataType="vm:CursorReadout">
-                                                <StackPanel Orientation="Horizontal" Spacing="6">
-                                                    <Rectangle Width="10" Height="10" Fill="{Binding Color}" />
-                                                    <TextBlock Text="{Binding FieldName}" Foreground="#666666" FontSize="11"/>
-                                                    <TextBlock Text="{Binding ValueDisplay}" Foreground="#333333" FontSize="11" FontWeight="SemiBold"/>
-                                                </StackPanel>
-                                            </DataTemplate>
-                                        </ItemsControl.ItemTemplate>
-                                    </ItemsControl>
-                                </StackPanel>
-                            </ScrollViewer>
-                        </Border>
+                        <!-- No Data Message -->
+                        <StackPanel IsVisible="{Binding !HasGraphData}"
+                                    VerticalAlignment="Center"
+                                    HorizontalAlignment="Center">
+                            <TextBlock Text="Select fields to graph"
+                                       Foreground="#999999"
+                                       FontSize="16"
+                                       HorizontalAlignment="Center"/>
+                            <TextBlock Text="Use the field tree on the right to add data series"
+                                       Foreground="#BBBBBB"
+                                       FontSize="12"
+                                       HorizontalAlignment="Center"
+                                       Margin="0,8,0,0"/>
+                        </StackPanel>
                     </Grid>
                     
-                    <!-- Series Picker -->
-                    <Border Grid.Column="1" Background="White" BorderBrush="#E1E1E1" BorderThickness="1,0,0,0">
-                        <Grid RowDefinitions="Auto,*">
-                            <TextBox Grid.Row="0" Text="{Binding GraphFieldFilter}" Watermark="🔍 Search fields..." 
-                                     Background="#FAFAFA" Foreground="#333333" BorderThickness="0,0,0,1" BorderBrush="#E1E1E1" 
-                                     Margin="0" Padding="12,10" FontSize="12"/>
-                            
-
-                            <!-- Events Scrollable List -->
-                            <ScrollViewer Grid.Row="1">
-                                <ItemsControl ItemsSource="{Binding FilteredFields}" Margin="4">
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate x:DataType="models:LogFieldInfo">
-                                            <Border Padding="8,6" Background="Transparent" Cursor="Hand" PointerPressed="FieldItem_PointerPressed" >
-                                                <Border.Styles>
-                                                    <Style Selector="Border[Background=Transparent]:pointerover">
-                                                        <Setter Property="Background" Value="#F5F5F5"/>
-                                                    </Style>
-                                                </Border.Styles>
-                                                <StackPanel Orientation="Horizontal" Spacing="8">
-                                                    <CheckBox IsChecked="{Binding IsSelected}" IsHitTestVisible="False" VerticalAlignment="Center"/>
-                                                    <Rectangle Width="12" Height="12" Fill="{Binding Color}" IsVisible="{Binding IsSelected}" 
-                                                               VerticalAlignment="Center" />
-                                                    <TextBlock Text="{Binding DisplayName}" Foreground="#333333" FontSize="11" VerticalAlignment="Center"/>
-                                                </StackPanel>
+                    <!-- Splitter -->
+                    <GridSplitter Grid.Row="1"
+                                  Background="#E1E1E1"
+                                  Height="4"
+                                  HorizontalAlignment="Stretch"/>
+                    
+                    <!-- Map Area (Bottom) -->
+                    <Grid Grid.Row="2">
+                        <!-- Map Header with Controls -->
+                        <Border Background="White"
+                                BorderBrush="#E1E1E1"
+                                BorderThickness="1"
+                                CornerRadius="4"
+                                Margin="4">
+                            <Grid RowDefinitions="Auto,*">
+                                <!-- Header Bar -->
+                                <Border Grid.Row="0"
+                                        Background="#F5F5F5"
+                                        Padding="12,8"
+                                        BorderBrush="#E1E1E1"
+                                        BorderThickness="0,0,0,1">
+                                    <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto">
+                                        <TextBlock Grid.Column="0"
+                                                   Text="GPS Track &amp; Events"
+                                                   FontWeight="SemiBold"
+                                                   FontSize="14"
+                                                   VerticalAlignment="Center"
+                                                   Foreground="#333333"/>
+                                        
+                                        <!-- Event Count Badge -->
+                                        <StackPanel Grid.Column="1"
+                                                    Orientation="Horizontal"
+                                                    HorizontalAlignment="Left"
+                                                    Margin="12,0,0,0"
+                                                    IsVisible="{Binding HasGpsData}">
+                                            <Border Background="#EF4444"
+                                                    CornerRadius="10"
+                                                    Padding="8,2"
+                                                    Margin="0,0,8,0"
+                                                    IsVisible="{Binding CriticalMapEvents.Count}">
+                                                <TextBlock Text="{Binding CriticalMapEvents.Count}"
+                                                           Foreground="White"
+                                                           FontSize="11"
+                                                           FontWeight="Bold"/>
                                             </Border>
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
-                            </ScrollViewer>
-                        </Grid>
-                    </Border>
+                                            <TextBlock Text="Critical Events"
+                                                       Foreground="#666666"
+                                                       FontSize="11"
+                                                       VerticalAlignment="Center"
+                                                       IsVisible="{Binding CriticalMapEvents.Count}"/>
+                                        </StackPanel>
+                                        
+                                        <!-- GPS Points Count -->
+                                        <TextBlock Grid.Column="2"
+                                                   Text="{Binding GpsTrack.Count, StringFormat='{}{0:N0} GPS points'}"
+                                                   Foreground="#666666"
+                                                   FontSize="12"
+                                                   VerticalAlignment="Center"
+                                                   Margin="0,0,12,0"
+                                                   IsVisible="{Binding HasGpsData}"/>
+                                        
+                                        <!-- Zoom to Fit Button -->
+                                        <Button Grid.Column="3"
+                                                Content="🎯 Fit"
+                                                Padding="8,4"
+                                                Margin="0,0,8,0"
+                                                Classes="ToolbarButton"
+                                                IsVisible="{Binding HasGpsData}"
+                                                ToolTip.Tip="Zoom to fit GPS track"/>
+                                        
+                                        <!-- Toggle Map Button -->
+                                        <ToggleButton Grid.Column="4"
+                                                      Content="📍 Map"
+                                                      Padding="8,4"
+                                                      IsChecked="{Binding ShowMap}"
+                                                      Classes="ToolbarButton"
+                                                      IsVisible="{Binding HasGpsData}"/>
+                                    </Grid>
+                                </Border>
+                                
+                                <!-- Map Display -->
+                                <Grid Grid.Row="1" IsVisible="{Binding ShowMap}">
+                                    <controls:LogMapControl TrackPoints="{Binding GpsTrackPoints}"
+                                                            CriticalEvents="{Binding CriticalMapEvents}"
+                                                            CenterLatitude="{Binding MapCenterLat}"
+                                                            CenterLongitude="{Binding MapCenterLng}"
+                                                            IsVisible="{Binding HasGpsData}"/>
+                                    
+                                    <!-- No GPS Data Message -->
+                                    <StackPanel IsVisible="{Binding !HasGpsData}"
+                                                VerticalAlignment="Center"
+                                                HorizontalAlignment="Center">
+                                        <TextBlock Text="No GPS data available"
+                                                   Foreground="#999999"
+                                                   FontSize="16"
+                                                   HorizontalAlignment="Center"/>
+                                        <TextBlock Text="Load a log file with GPS data to view the track and events"
+                                                   Foreground="#BBBBBB"
+                                                   FontSize="12"
+                                                   HorizontalAlignment="Center"
+                                                   Margin="0,8,0,0"/>
+                                    </StackPanel>
+                                </Grid>
+                            </Grid>
+                        </Border>
+                    </Grid>
                 </Grid>
             </TabItem>
             
             <!-- MAP TAB -->
             <TabItem Header="Map">
-                <Grid Background="White">
-                    <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" IsVisible="{Binding !HasGpsData}">
-                        <TextBlock Text="No GPS data available" Foreground="#999999" FontSize="16"/>
-                        <TextBlock Text="Load a log file with GPS data to view the flight track" Foreground="#BBBBBB" FontSize="12" Margin="0,8,0,0"/>
-                    </StackPanel>
-                    
-                    <!-- Map Control -->
-                    <controls:LogMapControl 
-                        x:Name="MapControl"
-                        IsVisible="{Binding HasGpsData}"
+                <Grid>
+                    <controls:LogMapControl
                         TrackPoints="{Binding GpsTrackPoints}"
+                        CriticalEvents="{Binding CriticalMapEvents}"
                         CenterLatitude="{Binding MapCenterLat}"
-                        CenterLongitude="{Binding MapCenterLng}"/>
+                        CenterLongitude="{Binding MapCenterLng}"
+                        IsVisible="{Binding HasGpsData}"/>
                     
-                    <!-- Map Info Overlay -->
-                    <Border Background="White" VerticalAlignment="Bottom" HorizontalAlignment="Left" 
-                            Margin="20" Padding="12" CornerRadius="4" BorderBrush="#DDDDDD" BorderThickness="1"
-                            IsVisible="{Binding HasGpsData}">
-                        <StackPanel>
-                            <TextBlock Foreground="#666666" FontSize="11">
-                                <Run Text="Track Points: "/><Run Text="{Binding GpsTrack.Count}" FontWeight="SemiBold"/>
-                            </TextBlock>
-                            <TextBlock Foreground="#666666" FontSize="11" Margin="0,4,0,0">
-                                <Run Text="Center: "/><Run Text="{Binding MapCenterLat, StringFormat=F6}"/>
-                                <Run Text=", "/><Run Text="{Binding MapCenterLng, StringFormat=F6}"/>
-                            </TextBlock>
-                            <TextBlock Foreground="#666666" FontSize="11" Margin="0,4,0,0">
-                                <Run Text="Duration: "/><Run Text="{Binding LogDuration}" FontWeight="SemiBold"/>
-                            </TextBlock>
-                        </StackPanel>
-                    </Border>
-                    
-                    <!-- Map Controls Overlay -->
-                    <StackPanel VerticalAlignment="Top" HorizontalAlignment="Right" Margin="20" Spacing="8"
-                                IsVisible="{Binding HasGpsData}">
-                        <Button Content="🔍 Zoom to Track" Classes="ToolbarButton" Click="ZoomToTrack_Click" Padding="8,6"/>
-                        <Button Content="📍 Center on Start" Classes="ToolbarButton" Click="CenterOnStart_Click" Padding="8,6"/>
-                        <Button Content="🏁 Center on End" Classes="ToolbarButton" Click="CenterOnEnd_Click" Padding="8,6"/>
+                    <!-- No GPS Data Message -->
+                    <StackPanel IsVisible="{Binding !HasGpsData}" 
+                                VerticalAlignment="Center" 
+                                HorizontalAlignment="Center">
+                        <TextBlock Text="No GPS data available" 
+                                   Foreground="#999999" 
+                                   FontSize="16" 
+                                   HorizontalAlignment="Center"/>
+                        <TextBlock Text="Load a log file with GPS data to view the track" 
+                                   Foreground="#BBBBBB" 
+                                   FontSize="12" 
+                                   HorizontalAlignment="Center" 
+                                   Margin="0,8,0,0"/>
                     </StackPanel>
                 </Grid>
             </TabItem>
@@ -1091,6 +1104,24 @@
             <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
                 <ProgressBar IsIndeterminate="True" Width="250" Height="6" />
                 <TextBlock Text="{Binding StatusMessage}" Foreground="#333333" HorizontalAlignment="Center" Margin="0,12,0,0" FontSize="13"/>
+            </StackPanel>
+        </Border>
+
+        <!-- Loading Overlay (visible during log operations) -->
+        <Border Grid.Row="0"
+                Background="#CCF9FAFB"
+                IsVisible="{Binding IsBusy}"
+                ZIndex="10">
+            <StackPanel VerticalAlignment="Center" 
+                        HorizontalAlignment="Center"
+                        Spacing="20">
+                <!-- Modern Spinner -->
+                <controls:LoadingSpinner/>
+                <TextBlock Text="{Binding StatusMessage}"
+                           FontSize="14"
+                           Foreground="#475569"
+                           HorizontalAlignment="Center"
+                           TextAlignment="Center"/>
             </StackPanel>
         </Border>
     </Grid>

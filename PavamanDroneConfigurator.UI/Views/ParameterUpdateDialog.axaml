@@ -1,0 +1,164 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="using:PavamanDroneConfigurator.UI.ViewModels"
+        mc:Ignorable="d" d:DesignWidth="500" d:DesignHeight="400"
+        x:Class="PavamanDroneConfigurator.UI.Views.ParameterUpdateDialog"
+        x:DataType="vm:ParameterUpdateDialogViewModel"
+        Title="{Binding DialogTitle}"
+        Width="550"
+        Height="450"
+        MinWidth="450"
+        MinHeight="350"
+        CanResize="False"
+        WindowStartupLocation="CenterOwner"
+        Background="#FFFFFF">
+
+    <Window.Styles>
+        <Style Selector="Button.btn-primary">
+            <Setter Property="Background" Value="#3B82F6"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="Padding" Value="24,12"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+        </Style>
+        <Style Selector="Button.btn-primary:pointerover">
+            <Setter Property="Background" Value="#2563EB"/>
+        </Style>
+
+        <Style Selector="Button.btn-secondary">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="#6B7280"/>
+            <Setter Property="FontWeight" Value="Medium"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="Padding" Value="24,12"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="BorderBrush" Value="#D1D5DB"/>
+            <Setter Property="Cursor" Value="Hand"/>
+        </Style>
+        <Style Selector="Button.btn-secondary:pointerover">
+            <Setter Property="Background" Value="#F3F4F6"/>
+        </Style>
+
+        <Style Selector="DataGrid">
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="BorderBrush" Value="#E5E7EB"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="GridLinesVisibility" Value="Horizontal"/>
+            <Setter Property="HorizontalGridLinesBrush" Value="#E5E7EB"/>
+        </Style>
+    </Window.Styles>
+
+    <Grid RowDefinitions="Auto,*,Auto" Margin="24">
+        
+        <!-- Header -->
+        <StackPanel Grid.Row="0" Spacing="8" Margin="0,0,0,16">
+            <StackPanel Orientation="Horizontal" Spacing="12">
+                <Border Width="48" Height="48" CornerRadius="12" Background="#FEF3C7">
+                    <TextBlock Text="??" FontSize="24" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                </Border>
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock Text="{Binding DialogTitle}" 
+                               FontSize="18" 
+                               FontWeight="Bold" 
+                               Foreground="#1F2937"/>
+                    <TextBlock FontSize="13" Foreground="#6B7280">
+                        <Run Text="{Binding ChangeCount}"/>
+                        <Run Text=" parameter(s) will be updated"/>
+                    </TextBlock>
+                </StackPanel>
+            </StackPanel>
+            <TextBlock Text="{Binding DialogMessage}" 
+                       FontSize="13" 
+                       Foreground="#6B7280"
+                       Margin="0,8,0,0"/>
+        </StackPanel>
+
+        <!-- Changes List -->
+        <Border Grid.Row="1" 
+                BorderBrush="#E5E7EB" 
+                BorderThickness="1" 
+                CornerRadius="8"
+                Background="#F9FAFB">
+            <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                <ItemsControl ItemsSource="{Binding PendingChanges}" Margin="4">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:PendingParameterChange">
+                            <Border Background="White" 
+                                    CornerRadius="6" 
+                                    Margin="4" 
+                                    Padding="12,10"
+                                    BorderBrush="#E5E7EB"
+                                    BorderThickness="1">
+                                <Grid ColumnDefinitions="*,Auto,Auto,Auto">
+                                    <!-- Parameter Name -->
+                                    <TextBlock Grid.Column="0" 
+                                               Text="{Binding Name}" 
+                                               FontWeight="SemiBold"
+                                               FontSize="13"
+                                               Foreground="#1F2937"
+                                               VerticalAlignment="Center"/>
+                                    
+                                    <!-- Original Value -->
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="16,0">
+                                        <TextBlock Text="{Binding OriginalValueDisplay}" 
+                                                   FontSize="12"
+                                                   FontFamily="JetBrains Mono, Consolas, monospace"
+                                                   Foreground="#9CA3AF"
+                                                   VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                    
+                                    <!-- Arrow -->
+                                    <TextBlock Grid.Column="2" 
+                                               Text="?" 
+                                               FontSize="14"
+                                               Foreground="#3B82F6"
+                                               VerticalAlignment="Center"
+                                               Margin="8,0"/>
+                                    
+                                    <!-- New Value -->
+                                    <Border Grid.Column="3" 
+                                            Background="#DBEAFE" 
+                                            CornerRadius="4" 
+                                            Padding="8,4">
+                                        <TextBlock Text="{Binding NewValueDisplay}" 
+                                                   FontSize="12"
+                                                   FontWeight="SemiBold"
+                                                   FontFamily="JetBrains Mono, Consolas, monospace"
+                                                   Foreground="#1E40AF"
+                                                   VerticalAlignment="Center"/>
+                                    </Border>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+        </Border>
+
+        <!-- Buttons -->
+        <Grid Grid.Row="2" ColumnDefinitions="*,Auto,Auto" Margin="0,20,0,0">
+            <TextBlock Grid.Column="0" 
+                       Text="Changes will be applied to the vehicle immediately."
+                       FontSize="11"
+                       Foreground="#9CA3AF"
+                       VerticalAlignment="Center"/>
+            
+            <Button Grid.Column="1"
+                    Content="Cancel"
+                    Classes="btn-secondary"
+                    Margin="0,0,12,0"
+                    Click="OnCancelClick"/>
+            
+            <Button Grid.Column="2"
+                    Content="Update Parameters"
+                    Classes="btn-primary"
+                    Click="OnConfirmClick"/>
+        </Grid>
+    </Grid>
+</Window>
