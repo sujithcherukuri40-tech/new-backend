@@ -1,0 +1,369 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:PavamanDroneConfigurator.UI.ViewModels.Admin"
+             x:Class="PavamanDroneConfigurator.UI.Views.Admin.FirmwareManagementPage"
+             x:DataType="vm:FirmwareManagementViewModel">
+
+    <UserControl.Styles>
+        <!-- Admin Card Style -->
+        <Style Selector="Border.admin-card">
+            <Setter Property="Background" Value="{DynamicResource CardBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="12"/>
+            <Setter Property="Padding" Value="24"/>
+            <Setter Property="Margin" Value="0,0,0,16"/>
+            <Setter Property="BoxShadow" Value="0 2 8 0 #10000000"/>
+        </Style>
+        
+        <!-- Data Grid Style -->
+        <Style Selector="DataGrid">
+            <Setter Property="Background" Value="{DynamicResource SurfaceBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="GridLinesVisibility" Value="Horizontal"/>
+            <Setter Property="HeadersVisibility" Value="Column"/>
+            <Setter Property="CanUserReorderColumns" Value="True"/>
+            <Setter Property="CanUserResizeColumns" Value="True"/>
+        </Style>
+        
+        <!-- Action Button Style -->
+        <Style Selector="Button.action-btn">
+            <Setter Property="Padding" Value="12,8"/>
+            <Setter Property="CornerRadius" Value="6"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="BorderThickness" Value="0"/>
+        </Style>
+        
+        <Style Selector="Button.action-btn.edit">
+            <Setter Property="Background" Value="{DynamicResource PrimaryBrush}"/>
+            <Setter Property="Foreground" Value="White"/>
+        </Style>
+        
+        <Style Selector="Button.action-btn.delete">
+            <Setter Property="Background" Value="{DynamicResource ErrorBrush}"/>
+            <Setter Property="Foreground" Value="White"/>
+        </Style>
+        
+        <Style Selector="Button.action-btn.download">
+            <Setter Property="Background" Value="{DynamicResource SuccessBrush}"/>
+            <Setter Property="Foreground" Value="White"/>
+        </Style>
+    </UserControl.Styles>
+
+    <Grid RowDefinitions="Auto,*">
+        
+        <!-- Page Header -->
+        <Grid Grid.Row="0" ColumnDefinitions="*,Auto,Auto" Margin="32,24,32,20">
+            <StackPanel Grid.Column="0">
+                <TextBlock Text="?? Pavaman Firmware Management"
+                           FontSize="32"
+                           FontWeight="Bold"
+                           Foreground="{DynamicResource PrimaryBrush}"/>
+                <TextBlock Text="Upload, manage, and deploy custom Pavaman firmware to cloud"
+                           FontSize="14"
+                           Foreground="{DynamicResource TextSecondaryBrush}"
+                           Margin="0,6,0,0"/>
+            </StackPanel>
+            
+            <!-- Stats Cards -->
+            <Border Grid.Column="1"
+                    Background="{DynamicResource SuccessLightBrush}"
+                    CornerRadius="10"
+                    Padding="16,12"
+                    Margin="0,0,12,0">
+                <StackPanel Spacing="4">
+                    <TextBlock Text="Total Firmwares"
+                               FontSize="11"
+                               Foreground="{DynamicResource SuccessDarkBrush}"
+                               FontWeight="SemiBold"/>
+                    <TextBlock Text="{Binding TotalFirmwareCount}"
+                               FontSize="24"
+                               FontWeight="Bold"
+                               Foreground="{DynamicResource SuccessBrush}"/>
+                </StackPanel>
+            </Border>
+            
+            <Border Grid.Column="2"
+                    Background="{DynamicResource InfoLightBrush}"
+                    CornerRadius="10"
+                    Padding="16,12">
+                <StackPanel Spacing="4">
+                    <TextBlock Text="Storage Used"
+                               FontSize="11"
+                               Foreground="{DynamicResource InfoDarkBrush}"
+                               FontWeight="SemiBold"/>
+                    <TextBlock Text="{Binding TotalStorageUsed}"
+                               FontSize="24"
+                               FontWeight="Bold"
+                               Foreground="{DynamicResource InfoBrush}"/>
+                </StackPanel>
+            </Border>
+        </Grid>
+        
+        <!-- Main Content -->
+        <ScrollViewer Grid.Row="1" Padding="32,0,32,24">
+            <StackPanel Spacing="24">
+                
+                <!-- Upload New Firmware Card -->
+                <Border Classes="admin-card">
+                    <StackPanel Spacing="20">
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="?? Upload New Firmware"
+                                       FontSize="20"
+                                       FontWeight="Bold"
+                                       Foreground="{DynamicResource TextPrimaryBrush}"/>
+                            <TextBlock Text="Upload custom Pavaman firmware to make it available for all users"
+                                       FontSize="13"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"/>
+                        </StackPanel>
+                        
+                        <!-- Upload Form -->
+                        <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto" RowSpacing="16" ColumnSpacing="16">
+                            
+                            <!-- Firmware Name -->
+                            <TextBlock Grid.Column="0" Grid.Row="0"
+                                       Text="Firmware Name *"
+                                       FontWeight="SemiBold"
+                                       FontSize="13"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"/>
+                            <TextBox Grid.Column="0" Grid.Row="1"
+                                     Text="{Binding NewFirmwareName}"
+                                     Watermark="e.g., Pavaman AgriCopter v4.5.2"
+                                     Height="44"
+                                     CornerRadius="8"
+                                     Padding="12"/>
+                            
+                            <!-- Vehicle Type -->
+                            <TextBlock Grid.Column="1" Grid.Row="0"
+                                       Text="Vehicle Type *"
+                                       FontWeight="SemiBold"
+                                       FontSize="13"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"/>
+                            <ComboBox Grid.Column="1" Grid.Row="1"
+                                      ItemsSource="{Binding VehicleTypes}"
+                                      SelectedItem="{Binding SelectedVehicleType}"
+                                      Height="44"
+                                      CornerRadius="8"
+                                      Padding="12">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding}"/>
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
+                            
+                            <!-- Version -->
+                            <TextBlock Grid.Column="0" Grid.Row="2"
+                                       Text="Version *"
+                                       FontWeight="SemiBold"
+                                       FontSize="13"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"/>
+                            <TextBox Grid.Column="0" Grid.Row="3"
+                                     Text="{Binding NewFirmwareVersion}"
+                                     Watermark="e.g., 4.5.2"
+                                     Height="44"
+                                     CornerRadius="8"
+                                     Padding="12"/>
+                            
+                            <!-- Description -->
+                            <TextBlock Grid.Column="1" Grid.Row="2"
+                                       Text="Description"
+                                       FontWeight="SemiBold"
+                                       FontSize="13"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"/>
+                            <TextBox Grid.Column="1" Grid.Row="3"
+                                     Text="{Binding NewFirmwareDescription}"
+                                     Watermark="Optional description..."
+                                     Height="44"
+                                     CornerRadius="8"
+                                     Padding="12"/>
+                            
+                            <!-- File Selector -->
+                            <StackPanel Grid.Column="0" Grid.ColumnSpan="2" Grid.Row="4" Spacing="12">
+                                <TextBlock Text="Firmware File *"
+                                           FontWeight="SemiBold"
+                                           FontSize="13"
+                                           Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                <Grid ColumnDefinitions="*,Auto">
+                                    <TextBox Grid.Column="0"
+                                             Text="{Binding SelectedFirmwareFileName}"
+                                             IsReadOnly="True"
+                                             Watermark="No file selected..."
+                                             Height="52"
+                                             CornerRadius="8,0,0,8"
+                                             Padding="16"
+                                             FontSize="14"/>
+                                    <Button Grid.Column="1"
+                                            Content="Browse Files"
+                                            Background="{DynamicResource SecondaryBrush}"
+                                            Foreground="White"
+                                            Height="52"
+                                            Padding="24,0"
+                                            CornerRadius="0,8,8,0"
+                                            BorderThickness="0"
+                                            FontWeight="Bold"
+                                            Click="BrowseFirmware_Click"/>
+                                </Grid>
+                            </StackPanel>
+                        </Grid>
+                        
+                        <!-- Upload Progress -->
+                        <StackPanel Spacing="8" IsVisible="{Binding IsUploading}">
+                            <ProgressBar Value="{Binding UploadProgress}"
+                                         Height="8"
+                                         CornerRadius="4"
+                                         Foreground="{DynamicResource SuccessBrush}"/>
+                            <TextBlock Text="{Binding UploadStatusText}"
+                                       FontSize="12"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                       HorizontalAlignment="Center"/>
+                        </StackPanel>
+                        
+                        <!-- Upload Button -->
+                        <Button Content="?? Upload to Cloud"
+                                Background="{DynamicResource PrimaryBrush}"
+                                Foreground="White"
+                                Height="48"
+                                CornerRadius="10"
+                                FontSize="15"
+                                FontWeight="Bold"
+                                BorderThickness="0"
+                                HorizontalAlignment="Stretch"
+                                Command="{Binding UploadFirmwareCommand}"
+                                IsEnabled="{Binding CanUpload}">
+                            <Button.Styles>
+                                <Style Selector="Button:pointerover">
+                                    <Setter Property="Background" Value="{DynamicResource PrimaryDarkBrush}"/>
+                                </Style>
+                            </Button.Styles>
+                        </Button>
+                    </StackPanel>
+                </Border>
+                
+                <!-- Existing Firmwares List -->
+                <Border Classes="admin-card">
+                    <StackPanel Spacing="20">
+                        <Grid ColumnDefinitions="*,Auto">
+                            <StackPanel Grid.Column="0" Spacing="8">
+                                <TextBlock Text="?? Uploaded Firmwares"
+                                           FontSize="20"
+                                           FontWeight="Bold"
+                                           Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                <TextBlock Text="Manage all custom Pavaman firmwares available in the cloud"
+                                           FontSize="13"
+                                           Foreground="{DynamicResource TextSecondaryBrush}"/>
+                            </StackPanel>
+                            
+                            <!-- Refresh Button -->
+                            <Button Grid.Column="1"
+                                    Classes="action-btn"
+                                    Background="{DynamicResource SecondaryBrush}"
+                                    Foreground="White"
+                                    Command="{Binding RefreshFirmwaresCommand}">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <PathIcon Data="M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"
+                                              Width="14" Height="14"
+                                              Foreground="White"/>
+                                    <TextBlock Text="Refresh"/>
+                                </StackPanel>
+                            </Button>
+                        </Grid>
+                        
+                        <!-- Loading State -->
+                        <Border Background="{DynamicResource InfoLightBrush}"
+                                CornerRadius="8"
+                                Padding="24,20"
+                                IsVisible="{Binding IsLoadingFirmwares}">
+                            <StackPanel Spacing="12" HorizontalAlignment="Center">
+                                <TextBlock Text="? Loading firmwares..."
+                                           FontSize="16"
+                                           FontWeight="SemiBold"
+                                           Foreground="{DynamicResource InfoBrush}"
+                                           HorizontalAlignment="Center"/>
+                            </StackPanel>
+                        </Border>
+                        
+                        <!-- Firmware List -->
+                        <DataGrid ItemsSource="{Binding Firmwares}"
+                                  IsVisible="{Binding !IsLoadingFirmwares}"
+                                  AutoGenerateColumns="False"
+                                  IsReadOnly="True"
+                                  SelectionMode="Single"
+                                  SelectedItem="{Binding SelectedFirmware}"
+                                  Height="400">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Name" 
+                                                    Binding="{Binding Name}" 
+                                                    Width="2*"/>
+                                <DataGridTextColumn Header="Version" 
+                                                    Binding="{Binding Version}" 
+                                                    Width="*"/>
+                                <DataGridTextColumn Header="Vehicle Type" 
+                                                    Binding="{Binding VehicleType}" 
+                                                    Width="*"/>
+                                <DataGridTextColumn Header="Size" 
+                                                    Binding="{Binding FileSizeFormatted}" 
+                                                    Width="*"/>
+                                <DataGridTextColumn Header="Uploaded" 
+                                                    Binding="{Binding UploadedDateFormatted}" 
+                                                    Width="*"/>
+                                <DataGridTextColumn Header="Downloads" 
+                                                    Binding="{Binding DownloadCount}" 
+                                                    Width="*"/>
+                                <DataGridTemplateColumn Header="Actions" Width="2*">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <StackPanel Orientation="Horizontal" Spacing="8" Margin="8,0">
+                                                <Button Classes="action-btn download"
+                                                        Content="??"
+                                                        ToolTip.Tip="Download"
+                                                        Command="{Binding $parent[DataGrid].((vm:FirmwareManagementViewModel)DataContext).DownloadFirmwareCommand}"
+                                                        CommandParameter="{Binding}"/>
+                                                <Button Classes="action-btn edit"
+                                                        Content="??"
+                                                        ToolTip.Tip="Edit"
+                                                        Command="{Binding $parent[DataGrid].((vm:FirmwareManagementViewModel)DataContext).EditFirmwareCommand}"
+                                                        CommandParameter="{Binding}"/>
+                                                <Button Classes="action-btn delete"
+                                                        Content="???"
+                                                        ToolTip.Tip="Delete"
+                                                        Command="{Binding $parent[DataGrid].((vm:FirmwareManagementViewModel)DataContext).DeleteFirmwareCommand}"
+                                                        CommandParameter="{Binding}"/>
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                        
+                        <!-- Empty State -->
+                        <Border Background="{DynamicResource WarningLightBrush}"
+                                CornerRadius="8"
+                                Padding="24,20"
+                                IsVisible="{Binding HasNoFirmwares}">
+                            <StackPanel Spacing="8" HorizontalAlignment="Center">
+                                <TextBlock Text="??"
+                                           FontSize="48"
+                                           HorizontalAlignment="Center"/>
+                                <TextBlock Text="No firmwares uploaded yet"
+                                           FontSize="16"
+                                           FontWeight="SemiBold"
+                                           Foreground="{DynamicResource WarningDarkBrush}"
+                                           HorizontalAlignment="Center"/>
+                                <TextBlock Text="Upload your first custom firmware using the form above"
+                                           FontSize="13"
+                                           Foreground="{DynamicResource TextSecondaryBrush}"
+                                           HorizontalAlignment="Center"/>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </Border>
+                
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</UserControl>

@@ -185,6 +185,12 @@
                                 CommandParameter="{Binding AdminPanelPage}"
                                 Click="NavButton_Click"
                                 IsVisible="{Binding IsAdmin}" />
+                        <Button Content="🚀  Firmware Management"
+                                Classes="nav-button"
+                                Tag="FirmwareManagementPage"
+                                CommandParameter="{Binding FirmwareManagementPage}"
+                                Click="NavButton_Click"
+                                IsVisible="{Binding IsAdmin}" />
 
                     </StackPanel>
                 </ScrollViewer>

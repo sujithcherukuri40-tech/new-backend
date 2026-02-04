@@ -1,611 +1,621 @@
 <UserControl xmlns="https://github.com/avaloniaui"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:vm="using:PavamanDroneConfigurator.UI.ViewModels"
-             x:Class="PavamanDroneConfigurator.UI.Views.SafetyPage"
-             x:DataType="vm:SafetyPageViewModel">
-
-    <UserControl.Styles>
-        <!-- Aviation-Grade Color System -->
-        <Style Selector="TextBlock.PageTitle">
-            <Setter Property="FontSize" Value="28"/>
-            <Setter Property="FontWeight" Value="Bold"/>
-            <Setter Property="Foreground" Value="#0B5ED7"/>
-        </Style>
+         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+         xmlns:vm="using:PavamanDroneConfigurator.UI.ViewModels"
+         x:Class="PavamanDroneConfigurator.UI.Views.SafetyPage"
+         x:DataType="vm:SafetyPageViewModel">
+   
+<UserControl.Styles>
+<!-- Page Header Styles -->
+<Style Selector="TextBlock.PageTitle">
+    <Setter Property="FontSize" Value="32"/>
+    <Setter Property="FontWeight" Value="Bold"/>
+    <Setter Property="Foreground" Value="#0B5ED7"/>
+    <Setter Property="Transitions">
+        <Transitions>
+            <DoubleTransition Property="Opacity" Duration="0:0:0.3"/>
+        </Transitions>
+    </Setter>
+</Style>
         
-        <Style Selector="TextBlock.PageSubtitle">
-            <Setter Property="FontSize" Value="14"/>
-            <Setter Property="Foreground" Value="#64748B"/>
-            <Setter Property="Margin" Value="0,4,0,0"/>
-        </Style>
+<Style Selector="TextBlock.PageSubtitle">
+    <Setter Property="FontSize" Value="14"/>
+    <Setter Property="Foreground" Value="#64748B"/>
+    <Setter Property="Margin" Value="0,6,0,0"/>
+    <Setter Property="Opacity" Value="0.9"/>
+</Style>
         
-        <Style Selector="Border.ComplianceBadge">
-            <Setter Property="CornerRadius" Value="6"/>
-            <Setter Property="Padding" Value="12,6"/>
-            <Setter Property="VerticalAlignment" Value="Center"/>
-        </Style>
+<!-- Badge Styles with Smooth Transitions -->
+<Style Selector="Border.ComplianceBadge">
+    <Setter Property="CornerRadius" Value="8"/>
+    <Setter Property="Padding" Value="14,8"/>
+    <Setter Property="VerticalAlignment" Value="Center"/>
+    <Setter Property="BoxShadow" Value="0 2 8 0 #20000000"/>
+    <Setter Property="Transitions">
+        <Transitions>
+            <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.3"/>
+            <BoxShadowsTransition Property="BoxShadow" Duration="0:0:0.3"/>
+        </Transitions>
+    </Setter>
+</Style>
         
-        <Style Selector="Border.ComplianceBadge.Success">
-            <Setter Property="Background" Value="#1E9E6A"/>
-        </Style>
+<Style Selector="Border.ComplianceBadge.Success">
+    <Setter Property="Background" Value="#1E9E6A"/>
+</Style>
         
-        <Style Selector="Border.ComplianceBadge.Warning">
-            <Setter Property="Background" Value="#F4A100"/>
-        </Style>
+<Style Selector="Border.ComplianceBadge.Warning">
+    <Setter Property="Background" Value="#F4A100"/>
+</Style>
         
-        <Style Selector="Border.ComplianceBadge.Danger">
-            <Setter Property="Background" Value="#D92D20"/>
-        </Style>
+<Style Selector="Border.BadgeSmall">
+    <Setter Property="CornerRadius" Value="6"/>
+    <Setter Property="Padding" Value="8,4"/>
+    <Setter Property="VerticalAlignment" Value="Center"/>
+    <Setter Property="Margin" Value="8,0,0,0"/>
+    <Setter Property="Transitions">
+        <Transitions>
+            <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.2"/>
+        </Transitions>
+    </Setter>
+</Style>
         
-        <Style Selector="Border.AlertPanel">
-            <Setter Property="CornerRadius" Value="10"/>
-            <Setter Property="Padding" Value="20"/>
-            <Setter Property="Margin" Value="0,16,0,16"/>
-        </Style>
+<Style Selector="Border.BadgeSmall.Warning">
+    <Setter Property="Background" Value="#FDB022"/>
+</Style>
         
-        <Style Selector="Border.AlertPanel.Success">
-            <Setter Property="Background" Value="#D1FAE5"/>
-            <Setter Property="BorderBrush" Value="#1E9E6A"/>
-            <Setter Property="BorderThickness" Value="1"/>
-        </Style>
+<Style Selector="Border.BadgeSmall.Danger">
+    <Setter Property="Background" Value="#D92D20"/>
+</Style>
         
-        <Style Selector="Border.AlertPanel.Warning">
-            <Setter Property="Background" Value="#FFF3CD"/>
-            <Setter Property="BorderBrush" Value="#FDB022"/>
-            <Setter Property="BorderThickness" Value="1"/>
-        </Style>
+<Style Selector="TextBlock.BadgeText">
+    <Setter Property="FontSize" Value="11"/>
+    <Setter Property="FontWeight" Value="Bold"/>
+    <Setter Property="Foreground" Value="White"/>
+</Style>
         
-        <Style Selector="Border.SectionCard">
-            <Setter Property="Background" Value="White"/>
-            <Setter Property="BorderBrush" Value="#E2E8F0"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="CornerRadius" Value="12"/>
-            <Setter Property="Padding" Value="24"/>
-            <Setter Property="Margin" Value="0,0,0,20"/>
-        </Style>
+<!-- Button Styles with Smooth Hover Effects -->
+    <Style Selector="Button.Primary">
+        <Setter Property="Background" Value="#0B5ED7"/>
+        <Setter Property="Foreground" Value="White"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="Padding" Value="18,12"/>
+        <Setter Property="CornerRadius" Value="8"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Cursor" Value="Hand"/>
+    <Setter Property="Transitions">
+        <Transitions>
+            <BrushTransition Property="Background" Duration="0:0:0.3"/>
+            <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.2"/>
+        </Transitions>
+    </Setter>
+</Style>
         
-        <Style Selector="TextBlock.SectionTitle">
-            <Setter Property="FontSize" Value="18"/>
-            <Setter Property="FontWeight" Value="Bold"/>
-            <Setter Property="Foreground" Value="#0B5ED7"/>
-            <Setter Property="Margin" Value="0,0,0,4"/>
-        </Style>
+    <Style Selector="Button.Primary:pointerover">
+        <Setter Property="Background" Value="#084298"/>
+        <Setter Property="RenderTransform" Value="scale(1.02)"/>
+</Style>
         
-        <Style Selector="TextBlock.SectionSubtitle">
-            <Setter Property="FontSize" Value="14"/>
-            <Setter Property="Foreground" Value="#64748B"/>
-            <Setter Property="Margin" Value="0,0,0,16"/>
-        </Style>
+<Style Selector="Button.Primary:pressed">
+    <Setter Property="RenderTransform" Value="scale(0.98)"/>
+</Style>
         
-        <Style Selector="TextBlock.GroupLabel">
-            <Setter Property="FontSize" Value="11"/>
-            <Setter Property="FontWeight" Value="Bold"/>
-            <Setter Property="Foreground" Value="#64748B"/>
-            <Setter Property="LetterSpacing" Value="0.5"/>
-            <Setter Property="Margin" Value="0,0,0,8"/>
-        </Style>
+    <Style Selector="Button.Secondary">
+        <Setter Property="Background" Value="#6C757D"/>
+        <Setter Property="Foreground" Value="White"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="Padding" Value="18,12"/>
+        <Setter Property="CornerRadius" Value="8"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Cursor" Value="Hand"/>
+    <Setter Property="Transitions">
+        <Transitions>
+            <BrushTransition Property="Background" Duration="0:0:0.3"/>
+            <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.2"/>
+        </Transitions>
+    </Setter>
+</Style>
         
-        <Style Selector="TextBlock.FieldLabel">
-            <Setter Property="FontSize" Value="13"/>
-            <Setter Property="FontWeight" Value="Medium"/>
-            <Setter Property="Foreground" Value="#475569"/>
-            <Setter Property="VerticalAlignment" Value="Center"/>
-            <Setter Property="Margin" Value="0,0,8,0"/>
-        </Style>
+    <Style Selector="Button.Secondary:pointerover">
+        <Setter Property="Background" Value="#5A6268"/>
+        <Setter Property="RenderTransform" Value="scale(1.02)"/>
+</Style>
         
-        <Style Selector="TextBlock.HelpText">
-            <Setter Property="FontSize" Value="12"/>
-            <Setter Property="Foreground" Value="#64748B"/>
-            <Setter Property="Margin" Value="0,4,0,0"/>
-        </Style>
+<Style Selector="Button.Secondary:pressed">
+    <Setter Property="RenderTransform" Value="scale(0.98)"/>
+</Style>
         
-        <Style Selector="TextBlock.WarningText">
-            <Setter Property="FontSize" Value="13"/>
-            <Setter Property="Foreground" Value="#F4A100"/>
-            <Setter Property="Margin" Value="8,0,0,0"/>
-        </Style>
         
-        <Style Selector="Button.Primary">
-            <Setter Property="Background" Value="#0B5ED7"/>
-            <Setter Property="Foreground" Value="White"/>
-            <Setter Property="FontWeight" Value="Bold"/>
-            <Setter Property="Padding" Value="16,10"/>
-            <Setter Property="CornerRadius" Value="8"/>
-            <Setter Property="BorderThickness" Value="0"/>
-        </Style>
+    <!-- Control Styles with Smooth Effects -->
+    <Style Selector="NumericUpDown">
+        <Setter Property="MinWidth" Value="90"/>
+        <Setter Property="CornerRadius" Value="8"/>
+        <Setter Property="HorizontalAlignment" Value="Stretch"/>
+        <Setter Property="Transitions">
+            <Transitions>
+                <BrushTransition Property="BorderBrush" Duration="0:0:0.2"/>
+            </Transitions>
+        </Setter>
+    </Style>
         
-        <Style Selector="Button.Primary:pointerover">
-            <Setter Property="Background" Value="#084298"/>
-        </Style>
+    <Style Selector="ComboBox">
+        <Setter Property="CornerRadius" Value="8"/>
+        <Setter Property="MinWidth" Value="150"/>
+        <Setter Property="HorizontalAlignment" Value="Stretch"/>
+        <Setter Property="Transitions">
+            <Transitions>
+                <BrushTransition Property="BorderBrush" Duration="0:0:0.2"/>
+            </Transitions>
+        </Setter>
+    </Style>
         
-        <Style Selector="Button.Secondary">
-            <Setter Property="Background" Value="#6C757D"/>
-            <Setter Property="Foreground" Value="White"/>
-            <Setter Property="Padding" Value="16,10"/>
-            <Setter Property="CornerRadius" Value="8"/>
-            <Setter Property="BorderThickness" Value="0"/>
-        </Style>
+    <Style Selector="CheckBox">
+        <Setter Property="Margin" Value="0,0,0,8"/>
+        <Setter Property="Transitions">
+            <Transitions>
+                <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.15"/>
+            </Transitions>
+        </Setter>
+    </Style>
+    
+    <Style Selector="CheckBox:pointerover /template/ Border#NormalRectangle">
+        <Setter Property="RenderTransform" Value="scale(1.05)"/>
+    </Style>
         
-        <Style Selector="Button.Secondary:pointerover">
-            <Setter Property="Background" Value="#5A6268"/>
-        </Style>
+    <Style Selector="ToggleSwitch">
+        <Setter Property="OffContent" Value="OFF"/>
+        <Setter Property="OnContent" Value="ON"/>
+        <Setter Property="Transitions">
+            <Transitions>
+                <BrushTransition Property="Background" Duration="0:0:0.3"/>
+            </Transitions>
+        </Setter>
+    </Style>
         
-        <Style Selector="NumericUpDown">
-            <Setter Property="MinWidth" Value="90"/>
-            <Setter Property="CornerRadius" Value="8"/>
-            <Setter Property="HorizontalAlignment" Value="Stretch"/>
-        </Style>
+    <!-- Text Styles -->
+    <Style Selector="TextBlock.SectionTitle">
+        <Setter Property="FontSize" Value="20"/>
+        <Setter Property="FontWeight" Value="Bold"/>
+        <Setter Property="Foreground" Value="#0B5ED7"/>
+        <Setter Property="Margin" Value="0,0,0,6"/>
+    </Style>
         
-        <Style Selector="ComboBox">
-            <Setter Property="CornerRadius" Value="8"/>
-            <Setter Property="MinWidth" Value="150"/>
-            <Setter Property="HorizontalAlignment" Value="Stretch"/>
-        </Style>
+    <Style Selector="TextBlock.SectionSubtitle">
+        <Setter Property="FontSize" Value="14"/>
+        <Setter Property="Foreground" Value="#64748B"/>
+        <Setter Property="Margin" Value="0,0,0,20"/>
+        <Setter Property="Opacity" Value="0.95"/>
+    </Style>
         
-        <Style Selector="CheckBox">
-            <Setter Property="Margin" Value="0,0,0,6"/>
-        </Style>
+    <Style Selector="TextBlock.GroupLabel">
+        <Setter Property="FontSize" Value="11"/>
+        <Setter Property="FontWeight" Value="Bold"/>
+        <Setter Property="Foreground" Value="#64748B"/>
+        <Setter Property="LetterSpacing" Value="0.5"/>
+        <Setter Property="Margin" Value="0,0,0,10"/>
+    </Style>
         
-        <Style Selector="ToggleSwitch">
-            <Setter Property="OffContent" Value="OFF"/>
-            <Setter Property="OnContent" Value="ON"/>
-        </Style>
+    <Style Selector="TextBlock.FieldLabel">
+        <Setter Property="FontSize" Value="13"/>
+        <Setter Property="FontWeight" Value="Medium"/>
+        <Setter Property="Foreground" Value="#475569"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+        <Setter Property="Margin" Value="0,0,8,0"/>
+    </Style>
         
-        <Style Selector="Border.SubPanel">
-            <Setter Property="Background" Value="#F8FAFC"/>
-            <Setter Property="BorderBrush" Value="#E2E8F0"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="CornerRadius" Value="8"/>
-            <Setter Property="Padding" Value="16"/>
-            <Setter Property="Margin" Value="0,8,0,8"/>
-        </Style>
+    <Style Selector="TextBlock.HelpText">
+        <Setter Property="FontSize" Value="12"/>
+        <Setter Property="Foreground" Value="#64748B"/>
+        <Setter Property="Margin" Value="0,4,0,0"/>
+        <Setter Property="Opacity" Value="0.9"/>
+    </Style>
         
-        <Style Selector="Border.SubPanel.Warning">
-            <Setter Property="BorderBrush" Value="#F4A100"/>
-            <Setter Property="BorderThickness" Value="2"/>
-        </Style>
+    <!-- Panel Styles with Smooth Shadows -->
+    <Style Selector="Border.SubPanel">
+        <Setter Property="Background" Value="#F8FAFC"/>
+        <Setter Property="BorderBrush" Value="#E2E8F0"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius" Value="10"/>
+        <Setter Property="Padding" Value="18"/>
+        <Setter Property="Margin" Value="0,8,0,8"/>
+        <Setter Property="BoxShadow" Value="0 1 3 0 #10000000"/>
+        <Setter Property="Transitions">
+            <Transitions>
+                <BrushTransition Property="BorderBrush" Duration="0:0:0.3"/>
+                <BoxShadowsTransition Property="BoxShadow" Duration="0:0:0.3"/>
+            </Transitions>
+        </Setter>
+    </Style>
         
-        <Style Selector="Border.SubPanel.Danger">
-            <Setter Property="BorderBrush" Value="#D92D20"/>
-            <Setter Property="BorderThickness" Value="2"/>
-        </Style>
+    <Style Selector="Border.SubPanel.Warning">
+        <Setter Property="BorderBrush" Value="#F4A100"/>
+        <Setter Property="BorderThickness" Value="2"/>
+        <Setter Property="BoxShadow" Value="0 2 8 0 #15F4A100"/>
+    </Style>
         
-        <Style Selector="Border.BadgeSmall">
-            <Setter Property="CornerRadius" Value="4"/>
-            <Setter Property="Padding" Value="6,2"/>
-            <Setter Property="VerticalAlignment" Value="Center"/>
-            <Setter Property="Margin" Value="8,0,0,0"/>
-        </Style>
+    <Style Selector="Border.SubPanel.Danger">
+        <Setter Property="BorderBrush" Value="#D92D20"/>
+        <Setter Property="BorderThickness" Value="2"/>
+        <Setter Property="BoxShadow" Value="0 2 8 0 #15D92D20"/>
+    </Style>
         
-        <Style Selector="Border.BadgeSmall.Warning">
-            <Setter Property="Background" Value="#FDB022"/>
-        </Style>
+    <!-- Navbar Tab Styles with Smooth Transitions -->
+    <Style Selector="TabControl.SafetyNavbar">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Padding" Value="0"/>
+    </Style>
         
-        <Style Selector="Border.BadgeSmall.Danger">
-            <Setter Property="Background" Value="#D92D20"/>
-        </Style>
+    <Style Selector="TabControl.SafetyNavbar > TabItem">
+        <Setter Property="Background" Value="#F1F5F9"/>
+        <Setter Property="Foreground" Value="#64748B"/>
+        <Setter Property="FontSize" Value="15"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="Padding" Value="30,14"/>
+        <Setter Property="Margin" Value="0,0,8,0"/>
+        <Setter Property="CornerRadius" Value="12,12,0,0"/>
+        <Setter Property="BorderThickness" Value="1,1,1,0"/>
+        <Setter Property="BorderBrush" Value="#E2E8F0"/>
+        <Setter Property="HorizontalContentAlignment" Value="Center"/>
+        <Setter Property="MinWidth" Value="140"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Transitions">
+            <Transitions>
+                <BrushTransition Property="Background" Duration="0:0:0.3"/>
+                <BrushTransition Property="Foreground" Duration="0:0:0.3"/>
+                <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.2"/>
+            </Transitions>
+        </Setter>
+    </Style>
         
-        <Style Selector="TextBlock.BadgeText">
-            <Setter Property="FontSize" Value="11"/>
-            <Setter Property="FontWeight" Value="Bold"/>
-            <Setter Property="Foreground" Value="White"/>
-        </Style>
+    <Style Selector="TabControl.SafetyNavbar > TabItem:pointerover">
+        <Setter Property="Background" Value="#E2E8F0"/>
+        <Setter Property="Foreground" Value="#0B5ED7"/>
+        <Setter Property="RenderTransform" Value="translateY(-2px)"/>
+    </Style>
         
-        <!-- Safety Navbar Tab Styles - Responsive -->
-        <Style Selector="TabControl.SafetyNavbar">
-            <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="Padding" Value="0"/>
-        </Style>
+    <Style Selector="TabControl.SafetyNavbar > TabItem:selected">
+        <Setter Property="Background" Value="#0B5ED7"/>
+        <Setter Property="Foreground" Value="White"/>
+        <Setter Property="BorderBrush" Value="#0B5ED7"/>
+        <Setter Property="RenderTransform" Value="translateY(-3px)"/>
+    </Style>
         
-        <Style Selector="TabControl.SafetyNavbar /template/ ItemsPresenter#PART_ItemsPresenter">
-            <Setter Property="HorizontalAlignment" Value="Stretch"/>
-        </Style>
-        
-        <Style Selector="TabControl.SafetyNavbar > TabItem">
-            <Setter Property="Background" Value="#F1F5F9"/>
-            <Setter Property="Foreground" Value="#64748B"/>
-            <Setter Property="FontSize" Value="14"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="Padding" Value="32,14"/>
-            <Setter Property="Margin" Value="0,0,8,0"/>
-            <Setter Property="CornerRadius" Value="10,10,0,0"/>
-            <Setter Property="BorderThickness" Value="1,1,1,0"/>
-            <Setter Property="BorderBrush" Value="#E2E8F0"/>
-            <Setter Property="HorizontalContentAlignment" Value="Center"/>
-            <Setter Property="MinWidth" Value="120"/>
-        </Style>
-        
-        <Style Selector="TabControl.SafetyNavbar > TabItem:pointerover">
-            <Setter Property="Background" Value="#E2E8F0"/>
-            <Setter Property="Foreground" Value="#0B5ED7"/>
-        </Style>
-        
-        <Style Selector="TabControl.SafetyNavbar > TabItem:selected">
-            <Setter Property="Background" Value="#0B5ED7"/>
-            <Setter Property="Foreground" Value="White"/>
-            <Setter Property="BorderBrush" Value="#0B5ED7"/>
-        </Style>
-        
-        <!-- Responsive Content Card -->
-        <Style Selector="Border.ResponsiveCard">
-            <Setter Property="Background" Value="White"/>
-            <Setter Property="BorderBrush" Value="#E2E8F0"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="CornerRadius" Value="12"/>
-            <Setter Property="Padding" Value="32"/>
-            <Setter Property="HorizontalAlignment" Value="Stretch"/>
-            <Setter Property="Margin" Value="0,0,0,24"/>
-        </Style>
+    <!-- Content Card Style with Smooth Shadow -->
+    <Style Selector="Border.ContentCard">
+        <Setter Property="Background" Value="White"/>
+        <Setter Property="BorderBrush" Value="#E2E8F0"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius" Value="16"/>
+        <Setter Property="Padding" Value="36"/>
+        <Setter Property="Margin" Value="0,0,0,24"/>
+        <Setter Property="BoxShadow" Value="0 4 12 0 #12000000"/>
+        <Setter Property="Transitions">
+            <Transitions>
+                <BoxShadowsTransition Property="BoxShadow" Duration="0:0:0.3"/>
+            </Transitions>
+        </Setter>
+    </Style>
+    
+    <Style Selector="Border.ContentCard:pointerover">
+        <Setter Property="BoxShadow" Value="0 8 24 0 #18000000"/>
+    </Style>
     </UserControl.Styles>
 
+    <!-- Main Layout -->
     <Grid RowDefinitions="Auto,*">
-        <!-- FIXED HEADER SECTION -->
-        <StackPanel Grid.Row="0" Margin="24,24,24,0">
-            <Grid ColumnDefinitions="*,Auto,Auto,Auto" Margin="0,0,0,16">
-                <StackPanel Grid.Column="0">
-                    <TextBlock Classes="PageTitle" Text="Safety"/>
-                    <TextBlock Classes="PageSubtitle" Text="Professional Drone Safety Configuration"/>
-                </StackPanel>
-                
-                <!-- Compliance Status Badge -->
-                <Border Grid.Column="1" 
-                        Classes="ComplianceBadge"
-                        Classes.Success="{Binding !HasValidationWarnings}"
-                        Classes.Warning="{Binding HasValidationWarnings}"
-                        Margin="16,0,12,0">
-                    <StackPanel>
-                        <TextBlock FontSize="13" FontWeight="Bold" Foreground="White" 
-                                   Text=" Compliant"
-                                   IsVisible="{Binding !HasValidationWarnings}"/>
-                        <TextBlock FontSize="13" FontWeight="Bold" Foreground="White" 
-                                   Text=" Warnings Present"
-                                   IsVisible="{Binding HasValidationWarnings}"/>
-                    </StackPanel>
-                </Border>
-                
-                <Button Grid.Column="2" Classes="Secondary" Command="{Binding RefreshAllCommand}" Margin="0,0,8,0">
-                    <StackPanel Orientation="Horizontal" Spacing="6">
-                        <TextBlock Text="" FontSize="16"/>
-                        <TextBlock Text="Sync from Drone"/>
-                    </StackPanel>
-                </Button>
-                
-                <Button Grid.Column="3" Classes="Primary" Command="{Binding ApplyPDRLDefaultsCommand}">
-                    <TextBlock Text="Apply Safe Defaults"/>
-                </Button>
-            </Grid>
-
-            <!-- STATUS BAR -->
-            <Border Background="#F5F5F5" CornerRadius="6" Padding="12" Margin="0,0,0,16" IsVisible="{Binding IsBusy}">
-                <StackPanel Orientation="Horizontal" Spacing="8">
-                    <ProgressBar Width="20" Height="20" IsIndeterminate="True"/>
-                    <TextBlock Text="{Binding StatusMessage}" VerticalAlignment="Center" Foreground="#1E293B"/>
-                </StackPanel>
-            </Border>
-        </StackPanel>
-
-        <!-- NAVBAR TABS WITH CONTENT -->
-        <TabControl Grid.Row="1" Classes="SafetyNavbar" Margin="24,8,24,24">
+        
+        <!-- Header Section -->
+        <Grid Grid.Row="0" ColumnDefinitions="*,Auto,Auto,Auto" Margin="32,24,32,16">
             
-            <!-- ==================== ARMING CHECK TAB ==================== -->
+            <!-- Title -->
+            <StackPanel Grid.Column="0">
+                <TextBlock Classes="PageTitle" Text="Safety"/>
+                <TextBlock Classes="PageSubtitle" Text="Professional Drone Safety Configuration"/>
+            </StackPanel>
+            
+            <!-- Status Badge -->
+            <Border Grid.Column="1" 
+                    Classes="ComplianceBadge"
+                    Classes.Success="{Binding !HasValidationWarnings}"
+                    Classes.Warning="{Binding HasValidationWarnings}"
+                    Margin="16,0,12,0">
+                <TextBlock FontSize="13" FontWeight="Bold" Foreground="White">
+                    <TextBlock.Text>
+                        <MultiBinding StringFormat="{}">
+                            <Binding Path="!HasValidationWarnings"/>
+                            <Binding Path="HasValidationWarnings"/>
+                        </MultiBinding>
+                    </TextBlock.Text>
+                    <Run Text=" Compliant" x:Name="CompliantText"/>
+                    <Run Text=" Warnings" x:Name="WarningText"/>
+                </TextBlock>
+            </Border>
+            
+            <!-- Sync Button -->
+            <Button Grid.Column="2" Classes="Secondary" Command="{Binding RefreshAllCommand}" Margin="0,0,8,0">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                    <TextBlock Text="🔄" FontSize="16"/>
+                    <TextBlock Text="Sync from Drone"/>
+                </StackPanel>
+            </Button>
+            
+            <!-- Apply Defaults Button -->
+            <Button Grid.Column="3" Classes="Primary" Command="{Binding ApplyPDRLDefaultsCommand}">
+                <TextBlock Text="Apply Safe Defaults"/>
+            </Button>
+        </Grid>
+        
+        <!-- Tabs Section -->
+        <TabControl Grid.Row="1" Classes="SafetyNavbar" Margin="32,0,32,24">
+            
+            <!-- Tab 1: Arming Check -->
             <TabItem Header="Arming Check">
-                <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto"
-                              Padding="0,24,0,0">
-                    <Border Classes="ResponsiveCard">
-                            <StackPanel>
-                                <TextBlock Classes="SectionTitle" Text=" Pre-Flight Arming Checks"/>
-                                <TextBlock Classes="SectionSubtitle" Text="Required sensor and system checks before flight"/>
-                                
-                                <Grid ColumnDefinitions="*,*,*" RowDefinitions="Auto,Auto">
-                                    
-                                    <!-- SENSORS Column -->
-                                    <StackPanel Grid.Column="0" Grid.Row="0" Margin="0,0,8,0">
-                                        <TextBlock Classes="GroupLabel" Text="SENSORS"/>
-                                        <CheckBox Content="Barometer" IsChecked="{Binding ArmingCheckBarometer}"/>
-                                        <CheckBox Content="Compass" IsChecked="{Binding ArmingCheckCompass}"/>
-                                    </StackPanel>
-                                    
-                                    <!-- NAVIGATION Column -->
-                                    <StackPanel Grid.Column="1" Grid.Row="0" Margin="0,0,8,0">
-                                        <TextBlock Classes="GroupLabel" Text="NAVIGATION"/>
-                                        <CheckBox Content="GPS Lock" IsChecked="{Binding ArmingCheckGps}"/>
-                                        <CheckBox Content="INS/IMU" IsChecked="{Binding ArmingCheckIns}"/>
-                                        <CheckBox Content="GPS Config" IsChecked="{Binding ArmingCheckGpsConfig}"/>
-                                    </StackPanel>
-                                    
-                                    <!-- POWER Column -->
-                                    <StackPanel Grid.Column="2" Grid.Row="0">
-                                        <TextBlock Classes="GroupLabel" Text="POWER"/>
-                                        <CheckBox Content="Battery Level" IsChecked="{Binding ArmingCheckBattery}"/>
-                                        <CheckBox Content="Board Voltage" IsChecked="{Binding ArmingCheckVoltage}"/>
-                                    </StackPanel>
-                                    
-                                    <!-- COMMUNICATION Column -->
-                                    <StackPanel Grid.Column="0" Grid.Row="1" Margin="0,12,8,0">
-                                        <TextBlock Classes="GroupLabel" Text="COMMUNICATION"/>
-                                        <CheckBox Content="RC Receiver" IsChecked="{Binding ArmingCheckRc}"/>
-                                    </StackPanel>
-                                    
-                                    <!-- SYSTEM HEALTH Column -->
-                                    <StackPanel Grid.Column="1" Grid.Row="1" Grid.ColumnSpan="2" Margin="0,12,0,0">
-                                        <TextBlock Classes="GroupLabel" Text="SYSTEM HEALTH"/>
-                                        <Grid ColumnDefinitions="*,*">
-                                            <StackPanel Grid.Column="0" Margin="0,0,8,0">
-                                                <CheckBox Content="Parameters" IsChecked="{Binding ArmingCheckParams}"/>
-                                                <CheckBox Content="Logging" IsChecked="{Binding ArmingCheckLogging}"/>
-                                            </StackPanel>
-                                            <StackPanel Grid.Column="1">
-                                                <CheckBox Content="Safety Switch" IsChecked="{Binding ArmingCheckSafetySwitch}"/>
-                                                <CheckBox Content="System" IsChecked="{Binding ArmingCheckSystem}"/>
-                                            </StackPanel>
-                                        </Grid>
-                                    </StackPanel>
-                                </Grid>
-                        </StackPanel>
-                    </Border>
-                </ScrollViewer>
-            </TabItem>
-
-            <!-- ==================== GEOFENCE TAB ==================== -->
-            <TabItem Header="Geofence">
-                <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto"
-                              Padding="0,24,0,0">
-                    <Border Classes="ResponsiveCard">
-                            <StackPanel>
-                                <Grid ColumnDefinitions="*,Auto">
-                                    <TextBlock Grid.Column="0" Classes="SectionTitle" Text=" Geofence"/>
-                                    <ToggleSwitch Grid.Column="1" IsChecked="{Binding FenceEnabled}"/>
-                                </Grid>
-                                <TextBlock Classes="SectionSubtitle" Text="Virtual boundary limits for safe operation"/>
-                                
-                                <!-- Fence Types -->
-                                <TextBlock Classes="FieldLabel" Text="Fence Types:" Margin="0,8,0,8"/>
-                                <WrapPanel Margin="0,0,0,12">
-                                    <CheckBox Content="Max Altitude" IsChecked="{Binding FenceTypeAltMax}" IsEnabled="{Binding FenceEnabled}" Margin="0,0,12,0"/>
-                                    <CheckBox Content="Circle" IsChecked="{Binding FenceTypeCircle}" IsEnabled="{Binding FenceEnabled}" Margin="0,0,12,0"/>
-                                    <CheckBox Content="Polygon" IsChecked="{Binding FenceTypePolygon}" IsEnabled="{Binding FenceEnabled}" Margin="0,0,12,0"/>
-                                    <CheckBox Content="Min Altitude" IsChecked="{Binding FenceTypeAltMin}" IsEnabled="{Binding FenceEnabled}"/>
-                                </WrapPanel>
-                                
-                                <StackPanel Spacing="14" IsEnabled="{Binding FenceEnabled}">
-                                    <!-- Breach Action -->
-                                    <Grid ColumnDefinitions="140,*">
-                                        <TextBlock Grid.Column="0" Classes="FieldLabel" Text="Breach Action:"/>
-                                        <ComboBox Grid.Column="1"
-                                                  ItemsSource="{Binding FenceBreachActionOptions}"
-                                                  SelectedItem="{Binding SelectedFenceAction}"
-                                                  DisplayMemberBinding="{Binding Label}"/>
-                                    </Grid>
-                                    
-                                    <!-- Max Altitude -->
-                                    <Grid ColumnDefinitions="140,*">
-                                        <TextBlock Grid.Column="0" Classes="FieldLabel" Text="Max Altitude (m):"/>
-                                        <NumericUpDown Grid.Column="1"
-                                                       Value="{Binding FenceAltMax}"
-                                                       Minimum="0" Maximum="500"
-                                                       Increment="5"
-                                                       FormatString="F0"/>
-                                    </Grid>
-                                    
-                                    <!-- Min Altitude -->
-                                    <Grid ColumnDefinitions="140,*">
-                                        <TextBlock Grid.Column="0" Classes="FieldLabel" Text="Min Altitude (m):"/>
-                                        <NumericUpDown Grid.Column="1"
-                                                       Value="{Binding FenceAltMin}"
-                                                       Minimum="-100" Maximum="100"
-                                                       Increment="1"
-                                                       FormatString="F0"/>
-                                    </Grid>
-                                    
-                                    <!-- Radius -->
-                                    <Grid ColumnDefinitions="140,*">
-                                        <TextBlock Grid.Column="0" Classes="FieldLabel" Text="Radius (m):"/>
-                                        <NumericUpDown Grid.Column="1"
-                                                       Value="{Binding FenceRadius}"
-                                                       Minimum="10" Maximum="10000"
-                                                       Increment="10"
-                                                       FormatString="F0"/>
-                                    </Grid>
-                                    
-                                    <!-- Margin -->
-                                    <Grid ColumnDefinitions="140,*">
-                                        <TextBlock Grid.Column="0" Classes="FieldLabel" Text="Margin (m):"/>
-                                        <NumericUpDown Grid.Column="1"
-                                                       Value="{Binding FenceMargin}"
-                                                       Minimum="0" Maximum="50"
-                                                       Increment="0.5"
-                                                       FormatString="F1"/>
-                                    </Grid>
+                <ScrollViewer Padding="0,24,0,0">
+                    <Border Classes="ContentCard">
+                        <StackPanel>
+                            <TextBlock Classes="SectionTitle" Text="✓ Pre-Flight Arming Checks"/>
+                            <TextBlock Classes="SectionSubtitle" Text="Required sensor and system checks before flight"/>
+                            
+                            <Grid ColumnDefinitions="*,*,*" RowDefinitions="Auto,Auto">
+                                <!-- SENSORS -->
+                                <StackPanel Grid.Column="0" Grid.Row="0" Margin="0,0,12,0">
+                                    <TextBlock Classes="GroupLabel" Text="SENSORS"/>
+                                    <CheckBox Content="Barometer" IsChecked="{Binding ArmingCheckBarometer}"/>
+                                    <CheckBox Content="Compass" IsChecked="{Binding ArmingCheckCompass}"/>
                                 </StackPanel>
                                 
-                                <TextBlock Classes="HelpText" Text="Safety buffer before breach" 
-                                           IsVisible="{Binding FenceEnabled}"
-                                           Margin="0,8,0,0"/>
+                                <!-- NAVIGATION -->
+                                <StackPanel Grid.Column="1" Grid.Row="0" Margin="0,0,12,0">
+                                    <TextBlock Classes="GroupLabel" Text="NAVIGATION"/>
+                                    <CheckBox Content="GPS Lock" IsChecked="{Binding ArmingCheckGps}"/>
+                                    <CheckBox Content="INS/IMU" IsChecked="{Binding ArmingCheckIns}"/>
+                                    <CheckBox Content="GPS Config" IsChecked="{Binding ArmingCheckGpsConfig}"/>
+                                </StackPanel>
+                                
+                                <!-- POWER -->
+                                <StackPanel Grid.Column="2" Grid.Row="0">
+                                    <TextBlock Classes="GroupLabel" Text="POWER"/>
+                                    <CheckBox Content="Battery Level" IsChecked="{Binding ArmingCheckBattery}"/>
+                                    <CheckBox Content="Board Voltage" IsChecked="{Binding ArmingCheckVoltage}"/>
+                                </StackPanel>
+                                
+                                <!-- COMMUNICATION -->
+                                <StackPanel Grid.Column="0" Grid.Row="1" Margin="0,16,12,0">
+                                    <TextBlock Classes="GroupLabel" Text="COMMUNICATION"/>
+                                    <CheckBox Content="RC Receiver" IsChecked="{Binding ArmingCheckRc}"/>
+                                </StackPanel>
+                                
+                                <!-- SYSTEM HEALTH -->
+                                <StackPanel Grid.Column="1" Grid.Row="1" Grid.ColumnSpan="2" Margin="0,16,0,0">
+                                    <TextBlock Classes="GroupLabel" Text="SYSTEM HEALTH"/>
+                                    <Grid ColumnDefinitions="*,*">
+                                        <StackPanel Grid.Column="0" Margin="0,0,12,0">
+                                            <CheckBox Content="Parameters" IsChecked="{Binding ArmingCheckParams}"/>
+                                            <CheckBox Content="Logging" IsChecked="{Binding ArmingCheckLogging}"/>
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="1">
+                                            <CheckBox Content="Safety Switch" IsChecked="{Binding ArmingCheckSafetySwitch}"/>
+                                            <CheckBox Content="System" IsChecked="{Binding ArmingCheckSystem}"/>
+                                        </StackPanel>
+                                    </Grid>
+                                </StackPanel>
+                            </Grid>
                         </StackPanel>
                     </Border>
                 </ScrollViewer>
             </TabItem>
-
-            <!-- ==================== BATTERY TAB ==================== -->
+            
+            <!-- Tab 2: Geofence -->
+            <TabItem Header="Geofence">
+                <ScrollViewer Padding="0,24,0,0">
+                    <Border Classes="ContentCard">
+                        <StackPanel>
+                            <Grid ColumnDefinitions="*,Auto">
+                                <TextBlock Grid.Column="0" Classes="SectionTitle" Text="🌐 Geofence"/>
+                                <ToggleSwitch Grid.Column="1" IsChecked="{Binding FenceEnabled}"/>
+                            </Grid>
+                            <TextBlock Classes="SectionSubtitle" Text="Virtual boundary limits for safe operation"/>
+                            
+                            <TextBlock Classes="FieldLabel" Text="Fence Types:" Margin="0,8,0,8"/>
+                            <WrapPanel Margin="0,0,0,16">
+                                <CheckBox Content="Max Altitude" IsChecked="{Binding FenceTypeAltMax}" IsEnabled="{Binding FenceEnabled}" Margin="0,0,16,0"/>
+                                <CheckBox Content="Circle" IsChecked="{Binding FenceTypeCircle}" IsEnabled="{Binding FenceEnabled}" Margin="0,0,16,0"/>
+                                <CheckBox Content="Polygon" IsChecked="{Binding FenceTypePolygon}" IsEnabled="{Binding FenceEnabled}" Margin="0,0,16,0"/>
+                                <CheckBox Content="Min Altitude" IsChecked="{Binding FenceTypeAltMin}" IsEnabled="{Binding FenceEnabled}"/>
+                            </WrapPanel>
+                            
+                            <StackPanel Spacing="16" IsEnabled="{Binding FenceEnabled}">
+                                <Grid ColumnDefinitions="150,*">
+                                    <TextBlock Grid.Column="0" Classes="FieldLabel" Text="Breach Action:"/>
+                                    <ComboBox Grid.Column="1" ItemsSource="{Binding FenceBreachActionOptions}"
+                                              SelectedItem="{Binding SelectedFenceAction}"
+                                              DisplayMemberBinding="{Binding Label}"/>
+                                </Grid>
+                                
+                                <Grid ColumnDefinitions="150,*">
+                                    <TextBlock Grid.Column="0" Classes="FieldLabel" Text="Max Altitude (m):"/>
+                                    <NumericUpDown Grid.Column="1" Value="{Binding FenceAltMax}"
+                                                   Minimum="0" Maximum="500" Increment="5" FormatString="F0"/>
+                                </Grid>
+                                
+                                <Grid ColumnDefinitions="150,*">
+                                    <TextBlock Grid.Column="0" Classes="FieldLabel" Text="Min Altitude (m):"/>
+                                    <NumericUpDown Grid.Column="1" Value="{Binding FenceAltMin}"
+                                                   Minimum="-100" Maximum="100" Increment="1" FormatString="F0"/>
+                                </Grid>
+                                
+                                <Grid ColumnDefinitions="150,*">
+                                    <TextBlock Grid.Column="0" Classes="FieldLabel" Text="Radius (m):"/>
+                                    <NumericUpDown Grid.Column="1" Value="{Binding FenceRadius}"
+                                                   Minimum="10" Maximum="10000" Increment="10" FormatString="F0"/>
+                                </Grid>
+                                
+                                <Grid ColumnDefinitions="150,*">
+                                    <TextBlock Grid.Column="0" Classes="FieldLabel" Text="Margin (m):"/>
+                                    <NumericUpDown Grid.Column="1" Value="{Binding FenceMargin}"
+                                                   Minimum="0" Maximum="50" Increment="0.5" FormatString="F1"/>
+                                </Grid>
+                            </StackPanel>
+                            
+                            <TextBlock Classes="HelpText" Text="Safety buffer before breach" 
+                                       IsVisible="{Binding FenceEnabled}" Margin="0,12,0,0"/>
+                        </StackPanel>
+                    </Border>
+                </ScrollViewer>
+            </TabItem>
+            
+            <!-- Tab 3: Battery -->
             <TabItem Header="Battery">
-                <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto"
-                              Padding="0,24,0,0">
-                    <Border Classes="ResponsiveCard">
-                            <StackPanel>
-                                <TextBlock Classes="SectionTitle" Text=" Battery Failsafe"/>
-                                <TextBlock Classes="SectionSubtitle" Text="Actions when battery reaches critical levels"/>
-                                
-                                <!-- LOW BATTERY -->
-                                <Border Classes="SubPanel Warning" Margin="0,0,0,12">
-                                    <StackPanel Spacing="12">
-                                        <Grid ColumnDefinitions="*,Auto">
-                                            <TextBlock Grid.Column="0" Classes="FieldLabel" Text="LOW BATTERY" FontWeight="Bold" FontSize="14"/>
-                                            <Border Grid.Column="1" Classes="BadgeSmall Warning">
-                                                <TextBlock Classes="BadgeText" Text=" Warning"/>
-                                            </Border>
-                                        </Grid>
-                                        
-                                        <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto" RowSpacing="12">
-                                            <TextBlock Grid.Column="0" Grid.Row="0" Classes="FieldLabel" Text="Threshold(V):" Width="100"/>
-                                            <NumericUpDown Grid.Column="1" Grid.Row="0"
-                                                           Value="{Binding BattLowVoltage}"
-                                                           Minimum="0" Maximum="60" 
-                                                           Increment="0.1" 
-                                                           FormatString="F1"/>
-                                            
-                                            <TextBlock Grid.Column="0" Grid.Row="1" Classes="FieldLabel" Text="Action:" Width="100"/>
-                                            <ComboBox Grid.Column="1" Grid.Row="1"
-                                                      ItemsSource="{Binding BatteryLowActionOptions}"
-                                                      SelectedItem="{Binding SelectedBattLowAction}"
-                                                      DisplayMemberBinding="{Binding Label}"/>
-                                        </Grid>
-                                    </StackPanel>
-                                </Border>
-                                
-                                <!-- CRITICAL BATTERY -->
-                                <Border Classes="SubPanel Danger">
-                                    <StackPanel Spacing="12">
-                                        <Grid ColumnDefinitions="*,Auto">
-                                            <TextBlock Grid.Column="0" Classes="FieldLabel" Text="CRITICAL BATTERY" FontWeight="Bold" FontSize="14"/>
-                                            <Border Grid.Column="1" Classes="BadgeSmall Danger">
-                                                <TextBlock Classes="BadgeText" Text=" Critical"/>
-                                            </Border>
-                                        </Grid>
-                                        
-                                        <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto" RowSpacing="12">
-                                            <TextBlock Grid.Column="0" Grid.Row="0" Classes="FieldLabel" Text="Threshold(V):" Width="100"/>
-                                            <NumericUpDown Grid.Column="1" Grid.Row="0"
-                                                           Value="{Binding BattCritVoltage}"
-                                                           Minimum="0" Maximum="60"
-                                                           Increment="0.1"
-                                                           FormatString="F1"/>
-                                            
-                                            <TextBlock Grid.Column="0" Grid.Row="1" Classes="FieldLabel" Text="Action:" Width="100"/>
-                                            <ComboBox Grid.Column="1" Grid.Row="1"
-                                                      ItemsSource="{Binding BatteryCritActionOptions}"
-                                                      SelectedItem="{Binding SelectedBattCritAction}"
-                                                      DisplayMemberBinding="{Binding Label}"/>
-                                        </Grid>
-                                    </StackPanel>
-                                </Border>
-                                
-                                <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,12,0,0">
-                                    <TextBlock Grid.Column="0" Classes="FieldLabel" Text="Battery Capacity:" Width="120"/>
-                                    <NumericUpDown Grid.Column="1" Value="{Binding BattCapacity}"
-                                                   Minimum="0" Maximum="50000"
-                                                   Increment="100"
-                                                   FormatString="F0"
-                                                   Margin="0,0,8,0"/>
-                                    <TextBlock Grid.Column="2" Classes="FieldLabel" Text="mAh" VerticalAlignment="Center"/>
-                                </Grid>
+                <ScrollViewer Padding="0,24,0,0">
+                    <Border Classes="ContentCard">
+                        <StackPanel>
+                            <TextBlock Classes="SectionTitle" Text="🔋 Battery Failsafe"/>
+                            <TextBlock Classes="SectionSubtitle" Text="Actions when battery reaches critical levels"/>
+                            
+                            <!-- LOW BATTERY -->
+                            <Border Classes="SubPanel Warning" Margin="0,0,0,16">
+                                <StackPanel Spacing="14">
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <TextBlock Grid.Column="0" Classes="FieldLabel" Text="LOW BATTERY" FontWeight="Bold" FontSize="14"/>
+                                        <Border Grid.Column="1" Classes="BadgeSmall Warning">
+                                            <TextBlock Classes="BadgeText" Text="⚠ Warning"/>
+                                        </Border>
+                                    </Grid>
+                                    
+                                    <Grid ColumnDefinitions="120,*" RowSpacing="14">
+                                        <TextBlock Grid.Column="0" Classes="FieldLabel" Text="Threshold (V):"/>
+                                        <NumericUpDown Grid.Column="1" Value="{Binding BattLowVoltage}"
+                                                       Minimum="0" Maximum="60" Increment="0.1" FormatString="F1"/>
+                                    </Grid>
+                                    
+                                    <Grid ColumnDefinitions="120,*">
+                                        <TextBlock Grid.Column="0" Classes="FieldLabel" Text="Action:"/>
+                                        <ComboBox Grid.Column="1" ItemsSource="{Binding BatteryLowActionOptions}"
+                                                  SelectedItem="{Binding SelectedBattLowAction}"
+                                                  DisplayMemberBinding="{Binding Label}"/>
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+                            
+                            <!-- CRITICAL BATTERY -->
+                            <Border Classes="SubPanel Danger" Margin="0,0,0,16">
+                                <StackPanel Spacing="14">
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <TextBlock Grid.Column="0" Classes="FieldLabel" Text="CRITICAL BATTERY" FontWeight="Bold" FontSize="14"/>
+                                        <Border Grid.Column="1" Classes="BadgeSmall Danger">
+                                            <TextBlock Classes="BadgeText" Text="⛔ Critical"/>
+                                        </Border>
+                                    </Grid>
+                                    
+                                    <Grid ColumnDefinitions="120,*" RowSpacing="14">
+                                        <TextBlock Grid.Column="0" Classes="FieldLabel" Text="Threshold (V):"/>
+                                        <NumericUpDown Grid.Column="1" Value="{Binding BattCritVoltage}"
+                                                       Minimum="0" Maximum="60" Increment="0.1" FormatString="F1"/>
+                                    </Grid>
+                                    
+                                    <Grid ColumnDefinitions="120,*">
+                                        <TextBlock Grid.Column="0" Classes="FieldLabel" Text="Action:"/>
+                                        <ComboBox Grid.Column="1" ItemsSource="{Binding BatteryCritActionOptions}"
+                                                  SelectedItem="{Binding SelectedBattCritAction}"
+                                                  DisplayMemberBinding="{Binding Label}"/>
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+                            
+                            <!-- Battery Capacity -->
+                            <Grid ColumnDefinitions="Auto,*,Auto">
+                                <TextBlock Grid.Column="0" Classes="FieldLabel" Text="Battery Capacity:" Width="130"/>
+                                <NumericUpDown Grid.Column="1" Value="{Binding BattCapacity}"
+                                               Minimum="0" Maximum="50000" Increment="100" FormatString="F0"
+                                               Margin="0,0,8,0"/>
+                                <TextBlock Grid.Column="2" Classes="FieldLabel" Text="mAh" VerticalAlignment="Center"/>
+                            </Grid>
                         </StackPanel>
                     </Border>
                 </ScrollViewer>
             </TabItem>
-
-            <!-- ==================== RTL TAB ==================== -->
+            
+            <!-- Tab 4: RTL -->
             <TabItem Header="RTL">
-                <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto"
-                              Padding="0,24,0,0">
-                    <Border Classes="ResponsiveCard">
-                            <StackPanel>
-                                <TextBlock Classes="SectionTitle" Text=" Return To Launch (RTL)"/>
-                                <TextBlock Classes="SectionSubtitle" Text="Automatic return to home settings"/>
+                <ScrollViewer Padding="0,24,0,0">
+                    <Border Classes="ContentCard">
+                        <StackPanel>
+                            <TextBlock Classes="SectionTitle" Text="🏠 Return To Launch (RTL)"/>
+                            <TextBlock Classes="SectionSubtitle" Text="Automatic return to home settings"/>
+                            
+                            <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" RowSpacing="14">
+                                <TextBlock Grid.Column="0" Grid.Row="0" Classes="FieldLabel" Text="RTL Altitude (m):" Width="140"/>
+                                <NumericUpDown Grid.Column="1" Grid.Row="0" Value="{Binding RtlAltitude}"
+                                               Minimum="0" Maximum="200" Increment="1" FormatString="F0"/>
                                 
-                                <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto" RowSpacing="12">
-                                    <TextBlock Grid.Column="0" Grid.Row="0" Classes="FieldLabel" Text="RTL Altitude (m):" Width="130"/>
-                                    <NumericUpDown Grid.Column="1" Grid.Row="0"
-                                                   Value="{Binding RtlAltitude}"
-                                                   Minimum="0" Maximum="200"
-                                                   Increment="1"
-                                                   FormatString="F0"/>
-                                    
-                                    <TextBlock Grid.Column="0" Grid.Row="1" Grid.ColumnSpan="2" Classes="HelpText" 
-                                               Text="Climb to this altitude before RTL"/>
-                                    
-                                    <TextBlock Grid.Column="0" Grid.Row="2" Classes="FieldLabel" Text="Final Altitude (m):" Width="130"/>
-                                    <NumericUpDown Grid.Column="1" Grid.Row="2"
-                                                   Value="{Binding RtlFinalAltitude}"
-                                                   Minimum="0" Maximum="100"
-                                                   Increment="0.5"
-                                                   FormatString="F1"/>
-                                    
-                                    <TextBlock Grid.Column="0" Grid.Row="3" Grid.ColumnSpan="2" Classes="HelpText" 
-                                               Text="Land at this altitude"/>
-                                    
-                                    <TextBlock Grid.Column="0" Grid.Row="4" Classes="FieldLabel" Text="Loiter Time (sec):" Width="130"/>
-                                    <NumericUpDown Grid.Column="1" Grid.Row="4"
-                                                   Value="{Binding RtlLoiterTime}"
-                                                   Minimum="0" Maximum="60"
-                                                   Increment="1"
-                                                   FormatString="F0"/>
-                                    
-                                    <TextBlock Grid.Column="0" Grid.Row="5" Grid.ColumnSpan="2" Classes="HelpText" 
-                                               Text="Hover before landing"/>
-                                    
-                                    <TextBlock Grid.Column="0" Grid.Row="6" Classes="FieldLabel" Text="RTL Speed (m/s):" Width="130"/>
-                                    <NumericUpDown Grid.Column="1" Grid.Row="6"
-                                                   Value="{Binding RtlSpeed}"
-                                                   Minimum="0" Maximum="20"
-                                                   Increment="0.5"
-                                                   FormatString="F1"/>
-                                    
-                                    <TextBlock Grid.Column="0" Grid.Row="7" Grid.ColumnSpan="2" Classes="HelpText" 
-                                               Text="0 = use default waypoint speed"/>
-                                </Grid>
+                                <TextBlock Grid.Column="0" Grid.Row="1" Grid.ColumnSpan="2" Classes="HelpText" 
+                                           Text="Climb to this altitude before RTL"/>
+                                
+                                <TextBlock Grid.Column="0" Grid.Row="2" Classes="FieldLabel" Text="Final Altitude (m):" Width="140"/>
+                                <NumericUpDown Grid.Column="1" Grid.Row="2" Value="{Binding RtlFinalAltitude}"
+                                               Minimum="0" Maximum="100" Increment="0.5" FormatString="F1"/>
+                                
+                                <TextBlock Grid.Column="0" Grid.Row="3" Grid.ColumnSpan="2" Classes="HelpText" 
+                                           Text="Land at this altitude"/>
+                                
+                                <TextBlock Grid.Column="0" Grid.Row="4" Classes="FieldLabel" Text="Loiter Time (sec):" Width="140"/>
+                                <NumericUpDown Grid.Column="1" Grid.Row="4" Value="{Binding RtlLoiterTime}"
+                                               Minimum="0" Maximum="60" Increment="1" FormatString="F0"/>
+                                
+                                <TextBlock Grid.Column="0" Grid.Row="5" Grid.ColumnSpan="2" Classes="HelpText" 
+                                           Text="Hover before landing"/>
+                                
+                                <TextBlock Grid.Column="0" Grid.Row="6" Classes="FieldLabel" Text="RTL Speed (m/s):" Width="140"/>
+                                <NumericUpDown Grid.Column="1" Grid.Row="6" Value="{Binding RtlSpeed}"
+                                               Minimum="0" Maximum="20" Increment="0.5" FormatString="F1"/>
+                                
+                                <TextBlock Grid.Column="0" Grid.Row="7" Grid.ColumnSpan="2" Classes="HelpText" 
+                                           Text="0 = use default waypoint speed"/>
+                            </Grid>
                         </StackPanel>
                     </Border>
                 </ScrollViewer>
             </TabItem>
-
-            <!-- ==================== ADDITIONAL TAB ==================== -->
+            
+            <!-- Tab 5: Additional -->
             <TabItem Header="Additional">
-                <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto"
-                              Padding="0,24,0,0">
+                <ScrollViewer Padding="0,24,0,0">
                     <StackPanel>
-                        <Border Classes="ResponsiveCard">
+                        <Border Classes="ContentCard">
                             <StackPanel>
-                                <TextBlock Classes="SectionTitle" Text=" Additional Failsafes"/>
+                                <TextBlock Classes="SectionTitle" Text="⚙ Additional Failsafes"/>
                                 <TextBlock Classes="SectionSubtitle" Text="RC, GCS, EKF, and other safety systems"/>
                                 
-                                <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto" RowSpacing="12">
-                                    <TextBlock Grid.Column="0" Grid.Row="0" Classes="FieldLabel" Text="RC Failsafe:" Width="130"/>
-                                    <ComboBox Grid.Column="1" Grid.Row="0"
-                                              ItemsSource="{Binding RcFailsafeActionOptions}"
+                                <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto" RowSpacing="14">
+                                    <TextBlock Grid.Column="0" Grid.Row="0" Classes="FieldLabel" Text="RC Failsafe:" Width="140"/>
+                                    <ComboBox Grid.Column="1" Grid.Row="0" ItemsSource="{Binding RcFailsafeActionOptions}"
                                               SelectedItem="{Binding SelectedRcFailsafeAction}"
                                               DisplayMemberBinding="{Binding Label}"/>
                                     
-                                    <TextBlock Grid.Column="0" Grid.Row="1" Classes="FieldLabel" Text="GCS Failsafe:" Width="130"/>
-                                    <ComboBox Grid.Column="1" Grid.Row="1"
-                                              ItemsSource="{Binding GcsFailsafeActionOptions}"
+                                    <TextBlock Grid.Column="0" Grid.Row="1" Classes="FieldLabel" Text="GCS Failsafe:" Width="140"/>
+                                    <ComboBox Grid.Column="1" Grid.Row="1" ItemsSource="{Binding GcsFailsafeActionOptions}"
                                               SelectedItem="{Binding SelectedGcsFailsafeAction}"
                                               DisplayMemberBinding="{Binding Label}"/>
                                     
-                                    <TextBlock Grid.Column="0" Grid.Row="2" Classes="FieldLabel" Text="EKF Failsafe:" Width="130"/>
-                                    <ComboBox Grid.Column="1" Grid.Row="2"
-                                              ItemsSource="{Binding EkfFailsafeActionOptions}"
+                                    <TextBlock Grid.Column="0" Grid.Row="2" Classes="FieldLabel" Text="EKF Failsafe:" Width="140"/>
+                                    <ComboBox Grid.Column="1" Grid.Row="2" ItemsSource="{Binding EkfFailsafeActionOptions}"
                                               SelectedItem="{Binding SelectedEkfFailsafeAction}"
                                               DisplayMemberBinding="{Binding Label}"/>
                                     
-                                    <TextBlock Grid.Column="0" Grid.Row="3" Classes="FieldLabel" Text="Crash Check:" Width="130"/>
-                                    <ComboBox Grid.Column="1" Grid.Row="3"
-                                              ItemsSource="{Binding CrashCheckActionOptions}"
+                                    <TextBlock Grid.Column="0" Grid.Row="3" Classes="FieldLabel" Text="Crash Check:" Width="140"/>
+                                    <ComboBox Grid.Column="1" Grid.Row="3" ItemsSource="{Binding CrashCheckActionOptions}"
                                               SelectedItem="{Binding SelectedCrashCheckAction}"
                                               DisplayMemberBinding="{Binding Label}"/>
                                     
-                                    <TextBlock Grid.Column="0" Grid.Row="4" Classes="FieldLabel" Text="Disarm Delay (s):" Width="130"/>
-                                    <NumericUpDown Grid.Column="1" Grid.Row="4"
-                                                   Value="{Binding DisarmDelay}"
-                                                   Minimum="0" Maximum="127"
-                                                   Increment="1"
-                                                   FormatString="F0"/>
+                                    <TextBlock Grid.Column="0" Grid.Row="4" Classes="FieldLabel" Text="Disarm Delay (s):" Width="140"/>
+                                    <NumericUpDown Grid.Column="1" Grid.Row="4" Value="{Binding DisarmDelay}"
+                                                   Minimum="0" Maximum="127" Increment="1" FormatString="F0"/>
                                 </Grid>
                             </StackPanel>
                         </Border>
                         
-                        <!-- FOOTER INFO -->
+                        <!-- Footer Info -->
                         <Border Background="#E7F3FF" CornerRadius="8" Padding="16" Margin="0,0,0,24">
                             <StackPanel Orientation="Horizontal" Spacing="8">
-                                <TextBlock Text="" FontSize="16" VerticalAlignment="Center"/>
+                                <TextBlock Text="ℹ️" FontSize="16" VerticalAlignment="Center"/>
                                 <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="#0B5ED7">
                                     <Run Text="Safety Recommendation:"/>
                                     <Run Text="Max altitude 120m AGL, maintain visual line of sight, enable geofence for safe operations."/>
@@ -615,6 +625,7 @@
                     </StackPanel>
                 </ScrollViewer>
             </TabItem>
+            
         </TabControl>
     </Grid>
 </UserControl>

@@ -1,4 +1,4 @@
-<UserControl xmlns="https://github.com/avaloniaui"
+﻿<UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:PavamanDroneConfigurator.UI.ViewModels"
              xmlns:converters="using:PavamanDroneConfigurator.UI.Converters"
@@ -10,33 +10,42 @@
     </UserControl.Resources>
     
     <UserControl.Styles>
-        <!-- Professional firmware page styles using theme colors -->
+        <!-- Professional firmware page styles with smooth animations -->
         <Style Selector="Border.mp-background">
             <Setter Property="Background" Value="{DynamicResource BackgroundBrush}"/>
         </Style>
         
-        <!-- Mode Selection Card Style -->
+        <!-- Mode Selection Card Style with Smooth Transitions -->
         <Style Selector="Button.mode-selection-card">
             <Setter Property="Background" Value="{DynamicResource CardBrush}"/>
             <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
             <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="CornerRadius" Value="16"/>
-            <Setter Property="Padding" Value="32,24"/>
+            <Setter Property="CornerRadius" Value="20"/>
+            <Setter Property="Padding" Value="36,28"/>
             <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="MinWidth" Value="320"/>
-            <Setter Property="MinHeight" Value="180"/>
-            <Setter Property="Margin" Value="12"/>
+            <Setter Property="MinWidth" Value="340"/>
+            <Setter Property="MinHeight" Value="200"/>
+            <Setter Property="Margin" Value="16"/>
             <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
             <Setter Property="VerticalContentAlignment" Value="Stretch"/>
+            <Setter Property="Transitions">
+                <Transitions>
+                    <BrushTransition Property="Background" Duration="0:0:0.3"/>
+                    <BrushTransition Property="BorderBrush" Duration="0:0:0.3"/>
+                    <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.3" Easing="CubicEaseOut"/>
+                </Transitions>
+            </Setter>
         </Style>
         
         <Style Selector="Button.mode-selection-card:pointerover">
             <Setter Property="BorderBrush" Value="{DynamicResource PrimaryBrush}"/>
             <Setter Property="Background" Value="{DynamicResource HoverBrush}"/>
+            <Setter Property="RenderTransform" Value="translateY(-8px) scale(1.02)"/>
         </Style>
         
         <Style Selector="Button.mode-selection-card:pressed">
             <Setter Property="BorderBrush" Value="{DynamicResource PrimaryHoverBrush}"/>
+            <Setter Property="RenderTransform" Value="translateY(-4px) scale(1.0)"/>
         </Style>
         
         <Style Selector="Button.mode-selection-card.selected">
@@ -45,26 +54,36 @@
             <Setter Property="Background" Value="{DynamicResource PrimaryLightBrush}"/>
         </Style>
         
-        <!-- Vehicle Card Style - Enhanced with hover effects -->
+        
+        <!-- Vehicle Card Style - Enhanced with smooth hover effects -->
         <Style Selector="Button.firmware-card">
             <Setter Property="Background" Value="{DynamicResource CardBrush}"/>
             <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
             <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="CornerRadius" Value="12"/>
-            <Setter Property="Padding" Value="10"/>
+            <Setter Property="CornerRadius" Value="14"/>
+            <Setter Property="Padding" Value="12"/>
             <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="Width" Value="155"/>
-            <Setter Property="Height" Value="175"/>
-            <Setter Property="Margin" Value="6"/>
+            <Setter Property="Width" Value="160"/>
+            <Setter Property="Height" Value="180"/>
+            <Setter Property="Margin" Value="8"/>
+            <Setter Property="Transitions">
+                <Transitions>
+                    <BrushTransition Property="Background" Duration="0:0:0.3"/>
+                    <BrushTransition Property="BorderBrush" Duration="0:0:0.3"/>
+                    <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.3" Easing="CubicEaseOut"/>
+                </Transitions>
+            </Setter>
         </Style>
         
         <Style Selector="Button.firmware-card:pointerover">
             <Setter Property="BorderBrush" Value="{DynamicResource PrimaryBrush}"/>
             <Setter Property="Background" Value="{DynamicResource HoverBrush}"/>
+            <Setter Property="RenderTransform" Value="translateY(-6px) scale(1.03)"/>
         </Style>
         
         <Style Selector="Button.firmware-card:pressed">
             <Setter Property="BorderBrush" Value="{DynamicResource PrimaryHoverBrush}"/>
+            <Setter Property="RenderTransform" Value="translateY(-3px) scale(1.01)"/>
         </Style>
         
         <Style Selector="Button.firmware-card-selected">
@@ -73,20 +92,31 @@
             <Setter Property="Background" Value="{DynamicResource PrimaryLightBrush}"/>
         </Style>
         
-        <!-- Status Bar Button Style -->
+        <!-- Status Bar Button Style with Smooth Transitions -->
         <Style Selector="Button.status-btn">
             <Setter Property="Background" Value="{DynamicResource SurfaceBrush}"/>
             <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
             <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
             <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="Padding" Value="16,8"/>
-            <Setter Property="CornerRadius" Value="6"/>
+            <Setter Property="Padding" Value="18,10"/>
+            <Setter Property="CornerRadius" Value="8"/>
             <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="Margin" Value="4,0"/>
+            <Setter Property="Transitions">
+                <Transitions>
+                    <BrushTransition Property="Background" Duration="0:0:0.3"/>
+                    <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.2"/>
+                </Transitions>
+            </Setter>
         </Style>
         
         <Style Selector="Button.status-btn:pointerover">
             <Setter Property="Background" Value="{DynamicResource HoverBrush}"/>
+            <Setter Property="RenderTransform" Value="scale(1.05)"/>
+        </Style>
+        
+        <Style Selector="Button.status-btn:pressed">
+            <Setter Property="RenderTransform" Value="scale(0.98)"/>
         </Style>
         
         <!-- Progress Bar Style -->
@@ -140,289 +170,319 @@
         </Style>
     </UserControl.Styles>
 
-    <Grid RowDefinitions="Auto,*,Auto" Classes="mp-background">
+    <Grid RowDefinitions="Auto,*" Classes="mp-background">
         
-        <!-- Top Control Bar - Only visible in automatic mode after selection -->
-        <Border Grid.Row="0" Classes="control-bar" IsVisible="{Binding IsAutomaticMode}">
-            <Grid ColumnDefinitions="Auto,Auto,*,Auto">
-                <!-- Back Button -->
-                <Button Grid.Column="0"
-                        Classes="status-btn"
-                        Margin="0,0,12,0"
-                        Command="{Binding SelectAutomaticModeCommand}"
-                        ToolTip.Tip="Back to mode selection">
-                    <StackPanel Orientation="Horizontal" Spacing="6">
-                        <PathIcon Data="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"
-                                  Width="14" Height="14"
-                                  Foreground="{DynamicResource TextSecondaryBrush}"/>
-                        <TextBlock Text="Back" VerticalAlignment="Center" FontSize="13"/>
-                    </StackPanel>
-                </Button>
+        <!-- MODE SELECTION VIEW (Initial Screen) -->
+        <Grid Grid.Row="1" 
+              VerticalAlignment="Center"
+              HorizontalAlignment="Center">
+            <Grid.IsVisible>
+                <MultiBinding Converter="{x:Static BoolConverters.And}">
+                    <Binding Path="!IsAutomaticMode"/>
+                    <Binding Path="!IsManualMode"/>
+                </MultiBinding>
+            </Grid.IsVisible>
+            
+            <StackPanel Spacing="40" MaxWidth="1000">
                 
-                <!-- Firmware Source Dropdown -->
-                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="12">
-                    <TextBlock Text="Source" 
-                               VerticalAlignment="Center"
+                <!-- Page Title -->
+                <StackPanel Spacing="12" HorizontalAlignment="Center">
+                    <TextBlock Text="Firmware Upgrade"
+                               FontSize="42"
+                               FontWeight="Bold"
+                               Foreground="{DynamicResource PrimaryBrush}"
+                               HorizontalAlignment="Center"/>
+                    <TextBlock Text="Choose your firmware upload method"
+                               FontSize="16"
                                Foreground="{DynamicResource TextSecondaryBrush}"
-                               FontWeight="Medium"/>
-                    <ComboBox ItemsSource="{Binding FirmwareSources}"
-                              SelectedItem="{Binding SelectedFirmwareSource}"
-                              Width="180"
-                              CornerRadius="20"
-                              Padding="12,8">
-                        <ComboBox.ItemTemplate>
-                            <DataTemplate>
-                                <TextBlock Text="{Binding DisplayName}"/>
-                            </DataTemplate>
-                        </ComboBox.ItemTemplate>
-                    </ComboBox>
+                               HorizontalAlignment="Center"
+                               Opacity="0.9"/>
                 </StackPanel>
                 
-                <!-- Refresh Button -->
-                <Button Grid.Column="1" 
-                        Classes="status-btn"
-                        Margin="12,0,0,0"
-                        Command="{Binding RefreshFirmwareVersionsCommand}"
-                        IsEnabled="{Binding !IsLoadingManifest}"
-                        ToolTip.Tip="Refresh firmware list">
-                    <StackPanel Orientation="Horizontal" Spacing="6">
-                        <PathIcon Data="M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"
-                                  Width="14" Height="14"
-                                  Foreground="{DynamicResource TextSecondaryBrush}"/>
-                        <TextBlock Text="Refresh" VerticalAlignment="Center" FontSize="13"/>
-                    </StackPanel>
-                </Button>
+                <!-- Two Upload Option Buttons -->
+                <Grid ColumnDefinitions="*,*" ColumnSpacing="32" Margin="0,40,0,0">
+                    
+                    <!-- Upload from Cloud Button -->
+                    <Button Grid.Column="0" 
+                            Classes="mode-selection-card"
+                            Command="{Binding SelectAutomaticModeCommand}"
+                            HorizontalAlignment="Stretch"
+                            VerticalAlignment="Stretch">
+                        <Grid RowDefinitions="Auto,Auto,*">
+                            <!-- Icon -->
+                            <Border Grid.Row="0"
+                                    Background="{DynamicResource PrimaryLightBrush}"
+                                    CornerRadius="16"
+                                    Width="80" Height="80"
+                                    HorizontalAlignment="Center"
+                                    Margin="0,0,0,24">
+                                <PathIcon Data="M19.35 10.04C18.67 6.59 15.64 4 12 4c-1.48 0-2.85.43-4.01 1.17l1.46 1.46C10.21 6.23 11.08 6 12 6c3.04 0 5.5 2.46 5.5 5.5v.5H19c1.66 0 3 1.34 3 3 0 1.13-.64 2.11-1.56 2.62l1.45 1.45C23.16 18.16 24 16.68 24 15c0-2.64-2.05-4.78-4.65-4.96zM3 5.27l2.75 2.74C2.56 8.15 0 10.77 0 14c0 3.31 2.69 6 6 6h11.73l2 2L21 20.73 4.27 4 3 5.27zM7.73 10l8 8H6c-2.21 0-4-1.79-4-4s1.79-4 4-4h1.73z"
+                                          Width="40" Height="40"
+                                          Foreground="{DynamicResource PrimaryBrush}"
+                                          HorizontalAlignment="Center"
+                                          VerticalAlignment="Center"/>
+                            </Border>
+                            
+                            <!-- Title & Badge -->
+                            <StackPanel Grid.Row="1" Spacing="12">
+                                <TextBlock Text="Upload from Cloud"
+                                           FontSize="24"
+                                           FontWeight="Bold"
+                                           Foreground="{DynamicResource TextPrimaryBrush}"
+                                           HorizontalAlignment="Center"/>
+                                <Border Background="{DynamicResource SuccessLightBrush}"
+                                        CornerRadius="16"
+                                        Padding="16,6"
+                                        HorizontalAlignment="Center">
+                                    <TextBlock Text="✓ Recommended"
+                                               FontSize="13"
+                                               FontWeight="SemiBold"
+                                               Foreground="{DynamicResource SuccessDarkBrush}"/>
+                                </Border>
+                            </StackPanel>
+                            
+                            <!-- Description -->
+                            <TextBlock Grid.Row="2"
+                                       Text="Download and install firmware directly from ArduPilot servers via HTTP"
+                                       FontSize="15"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                       TextWrapping="Wrap"
+                                       TextAlignment="Center"
+                                       Opacity="0.9"
+                                       Margin="0,20,0,0"/>
+                        </Grid>
+                    </Button>
+                    
+                    <!-- Upload Locally Button -->
+                    <Button Grid.Column="1" 
+                            Classes="mode-selection-card"
+                            Command="{Binding SelectManualModeCommand}"
+                            HorizontalAlignment="Stretch"
+                            VerticalAlignment="Stretch">
+                        <Grid RowDefinitions="Auto,Auto,*">
+                            <!-- Icon -->
+                            <Border Grid.Row="0"
+                                    Background="{DynamicResource AccentLightBrush}"
+                                    CornerRadius="16"
+                                    Width="80" Height="80"
+                                    HorizontalAlignment="Center"
+                                    Margin="0,0,0,24">
+                                <PathIcon Data="M9 16h6v-6h4l-7-7-7 7h4zm-4 2h14v2H5z"
+                                          Width="40" Height="40"
+                                          Foreground="{DynamicResource AccentBrush}"
+                                          HorizontalAlignment="Center"
+                                          VerticalAlignment="Center"/>
+                            </Border>
+                            
+                            <!-- Title & Badge -->
+                            <StackPanel Grid.Row="1" Spacing="12">
+                                <TextBlock Text="Upload Locally"
+                                           FontSize="24"
+                                           FontWeight="Bold"
+                                           Foreground="{DynamicResource TextPrimaryBrush}"
+                                           HorizontalAlignment="Center"/>
+                                <Border Background="{DynamicResource SecondaryLightBrush}"
+                                        CornerRadius="16"
+                                        Padding="16,6"
+                                        HorizontalAlignment="Center">
+                                    <TextBlock Text="⚙ Advanced"
+                                               FontSize="13"
+                                               FontWeight="SemiBold"
+                                               Foreground="{DynamicResource SecondaryBrush}"/>
+                                </Border>
+                            </StackPanel>
+                            
+                            <!-- Description -->
+                            <TextBlock Grid.Row="2"
+                                       Text="Upload and flash custom firmware files from your local computer"
+                                       FontSize="15"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                       TextWrapping="Wrap"
+                                       TextAlignment="Center"
+                                       Opacity="0.9"
+                                       Margin="0,20,0,0"/>
+                        </Grid>
+                    </Button>
+                    
+                </Grid>
                 
                 <!-- Connection Status -->
-                <StackPanel Grid.Column="3" 
-                            Orientation="Horizontal" 
-                            Spacing="8"
-                            VerticalAlignment="Center">
-                    <Border Width="10" Height="10" CornerRadius="5">
-                        <Border.Background>
-                            <SolidColorBrush Color="{Binding ConnectionStatusColor}"/>
-                        </Border.Background>
-                    </Border>
-                    <StackPanel Spacing="0">
+                <Border Background="{DynamicResource InfoLightBrush}"
+                        CornerRadius="12"
+                        Padding="20,16"
+                        MaxWidth="600"
+                        HorizontalAlignment="Center"
+                        Margin="0,40,0,0">
+                    <StackPanel Orientation="Horizontal" Spacing="12" HorizontalAlignment="Center">
+                        <Border Width="12" Height="12" CornerRadius="6" VerticalAlignment="Center">
+                            <Border.Background>
+                                <SolidColorBrush Color="{Binding ConnectionStatusColor}"/>
+                            </Border.Background>
+                        </Border>
                         <TextBlock Text="{Binding ConnectionStatusText}"
+                                   VerticalAlignment="Center"
                                    FontWeight="Medium"
-                                   FontSize="13"
+                                   FontSize="14"
                                    Foreground="{DynamicResource TextPrimaryBrush}"/>
-                        <TextBlock Text="Firmware data synced from ArduPilot"
-                                   FontSize="10"
-                                   Foreground="{DynamicResource TextMutedBrush}"/>
                     </StackPanel>
-                </StackPanel>
-            </Grid>
-        </Border>
-        
-        <!-- Main Content Area -->
-        <ScrollViewer Grid.Row="1" 
-                      HorizontalScrollBarVisibility="Disabled"
-                      VerticalScrollBarVisibility="Auto"
-                      Padding="24,16">
+                </Border>
+                
+            </StackPanel>
             
-            <StackPanel Spacing="16">
+        </Grid>
+        
+        <!-- AUTOMATIC MODE VIEW (Cloud Upload) -->
+        <ScrollViewer Grid.Row="1" 
+                      IsVisible="{Binding IsAutomaticMode}"
+                      Padding="32,24">
+            <StackPanel Spacing="20">
                 
-                <!-- Mode Selection View - Initial roadmap -->
-                <StackPanel Spacing="32" IsVisible="{Binding !IsAutomaticMode, FallbackValue=True}">
-                    
-                    <!-- Page Title -->
-                    <StackPanel Spacing="8" HorizontalAlignment="Center" Margin="0,24,0,0">
-                        <TextBlock Text="Firmware Upgrade"
-                                   FontSize="{StaticResource FontSize3XL}"
-                                   FontWeight="SemiBold"
-                                   Foreground="{DynamicResource TextPrimaryBrush}"
-                                   HorizontalAlignment="Center"/>
-                        <TextBlock Text="Choose your firmware installation method"
-                                   FontSize="{StaticResource FontSizeBase}"
-                                   Foreground="{DynamicResource TextSecondaryBrush}"
-                                   HorizontalAlignment="Center"/>
-                    </StackPanel>
-                    
-                    <!-- Mode Selection Cards -->
-                    <StackPanel Orientation="Horizontal" 
-                                HorizontalAlignment="Center"
-                                Spacing="24">
+                <!-- Control Bar -->
+                <Border Background="{DynamicResource SurfaceLightBrush}"
+                        BorderBrush="{DynamicResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="12"
+                        Padding="20,16"
+                        Margin="0,0,0,8">
+                    <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto">
                         
-                        <!-- Automatic Firmware Card -->
-                        <Button Classes="mode-selection-card"
-                                Command="{Binding SelectAutomaticModeCommand}">
-                            <Grid RowDefinitions="Auto,Auto,*,Auto">
-                                <!-- Icon -->
-                                <Border Grid.Row="0"
-                                        Background="{DynamicResource PrimaryLightBrush}"
-                                        CornerRadius="12"
-                                        Width="64" Height="64"
-                                        HorizontalAlignment="Center">
-                                    <PathIcon Data="M19.35 10.04C18.67 6.59 15.64 4 12 4c-1.48 0-2.85.43-4.01 1.17l1.46 1.46C10.21 6.23 11.08 6 12 6c3.04 0 5.5 2.46 5.5 5.5v.5H19c1.66 0 3 1.34 3 3 0 1.13-.64 2.11-1.56 2.62l1.45 1.45C23.16 18.16 24 16.68 24 15c0-2.64-2.05-4.78-4.65-4.96zM3 5.27l2.75 2.74C2.56 8.15 0 10.77 0 14c0 3.31 2.69 6 6 6h11.73l2 2L21 20.73 4.27 4 3 5.27zM7.73 10l8 8H6c-2.21 0-4-1.79-4-4s1.79-4 4-4h1.73z"
-                                              Width="32" Height="32"
-                                              Foreground="{DynamicResource PrimaryBrush}"
-                                              HorizontalAlignment="Center"
-                                              VerticalAlignment="Center"/>
-                                </Border>
-                                
-                                <!-- Title & Subtitle -->
-                                <StackPanel Grid.Row="1" Margin="0,16,0,0" Spacing="4">
-                                    <TextBlock Text="Automatic Firmware"
-                                               FontSize="{StaticResource FontSizeLG}"
-                                               FontWeight="SemiBold"
-                                               Foreground="{DynamicResource TextPrimaryBrush}"
-                                               HorizontalAlignment="Center"/>
-                                    <Border Background="{DynamicResource SuccessLightBrush}"
-                                            CornerRadius="12"
-                                            Padding="12,4"
-                                            HorizontalAlignment="Center">
-                                        <TextBlock Text="Recommended"
-                                                   FontSize="{StaticResource FontSizeXS}"
-                                                   FontWeight="Medium"
-                                                   Foreground="{DynamicResource SuccessDarkBrush}"/>
-                                    </Border>
-                                </StackPanel>
-                                
-                                <!-- Description -->
-                                <TextBlock Grid.Row="2"
-                                           Text="Fetch and install firmware automatically from ArduPilot servers"
-                                           FontSize="{StaticResource FontSizeBase}"
-                                           Foreground="{DynamicResource TextSecondaryBrush}"
-                                           TextWrapping="Wrap"
-                                           TextAlignment="Center"
-                                           Margin="0,12,0,0"/>
-                                
-                                <!-- Features -->
-                                <StackPanel Grid.Row="3" Spacing="6" Margin="0,16,0,0">
-                                    <StackPanel Orientation="Horizontal" Spacing="8">
-                                        <PathIcon Data="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"
-                                                  Width="16" Height="16"
-                                                  Foreground="{DynamicResource SuccessBrush}"/>
-                                        <TextBlock Text="Latest stable releases"
-                                                   FontSize="{StaticResource FontSizeSM}"
-                                                   Foreground="{DynamicResource TextSecondaryBrush}"/>
-                                    </StackPanel>
-                                    <StackPanel Orientation="Horizontal" Spacing="8">
-                                        <PathIcon Data="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"
-                                                  Width="16" Height="16"
-                                                  Foreground="{DynamicResource SuccessBrush}"/>
-                                        <TextBlock Text="Board auto-detection"
-                                                   FontSize="{StaticResource FontSizeSM}"
-                                                   Foreground="{DynamicResource TextSecondaryBrush}"/>
-                                    </StackPanel>
-                                </StackPanel>
-                            </Grid>
-                        </Button>
-                        
-                        <!-- Manual Firmware Card -->
-                        <Button Classes="mode-selection-card"
-                                Command="{Binding SelectManualModeCommand}">
-                            <Grid RowDefinitions="Auto,Auto,*,Auto">
-                                <!-- Icon -->
-                                <Border Grid.Row="0"
-                                        Background="{DynamicResource AccentLightBrush}"
-                                        CornerRadius="12"
-                                        Width="64" Height="64"
-                                        HorizontalAlignment="Center">
-                                    <PathIcon Data="M9 16h6v-6h4l-7-7-7 7h4zm-4 2h14v2H5z"
-                                              Width="32" Height="32"
-                                              Foreground="{DynamicResource AccentBrush}"
-                                              HorizontalAlignment="Center"
-                                              VerticalAlignment="Center"/>
-                                </Border>
-                                
-                                <!-- Title & Subtitle -->
-                                <StackPanel Grid.Row="1" Margin="0,16,0,0" Spacing="4">
-                                    <TextBlock Text="Manual Firmware"
-                                               FontSize="{StaticResource FontSizeLG}"
-                                               FontWeight="SemiBold"
-                                               Foreground="{DynamicResource TextPrimaryBrush}"
-                                               HorizontalAlignment="Center"/>
-                                    <Border Background="{DynamicResource SecondaryLightBrush}"
-                                            CornerRadius="12"
-                                            Padding="12,4"
-                                            HorizontalAlignment="Center">
-                                        <TextBlock Text="Advanced"
-                                                   FontSize="{StaticResource FontSizeXS}"
-                                                   FontWeight="Medium"
-                                                   Foreground="{DynamicResource SecondaryBrush}"/>
-                                    </Border>
-                                </StackPanel>
-                                
-                                <!-- Description -->
-                                <TextBlock Grid.Row="2"
-                                           Text="Upload and flash custom firmware files manually"
-                                           FontSize="{StaticResource FontSizeBase}"
-                                           Foreground="{DynamicResource TextSecondaryBrush}"
-                                           TextWrapping="Wrap"
-                                           TextAlignment="Center"
-                                           Margin="0,12,0,0"/>
-                                
-                                <!-- Features -->
-                                <StackPanel Grid.Row="3" Spacing="6" Margin="0,16,0,0">
-                                    <StackPanel Orientation="Horizontal" Spacing="8">
-                                        <PathIcon Data="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"
-                                                  Width="16" Height="16"
-                                                  Foreground="{DynamicResource AccentBrush}"/>
-                                        <TextBlock Text="Custom firmware files"
-                                                   FontSize="{StaticResource FontSizeSM}"
-                                                   Foreground="{DynamicResource TextSecondaryBrush}"/>
-                                    </StackPanel>
-                                    <StackPanel Orientation="Horizontal" Spacing="8">
-                                        <PathIcon Data="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"
-                                                  Width="16" Height="16"
-                                                  Foreground="{DynamicResource AccentBrush}"/>
-                                        <TextBlock Text="Offline installation"
-                                                   FontSize="{StaticResource FontSizeSM}"
-                                                   Foreground="{DynamicResource TextSecondaryBrush}"/>
-                                    </StackPanel>
-                                </StackPanel>
-                            </Grid>
-                        </Button>
-                    </StackPanel>
-                    
-                    <!-- Connection Status Banner -->
-                    <Border Background="{DynamicResource InfoLightBrush}"
-                            CornerRadius="12"
-                            Padding="16,12"
-                            MaxWidth="700"
-                            HorizontalAlignment="Center">
-                        <StackPanel Orientation="Horizontal" Spacing="12" HorizontalAlignment="Center">
-                            <Border Width="10" Height="10" CornerRadius="5" VerticalAlignment="Center">
-                                <Border.Background>
-                                    <SolidColorBrush Color="{Binding ConnectionStatusColor}"/>
-                                </Border.Background>
-                            </Border>
-                            <TextBlock Text="{Binding ConnectionStatusText}"
+                        <!-- Firmware Source Selector -->
+                        <StackPanel Grid.Column="0" 
+                                    Orientation="Horizontal" 
+                                    Spacing="10"
+                                    VerticalAlignment="Center"
+                                    Margin="0,0,16,0">
+                            <TextBlock Text="Source:"
                                        VerticalAlignment="Center"
-                                       FontWeight="Medium"
-                                       Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                       FontWeight="SemiBold"
+                                       FontSize="13"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"/>
+                            <ComboBox ItemsSource="{Binding FirmwareSources}"
+                                      SelectedItem="{Binding SelectedFirmwareSource}"
+                                      MinWidth="200"
+                                      Height="36"
+                                      CornerRadius="8"
+                                      Padding="12,8">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding DisplayName}" FontSize="13"/>
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
                         </StackPanel>
-                    </Border>
+                        
+                        <!-- Spacer -->
+                        <Border Grid.Column="2"/>
+                        
+                        <!-- Refresh Button -->
+                        <Button Grid.Column="3"
+                                Classes="status-btn"
+                                Command="{Binding RefreshFirmwareVersionsCommand}"
+                                IsEnabled="{Binding !IsLoadingManifest}"
+                                Margin="0,0,12,0"
+                                ToolTip.Tip="Refresh firmware list">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <PathIcon Data="M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"
+                                          Width="14" Height="14"/>
+                                <TextBlock Text="Refresh" FontSize="13"/>
+                            </StackPanel>
+                        </Button>
+                        
+                        <!-- Beta Toggle Button -->
+                        <Button Grid.Column="4"
+                                Classes="status-btn"
+                                Command="{Binding ToggleBetaFirmwareCommand}">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <Border Background="{DynamicResource WarningLightBrush}"
+                                        CornerRadius="4"
+                                        Padding="6,3"
+                                        IsVisible="{Binding ShowBetaFirmware}">
+                                    <TextBlock Text="BETA"
+                                               FontSize="9"
+                                               FontWeight="Bold"
+                                               Foreground="{DynamicResource WarningBrush}"/>
+                                </Border>
+                                <TextBlock Text="Show Beta" FontSize="13"/>
+                            </StackPanel>
+                        </Button>
+                        
+                    </Grid>
+                </Border>
+                
+                <!-- Back Button -->
+                <Button Classes="status-btn"
+                        HorizontalAlignment="Left"
+                        Click="BackToModeSelection_Click">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <PathIcon Data="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"
+                                  Width="14" Height="14"/>
+                        <TextBlock Text="Back to Mode Selection"/>
+                    </StackPanel>
+                </Button>
+                
+                <!-- Page Title -->
+                <StackPanel Spacing="8" Margin="0,16,0,24">
+                    <TextBlock Text="Download from Cloud"
+                               FontSize="28"
+                               FontWeight="Bold"
+                               Foreground="{DynamicResource PrimaryBrush}"/>
+                    <TextBlock Text="Select a vehicle type to download and install firmware"
+                               FontSize="14"
+                               Foreground="{DynamicResource TextSecondaryBrush}"/>
                 </StackPanel>
                 
-                <!-- Automatic Mode Content - Vehicle Type Grid -->
-                <StackPanel Spacing="16" IsVisible="{Binding IsAutomaticMode}">
-                    
-                    <!-- Loading Skeleton -->
-                    <StackPanel IsVisible="{Binding IsLoadingManifest}" Spacing="16">
-                        <TextBlock Text="Fetching latest firmware metadata..."
+                <!-- Loading State -->
+                <Border Background="{DynamicResource CardBrush}"
+                        BorderBrush="{DynamicResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="12"
+                        Padding="40,32"
+                        Margin="0,0,0,24"
+                        IsVisible="{Binding IsLoadingManifest}">
+                    <StackPanel Spacing="20" HorizontalAlignment="Center">
+                        <TextBlock Text="⚡ Loading Firmware Data..."
+                                   FontSize="18"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource PrimaryBrush}"
+                                   HorizontalAlignment="Center"/>
+                        <TextBlock Text="Fetching latest firmware metadata from ArduPilot servers"
                                    FontSize="14"
                                    Foreground="{DynamicResource TextSecondaryBrush}"
-                                   HorizontalAlignment="Center"
-                                   Margin="0,16"/>
-                        <WrapPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                            <Border Background="{DynamicResource SecondaryLightBrush}" CornerRadius="12" 
-                                    Width="155" Height="175" Margin="6" Opacity="0.7"/>
-                            <Border Background="{DynamicResource SecondaryLightBrush}" CornerRadius="12" 
-                                    Width="155" Height="175" Margin="6" Opacity="0.5"/>
-                            <Border Background="{DynamicResource SecondaryLightBrush}" CornerRadius="12" 
-                                    Width="155" Height="175" Margin="6" Opacity="0.3"/>
-                            <Border Background="{DynamicResource SecondaryLightBrush}" CornerRadius="12" 
-                                    Width="155" Height="175" Margin="6" Opacity="0.2"/>
-                        </WrapPanel>
+                                   HorizontalAlignment="Center"/>
+                        <!-- Loading skeleton -->
+                        <UniformGrid Rows="2" Columns="4" HorizontalAlignment="Center" Margin="0,20,0,0">
+                            <Border Background="{DynamicResource SecondaryLightBrush}" 
+                                    CornerRadius="12" 
+                                    Width="140" Height="160" 
+                                    Margin="8" 
+                                    Opacity="0.7"/>
+                            <Border Background="{DynamicResource SecondaryLightBrush}" 
+                                    CornerRadius="12" 
+                                    Width="140" Height="160" 
+                                    Margin="8" 
+                                    Opacity="0.5"/>
+                            <Border Background="{DynamicResource SecondaryLightBrush}" 
+                                    CornerRadius="12" 
+                                    Width="140" Height="160" 
+                                    Margin="8" 
+                                    Opacity="0.3"/>
+                            <Border Background="{DynamicResource SecondaryLightBrush}" 
+                                    CornerRadius="12" 
+                                    Width="140" Height="160" 
+                                    Margin="8" 
+                                    Opacity="0.2"/>
+                        </UniformGrid>
                     </StackPanel>
+                </Border>
+                
+                <!-- Vehicle Selection Grid -->
+                <StackPanel Spacing="24" IsVisible="{Binding !IsLoadingManifest}">
                     
-                    <!-- Status Message Banner -->
+                    <!-- Status Message -->
                     <Border Background="{DynamicResource InfoLightBrush}"
-                            CornerRadius="8"
+                            BorderBrush="{DynamicResource InfoBrush}"
+                            BorderThickness="1"
+                            CornerRadius="10"
                             Padding="16,12"
                             IsVisible="{Binding !IsOperationInProgress}">
                         <StackPanel Orientation="Horizontal" Spacing="12">
@@ -431,571 +491,404 @@
                                       Foreground="{DynamicResource InfoBrush}"/>
                             <TextBlock Text="{Binding StatusMessage}"
                                        VerticalAlignment="Center"
+                                       FontSize="14"
                                        Foreground="{DynamicResource TextPrimaryBrush}"/>
                         </StackPanel>
                     </Border>
                     
-                    <!-- Success Banner -->
-                    <Border Background="{DynamicResource SuccessLightBrush}"
-                            CornerRadius="8"
-                            Padding="16,12"
-                            IsVisible="{Binding IsSuccess}">
-                        <StackPanel Orientation="Horizontal" Spacing="12">
-                            <PathIcon Data="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"
-                                      Width="20" Height="20"
-                                      Foreground="{DynamicResource SuccessBrush}"/>
-                            <TextBlock Text="{Binding StatusMessage}"
-                                       VerticalAlignment="Center"
-                                       Foreground="{DynamicResource SuccessDarkBrush}"/>
-                        </StackPanel>
-                    </Border>
-                    
-                    <!-- Error Banner -->
-                    <Border Background="{DynamicResource ErrorLightBrush}"
-                            CornerRadius="8"
-                            Padding="16,12"
-                            IsVisible="{Binding IsError}">
-                        <StackPanel Orientation="Horizontal" Spacing="12">
-                            <PathIcon Data="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
-                                      Width="20" Height="20"
-                                      Foreground="{DynamicResource ErrorBrush}"/>
-                            <TextBlock Text="{Binding StatusMessage}"
-                                       VerticalAlignment="Center"
-                                       TextWrapping="Wrap"
-                                       Foreground="{DynamicResource ErrorDarkBrush}"/>
-                        </StackPanel>
-                    </Border>
-                    
-                    <!-- Firmware Groups (Collapsible Sections) -->
-                    <ItemsControl ItemsSource="{Binding VehicleGroups}"
-                                  IsVisible="{Binding !IsLoadingManifest}">
+                    <!-- Vehicle Categories -->
+                    <ItemsControl ItemsSource="{Binding VehicleGroups}">
                         <ItemsControl.ItemTemplate>
-                            <DataTemplate DataType="vm:VehicleTypeGroup">
-                                <Expander IsExpanded="{Binding IsExpanded, Mode=TwoWay}"
-                                          Margin="0,0,0,16">
-                                    <Expander.Header>
+                            <DataTemplate>
+                                <StackPanel Margin="0,0,0,32">
+                                    <!-- Category Header -->
+                                    <Border Background="{DynamicResource SecondaryLightBrush}"
+                                            CornerRadius="8"
+                                            Padding="16,12"
+                                            Margin="0,0,0,16">
                                         <TextBlock Text="{Binding Name}"
-                                                   Classes="section-header"/>
-                                    </Expander.Header>
+                                                   FontSize="18"
+                                                   FontWeight="Bold"
+                                                   Foreground="{DynamicResource PrimaryBrush}"/>
+                                    </Border>
                                     
-                                    <WrapPanel Orientation="Horizontal" Margin="0,8,0,0">
-                                        <ItemsControl ItemsSource="{Binding Items}">
-                                            <ItemsControl.ItemsPanel>
-                                                <ItemsPanelTemplate>
-                                                    <WrapPanel Orientation="Horizontal"/>
-                                                </ItemsPanelTemplate>
-                                            </ItemsControl.ItemsPanel>
-                                            <ItemsControl.ItemTemplate>
-                                                <DataTemplate DataType="vm:VehicleTypeItem">
-                                                    <Button Classes="firmware-card"
-                                                            Classes.firmware-card-selected="{Binding IsSelected}"
-                                                            Command="{Binding $parent[ItemsControl].((vm:FirmwarePageViewModel)DataContext).SelectVehicleTypeCommand, FallbackValue={x:Null}}"
-                                                            CommandParameter="{Binding}"
-                                                            ToolTip.Tip="{Binding Description}">
-                                                        <Grid RowDefinitions="Auto,*,Auto,Auto">
-                                                            
-                                                            <!-- Availability Badge -->
-                                                            <Border Grid.Row="0"
-                                                                    Classes="availability-badge"
-                                                                    HorizontalAlignment="Right"
-                                                                    Margin="0,0,0,4">
-                                                                <Border.Background>
-                                                                    <SolidColorBrush Color="{Binding AvailabilityBadgeColor}"/>
-                                                                </Border.Background>
-                                                                <TextBlock Text="{Binding AvailabilityText}"
-                                                                           FontSize="9"
-                                                                           FontWeight="Medium"
-                                                                           Foreground="White"/>
-                                                            </Border>
-                                                            
-                                                            <!-- Vehicle Image -->
-                                                            <Border Grid.Row="1" 
-                                                                    Background="{DynamicResource SecondaryLightBrush}"
-                                                                    CornerRadius="8"
-                                                                    Padding="8"
-                                                                    HorizontalAlignment="Center"
-                                                                    VerticalAlignment="Center">
-                                                                <Image Source="{Binding ImagePath}"
-                                                                       Width="75"
-                                                                       Height="60"
-                                                                       Stretch="Uniform"/>
-                                                            </Border>
-                                                            
-                                                            <!-- Vehicle Name -->
-                                                            <TextBlock Grid.Row="2"
-                                                                       Text="{Binding Description}"
-                                                                       FontWeight="Medium"
-                                                                       FontSize="12"
-                                                                       HorizontalAlignment="Center"
-                                                                       TextAlignment="Center"
-                                                                       TextTrimming="CharacterEllipsis"
-                                                                       Foreground="{DynamicResource TextPrimaryBrush}"
-                                                                       Margin="0,8,0,2"/>
-                                                            
-                                                            <!-- Version Text -->
-                                                            <TextBlock Grid.Row="3"
-                                                                       Text="{Binding VersionText}"
-                                                                       FontSize="10"
-                                                                       HorizontalAlignment="Center"
-                                                                       TextAlignment="Center"
-                                                                       Foreground="{DynamicResource TextMutedBrush}"/>
-                                                            
-                                                            <!-- Selected Checkmark -->
-                                                            <Border Grid.Row="0" Grid.RowSpan="4"
-                                                                    HorizontalAlignment="Left"
-                                                                    VerticalAlignment="Top"
-                                                                    Margin="-2,-2,0,0"
-                                                                    IsVisible="{Binding IsSelected}">
-                                                                <Ellipse Width="22" Height="22"
-                                                                         Fill="{DynamicResource PrimaryBrush}"/>
-                                                            </Border>
-                                                            <PathIcon Grid.Row="0" Grid.RowSpan="4"
-                                                                      Data="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"
-                                                                      Width="12" Height="12"
+                                    <!-- Responsive Vehicle Grid -->
+                                    <ItemsControl ItemsSource="{Binding Items}">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <UniformGrid Columns="5" 
+                                                           HorizontalAlignment="Left"/>
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <!-- Vehicle Card -->
+                                                <Button Classes="firmware-card"
+                                                        Classes.firmware-card-selected="{Binding IsSelected}"
+                                                        Command="{Binding $parent[ItemsControl].((vm:FirmwarePageViewModel)DataContext).SelectVehicleTypeCommand}"
+                                                        CommandParameter="{Binding}"
+                                                        ToolTip.Tip="{Binding Description}"
+                                                        Margin="6"
+                                                        Padding="8">
+                                                    <Grid RowDefinitions="Auto,*,Auto,Auto">
+                                                        
+                                                        <!-- Availability Badge -->
+                                                        <Border Grid.Row="0"
+                                                                CornerRadius="4"
+                                                                Padding="6,3"
+                                                                HorizontalAlignment="Right"
+                                                                Margin="0,0,0,8">
+                                                            <Border.Background>
+                                                                <SolidColorBrush Color="{Binding AvailabilityBadgeColor}"/>
+                                                            </Border.Background>
+                                                            <TextBlock Text="{Binding AvailabilityText}"
+                                                                       FontSize="9"
+                                                                       FontWeight="Bold"
+                                                                       Foreground="White"/>
+                                                        </Border>
+                                                        
+                                                        <!-- Vehicle Image/Icon -->
+                                                        <Border Grid.Row="1" 
+                                                                Background="{DynamicResource SecondaryLightBrush}"
+                                                                CornerRadius="10"
+                                                                Padding="12"
+                                                                Margin="0,0,0,12"
+                                                                HorizontalAlignment="Center"
+                                                                VerticalAlignment="Center">
+                                                            <Image Source="{Binding ImagePath}"
+                                                                   Width="80"
+                                                                   Height="65"
+                                                                   Stretch="Uniform"/>
+                                                        </Border>
+                                                        
+                                                        <!-- Vehicle Name -->
+                                                        <TextBlock Grid.Row="2"
+                                                                   Text="{Binding Description}"
+                                                                   FontWeight="SemiBold"
+                                                                   FontSize="13"
+                                                                   HorizontalAlignment="Center"
+                                                                   TextAlignment="Center"
+                                                                   TextTrimming="CharacterEllipsis"
+                                                                   Foreground="{DynamicResource TextPrimaryBrush}"
+                                                                   Margin="0,0,0,4"
+                                                                   MaxWidth="120"/>
+                                                        
+                                                        <!-- Version -->
+                                                        <TextBlock Grid.Row="3"
+                                                                   Text="{Binding VersionText}"
+                                                                   FontSize="10"
+                                                                   HorizontalAlignment="Center"
+                                                                   TextAlignment="Center"
+                                                                   Foreground="{DynamicResource TextMutedBrush}"/>
+                                                        
+                                                        <!-- Selected Indicator -->
+                                                        <Border Grid.Row="0" Grid.RowSpan="4"
+                                                                Background="{DynamicResource PrimaryBrush}"
+                                                                CornerRadius="24"
+                                                                Width="28" Height="28"
+                                                                HorizontalAlignment="Left"
+                                                                VerticalAlignment="Top"
+                                                                Margin="-8,-8,0,0"
+                                                                IsVisible="{Binding IsSelected}">
+                                                            <PathIcon Data="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"
+                                                                      Width="14" Height="14"
                                                                       Foreground="White"
-                                                                      HorizontalAlignment="Left"
-                                                                      VerticalAlignment="Top"
-                                                                      Margin="3,3,0,0"
-                                                                      IsVisible="{Binding IsSelected}"/>
-                                                        </Grid>
-                                                    </Button>
-                                                </DataTemplate>
-                                            </ItemsControl.ItemTemplate>
-                                        </ItemsControl>
-                                    </WrapPanel>
-                                </Expander>
+                                                                      HorizontalAlignment="Center"
+                                                                      VerticalAlignment="Center"/>
+                                                        </Border>
+                                                    </Grid>
+                                                </Button>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
                     
-                    <!-- Detected Board Panel (shown when board detected) -->
+                    <!-- Detected Board Info -->
                     <Border Background="{DynamicResource CardBrush}"
-                            BorderBrush="{DynamicResource BorderBrush}"
-                            BorderThickness="1"
+                            BorderBrush="{DynamicResource SuccessBrush}"
+                            BorderThickness="2"
                             CornerRadius="12"
-                            Padding="20"
-                            Margin="0,16,0,0"
+                            Padding="24,20"
                             IsVisible="{Binding IsBoardDetected}">
-                        <Grid ColumnDefinitions="*,Auto">
-                            <StackPanel Spacing="4">
-                                <TextBlock Text="Detected Board"
+                        <Grid ColumnDefinitions="Auto,*,Auto">
+                            <Border Grid.Column="0"
+                                    Background="{DynamicResource SuccessLightBrush}"
+                                    CornerRadius="8"
+                                    Width="48" Height="48"
+                                    Margin="0,0,16,0">
+                                <PathIcon Data="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"
+                                          Width="24" Height="24"
+                                          Foreground="{DynamicResource SuccessBrush}"
+                                          HorizontalAlignment="Center"
+                                          VerticalAlignment="Center"/>
+                            </Border>
+                            
+                            <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                                <TextBlock Text="Board Detected"
                                            Foreground="{DynamicResource TextMutedBrush}"
                                            FontSize="12"/>
                                 <StackPanel Orientation="Horizontal" Spacing="8">
                                     <TextBlock Text="{Binding DetectedBoardName}"
-                                               Foreground="{DynamicResource PrimaryBrush}"
-                                               FontWeight="SemiBold"
+                                               Foreground="{DynamicResource SuccessBrush}"
+                                               FontWeight="Bold"
                                                FontSize="16"/>
                                     <TextBlock Text="on"
                                                Foreground="{DynamicResource TextMutedBrush}"
-                                               VerticalAlignment="Center"/>
+                                               VerticalAlignment="Center"
+                                               FontSize="13"/>
                                     <TextBlock Text="{Binding DetectedBoardPort}"
                                                Foreground="{DynamicResource TextSecondaryBrush}"
-                                               VerticalAlignment="Center"/>
+                                               VerticalAlignment="Center"
+                                               FontSize="13"/>
                                 </StackPanel>
                             </StackPanel>
-                            <Button Grid.Column="1"
+                            
+                            <Button Grid.Column="2"
                                     Content="Refresh"
                                     Classes="status-btn"
                                     Command="{Binding DetectBoardCommand}"/>
                         </Grid>
                     </Border>
+                    
                 </StackPanel>
                 
-                <!-- Manual Mode Content -->
-                <StackPanel Spacing="24" IsVisible="{Binding IsManualMode}">
-                    
-                    <!-- Back to Mode Selection -->
-                    <Button Classes="status-btn"
-                            HorizontalAlignment="Left"
-                            Command="{Binding SelectManualModeCommand}">
-                        <StackPanel Orientation="Horizontal" Spacing="6">
-                            <PathIcon Data="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"
-                                      Width="14" Height="14"
-                                      Foreground="{DynamicResource TextSecondaryBrush}"/>
-                            <TextBlock Text="Back to Mode Selection" VerticalAlignment="Center" FontSize="13"/>
-                        </StackPanel>
-                    </Button>
-                    
-                    <!-- Manual Upload Card -->
-                    <Border Background="{DynamicResource CardBrush}"
-                            BorderBrush="{DynamicResource BorderBrush}"
-                            BorderThickness="1"
-                            CornerRadius="16"
-                            Padding="32,24"
-                            MaxWidth="700"
-                            HorizontalAlignment="Center">
-                        <StackPanel Spacing="20">
-                            <StackPanel Spacing="8">
-                                <TextBlock Text="Load Custom Firmware"
-                                           Foreground="{DynamicResource TextPrimaryBrush}"
-                                           FontWeight="SemiBold"
-                                           FontSize="{StaticResource FontSizeLG}"/>
-                                <TextBlock Text="Select a .apj, .px4, .bin, or .hex firmware file to flash to your flight controller"
-                                           Foreground="{DynamicResource TextSecondaryBrush}"
-                                           FontSize="{StaticResource FontSizeBase}"
-                                           TextWrapping="Wrap"/>
+            </StackPanel>
+        </ScrollViewer>
+        
+        <!-- MANUAL MODE VIEW (Local Upload) -->
+        <ScrollViewer Grid.Row="1"
+                      IsVisible="{Binding IsManualMode}"
+                      Padding="32,24">
+            <StackPanel Spacing="20" MaxWidth="800" HorizontalAlignment="Center">
+                
+                <!-- Back Button -->
+                <Button Classes="status-btn"
+                        HorizontalAlignment="Left"
+                        Click="BackToModeSelection_Click">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <PathIcon Data="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"
+                                  Width="14" Height="14"/>
+                        <TextBlock Text="Back to Mode Selection"/>
+                    </StackPanel>
+                </Button>
+                
+                <!-- Page Title -->
+                <StackPanel Spacing="8" Margin="0,16,0,32">
+                    <TextBlock Text="Upload Custom Firmware"
+                               FontSize="28"
+                               FontWeight="Bold"
+                               Foreground="{DynamicResource PrimaryBrush}"/>
+                    <TextBlock Text="Select a firmware file from your computer to flash"
+                               FontSize="14"
+                               Foreground="{DynamicResource TextSecondaryBrush}"/>
+                </StackPanel>
+                
+                <!-- File Upload Card -->
+                <Border Background="{DynamicResource CardBrush}"
+                        BorderBrush="{DynamicResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="16"
+                        Padding="40,36">
+                    <StackPanel Spacing="28">
+                        
+                        <!-- Header -->
+                        <StackPanel Spacing="10">
+                            <StackPanel Orientation="Horizontal" Spacing="12">
+                                <Border Background="{DynamicResource AccentLightBrush}"
+                                        CornerRadius="10"
+                                        Width="48" Height="48">
+                                    <PathIcon Data="M9 16h6v-6h4l-7-7-7 7h4zm-4 2h14v2H5z"
+                                              Width="24" Height="24"
+                                              Foreground="{DynamicResource AccentBrush}"
+                                              HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                                </Border>
+                                <StackPanel VerticalAlignment="Center" Spacing="4">
+                                    <TextBlock Text="Load Custom Firmware"
+                                               FontSize="20"
+                                               FontWeight="Bold"
+                                               Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                    <TextBlock Text="Supports .apj, .px4, .bin, and .hex formats"
+                                               FontSize="13"
+                                               Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                </StackPanel>
                             </StackPanel>
-                            
-                            <Grid ColumnDefinitions="*,Auto" Margin="0,4,0,0">
+                        </StackPanel>
+                        
+                        <!-- File Selector -->
+                        <StackPanel Spacing="12">
+                            <TextBlock Text="Select Firmware File"
+                                       FontSize="13"
+                                       FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"/>
+                            <Grid ColumnDefinitions="*,Auto">
                                 <TextBox Grid.Column="0"
                                          Text="{Binding SelectedFileName}"
                                          IsReadOnly="True"
                                          Watermark="No file selected..."
                                          CornerRadius="8,0,0,8"
-                                         Height="44"
+                                         Height="52"
                                          VerticalContentAlignment="Center"
-                                         Padding="16,0"/>
+                                         Padding="18,0"
+                                         FontSize="14"
+                                         BorderBrush="{DynamicResource BorderBrush}"/>
                                 <Button Grid.Column="1"
-                                        Content="Browse..."
+                                        Content="Browse Files"
                                         Background="{DynamicResource PrimaryBrush}"
                                         Foreground="White"
                                         CornerRadius="0,8,8,0"
-                                        Height="44"
-                                        Padding="24,0"
+                                        Height="52"
+                                        Padding="32,0"
                                         BorderThickness="0"
+                                        FontWeight="Bold"
+                                        FontSize="14"
                                         Click="BrowseFirmwareFile_Click"/>
                             </Grid>
-                            
-                            <Button Content="Flash Custom Firmware"
-                                    Background="{DynamicResource PrimaryBrush}"
-                                    Foreground="White"
-                                    HorizontalAlignment="Stretch"
-                                    Height="48"
-                                    CornerRadius="12"
-                                    FontSize="{StaticResource FontSizeMD}"
-                                    FontWeight="SemiBold"
-                                    BorderThickness="0"
-                                    Command="{Binding FlashCustomFirmwareCommand}"
-                                    IsEnabled="{Binding SelectedFilePath, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
                         </StackPanel>
-                    </Border>
-                    
-                    <!-- Detected Board Panel for Manual Mode -->
-                    <Border Background="{DynamicResource CardBrush}"
-                            BorderBrush="{DynamicResource BorderBrush}"
-                            BorderThickness="1"
-                            CornerRadius="12"
-                            Padding="20"
-                            MaxWidth="700"
-                            HorizontalAlignment="Center"
-                            IsVisible="{Binding IsBoardDetected}">
-                        <Grid ColumnDefinitions="*,Auto">
-                            <StackPanel Spacing="4">
-                                <TextBlock Text="Detected Board"
-                                           Foreground="{DynamicResource TextMutedBrush}"
-                                           FontSize="12"/>
-                                <StackPanel Orientation="Horizontal" Spacing="8">
-                                    <TextBlock Text="{Binding DetectedBoardName}"
-                                               Foreground="{DynamicResource PrimaryBrush}"
-                                               FontWeight="SemiBold"
-                                               FontSize="16"/>
-                                    <TextBlock Text="on"
-                                               Foreground="{DynamicResource TextMutedBrush}"
-                                               VerticalAlignment="Center"/>
-                                    <TextBlock Text="{Binding DetectedBoardPort}"
+                        
+                        <!-- Flash Button -->
+                        <Button Content="Flash Custom Firmware"
+                                Background="{DynamicResource PrimaryBrush}"
+                                Foreground="White"
+                                HorizontalAlignment="Stretch"
+                                Height="56"
+                                CornerRadius="12"
+                                FontSize="16"
+                                FontWeight="Bold"
+                                BorderThickness="0"
+                                Command="{Binding FlashCustomFirmwareCommand}"
+                                IsEnabled="{Binding SelectedFilePath, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                <PathIcon Data="M13 3c-4.97 0-9 4.03-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42C8.27 19.99 10.51 21 13 21c4.97 0 9-4.03 9-9s-4.03-9-9-9zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"
+                                          Width="20" Height="20"
+                                          Foreground="White"/>
+                                <TextBlock Text="Flash Firmware" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
+                        
+                        <!-- Info Panel -->
+                        <Border Background="{DynamicResource InfoLightBrush}"
+                                BorderBrush="{DynamicResource InfoBrush}"
+                                BorderThickness="1"
+                                CornerRadius="10"
+                                Padding="16">
+                            <Grid ColumnDefinitions="Auto,*">
+                                <PathIcon Grid.Column="0"
+                                          Data="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"
+                                          Width="22" Height="22"
+                                          Foreground="{DynamicResource InfoBrush}"
+                                          Margin="0,0,14,0"
+                                          VerticalAlignment="Top"/>
+                                <StackPanel Grid.Column="1" Spacing="6">
+                                    <TextBlock Text="Important Information"
+                                               FontWeight="Bold"
+                                               FontSize="13"
+                                               Foreground="{DynamicResource InfoDarkBrush}"/>
+                                    <TextBlock TextWrapping="Wrap"
+                                               FontSize="12"
                                                Foreground="{DynamicResource TextSecondaryBrush}"
-                                               VerticalAlignment="Center"/>
+                                               LineHeight="18">
+                                        <Run Text="• Ensure your flight controller is properly connected"/>
+                                        <LineBreak/>
+                                        <Run Text="• Firmware file size should not exceed 50MB"/>
+                                        <LineBreak/>
+                                        <Run Text="• Do not disconnect during flashing process"/>
+                                        <LineBreak/>
+                                        <Run Text="• Backup your current parameters before flashing"/>
+                                    </TextBlock>
                                 </StackPanel>
-                            </StackPanel>
-                            <Button Grid.Column="1"
-                                    Content="Refresh"
-                                    Classes="status-btn"
-                                    Command="{Binding DetectBoardCommand}"/>
-                        </Grid>
-                    </Border>
-                    
-                    <!-- Status Banners for Manual Mode -->
-                    <Border Background="{DynamicResource SuccessLightBrush}"
-                            CornerRadius="8"
-                            Padding="16,12"
-                            MaxWidth="700"
-                            HorizontalAlignment="Center"
-                            IsVisible="{Binding IsSuccess}">
-                        <StackPanel Orientation="Horizontal" Spacing="12">
+                            </Grid>
+                        </Border>
+                    </StackPanel>
+                </Border>
+                
+                <!-- Detected Board Info for Manual Mode -->
+                <Border Background="{DynamicResource CardBrush}"
+                        BorderBrush="{DynamicResource SuccessBrush}"
+                        BorderThickness="2"
+                        CornerRadius="12"
+                        Padding="24,20"
+                        IsVisible="{Binding IsBoardDetected}">
+                    <Grid ColumnDefinitions="Auto,*,Auto">
+                        <Border Grid.Column="0"
+                                Background="{DynamicResource SuccessLightBrush}"
+                                CornerRadius="8"
+                                Width="48" Height="48"
+                                Margin="0,0,16,0">
                             <PathIcon Data="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"
-                                      Width="20" Height="20"
-                                      Foreground="{DynamicResource SuccessBrush}"/>
-                            <TextBlock Text="{Binding StatusMessage}"
-                                       VerticalAlignment="Center"
-                                       Foreground="{DynamicResource SuccessDarkBrush}"/>
-                        </StackPanel>
-                    </Border>
-                    
-                    <Border Background="{DynamicResource ErrorLightBrush}"
-                            CornerRadius="8"
-                            Padding="16,12"
-                            MaxWidth="700"
-                            HorizontalAlignment="Center"
-                            IsVisible="{Binding IsError}">
-                        <StackPanel Orientation="Horizontal" Spacing="12">
-                            <PathIcon Data="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
-                                      Width="20" Height="20"
-                                      Foreground="{DynamicResource ErrorBrush}"/>
-                            <TextBlock Text="{Binding StatusMessage}"
-                                       VerticalAlignment="Center"
-                                       TextWrapping="Wrap"
-                                       Foreground="{DynamicResource ErrorDarkBrush}"/>
-                        </StackPanel>
-                    </Border>
-                </StackPanel>
-                
-                <!-- Shared Dialogs (used by both modes) -->
-                
-                <!-- Detected Board Panel -->
-                <Border Background="#80000000"
-                        IsVisible="{Binding ShowConfirmationDialog}"
-                        HorizontalAlignment="Stretch"
-                        VerticalAlignment="Stretch">
-                    <Border Background="#3E3E42"
-                            CornerRadius="8"
-                            Padding="24"
-                            HorizontalAlignment="Center"
-                            VerticalAlignment="Center"
-                            MinWidth="400"
-                            MaxWidth="500">
-                        <StackPanel Spacing="16">
-                            <TextBlock Text="Confirm Firmware Installation"
-                                       Foreground="#FFFFFF"
-                                       FontSize="16"
-                                       FontWeight="SemiBold"
-                                       HorizontalAlignment="Center"/>
-                            <TextBlock Text="{Binding ConfirmationMessage}"
-                                       Foreground="#CCCCCC"
-                                       FontSize="13"
-                                       TextWrapping="Wrap"
-                                       TextAlignment="Center"/>
-                            <StackPanel Orientation="Horizontal" 
-                                        HorizontalAlignment="Center" 
-                                        Spacing="16"
-                                        Margin="0,8,0,0">
-                                <Button Content="Yes"
-                                        Width="100"
-                                        Background="#0E639C"
-                                        Foreground="White"
-                                        Command="{Binding ConfirmInstallationCommand}"/>
-                                <Button Content="No"
-                                        Width="100"
-                                        Classes="status-btn"
-                                        Command="{Binding CancelConfirmationCommand}"/>
+                                      Width="24" Height="24"
+                                      Foreground="{DynamicResource SuccessBrush}"
+                                      HorizontalAlignment="Center"
+                                      VerticalAlignment="Center"/>
+                        </Border>
+                        
+                        <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                            <TextBlock Text="Board Detected"
+                                       Foreground="{DynamicResource TextMutedBrush}"
+                                       FontSize="12"/>
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <TextBlock Text="{Binding DetectedBoardName}"
+                                           Foreground="{DynamicResource SuccessBrush}"
+                                           FontWeight="Bold"
+                                           FontSize="16"/>
+                                <TextBlock Text="on"
+                                           Foreground="{DynamicResource TextMutedBrush}"
+                                           VerticalAlignment="Center"
+                                           FontSize="13"/>
+                                <TextBlock Text="{Binding DetectedBoardPort}"
+                                           Foreground="{DynamicResource TextSecondaryBrush}"
+                                           VerticalAlignment="Center"
+                                           FontSize="13"/>
                             </StackPanel>
                         </StackPanel>
-                    </Border>
+                        
+                        <Button Grid.Column="2"
+                                Content="Refresh"
+                                Classes="status-btn"
+                                Command="{Binding DetectBoardCommand}"/>
+                    </Grid>
                 </Border>
                 
-                <!-- Platform Selection Dialog Overlay -->
-                <Border Background="#80000000"
-                        IsVisible="{Binding ShowPlatformSelectionDialog}"
-                        HorizontalAlignment="Stretch"
-                        VerticalAlignment="Stretch">
-                    <Border Background="#3E3E42"
-                            CornerRadius="8"
-                            Padding="24"
-                            HorizontalAlignment="Center"
-                            VerticalAlignment="Center"
-                            MinWidth="450"
-                            MaxWidth="550">
-                        <StackPanel Spacing="16">
-                            <TextBlock Text="Select Firmware Variant"
-                                       Foreground="#FFFFFF"
-                                       FontSize="16"
-                                       FontWeight="SemiBold"
-                                       HorizontalAlignment="Center"/>
-                            <TextBlock Text="{Binding PlatformSelectionMessage}"
-                                       Foreground="#CCCCCC"
-                                       FontSize="13"
-                                       TextWrapping="Wrap"
-                                       TextAlignment="Center"/>
-                            <ComboBox ItemsSource="{Binding AvailablePlatformVariants}"
-                                      SelectedItem="{Binding SelectedPlatformVariant}"
-                                      HorizontalAlignment="Stretch"
-                                      Margin="0,8,0,0"
-                                      Background="#252526"
-                                      Foreground="#CCCCCC"/>
-                            <StackPanel Orientation="Horizontal" 
-                                        HorizontalAlignment="Center" 
-                                        Spacing="16"
-                                        Margin="0,8,0,0">
-                                <Button Content="Install"
-                                        Width="100"
-                                        Background="#0E639C"
-                                        Foreground="White"
-                                        Command="{Binding ConfirmPlatformSelectionCommand}"/>
-                                <Button Content="Cancel"
-                                        Width="100"
-                                        Classes="status-btn"
-                                        Command="{Binding CancelPlatformSelectionCommand}"/>
-                            </StackPanel>
-                        </StackPanel>
-                    </Border>
+                <!-- Status Messages -->
+                <Border Background="{DynamicResource SuccessLightBrush}"
+                        BorderBrush="{DynamicResource SuccessBrush}"
+                        BorderThickness="1"
+                        CornerRadius="10"
+                        Padding="16,12"
+                        IsVisible="{Binding IsSuccess}">
+                    <StackPanel Orientation="Horizontal" Spacing="12">
+                        <PathIcon Data="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"
+                                  Width="20" Height="20"
+                                  Foreground="{DynamicResource SuccessBrush}"/>
+                        <TextBlock Text="{Binding StatusMessage}"
+                                   VerticalAlignment="Center"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource SuccessDarkBrush}"/>
+                    </StackPanel>
                 </Border>
                 
-                <!-- Reconnect Prompt Dialog Overlay -->
-                <Border Background="#80000000"
-                        IsVisible="{Binding ShowReconnectPromptDialog}"
-                        HorizontalAlignment="Stretch"
-                        VerticalAlignment="Stretch">
-                    <Border Background="#3E3E42"
-                            CornerRadius="8"
-                            Padding="24"
-                            HorizontalAlignment="Center"
-                            VerticalAlignment="Center"
-                            MinWidth="400"
-                            MaxWidth="500">
-                        <StackPanel Spacing="16">
-                            <PathIcon Data="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"
-                                      Foreground="#4CAF50" Width="48" Height="48"
-                                      HorizontalAlignment="Center"/>
-                            <TextBlock Text="Installation Complete"
-                                       Foreground="#FFFFFF"
-                                       FontSize="16"
-                                       FontWeight="SemiBold"
-                                       HorizontalAlignment="Center"/>
-                            <TextBlock Text="{Binding ReconnectPromptMessage}"
-                                       Foreground="#CCCCCC"
-                                       FontSize="13"
-                                       TextWrapping="Wrap"
-                                       TextAlignment="Center"/>
-                            <Button Content="OK"
-                                    Width="120"
-                                    Background="#0E639C"
-                                    Foreground="White"
-                                    HorizontalAlignment="Center"
-                                    Margin="0,8,0,0"
-                                    Command="{Binding AcknowledgeReconnectPromptCommand}"/>
-                        </StackPanel>
-                    </Border>
+                <Border Background="{DynamicResource ErrorLightBrush}"
+                        BorderBrush="{DynamicResource ErrorBrush}"
+                        BorderThickness="1"
+                        CornerRadius="10"
+                        Padding="16,12"
+                        IsVisible="{Binding IsError}">
+                    <StackPanel Orientation="Horizontal" Spacing="12">
+                        <PathIcon Data="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
+                                  Width="20" Height="20"
+                                  Foreground="{DynamicResource ErrorBrush}"/>
+                        <TextBlock Text="{Binding StatusMessage}"
+                                   VerticalAlignment="Center"
+                                   TextWrapping="Wrap"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource ErrorDarkBrush}"/>
+                    </StackPanel>
                 </Border>
-                
-                <!-- Bootloader Mode Dialog Overlay -->
-                <Border Background="#80000000"
-                        IsVisible="{Binding ShowBootloaderModeDialog}"
-                        HorizontalAlignment="Stretch"
-                        VerticalAlignment="Stretch">
-                    <Border Background="#3E3E42"
-                            CornerRadius="8"
-                            Padding="24"
-                            HorizontalAlignment="Center"
-                            VerticalAlignment="Center"
-                            MinWidth="450"
-                            MaxWidth="550">
-                        <StackPanel Spacing="16">
-                            <PathIcon Data="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
-                                      Foreground="#FFA500" Width="48" Height="48"
-                                      HorizontalAlignment="Center"/>
-                            <TextBlock Text="Bootloader Mode Required"
-                                       Foreground="#FFFFFF"
-                                       FontSize="16"
-                                       FontWeight="SemiBold"
-                                       HorizontalAlignment="Center"/>
-                            <TextBlock Text="{Binding BootloaderModeMessage}"
-                                       Foreground="#CCCCCC"
-                                       FontSize="13"
-                                       TextWrapping="Wrap"
-                                       TextAlignment="Center"/>
-                            <StackPanel Orientation="Horizontal" 
-                                        HorizontalAlignment="Center" 
-                                        Spacing="16"
-                                        Margin="0,8,0,0">
-                                <Button Content="OK"
-                                        Width="100"
-                                        Background="#0E639C"
-                                        Foreground="White"
-                                        Command="{Binding ConfirmBootloaderModeCommand}"/>
-                                <Button Content="Cancel"
-                                        Width="100"
-                                        Classes="status-btn"
-                                        Command="{Binding CancelBootloaderModeCommand}"/>
-                            </StackPanel>
-                        </StackPanel>
-                    </Border>
-                </Border>
-                
-                <!-- Console Log (collapsible) -->
-                <Expander IsExpanded="{Binding IsLogPanelExpanded}" 
-                          Margin="0,16,0,0">
-                    <Expander.Header>
-                        <StackPanel Orientation="Horizontal" Spacing="8">
-                            <TextBlock Text="Status Log"
-                                       FontWeight="Medium"
-                                       FontSize="13"
-                                       Foreground="{DynamicResource TextSecondaryBrush}"/>
-                            <Border Background="{DynamicResource SecondaryLightBrush}"
-                                    CornerRadius="10"
-                                    Padding="8,2">
-                                <TextBlock Text="{Binding LogMessages.Count}"
-                                           FontSize="11"
-                                           Foreground="{DynamicResource TextMutedBrush}"/>
-                            </Border>
-                        </StackPanel>
-                    </Expander.Header>
-                    <Border Classes="log-panel"
-                            Padding="12"
-                            Height="180">
-                        <ScrollViewer HorizontalScrollBarVisibility="Disabled"
-                                      VerticalScrollBarVisibility="Auto">
-                            <ItemsControl ItemsSource="{Binding LogMessages}">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <TextBlock Text="{Binding}" 
-                                                   Foreground="#80CBC4"
-                                                   FontFamily="JetBrains Mono, Cascadia Code, Consolas, monospace"
-                                                   FontSize="11"
-                                                   Margin="0,1"/>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                        </ScrollViewer>
-                    </Border>
-                </Expander>
                 
             </StackPanel>
         </ScrollViewer>
-        
-        <!-- Bottom Status Bar -->
-        <Border Grid.Row="2"
-                Background="{DynamicResource SurfaceBrush}"
-                BorderBrush="{DynamicResource BorderBrush}"
-                BorderThickness="0,1,0,0"
-                Padding="24,10">
-            <Grid ColumnDefinitions="Auto,*,Auto">
-                <!-- Status Text -->
-                <TextBlock Grid.Column="0"
-                           Text="Status"
-                           Foreground="{DynamicResource TextMutedBrush}"
-                           VerticalAlignment="Center"/>
-                
-                <!-- Action Buttons -->
-                <StackPanel Grid.Column="2" 
-                            Orientation="Horizontal"
-                            HorizontalAlignment="Right"
-                            Spacing="8">
-                    
-                    <Button Content="Bootloader Update"
-                            Classes="status-btn"
-                            Command="{Binding UpdateBootloaderCommand}"
-                            IsEnabled="{Binding !IsOperationInProgress}"/>
-                    
-                    <Button Content="Force Bootloader"
-                            Classes="status-btn"
-                            Command="{Binding ForceBootloaderCommand}"
-                            IsEnabled="{Binding !IsOperationInProgress}"/>
-                    
-                    <Button Content="{Binding ShowBetaFirmware, Converter={StaticResource BoolToStringConverter}, ConverterParameter='Official Only|Show Beta'}"
-                            Classes="status-btn"
-                            Command="{Binding ToggleBetaFirmwareCommand}"/>
-                    
-                    <Button Content="Cancel"
-                            Background="{DynamicResource ErrorBrush}"
-                            Foreground="White"
-                            Padding="16,8"
-                            CornerRadius="6"
-                            BorderThickness="0"
-                            Command="{Binding CancelOperationCommand}"
-                            IsVisible="{Binding IsOperationInProgress}"/>
-                    
-                </StackPanel>
-            </Grid>
-        </Border>
     </Grid>
 </UserControl>

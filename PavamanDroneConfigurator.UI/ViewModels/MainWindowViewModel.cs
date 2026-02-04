@@ -56,6 +56,7 @@ public partial class MainWindowViewModel : ViewModelBase
     public FirmwarePageViewModel FirmwarePage { get; }
     public Admin.AdminPanelViewModel? AdminPanelPage { get; private set; }
     public Admin.AdminDashboardViewModel? AdminDashboardPage { get; private set; }
+    public Admin.FirmwareManagementViewModel? FirmwareManagementPage { get; private set; }
 
     private readonly IParameterService _parameterService;
     private readonly IConnectionService _connectionService;
@@ -133,6 +134,7 @@ public partial class MainWindowViewModel : ViewModelBase
                 }
 
                 AdminPanelPage = App.Services.GetService<Admin.AdminPanelViewModel>();
+                FirmwareManagementPage = App.Services.GetService<Admin.FirmwareManagementViewModel>();
             }
             catch (Exception ex)
             {
