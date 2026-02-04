@@ -242,31 +242,13 @@
                         </StackPanel>
                     </Grid>
                     
-                    <!-- Row 4: Calculate Buttons and Update Button -->
-                    <Grid ColumnDefinitions="*,*,*" RowDefinitions="Auto" Margin="0,8,0,0">
-                        <!-- Calculate Voltage Button -->
-                        <Button Grid.Column="0" 
-                                Classes="CalculateButton"
-                                Command="{Binding CalculateVoltageCommand}"
-                                Content="Calculate"
-                                HorizontalAlignment="Left"
-                                Margin="0,0,16,0"/>
-                        
-                        <!-- Calculate Current Button -->
-                        <Button Grid.Column="1" 
-                                Classes="CalculateButton"
-                                Command="{Binding CalculateCurrentCommand}"
-                                Content="Calculate"
-                                HorizontalAlignment="Left"
-                                Margin="8,0,8,0"/>
-                        
+                    <!-- Row 4: Update Button Only -->
+                    <Grid Margin="0,8,0,0">
                         <!-- Update Button -->
-                        <Button Grid.Column="2" 
-                                Classes="UpdateButton"
+                        <Button Classes="UpdateButton"
                                 Command="{Binding UpdateAllCommand}"
                                 Content="Update"
-                                HorizontalAlignment="Right"
-                                Margin="16,0,0,0"/>
+                                HorizontalAlignment="Right"/>
                     </Grid>
                 </StackPanel>
             </Border>
