@@ -109,6 +109,7 @@ public partial class App : Application
         services.AddTransient<PendingApprovalViewModel>();
         services.AddTransient<AuthShellViewModel>();
         services.AddTransient<ConnectionShellViewModel>();
+        services.AddTransient<EntryPageViewModel>(); // NEW: Entry Page ViewModel
 
         services.AddTransient<UI.ViewModels.Admin.AdminPanelViewModel>();
         services.AddTransient<UI.ViewModels.Admin.AdminDashboardViewModel>();
@@ -215,12 +216,13 @@ public partial class App : Application
                     try
                     {
                         var oldWindow = desktop.MainWindow;
-                        ShowConnectionShell(desktop);
+                        // CHANGED: Navigate to Entry Page instead of Connection Shell
+                        ShowEntryPage(desktop);
                         oldWindow?.Close();
                     }
                     catch
                     {
-                        ShowConnectionShell(desktop);
+                        ShowEntryPage(desktop);
                     }
                 });
             };
@@ -251,6 +253,101 @@ public partial class App : Application
         catch (Exception ex)
         {
             Console.WriteLine($"Failed to show auth shell: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Shows the Entry Page - the gateway after authentication.
+    /// User can choose to Flash Firmware or Connect to Drone.
+    /// </summary>
+    private void ShowEntryPage(IClassicDesktopStyleApplicationLifetime desktop)
+    {
+        if (_isShuttingDown || Services == null) return;
+
+        try
+        {
+            Console.WriteLine("[App] ShowEntryPage called");
+            var entryPageViewModel = Services.GetRequiredService<EntryPageViewModel>();
+
+            // Handle Firmware button - opens standalone firmware window
+            entryPageViewModel.FirmwareRequested += (_, _) =>
+            {
+                Console.WriteLine("[App] FirmwareRequested event received");
+                if (_isShuttingDown) return;
+
+                Dispatcher.UIThread.Post(() =>
+                {
+                    ShowFirmwareWindow(desktop);
+                });
+            };
+
+            // Handle Connect button - navigates to Connection Shell
+            entryPageViewModel.ConnectRequested += (_, _) =>
+            {
+                Console.WriteLine("[App] ConnectRequested event received");
+                if (_isShuttingDown) return;
+
+                Dispatcher.UIThread.Post(() =>
+                {
+                    try
+                    {
+                        var oldWindow = desktop.MainWindow;
+                        ShowConnectionShell(desktop);
+                        oldWindow?.Close();
+                    }
+                    catch
+                    {
+                        ShowConnectionShell(desktop);
+                    }
+                });
+            };
+
+            // Handle Exit button - shuts down the application
+            entryPageViewModel.ExitRequested += (_, _) =>
+            {
+                Console.WriteLine("[App] ExitRequested event received");
+                _isShuttingDown = true;
+                Dispatcher.UIThread.Post(() => desktop.Shutdown());
+            };
+
+            var entryPage = new EntryPage { DataContext = entryPageViewModel };
+            desktop.MainWindow = entryPage;
+            entryPage.Show();
+            Console.WriteLine("[App] EntryPage shown");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Failed to show entry page: {ex.Message}");
+            // Fallback to connection shell if entry page fails
+            ShowConnectionShell(desktop);
+        }
+    }
+
+    /// <summary>
+    /// Shows the standalone Firmware Window.
+    /// Does not replace the main window - opens as a separate window.
+    /// Closing this window returns to Entry Page.
+    /// </summary>
+    private void ShowFirmwareWindow(IClassicDesktopStyleApplicationLifetime desktop)
+    {
+        if (_isShuttingDown || Services == null) return;
+
+        try
+        {
+            Console.WriteLine("[App] ShowFirmwareWindow called");
+            var firmwareViewModel = Services.GetRequiredService<FirmwarePageViewModel>();
+            
+            var firmwareWindow = new FirmwareWindow { DataContext = firmwareViewModel };
+            
+            // When firmware window closes, the entry page remains visible
+            // (no need to handle BackRequested since Close() is called in the handler)
+            
+            firmwareWindow.Show();
+            Console.WriteLine("[App] FirmwareWindow shown");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Failed to show firmware window: {ex.Message}");
         }
     }
 
@@ -294,12 +391,13 @@ public partial class App : Application
                     try
                     {
                         var oldWindow = desktop.MainWindow;
-                        ShowAuthShell(desktop);
+                        // CHANGED: Return to Entry Page instead of Auth Shell
+                        ShowEntryPage(desktop);
                         oldWindow?.Close();
                     }
                     catch
                     {
-                        ShowAuthShell(desktop);
+                        ShowEntryPage(desktop);
                     }
                 });
             };
