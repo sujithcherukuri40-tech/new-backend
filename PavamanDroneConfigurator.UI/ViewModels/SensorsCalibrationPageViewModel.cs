@@ -62,13 +62,13 @@ public partial class SensorsCalibrationPageViewModel : ViewModelBase
     private string _errorDialogMessage = string.Empty;
 
     [ObservableProperty]
-    private bool _showDebugLogs = true;
+    private bool _showDebugLogs = false;
 
     [ObservableProperty]
     private ObservableCollection<string> _debugLogs = new();
     
     [ObservableProperty]
-    private bool _showMavLinkLog = true;
+    private bool _showMavLinkLog = false;
 
     [ObservableProperty]
     private ObservableCollection<MavLinkLogEntry> _mavLinkMessages = new();
@@ -245,6 +245,17 @@ public partial class SensorsCalibrationPageViewModel : ViewModelBase
     [ObservableProperty]
     private string _compassInstructions = "Click 'Start Calibration' and rotate the vehicle in all directions.";
 
+    /// <summary>
+    /// Tracks whether compass priority order has been changed in the UI but not yet saved to FC
+    /// </summary>
+    [ObservableProperty]
+    private bool _hasCompassPriorityChanges;
+
+    /// <summary>
+    /// Stores the original compass order to detect changes
+    /// </summary>
+    private List<int> _originalCompassOrder = new();
+
     #endregion
 
     #region Level Horizon Properties
@@ -390,6 +401,12 @@ public partial class SensorsCalibrationPageViewModel : ViewModelBase
 
         InitializeFlowTypeOptions();
         UpdateConnectionStatus(_connectionService.IsConnected);
+        
+        // Initialize sensor data if already connected
+        if (_connectionService.IsConnected)
+        {
+            _ = RefreshAsync();
+        }
         
         AddDebugLog("ViewModel initialized - MissionPlanner-style IMU and Compass calibration ready");
     }
@@ -1452,10 +1469,10 @@ public partial class SensorsCalibrationPageViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// Move compass up in priority order
+    /// Move compass up in priority order (UI only - does not write to FC immediately)
     /// </summary>
     [RelayCommand]
-    private async Task MoveCompassUpAsync(CompassInfo? compass)
+    private void MoveCompassUp(CompassInfo? compass)
     {
         if (compass == null || !IsConnected)
             return;
@@ -1464,13 +1481,20 @@ public partial class SensorsCalibrationPageViewModel : ViewModelBase
         if (index <= 0)
             return;
 
-        AddDebugLog($"Moving compass {compass.Priority} up");
+        AddDebugLog($"Moving compass {compass.DisplayName} (DeviceID: {compass.DeviceId}) up in priority");
         
         try
         {
             Compasses.Move(index, index - 1);
-            await UpdateCompassPrioritiesAsync();
-            StatusMessage = "Compass priority updated";
+            
+            // Update displayed priorities
+            for (int i = 0; i < Compasses.Count; i++)
+            {
+                Compasses[i].Priority = i + 1;
+            }
+            
+            HasCompassPriorityChanges = true;
+            StatusMessage = "Priority changed - click 'Update Priority' to save";
         }
         catch (Exception ex)
         {
@@ -1480,10 +1504,10 @@ public partial class SensorsCalibrationPageViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// Move compass down in priority order
+    /// Move compass down in priority order (UI only - does not write to FC immediately)
     /// </summary>
     [RelayCommand]
-    private async Task MoveCompassDownAsync(CompassInfo? compass)
+    private void MoveCompassDown(CompassInfo? compass)
     {
         if (compass == null || !IsConnected)
             return;
@@ -1492,13 +1516,20 @@ public partial class SensorsCalibrationPageViewModel : ViewModelBase
         if (index < 0 || index >= Compasses.Count - 1)
             return;
 
-        AddDebugLog($"Moving compass {compass.Priority} down");
+        AddDebugLog($"Moving compass {compass.DisplayName} (DeviceID: {compass.DeviceId}) down in priority");
         
         try
         {
             Compasses.Move(index, index + 1);
-            await UpdateCompassPrioritiesAsync();
-            StatusMessage = "Compass priority updated";
+            
+            // Update displayed priorities
+            for (int i = 0; i < Compasses.Count; i++)
+            {
+                Compasses[i].Priority = i + 1;
+            }
+            
+            HasCompassPriorityChanges = true;
+            StatusMessage = "Priority changed - click 'Update Priority' to save";
         }
         catch (Exception ex)
         {
@@ -1507,15 +1538,70 @@ public partial class SensorsCalibrationPageViewModel : ViewModelBase
         }
     }
 
-    private async Task UpdateCompassPrioritiesAsync()
+    /// <summary>
+    /// Update compass priorities on the flight controller.
+    /// Writes COMPASS_PRIO1_ID, COMPASS_PRIO2_ID, COMPASS_PRIO3_ID parameters
+    /// with the Device IDs of the compasses in the new priority order.
+    /// </summary>
+    [RelayCommand]
+    private async Task UpdateCompassPriorityAsync()
     {
-        for (int i = 0; i < Compasses.Count; i++)
+        if (!IsConnected || !HasCompassPriorityChanges)
+            return;
+
+        AddDebugLog("Updating compass priorities on FC...");
+        AddDebugLog($"New order: {string.Join(", ", Compasses.Select(c => $"Prio{c.Priority}={c.DeviceId}"))}");
+        
+        try
         {
-            var compass = Compasses[i];
-            compass.Priority = i + 1;
-            
-            // Update priority in the flight controller
-            await _sensorConfigService.SetCompassPriorityAsync(compass.Index, i);
+            IsBusy = true;
+            StatusMessage = "Writing compass priorities to flight controller...";
+
+            // Write new priorities to FC using Device IDs
+            // The SensorConfigService.SetCompassPriorityAsync writes COMPASS_PRIOx_ID = DeviceId
+            bool allSuccess = true;
+            for (int i = 0; i < Compasses.Count && i < 3; i++)
+            {
+                var compass = Compasses[i];
+                var success = await _sensorConfigService.SetCompassPriorityAsync(compass.Index, i);
+                
+                if (success)
+                {
+                    AddDebugLog($"Set COMPASS_PRIO{i + 1}_ID = {compass.DeviceId} (Compass {compass.Index})");
+                }
+                else
+                {
+                    AddDebugLog($"FAILED to set COMPASS_PRIO{i + 1}_ID for Compass {compass.Index}");
+                    allSuccess = false;
+                }
+            }
+
+            if (allSuccess)
+            {
+                // Mark changes as saved
+                HasCompassPriorityChanges = false;
+                StatusMessage = "Compass priorities saved to flight controller";
+                AddDebugLog("All compass priorities updated successfully");
+
+                // Prompt reboot
+                ShowRebootPromptDialog("Compass priority changes saved!\n\nThe following parameters have been updated:\n" +
+                    string.Join("\n", Compasses.Take(3).Select((c, i) => $"• COMPASS_PRIO{i + 1}_ID = {c.DeviceId}")) +
+                    "\n\nPlease reboot the autopilot to apply the new settings.");
+            }
+            else
+            {
+                StatusMessage = "Some priorities failed to update";
+                ShowError("Partial Failure", "Some compass priorities could not be updated. Check the debug log for details.");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to update compass priorities");
+            ShowError("Update Failed", $"Failed to update compass priorities: {ex.Message}");
+        }
+        finally
+        {
+            IsBusy = false;
         }
     }
 
