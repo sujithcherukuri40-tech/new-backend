@@ -109,8 +109,16 @@ public class CalibrationService : ICalibrationService
         if (_isCalibrating)
         {
             var lower = e.Text.ToLowerInvariant();
-            if (lower.Contains("calibration successful") || lower.Contains("calibration complete"))
+            
+            // Check for successful calibration completion
+            // Barometer: "Barometer calibration complete" or "Updating barometer calibration"
+            // Level: "Level calibration complete" or similar
+            if (lower.Contains("calibration successful") || 
+                lower.Contains("calibration complete") ||
+                lower.Contains("updating barometer calibration") ||
+                lower.Contains("baro calibration complete"))
             {
+                _logger.LogInformation("[CalibService] Calibration SUCCESS detected via STATUSTEXT: {Text}", e.Text);
                 _isCalibrating = false;
                 UpdateState(new CalibrationStateModel
                 {
@@ -122,6 +130,7 @@ public class CalibrationService : ICalibrationService
             }
             else if (!lower.Contains("prearm") && (lower.Contains("calibration failed") || lower.Contains("cal failed")))
             {
+                _logger.LogInformation("[CalibService] Calibration FAILED detected via STATUSTEXT: {Text}", e.Text);
                 _isCalibrating = false;
                 UpdateState(new CalibrationStateModel
                 {
@@ -182,7 +191,7 @@ public class CalibrationService : ICalibrationService
             {
                 if (e.IsSuccess)
                 {
-                    _logger.LogInformation("[CalibService] PREFLIGHT_CALIBRATION ACCEPTED by FC - waiting for initial position request");
+                    _logger.LogInformation("[CalibService] PREFLIGHT_CALIBRATION ACCEPTED by FC");
                     
                     if (_inAccelCalibrate)
                     {
@@ -196,22 +205,67 @@ public class CalibrationService : ICalibrationService
                             Progress = 0
                         });
                     }
+                    // For Level and Barometer calibration, success ACK means calibration is proceeding
+                    // The actual completion will come via STATUSTEXT messages
                 }
                 else
                 {
-                    _logger.LogWarning("[CalibService] PREFLIGHT_CALIBRATION REJECTED by FC: result={Result}", e.Result);
+                    // For accelerometer calibration, a rejected ACK is a hard failure
+                    // For barometer and level calibration, result != 0 might not mean failure
+                    // ArduPilot may send result=5 (MAV_RESULT_IN_PROGRESS) which means it's working
+                    // The actual result comes via STATUSTEXT messages
                     
-                    _isCalibrating = false;
-                    _inAccelCalibrate = false;
-                    
-                    UpdateState(new CalibrationStateModel
+                    if (_inAccelCalibrate)
                     {
-                        Type = _activeCalibrationType,
-                        State = CalibrationState.Failed,
-                        StateMachine = CalibrationStateMachine.Rejected,
-                        Message = $"Calibration rejected by FC (result: {e.Result}). Check PreArm conditions.",
-                        CanConfirmPosition = false
-                    });
+                        _logger.LogWarning("[CalibService] PREFLIGHT_CALIBRATION REJECTED for accel: result={Result}", e.Result);
+                        
+                        _isCalibrating = false;
+                        _inAccelCalibrate = false;
+                        
+                        UpdateState(new CalibrationStateModel
+                        {
+                            Type = CalibrationType.Accelerometer,
+                            State = CalibrationState.Failed,
+                            StateMachine = CalibrationStateMachine.Rejected,
+                            Message = $"Calibration rejected by FC (result: {e.Result}). Check PreArm conditions.",
+                            CanConfirmPosition = false
+                        });
+                    }
+                    else if (_activeCalibrationType == CalibrationType.Barometer || 
+                             _activeCalibrationType == CalibrationType.Level)
+                    {
+                        // For barometer and level calibrations, don't treat non-zero result as failure
+                        // Result 5 = MAV_RESULT_IN_PROGRESS means calibration is running
+                        // Wait for STATUSTEXT messages for the actual result
+                        if (e.Result == 5) // MAV_RESULT_IN_PROGRESS
+                        {
+                            _logger.LogInformation("[CalibService] PREFLIGHT_CALIBRATION in progress (result=5) for {Type}", 
+                                _activeCalibrationType);
+                        }
+                        else
+                        {
+                            _logger.LogWarning("[CalibService] PREFLIGHT_CALIBRATION result={Result} for {Type} - waiting for STATUSTEXT", 
+                                e.Result, _activeCalibrationType);
+                        }
+                        // Don't fail here - wait for STATUSTEXT messages to confirm success/failure
+                    }
+                    else
+                    {
+                        // For other calibration types (gyro, airspeed), treat rejection as failure
+                        _logger.LogWarning("[CalibService] PREFLIGHT_CALIBRATION REJECTED for {Type}: result={Result}", 
+                            _activeCalibrationType, e.Result);
+                        
+                        _isCalibrating = false;
+                        
+                        UpdateState(new CalibrationStateModel
+                        {
+                            Type = _activeCalibrationType,
+                            State = CalibrationState.Failed,
+                            StateMachine = CalibrationStateMachine.Rejected,
+                            Message = $"Calibration rejected by FC (result: {e.Result}). Check PreArm conditions.",
+                            CanConfirmPosition = false
+                        });
+                    }
                 }
                 return;
             }
@@ -648,7 +702,12 @@ public class CalibrationService : ICalibrationService
             Message = "Level calibration in progress - keep vehicle level..." 
         });
         
+        // MAV_CMD_PREFLIGHT_CALIBRATION with param5=2 triggers level horizon calibration
+        // As per MissionPlanner: param1=0, param2=0, param3=0, param4=0, param5=2, param6=0, param7=0
         _connectionService.SendPreflightCalibration(0, 0, 0, 0, 2);
+        
+        // The calibration result will be received via STATUSTEXT or COMMAND_ACK
+        // OnStatusTextReceived and OnCommandAckReceived will handle the completion
         return Task.FromResult(true);
     }
 
@@ -659,14 +718,21 @@ public class CalibrationService : ICalibrationService
         _activeCalibrationType = CalibrationType.Barometer;
         _isCalibrating = true;
         
+        _logger.LogInformation("[CalibService] Starting barometer calibration (param3=1)");
+        
         UpdateState(new CalibrationStateModel 
         { 
             Type = CalibrationType.Barometer, 
             State = CalibrationState.InProgress, 
-            Message = "Barometer calibration in progress..." 
+            Message = "Barometer calibration in progress - keep vehicle still..." 
         });
         
+        // MAV_CMD_PREFLIGHT_CALIBRATION with param3=1 triggers ground pressure/barometer calibration
+        // As per MissionPlanner: param1=0 (or 1 for gyro), param2=0, param3=1, param4=0, param5=0, param6=0, param7=0
         _connectionService.SendPreflightCalibration(0, 0, 1, 0, 0);
+        
+        // The calibration result will be received via STATUSTEXT or COMMAND_ACK
+        // OnStatusTextReceived and OnCommandAckReceived will handle the completion
         return Task.FromResult(true);
     }
 

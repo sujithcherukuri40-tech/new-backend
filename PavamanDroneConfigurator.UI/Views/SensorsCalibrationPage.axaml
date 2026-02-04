@@ -816,16 +816,6 @@
                     </Grid>
                 </Border>
 
-                <!-- INFO FOOTER -->
-                <Border Background="#E7F3FF" CornerRadius="8" Padding="16" Margin="0,16,0,0">
-                    <StackPanel>
-                        <TextBlock FontWeight="Bold" Foreground="#0B5ED7" Margin="0,0,0,8">PDRL Compliance Notes:</TextBlock>
-                        <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="#1E40AF">1. Accelerometer calibration is REQUIRED before flight - ensures accurate attitude estimation.</TextBlock>
-                        <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="#1E40AF">2. Compass calibration is REQUIRED - must be done away from metal objects and magnetic interference.</TextBlock>
-                        <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="#1E40AF">3. Level horizon calibration is RECOMMENDED - ensures the drone knows what level is.</TextBlock>
-                        <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="#1E40AF">4. Reboot is required after calibration to apply changes.</TextBlock>
-                    </StackPanel>
-                </Border>
             </StackPanel>
         </ScrollViewer>
         

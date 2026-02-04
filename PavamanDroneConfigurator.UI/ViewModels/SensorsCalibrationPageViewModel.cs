@@ -470,8 +470,18 @@ public partial class SensorsCalibrationPageViewModel : ViewModelBase
                 if (e.State == CalibrationState.Completed)
                 {
                     IsLevelCalibrated = true;
+                    IsLevelCalibrationActive = false;
                     LevelInstructions = "Level calibration complete!";
+                    StatusMessage = "Level horizon calibration completed successfully";
                     ShowRebootPromptDialog("Level calibration complete! Please reboot the autopilot to apply changes.");
+                }
+                else if (e.State == CalibrationState.Failed)
+                {
+                    IsLevelCalibrated = false;
+                    IsLevelCalibrationActive = false;
+                    LevelInstructions = $"Level calibration failed: {e.Message}. Place vehicle on a level surface and try again.";
+                    StatusMessage = "Level horizon calibration failed";
+                    ShowError("Level Calibration Failed", e.Message);
                 }
             }
             else if (e.Type == CalibrationType.Barometer)
@@ -482,7 +492,18 @@ public partial class SensorsCalibrationPageViewModel : ViewModelBase
                 if (e.State == CalibrationState.Completed)
                 {
                     IsPressureCalibrated = true;
+                    IsPressureCalibrationActive = false;
                     PressureInstructions = "Barometer calibration complete!";
+                    PressureCalibrationProgress = 100;
+                    StatusMessage = "Barometer calibration completed successfully";
+                }
+                else if (e.State == CalibrationState.Failed)
+                {
+                    IsPressureCalibrated = false;
+                    IsPressureCalibrationActive = false;
+                    PressureInstructions = $"Barometer calibration failed: {e.Message}. Keep vehicle still and try again.";
+                    StatusMessage = "Barometer calibration failed";
+                    ShowError("Barometer Calibration Failed", e.Message);
                 }
             }
             
@@ -1655,35 +1676,31 @@ public partial class SensorsCalibrationPageViewModel : ViewModelBase
 
         AddDebugLog("Starting level horizon calibration...");
         LevelCalibrationStatus = "Calibrating...";
+        LevelInstructions = "Keep the vehicle on a level surface - do not move...";
         IsLevelCalibrationActive = true;
         
         try
         {
-            var success = await _calibrationService.StartLevelHorizonCalibrationAsync();
+            // Send the calibration command - result will come via CalibrationStateChanged event
+            var commandSent = await _calibrationService.StartLevelHorizonCalibrationAsync();
             
-            if (success)
+            if (!commandSent)
             {
-                IsLevelCalibrated = true;
-                LevelCalibrationStatus = "Calibration complete";
-                LevelInstructions = "Barometer calibration successful!";
-                StatusMessage = "Level calibration complete";
+                LevelCalibrationStatus = "Failed to start";
+                LevelInstructions = "Failed to send calibration command. Check connection and try again.";
+                IsLevelCalibrationActive = false;
+                ShowError("Calibration Failed", "Failed to start level horizon calibration.");
             }
-            else
-            {
-                LevelCalibrationStatus = "Calibration failed";
-                LevelInstructions = "Level calibration failed. Place vehicle on a level surface and try again.";
-                ShowError("Calibration Failed", "Level horizon calibration failed.");
-            }
+            // If command was sent successfully, wait for FC response via CalibrationStateChanged event
+            // The completion will be handled in OnCalibrationStateChanged handler
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Level horizon calibration failed");
             LevelCalibrationStatus = "Calibration failed";
-            ShowError("Calibration Error", ex.Message);
-        }
-        finally
-        {
+            LevelInstructions = $"Error: {ex.Message}";
             IsLevelCalibrationActive = false;
+            ShowError("Calibration Error", ex.Message);
         }
     }
 
@@ -1707,37 +1724,32 @@ public partial class SensorsCalibrationPageViewModel : ViewModelBase
 
         AddDebugLog("Starting barometer calibration...");
         PressureCalibrationStatus = "Calibrating...";
+        PressureInstructions = "Keep the vehicle still - calibrating barometer...";
         IsPressureCalibrationActive = true;
         PressureCalibrationProgress = 0;
         
         try
         {
-            var success = await _calibrationService.StartBarometerCalibrationAsync();
+            // Send the calibration command - result will come via CalibrationStateChanged event
+            var commandSent = await _calibrationService.StartBarometerCalibrationAsync();
             
-            if (success)
+            if (!commandSent)
             {
-                IsPressureCalibrated = true;
-                PressureCalibrationStatus = "Calibration complete";
-                PressureInstructions = "Barometer calibration successful!";
-                StatusMessage = "Barometer calibration complete";
-                PressureCalibrationProgress = 100;
+                PressureCalibrationStatus = "Failed to start";
+                PressureInstructions = "Failed to send calibration command. Check connection and try again.";
+                IsPressureCalibrationActive = false;
+                ShowError("Calibration Failed", "Failed to start barometer calibration.");
             }
-            else
-            {
-                PressureCalibrationStatus = "Calibration failed";
-                PressureInstructions = "Barometer calibration failed. Keep the vehicle still and try again.";
-                ShowError("Calibration Failed", "Barometer calibration failed.");
-            }
+            // If command was sent successfully, wait for FC response via CalibrationStateChanged event
+            // The completion will be handled in OnCalibrationStateChanged handler
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Barometer calibration failed");
             PressureCalibrationStatus = "Calibration failed";
-            ShowError("Calibration Error", ex.Message);
-        }
-        finally
-        {
+            PressureInstructions = $"Error: {ex.Message}";
             IsPressureCalibrationActive = false;
+            ShowError("Calibration Error", ex.Message);
         }
     }
 
