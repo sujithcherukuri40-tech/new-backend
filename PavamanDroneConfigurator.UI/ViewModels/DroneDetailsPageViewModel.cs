@@ -15,12 +15,17 @@ public partial class DroneDetailsPageViewModel : ViewModelBase
     
     /// <summary>
     /// Timer for throttling UI updates to prevent flickering.
-    /// Only allows updates every 500ms to reduce UI refresh rate.
+    /// Increased from 500ms to 1000ms to reduce UI refresh rate and prevent flickering.
     /// </summary>
     private Timer? _updateThrottleTimer;
     private DroneInfo? _pendingUpdate;
     private readonly object _updateLock = new();
-    private const int UPDATE_THROTTLE_MS = 500;
+    
+    /// <summary>
+    /// Throttle interval for UI updates. Set to 1000ms to prevent flickering from frequent heartbeat updates.
+    /// This ensures the UI only updates once per second at most.
+    /// </summary>
+    private const int UPDATE_THROTTLE_MS = 1000;
 
     [ObservableProperty]
     private string _droneId = "Not Connected";

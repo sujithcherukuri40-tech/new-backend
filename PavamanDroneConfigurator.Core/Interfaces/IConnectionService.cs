@@ -35,6 +35,12 @@ public interface IConnectionService
     event EventHandler<MagCalProgressEventArgs>? MagCalProgressReceived;
     event EventHandler<MagCalReportEventArgs>? MagCalReportReceived;
     
+    /// <summary>
+    /// Event raised when AUTOPILOT_VERSION message is received.
+    /// Contains firmware version, capabilities, and unique hardware identifiers (UID/UID2).
+    /// </summary>
+    event EventHandler<AutopilotVersionDataEventArgs>? AutopilotVersionReceived;
+    
     // MAVLink send methods for ParameterService to call
     void SendParamRequestList();
     void SendParamRequestRead(ushort paramIndex);
@@ -81,6 +87,12 @@ public interface IConnectionService
     Task SendStartMagCalAsync(int magMask = 0, int retryOnFailure = 1, int autosave = 1, float delay = 0, int autoreboot = 0);
     Task SendAcceptMagCalAsync(int magMask = 0);
     Task SendCancelMagCalAsync(int magMask = 0);
+    
+    /// <summary>
+    /// Request AUTOPILOT_VERSION message from the flight controller.
+    /// This must be called to get the FC's unique identifier (UID/UID2) and firmware version.
+    /// </summary>
+    void SendRequestAutopilotVersion();
 }
 
 // Event args for PARAM_VALUE messages
@@ -222,4 +234,123 @@ public class MagCalReportEventArgs : EventArgs
     
     public string GetOffsetString() => $"X: {OfsX:F1}, Y: {OfsY:F1}, Z: {OfsZ:F1}";
     public float GetMaxAbsOffset() => Math.Max(Math.Max(Math.Abs(OfsX), Math.Abs(OfsY)), Math.Abs(OfsZ));
+}
+
+/// <summary>
+/// Event args for AUTOPILOT_VERSION messages.
+/// Contains firmware version, capabilities, and unique hardware identifiers.
+/// </summary>
+public class AutopilotVersionDataEventArgs : EventArgs
+{
+    public byte SystemId { get; set; }
+    public byte ComponentId { get; set; }
+    public ulong Capabilities { get; set; }
+    public uint FlightSwVersion { get; set; }
+    public uint MiddlewareSwVersion { get; set; }
+    public uint OsSwVersion { get; set; }
+    public uint BoardVersion { get; set; }
+    public byte[]? FlightCustomVersion { get; set; }
+    public ushort VendorId { get; set; }
+    public ushort ProductId { get; set; }
+    
+    /// <summary>
+    /// 8-byte unique hardware identifier (UID)
+    /// </summary>
+    public byte[]? Uid { get; set; }
+    
+    /// <summary>
+    /// 18-byte unique hardware identifier (UID2) - more reliable for FC identification
+    /// </summary>
+    public byte[]? Uid2 { get; set; }
+    
+    public byte FirmwareMajor { get; set; }
+    public byte FirmwareMinor { get; set; }
+    public byte FirmwarePatch { get; set; }
+    public byte FirmwareType { get; set; }
+    public string FirmwareVersionString { get; set; } = "N/A";
+    
+    /// <summary>
+    /// Gets the Flight Controller ID using the best available identifier.
+    /// Priority: UID2 > UID > FlightSwVersion + GitHash
+    /// </summary>
+    public string GetFcId()
+    {
+        // Priority 1: Use UID2 if available (18-byte hardware unique ID - most reliable)
+        if (Uid2 != null && Uid2.Length > 0)
+        {
+            bool allZeros = true;
+            foreach (byte b in Uid2)
+            {
+                if (b != 0)
+                {
+                    allZeros = false;
+                    break;
+                }
+            }
+            
+            if (!allZeros)
+            {
+                // Use first 10 bytes of UID2 for a readable ID
+                var hex = BitConverter.ToString(Uid2, 0, Math.Min(10, Uid2.Length))
+                    .Replace("-", "").ToUpperInvariant();
+                return $"FC-{hex}";
+            }
+        }
+        
+        // Priority 2: Use UID if available (8-byte hardware ID)
+        if (Uid != null && Uid.Length > 0)
+        {
+            bool allZeros = true;
+            foreach (byte b in Uid)
+            {
+                if (b != 0)
+                {
+                    allZeros = false;
+                    break;
+                }
+            }
+            
+            if (!allZeros)
+            {
+                var hex = BitConverter.ToString(Uid).Replace("-", "").ToUpperInvariant();
+                return $"FC-{hex}";
+            }
+        }
+        
+        // Priority 3: Use firmware version + git hash
+        if (FlightSwVersion > 0)
+        {
+            var gitPrefix = FlightCustomVersion != null && FlightCustomVersion.Length >= 4
+                ? BitConverter.ToString(FlightCustomVersion, 0, 4).Replace("-", "").ToUpperInvariant()
+                : "0000";
+            return $"FW-{FlightSwVersion:X8}-{gitPrefix}";
+        }
+        
+        return "FW-UNAVAILABLE";
+    }
+    
+    /// <summary>
+    /// Gets the git hash from FlightCustomVersion
+    /// </summary>
+    public string GetGitHash()
+    {
+        if (FlightCustomVersion == null || FlightCustomVersion.Length == 0)
+            return "N/A";
+
+        bool allZeros = true;
+        foreach (byte b in FlightCustomVersion)
+        {
+            if (b != 0)
+            {
+                allZeros = false;
+                break;
+            }
+        }
+
+        if (allZeros)
+            return "N/A";
+
+        var hex = BitConverter.ToString(FlightCustomVersion).Replace("-", "").ToLowerInvariant();
+        return hex;
+    }
 }

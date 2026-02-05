@@ -16,6 +16,7 @@ using System.Threading.Tasks;
 // Resolve ambiguous types - use MAVLink namespace types for internal use
 using MavLinkMagCalProgressData = PavamanDroneConfigurator.Infrastructure.MAVLink.MagCalProgressData;
 using MavLinkMagCalReportData = PavamanDroneConfigurator.Infrastructure.MAVLink.MagCalReportData;
+using MavLinkAutopilotVersionData = PavamanDroneConfigurator.Infrastructure.MAVLink.AutopilotVersionData;
 
 namespace PavamanDroneConfigurator.Infrastructure.Services;
 
@@ -67,6 +68,7 @@ public sealed class ConnectionService : IConnectionService, IDisposable
     public event EventHandler<RawImuEventArgs>? RawImuReceived;
     public event EventHandler<MagCalProgressEventArgs>? MagCalProgressReceived;
     public event EventHandler<MagCalReportEventArgs>? MagCalReportReceived;
+    public event EventHandler<AutopilotVersionDataEventArgs>? AutopilotVersionReceived;
 
     public ConnectionService(ILogger<ConnectionService> logger, IMavLinkMessageLogger mavLinkLogger)
     {
@@ -423,6 +425,7 @@ public sealed class ConnectionService : IConnectionService, IDisposable
         _mavlink.RawImuReceived += OnMavlinkRawImu;
         _mavlink.MagCalProgressReceived += OnMavlinkMagCalProgress;
         _mavlink.MagCalReportReceived += OnMavlinkMagCalReport;
+        _mavlink.AutopilotVersionReceived += OnMavlinkAutopilotVersion;
         _mavlink.Initialize(_inputStream, _outputStream);
 
         _lastDataReceivedTime = DateTime.UtcNow;
@@ -595,6 +598,34 @@ public sealed class ConnectionService : IConnectionService, IDisposable
             OldOrientation = e.OldOrientation,
             NewOrientation = e.NewOrientation,
             ScaleFactor = e.ScaleFactor
+        });
+    }
+
+    private void OnMavlinkAutopilotVersion(object? sender, MavLinkAutopilotVersionData e)
+    {
+        _lastDataReceivedTime = DateTime.UtcNow;
+        _logger.LogInformation("AUTOPILOT_VERSION: FW={FirmwareVersion}, Board=0x{Board:X8}, FC_ID={FcId}",
+            e.FirmwareVersionString, e.BoardVersion, e.GetFcId());
+        
+        AutopilotVersionReceived?.Invoke(this, new AutopilotVersionDataEventArgs
+        {
+            SystemId = e.SystemId,
+            ComponentId = e.ComponentId,
+            Capabilities = e.Capabilities,
+            FlightSwVersion = e.FlightSwVersion,
+            MiddlewareSwVersion = e.MiddlewareSwVersion,
+            OsSwVersion = e.OsSwVersion,
+            BoardVersion = e.BoardVersion,
+            FlightCustomVersion = e.FlightCustomVersion,
+            VendorId = e.VendorId,
+            ProductId = e.ProductId,
+            Uid = e.Uid,
+            Uid2 = e.Uid2,
+            FirmwareMajor = e.FirmwareMajor,
+            FirmwareMinor = e.FirmwareMinor,
+            FirmwarePatch = e.FirmwarePatch,
+            FirmwareType = e.FirmwareType,
+            FirmwareVersionString = e.FirmwareVersionString
         });
     }
 
@@ -807,6 +838,7 @@ public sealed class ConnectionService : IConnectionService, IDisposable
                 _mavlink.RawImuReceived -= OnMavlinkRawImu;
                 _mavlink.MagCalProgressReceived -= OnMavlinkMagCalProgress;
                 _mavlink.MagCalReportReceived -= OnMavlinkMagCalReport;
+                _mavlink.AutopilotVersionReceived -= OnMavlinkAutopilotVersion;
                 try { (_mavlink as IDisposable)?.Dispose(); } catch { }
                 _mavlink = null;
             }
@@ -1009,8 +1041,10 @@ public sealed class ConnectionService : IConnectionService, IDisposable
             return;
         }
 
-        // TODO: Implement when AsvMavlinkWrapper.SendFlashBootloaderAsync is available
-        _logger.LogWarning("Flash bootloader command not yet implemented");
+        if (_mavlink != null)
+        {
+            _ = _mavlink.SendFlashBootloaderAsync(magicValue);
+        }
     }
 
     public void SendArmDisarm(bool arm, bool force = false)
@@ -1040,8 +1074,10 @@ public sealed class ConnectionService : IConnectionService, IDisposable
             return;
         }
 
-        // TODO: Implement when AsvMavlinkWrapper.SendResetParametersAsync is available
-        _logger.LogWarning("Reset parameters command not yet implemented");
+        if (_mavlink != null)
+        {
+            _ = _mavlink.SendResetParametersAsync();
+        }
     }
 
     public void SendSetMessageInterval(int messageId, int intervalUs)
@@ -1054,8 +1090,10 @@ public sealed class ConnectionService : IConnectionService, IDisposable
             return;
         }
 
-        // TODO: Implement when AsvMavlinkWrapper.SendSetMessageIntervalAsync is available
-        _logger.LogWarning("Set message interval command not yet implemented");
+        if (_mavlink != null)
+        {
+            _ = _mavlink.SendSetMessageIntervalAsync(messageId, intervalUs);
+        }
     }
 
     public void SendRequestDataStream(int streamId, int rateHz, int startStop)
@@ -1069,8 +1107,10 @@ public sealed class ConnectionService : IConnectionService, IDisposable
             return;
         }
 
-        // TODO: Implement when AsvMavlinkWrapper.SendRequestDataStreamAsync is available
-        _logger.LogWarning("Request data stream command not yet implemented");
+        if (_mavlink != null)
+        {
+            _ = _mavlink.SendRequestDataStreamAsync(streamId, rateHz, startStop);
+        }
     }
 
     public async Task SendStartMagCalAsync(int magMask = 0, int retryOnFailure = 1, int autosave = 1, float delay = 0, int autoreboot = 0)
@@ -1127,6 +1167,25 @@ public sealed class ConnectionService : IConnectionService, IDisposable
         }
     }
 
+    public void SendRequestAutopilotVersion()
+    {
+        _logger.LogInformation("Requesting AUTOPILOT_VERSION from FC");
+        
+        if (_currentConnectionType == ConnectionType.Bluetooth && _bluetoothConnection != null)
+        {
+            _logger.LogWarning("AUTOPILOT_VERSION request over Bluetooth not yet supported");
+            return;
+        }
+
+        if (_mavlink == null)
+        {
+            _logger.LogWarning("Cannot send AUTOPILOT_VERSION request - not connected");
+            return;
+        }
+
+        _ = _mavlink.SendRequestAutopilotVersionAsync();
+    }
+
     #endregion
 
     private void SetConnected(bool connected)
@@ -1136,6 +1195,23 @@ public sealed class ConnectionService : IConnectionService, IDisposable
             _isConnected = connected;
             _logger.LogInformation("Connection state changed: {Connected}", connected);
             ConnectionStateChanged?.Invoke(this, connected);
+            
+            // Request AUTOPILOT_VERSION after connection is established
+            // This is required to get the FC's unique identifier (UID/UID2) and firmware version
+            if (connected)
+            {
+                _ = Task.Run(async () =>
+                {
+                    // Wait a bit for the connection to stabilize
+                    await Task.Delay(500);
+                    
+                    if (_isConnected && !_isDisconnecting)
+                    {
+                        _logger.LogInformation("Requesting AUTOPILOT_VERSION for FC identification");
+                        SendRequestAutopilotVersion();
+                    }
+                });
+            }
         }
     }
 

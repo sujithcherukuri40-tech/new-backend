@@ -45,6 +45,7 @@ public class DroneInfoService : IDroneInfoService
         // Subscribe to events
         _connectionService.HeartbeatDataReceived += OnHeartbeatDataReceived;
         _connectionService.ConnectionStateChanged += OnConnectionStateChanged;
+        _connectionService.AutopilotVersionReceived += OnAutopilotVersionReceived;
         _parameterService.ParameterDownloadCompleted += OnParameterDownloadCompleted;
     }
 
@@ -108,6 +109,49 @@ public class DroneInfoService : IDroneInfoService
             NotifyIfChanged();
         }
     }
+
+    /// <summary>
+    /// Handles AUTOPILOT_VERSION message to extract real FC ID and firmware version.
+    /// This provides the actual hardware unique identifier instead of placeholder values.
+    /// </summary>
+    private void OnAutopilotVersionReceived(object? sender, AutopilotVersionDataEventArgs versionData)
+    {
+        _currentInfo ??= new DroneInfo();
+        
+        bool hasChanges = false;
+        
+        // Get FC ID from AUTOPILOT_VERSION message using the proper method
+        var newFcId = versionData.GetFcId();
+        if (_currentInfo.FcId != newFcId)
+        {
+            _currentInfo.FcId = newFcId;
+            hasChanges = true;
+        }
+        
+        // Extract firmware version from AUTOPILOT_VERSION
+        var newFirmwareVersion = versionData.FirmwareVersionString;
+        if (!string.IsNullOrEmpty(newFirmwareVersion) && newFirmwareVersion != "N/A" && 
+            _currentInfo.FirmwareVersion != newFirmwareVersion)
+        {
+            _currentInfo.FirmwareVersion = newFirmwareVersion;
+            hasChanges = true;
+        }
+        
+        // Store git hash for additional info
+        var newGitHash = versionData.GetGitHash();
+        if (_currentInfo.GitHash != newGitHash)
+        {
+            _currentInfo.GitHash = newGitHash;
+            hasChanges = true;
+        }
+        
+        if (hasChanges)
+        {
+            _logger.LogInformation("AUTOPILOT_VERSION received: FcId={FcId}, FW={FwVer}, GitHash={GitHash}", 
+                newFcId, newFirmwareVersion, newGitHash);
+            NotifyIfChanged();
+        }
+    }
     
     /// <summary>
     /// Compares current info with last notified info and fires event only if changed.
@@ -146,7 +190,8 @@ public class DroneInfoService : IDroneInfoService
                current.FlightMode != last.FlightMode ||
                current.IsArmed != last.IsArmed ||
                current.SystemId != last.SystemId ||
-               current.ComponentId != last.ComponentId;
+               current.ComponentId != last.ComponentId ||
+               current.GitHash != last.GitHash;
     }
     
 
@@ -228,22 +273,24 @@ public class DroneInfoService : IDroneInfoService
                 }
             }
 
-            // Get firmware version from params
-            var fwVerMajor = await _parameterService.GetParameterAsync("STAT_FLTTIME");
-            var swVersion = await _parameterService.GetParameterAsync("SYSID_SW_MREV");
-            
-            if (swVersion != null)
+            // Get firmware version from params (if not already set from AUTOPILOT_VERSION)
+            if (string.IsNullOrEmpty(_currentInfo.FirmwareVersion) || _currentInfo.FirmwareVersion == "N/A")
             {
-                var ver = (int)swVersion.Value;
-                var major = (ver >> 24) & 0xFF;
-                var minor = (ver >> 16) & 0xFF;
-                var patch = ver & 0xFFFF;
-                _currentInfo.FirmwareVersion = $"{major}.{minor}.{patch}";
-            }
-            else
-            {
-                // Default version format
-                _currentInfo.FirmwareVersion = "4.4.4";
+                var swVersion = await _parameterService.GetParameterAsync("SYSID_SW_MREV");
+                
+                if (swVersion != null)
+                {
+                    var ver = (int)swVersion.Value;
+                    var major = (ver >> 24) & 0xFF;
+                    var minor = (ver >> 16) & 0xFF;
+                    var patch = ver & 0xFFFF;
+                    _currentInfo.FirmwareVersion = $"{major}.{minor}.{patch}";
+                }
+                else
+                {
+                    // Default version format
+                    _currentInfo.FirmwareVersion = "4.4.4";
+                }
             }
 
             // Get board type
@@ -254,11 +301,14 @@ public class DroneInfoService : IDroneInfoService
             _currentInfo.CodeChecksum = GenerateCodeChecksum();
             _currentInfo.DataChecksum = GenerateDataChecksum();
 
-            // Generate FCID from system identifiers
-            _currentInfo.FcId = GenerateFcId();
+            // Only generate fallback FCID if not already set from AUTOPILOT_VERSION
+            if (string.IsNullOrEmpty(_currentInfo.FcId) || _currentInfo.FcId.Contains("UNAVAILABLE") || _currentInfo.FcId.Contains(FirmwareIdPlaceholderSuffix))
+            {
+                _currentInfo.FcId = GenerateFcId();
+            }
 
-            _logger.LogInformation("Drone info refreshed: ID={DroneId}, FW={FwVer}", 
-                _currentInfo.DroneId, _currentInfo.FirmwareVersion);
+            _logger.LogInformation("Drone info refreshed: ID={DroneId}, FW={FwVer}, FcId={FcId}", 
+                _currentInfo.DroneId, _currentInfo.FirmwareVersion, _currentInfo.FcId);
 
             // Force notify on refresh since parameters may have changed
             _lastNotifiedInfo = null;

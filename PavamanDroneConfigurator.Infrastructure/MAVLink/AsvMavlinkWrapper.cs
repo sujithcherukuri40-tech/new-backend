@@ -1144,6 +1144,24 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
             await SendMessageAsync(MAVLINK_MSG_ID_REQUEST_DATA_STREAM, payload, ct);
         }
 
+        /// <summary>
+        /// Request AUTOPILOT_VERSION message from the flight controller.
+        /// This must be called to get the FC's unique identifier (UID/UID2) and firmware version.
+        /// Uses MAV_CMD_REQUEST_MESSAGE (512) with param1 = AUTOPILOT_VERSION (148).
+        /// </summary>
+        public async Task SendRequestAutopilotVersionAsync(CancellationToken ct = default)
+        {
+            _logger.LogInformation("Requesting AUTOPILOT_VERSION message from FC");
+
+            _mavLinkLogger?.LogOutgoing("COMMAND_LONG",
+                $"cmd=MAV_CMD_REQUEST_MESSAGE(512), param1=AUTOPILOT_VERSION(148)");
+
+            // MAV_CMD_REQUEST_MESSAGE = 512
+            // param1 = message ID to request (AUTOPILOT_VERSION = 148)
+            await SendCommandLongFireAndForgetAsync(MAV_CMD_REQUEST_MESSAGE,
+                MAVLINK_MSG_ID_AUTOPILOT_VERSION, 0, 0, 0, 0, 0, 0, ct);
+        }
+
         private async Task SendCommandLongFireAndForgetAsync(
             ushort command, float param1, float param2, float param3, float param4,
             float param5, float param6, float param7, CancellationToken ct = default)
@@ -1424,27 +1442,18 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
         public byte FirmwareType { get; set; }
         public string FirmwareVersionString { get; set; } = "N/A";
 
+        /// <summary>
+        /// Gets the Flight Controller ID using the best available identifier.
+        /// Priority: UID2 > UID > FlightSwVersion + GitHash
+        /// This matches Mission Planner's approach of using uid2 as the primary hardware identifier.
+        /// </summary>
         public string GetFcId()
         {
-            // FC ID should be derived from firmware build ID (FlightSwVersion + FlightCustomVersion)
-            // FlightSwVersion contains the encoded version, FlightCustomVersion contains the git hash
-            
-            // Use FlightSwVersion as the primary ID source
-            if (FlightSwVersion > 0)
-            {
-                // Format: firmware version + first 4 bytes of git hash for uniqueness
-                var gitPrefix = FlightCustomVersion != null && FlightCustomVersion.Length >= 4
-                    ? BitConverter.ToString(FlightCustomVersion, 0, 4).Replace("-", "").ToUpperInvariant()
-                    : "0000";
-                
-                return $"FW-{FlightSwVersion:X8}-{gitPrefix}";
-            }
-            
-            // Fallback: use git hash (FlightCustomVersion) if available
-            if (FlightCustomVersion != null && FlightCustomVersion.Length > 0)
+            // Priority 1: Use UID2 if available (18-byte hardware unique ID - most reliable)
+            if (Uid2 != null && Uid2.Length > 0)
             {
                 bool allZeros = true;
-                foreach (byte b in FlightCustomVersion)
+                foreach (byte b in Uid2)
                 {
                     if (b != 0)
                     {
@@ -1452,17 +1461,52 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
                         break;
                     }
                 }
-
+                
                 if (!allZeros)
                 {
-                    var hex = BitConverter.ToString(FlightCustomVersion).Replace("-", "").ToUpperInvariant();
-                    return $"FW-{hex}";
+                    // Use first 10 bytes of UID2 for a readable ID
+                    var hex = BitConverter.ToString(Uid2, 0, Math.Min(10, Uid2.Length))
+                        .Replace("-", "").ToUpperInvariant();
+                    return $"FC-{hex}";
                 }
             }
-
+            
+            // Priority 2: Use UID if available (8-byte hardware ID)
+            if (Uid != null && Uid.Length > 0)
+            {
+                bool allZeros = true;
+                foreach (byte b in Uid)
+                {
+                    if (b != 0)
+                    {
+                        allZeros = false;
+                        break;
+                    }
+                }
+                
+                if (!allZeros)
+                {
+                    var hex = BitConverter.ToString(Uid).Replace("-", "").ToUpperInvariant();
+                    return $"FC-{hex}";
+                }
+            }
+            
+            // Priority 3: Use firmware version + git hash
+            if (FlightSwVersion > 0)
+            {
+                var gitPrefix = FlightCustomVersion != null && FlightCustomVersion.Length >= 4
+                    ? BitConverter.ToString(FlightCustomVersion, 0, 4).Replace("-", "").ToUpperInvariant()
+                    : "0000";
+                
+                return $"FW-{FlightSwVersion:X8}-{gitPrefix}";
+            }
+            
             return "FW-UNAVAILABLE";
         }
 
+        /// <summary>
+        /// Gets the git hash from FlightCustomVersion
+        /// </summary>
         public string GetGitHash()
         {
             if (FlightCustomVersion == null || FlightCustomVersion.Length == 0)
