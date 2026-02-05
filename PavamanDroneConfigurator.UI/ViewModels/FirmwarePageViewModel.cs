@@ -32,8 +32,8 @@ public partial class FirmwarePageViewModel : ViewModelBase
     [ObservableProperty] private bool _isFirmwareUpgradeMode = true;
     [ObservableProperty] private bool _isBootloaderUpdateMode;
     [ObservableProperty] private FirmwareUpgradeMode _upgradeMode = FirmwareUpgradeMode.Automatic;
-    [ObservableProperty] private bool _isAutomaticMode = true;
-    [ObservableProperty] private bool _isManualMode;
+    [ObservableProperty] private bool _isAutomaticMode = false; // Changed: Start with mode selection screen
+    [ObservableProperty] private bool _isManualMode = false;    // Changed: Start with mode selection screen
     [ObservableProperty] private bool _showBetaFirmware;
     [ObservableProperty] private bool _showAllOptions;
     #endregion

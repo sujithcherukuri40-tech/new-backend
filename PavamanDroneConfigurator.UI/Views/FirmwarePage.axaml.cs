@@ -23,7 +23,8 @@ public partial class FirmwarePage : UserControl
     }
     
     /// <summary>
-    /// Opens a file picker dialog and sets the selected firmware file
+    /// Opens a file picker dialog and sets the selected firmware file.
+    /// Defaults to APJ files only as per user requirement.
     /// </summary>
     public async void BrowseFirmwareFile_Click(object? sender, RoutedEventArgs e)
     {
@@ -38,13 +39,20 @@ public partial class FirmwarePage : UserControl
             
             var files = await topLevel.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
             {
-                Title = "Select Firmware File",
+                Title = "Select ArduPilot Firmware File",
                 AllowMultiple = false,
                 FileTypeFilter = new[]
                 {
-                    new FilePickerFileType("ArduPilot Firmware")
+                    // APJ files first and as default filter
+                    new FilePickerFileType("ArduPilot Firmware (*.apj)")
                     {
-                        Patterns = new[] { "*.apj", "*.px4", "*.bin", "*.hex" },
+                        Patterns = new[] { "*.apj" },
+                        MimeTypes = new[] { "application/octet-stream" }
+                    },
+                    // Other firmware formats as secondary option
+                    new FilePickerFileType("Other Firmware (*.px4, *.bin, *.hex)")
+                    {
+                        Patterns = new[] { "*.px4", "*.bin", "*.hex" },
                         MimeTypes = new[] { "application/octet-stream" }
                     },
                     new FilePickerFileType("All Files")

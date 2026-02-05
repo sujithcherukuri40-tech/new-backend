@@ -746,6 +746,8 @@
                                         BorderThickness="0"
                                         FontWeight="Bold"
                                         FontSize="14"
+                                        VerticalContentAlignment="Center"
+                                        HorizontalContentAlignment="Center"
                                         Click="BrowseFirmwareFile_Click"/>
                             </Grid>
                         </StackPanel>
