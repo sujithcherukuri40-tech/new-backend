@@ -133,7 +133,7 @@
             <!-- Not Connected Warning -->
             <Border Classes="warning-box" IsVisible="{Binding !IsConnected}">
                 <StackPanel Orientation="Horizontal" Spacing="12">
-                    <TextBlock Text="??" FontSize="20"/>
+                    <TextBlock Text="⚠" FontSize="20"/>
                     <StackPanel Spacing="4">
                         <TextBlock Text="Not Connected" FontWeight="SemiBold" Foreground="#92400E"/>
                         <TextBlock Text="Connect to a drone to configure airframe settings" FontSize="13" Foreground="#A16207"/>
@@ -153,7 +153,7 @@
                     </StackPanel>
                     
                     <Button Grid.Column="1"
-                            Content="?? Refresh"
+                            Content="Refresh"
                             Command="{Binding RefreshSettingsCommand}"
                             IsEnabled="{Binding IsConnected}"
                             Classes="secondary"
@@ -228,24 +228,6 @@
                         Command="{Binding LoadSettingsCommand}"
                         Classes="secondary"/>
             </StackPanel>
-
-            <!-- Warning Message -->
-            <Border Classes="warning-box" IsVisible="{Binding IsConnected}">
-                <StackPanel Spacing="8">
-                    <StackPanel Orientation="Horizontal" Spacing="8">
-                        <TextBlock Text="??" FontSize="16"/>
-                        <TextBlock Text="Important Warning" FontSize="14" FontWeight="SemiBold" Foreground="#92400E"/>
-                    </StackPanel>
-                    <StackPanel Spacing="4" Margin="24,0,0,0">
-                        <TextBlock Text="• Changing the airframe configuration requires a reboot to take effect" 
-                                   FontSize="13" Foreground="#A16207" TextWrapping="Wrap"/>
-                        <TextBlock Text="• Ensure you have selected the correct frame type that matches your physical drone" 
-                                   FontSize="13" Foreground="#A16207" TextWrapping="Wrap"/>
-                        <TextBlock Text="• Incorrect settings may result in unstable flight or crashes!" 
-                                   FontSize="13" Foreground="#92400E" FontWeight="SemiBold" TextWrapping="Wrap"/>
-                    </StackPanel>
-                </StackPanel>
-            </Border>
 
             <!-- Status Message -->
             <Border Classes="success-box" IsVisible="{Binding StatusMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">

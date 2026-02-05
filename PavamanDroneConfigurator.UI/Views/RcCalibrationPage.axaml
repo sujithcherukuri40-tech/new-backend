@@ -183,22 +183,6 @@
                 </StackPanel>
             </Border>
 
-            <!-- RC Not Connected Warning -->
-            <Border Classes="status-required" IsVisible="{Binding !IsRcConnected}">
-                <Border.IsVisible>
-                    <Binding Path="IsConnectedButRcNotConnected"/>
-                </Border.IsVisible>
-                <StackPanel Orientation="Horizontal" Spacing="12">
-                    <TextBlock Text="?" FontWeight="SemiBold" Foreground="#92400E" VerticalAlignment="Center"/>
-                    <StackPanel Spacing="4">
-                        <TextBlock Text="RC Receiver Not Connected" FontWeight="SemiBold" Foreground="#92400E"/>
-                        <TextBlock Text="{Binding RcConnectionStatus}" FontSize="13" Foreground="#A16207"/>
-                        <TextBlock Text="Turn on your transmitter and verify the receiver is properly connected to the flight controller" 
-                                   FontSize="12" Foreground="#A16207" TextWrapping="Wrap" MaxWidth="700"/>
-                    </StackPanel>
-                </StackPanel>
-            </Border>
-
             <!-- RC Connection OK Status -->
             <Border Classes="status-complete" IsVisible="{Binding IsRcConnected}">
                 <StackPanel Orientation="Horizontal" Spacing="12">
@@ -274,64 +258,6 @@
                                 Command="{Binding CalibrateCommand}"
                                 IsEnabled="{Binding IsConnected}">
                             <TextBlock Text="{Binding IsCalibrating, Converter={StaticResource CalibrationButtonTextConverter}, ConverterParameter='Complete Calibration|Start Calibration'}"/>
-                        </Button>
-                    </StackPanel>
-                </StackPanel>
-            </Border>
-
-            <!-- Attitude Channel Mapping -->
-            <Border Classes="card" IsVisible="{Binding IsConnected}">
-                <StackPanel Spacing="16">
-                    <StackPanel Spacing="4">
-                        <TextBlock Text="Attitude Channel Mapping" Classes="section-title"/>
-                        <TextBlock Text="Assign control functions to RC channels" Classes="section-subtitle"/>
-                    </StackPanel>
-
-                    <Grid ColumnDefinitions="*,24,*" RowDefinitions="Auto,16,Auto">
-                        
-                        <!-- Throttle -->
-                        <StackPanel Grid.Column="0" Grid.Row="0" Spacing="6">
-                            <TextBlock Text="Throttle" FontSize="13" FontWeight="Medium" Foreground="#374151"/>
-                            <ComboBox ItemsSource="{Binding ChannelOptions}"
-                                      SelectedItem="{Binding SelectedThrottleChannel}"
-                                      DisplayMemberBinding="{Binding Label}"
-                                      HorizontalAlignment="Stretch"/>
-                        </StackPanel>
-
-                        <!-- Roll -->
-                        <StackPanel Grid.Column="2" Grid.Row="0" Spacing="6">
-                            <TextBlock Text="Roll" FontSize="13" FontWeight="Medium" Foreground="#374151"/>
-                            <ComboBox ItemsSource="{Binding ChannelOptions}"
-                                      SelectedItem="{Binding SelectedRollChannel}"
-                                      DisplayMemberBinding="{Binding Label}"
-                                      HorizontalAlignment="Stretch"/>
-                        </StackPanel>
-
-                        <!-- Pitch -->
-                        <StackPanel Grid.Column="0" Grid.Row="2" Spacing="6">
-                            <TextBlock Text="Pitch" FontSize="13" FontWeight="Medium" Foreground="#374151"/>
-                            <ComboBox ItemsSource="{Binding ChannelOptions}"
-                                      SelectedItem="{Binding SelectedPitchChannel}"
-                                      DisplayMemberBinding="{Binding Label}"
-                                      HorizontalAlignment="Stretch"/>
-                        </StackPanel>
-
-                        <!-- Yaw -->
-                        <StackPanel Grid.Column="2" Grid.Row="2" Spacing="6">
-                            <TextBlock Text="Yaw" FontSize="13" FontWeight="Medium" Foreground="#374151"/>
-                            <ComboBox ItemsSource="{Binding ChannelOptions}"
-                                      SelectedItem="{Binding SelectedYawChannel}"
-                                      DisplayMemberBinding="{Binding Label}"
-                                      HorizontalAlignment="Stretch"/>
-                        </StackPanel>
-                    </Grid>
-
-                    <!-- Update Button -->
-                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,8,0,0">
-                        <Button Classes="primary" 
-                                Command="{Binding UpdateMappingCommand}"
-                                IsEnabled="{Binding IsConnected}">
-                            <TextBlock Text="Update Mapping"/>
                         </Button>
                     </StackPanel>
                 </StackPanel>
@@ -435,15 +361,6 @@
                             </Grid>
                         </StackPanel>
                     </Grid>
-                </StackPanel>
-            </Border>
-
-            <!-- Info Footer -->
-            <Border Background="#EFF6FF" CornerRadius="8" Padding="16" IsVisible="{Binding IsConnected}">
-                <StackPanel Spacing="4">
-                    <TextBlock Text="PDRL Compliance" FontSize="13" FontWeight="SemiBold" Foreground="#1E40AF"/>
-                    <TextBlock Text="All main control channels (Roll, Pitch, Yaw, Throttle) must be properly calibrated before flight. Move sticks to all extremes during calibration." 
-                               FontSize="12" Foreground="#3B82F6" TextWrapping="Wrap"/>
                 </StackPanel>
             </Border>
 

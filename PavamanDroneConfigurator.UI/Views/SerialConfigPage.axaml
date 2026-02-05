@@ -127,10 +127,7 @@
                 </StackPanel>
                 
                 <Button Grid.Column="1" Classes="Secondary" Command="{Binding RefreshCommand}" Margin="0,0,8,0">
-                    <StackPanel Orientation="Horizontal" Spacing="6">
-                        <TextBlock Text="?" FontSize="16"/>
-                        <TextBlock Text="Refresh"/>
-                    </StackPanel>
+                    <TextBlock Text="Refresh"/>
                 </Button>
                 
                 <Button Grid.Column="2" Classes="Secondary" Command="{Binding ApplyDefaultsCommand}" Margin="0,0,8,0">
@@ -147,27 +144,6 @@
                 <StackPanel Orientation="Horizontal" Spacing="8">
                     <ProgressBar Width="20" Height="20" IsIndeterminate="True"/>
                     <TextBlock Text="{Binding StatusMessage}" VerticalAlignment="Center" Foreground="#1E293B"/>
-                </StackPanel>
-            </Border>
-
-            <!-- VALIDATION ALERTS -->
-            <Border Classes="AlertPanel"
-                    Classes.Success="{Binding !HasValidationWarnings}"
-                    Classes.Warning="{Binding HasValidationWarnings}"
-                    Margin="0,0,0,16">
-                <StackPanel>
-                    <TextBlock FontSize="14" FontWeight="Bold" Margin="0,0,0,8"
-                               Foreground="#1E293B"
-                               Text="? Configuration Valid"
-                               IsVisible="{Binding !HasValidationWarnings}"/>
-                    <TextBlock FontSize="14" FontWeight="Bold" Margin="0,0,0,8"
-                               Foreground="#1E293B"
-                               Text="? Configuration Warnings"
-                               IsVisible="{Binding HasValidationWarnings}"/>
-                    <TextBlock Text="{Binding ValidationMessage}" 
-                               TextWrapping="Wrap" 
-                               FontSize="13"
-                               Foreground="#1E293B"/>
                 </StackPanel>
             </Border>
 
@@ -284,74 +260,6 @@
                 </StackPanel>
             </Border>
 
-            <!-- PROTOCOL REFERENCE -->
-            <Border Classes="SectionCard">
-                <StackPanel>
-                    <TextBlock Classes="SectionTitle" Text="Protocol Reference"/>
-                    <TextBlock Classes="SectionSubtitle" Text="Common protocol configurations"/>
-                    
-                    <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto,Auto" Margin="0,8,0,0">
-                        <StackPanel Grid.Column="0" Grid.Row="0" Margin="0,0,16,12">
-                            <TextBlock Text="MAVLink2" FontWeight="Bold" Foreground="#0B5ED7"/>
-                            <TextBlock Text="Telemetry radios, companion computers" FontSize="12" Foreground="#64748B"/>
-                            <TextBlock Text="Recommended: 57600 baud" FontSize="11" Foreground="#94A3B8"/>
-                        </StackPanel>
-                        
-                        <StackPanel Grid.Column="1" Grid.Row="0" Margin="0,0,0,12">
-                            <TextBlock Text="GPS" FontWeight="Bold" Foreground="#0B5ED7"/>
-                            <TextBlock Text="GNSS receivers (auto-detect)" FontSize="12" Foreground="#64748B"/>
-                            <TextBlock Text="Recommended: 115200 baud" FontSize="11" Foreground="#94A3B8"/>
-                        </StackPanel>
-                        
-                        <StackPanel Grid.Column="0" Grid.Row="1" Margin="0,0,16,12">
-                            <TextBlock Text="Rangefinder" FontWeight="Bold" Foreground="#0B5ED7"/>
-                            <TextBlock Text="LiDAR/Sonar sensors" FontSize="12" Foreground="#64748B"/>
-                            <TextBlock Text="Recommended: 115200 baud" FontSize="11" Foreground="#94A3B8"/>
-                        </StackPanel>
-                        
-                        <StackPanel Grid.Column="1" Grid.Row="1" Margin="0,0,0,12">
-                            <TextBlock Text="FrSky SPort" FontWeight="Bold" Foreground="#0B5ED7"/>
-                            <TextBlock Text="FrSky Smart Port telemetry" FontSize="12" Foreground="#64748B"/>
-                            <TextBlock Text="Recommended: 57600 baud" FontSize="11" Foreground="#94A3B8"/>
-                        </StackPanel>
-                        
-                        <StackPanel Grid.Column="0" Grid.Row="2" Margin="0,0,16,12">
-                            <TextBlock Text="ESC Telemetry" FontWeight="Bold" Foreground="#0B5ED7"/>
-                            <TextBlock Text="BLHeli/DShot ESC data" FontSize="12" Foreground="#64748B"/>
-                            <TextBlock Text="Recommended: 115200 baud" FontSize="11" Foreground="#94A3B8"/>
-                        </StackPanel>
-                        
-                        <StackPanel Grid.Column="1" Grid.Row="2" Margin="0,0,0,12">
-                            <TextBlock Text="MSP" FontWeight="Bold" Foreground="#0B5ED7"/>
-                            <TextBlock Text="MultiWii Serial Protocol" FontSize="12" Foreground="#64748B"/>
-                            <TextBlock Text="Recommended: 115200 baud" FontSize="11" Foreground="#94A3B8"/>
-                        </StackPanel>
-                        
-                        <StackPanel Grid.Column="0" Grid.Row="3" Margin="0,0,16,0">
-                            <TextBlock Text="CRSF" FontWeight="Bold" Foreground="#0B5ED7"/>
-                            <TextBlock Text="TBS Crossfire protocol" FontSize="12" Foreground="#64748B"/>
-                            <TextBlock Text="Recommended: 416000 baud" FontSize="11" Foreground="#94A3B8"/>
-                        </StackPanel>
-                        
-                        <StackPanel Grid.Column="1" Grid.Row="3">
-                            <TextBlock Text="DJI FPV" FontWeight="Bold" Foreground="#0B5ED7"/>
-                            <TextBlock Text="DJI FPV OSD system" FontSize="12" Foreground="#64748B"/>
-                            <TextBlock Text="Recommended: 115200 baud" FontSize="11" Foreground="#94A3B8"/>
-                        </StackPanel>
-                    </Grid>
-                </StackPanel>
-            </Border>
-
-            <!-- FOOTER INFO -->
-            <Border Background="#E7F3FF" CornerRadius="8" Padding="16" Margin="0,8,0,0">
-                <StackPanel Orientation="Horizontal" Spacing="8">
-                    <TextBlock Text="?" FontSize="16" VerticalAlignment="Center"/>
-                    <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="#0B5ED7">
-                        <Run Text="PDRL Compliance:"/>
-                        <Run Text="At least one GPS port and one MAVLink telemetry port must be configured for safe flight operations."/>
-                    </TextBlock>
-                </StackPanel>
-            </Border>
         </StackPanel>
     </ScrollViewer>
 </UserControl>

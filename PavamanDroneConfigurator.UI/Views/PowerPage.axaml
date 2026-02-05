@@ -253,16 +253,6 @@
                 </StackPanel>
             </Border>
             
-            <!-- Info Panel -->
-            <Border Background="#EFF6FF" CornerRadius="8" Padding="16" Margin="0,8,0,0">
-                <StackPanel Orientation="Horizontal" Spacing="8">
-                    
-                    <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="#3B82F6">
-                        <Run Text="Power Configuration:"/>
-                        <Run Text=" Select your power sensor preset to auto-fill calibration values, or manually enter the voltage multiplier and amps per volt for accurate battery monitoring."/>
-                    </TextBlock>
-                </StackPanel>
-            </Border>
         </StackPanel>
     </ScrollViewer>
 </UserControl>

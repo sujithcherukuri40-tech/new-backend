@@ -192,16 +192,6 @@
                 </Button>
             </Grid>
 
-            <!-- STATUS FEEDBACK (Single Clean Card) -->
-            <Border Classes="status-card"
-                    Classes.success="{Binding !HasValidationWarnings}"
-                    Classes.warning="{Binding HasValidationWarnings}">
-                <TextBlock Text="{Binding ValidationMessage}" 
-                           FontSize="13"
-                           Foreground="#1D1D1F"
-                           TextWrapping="Wrap"/>
-            </Border>
-
             <!-- CHANNEL CONFIGURATION -->
             <Border Classes="section-card">
                 <StackPanel Spacing="12">
@@ -397,16 +387,6 @@
                         </Border>
                     </Grid>
                 </StackPanel>
-            </Border>
-
-            <!-- RECOMMENDATION (Single Line) -->
-            <Border Classes="recommendation">
-                <TextBlock TextWrapping="Wrap" 
-                           FontSize="12" 
-                           Foreground="#1D1D1F">
-                    <Run FontWeight="SemiBold">Recommendation:</Run>
-                    <Run Text=" Configure at least one stabilized mode and one emergency mode such as RTL or Land"/>
-                </TextBlock>
             </Border>
 
         </StackPanel>

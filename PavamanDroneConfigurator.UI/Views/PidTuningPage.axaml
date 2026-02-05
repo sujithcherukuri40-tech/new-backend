@@ -88,12 +88,15 @@
             <Setter Property="Padding" Value="12,0"/>
             <Setter Property="VerticalAlignment" Value="Center"/>
             <Setter Property="HorizontalContentAlignment" Value="Center"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
         </Style>
         
         <!-- Center align the TextBox inside NumericUpDown -->
         <Style Selector="NumericUpDown /template/ TextBox#PART_TextBox">
             <Setter Property="TextAlignment" Value="Center"/>
             <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+            <Setter Property="Padding" Value="0"/>
         </Style>
         
         <Style Selector="NumericUpDown:focus">
@@ -710,21 +713,6 @@
                 </Border>
             </Grid>
 
-            <!-- FOOTER INFO -->
-            <Border Background="#EFF6FF" 
-                    BorderBrush="#BFDBFE"
-                    BorderThickness="1"
-                    CornerRadius="12" 
-                    Padding="20" 
-                    Margin="0,16,0,0">
-                <StackPanel Orientation="Horizontal" Spacing="12">
-                    
-                    <TextBlock TextWrapping="Wrap" FontSize="13" Foreground="#1E40AF" LineHeight="20">
-                        <Run Text="Tip:" FontWeight="Bold"/>
-                        <Run Text="Use AutoTune for automatic PID optimization. Ensure stable hover before initiating. Advanced tuning should be done incrementally."/>
-                    </TextBlock>
-                </StackPanel>
-            </Border>
         </StackPanel>
     </ScrollViewer>
 </UserControl>
