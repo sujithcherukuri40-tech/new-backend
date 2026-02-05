@@ -329,6 +329,7 @@
                     <!-- Graph Area (Top) -->
                     <Grid Grid.Row="0">
                         <controls:LogGraphControl x:Name="GraphControl"
+                                                   GraphData="{Binding CurrentGraph}"
                                                    IsVisible="{Binding HasGraphData}"/>
                         
                         <!-- No Data Message -->

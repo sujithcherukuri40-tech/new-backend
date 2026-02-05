@@ -535,6 +535,9 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
                 // Load available graph fields
                 LoadAvailableFields();
                 
+                // Auto-select common fields for initial graph display
+                AutoSelectDefaultGraphFields();
+                
                 // Detect events in background
                 if (_eventDetector != null)
                 {
@@ -2112,6 +2115,14 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
         MessageTypesTree.Clear();
 
         var fields = _logAnalyzerService.GetAvailableGraphFields();
+        _logger.LogInformation("GetAvailableGraphFields returned {Count} fields", fields?.Count ?? 0);
+        
+        if (fields == null || fields.Count == 0)
+        {
+            _logger.LogWarning("No graph fields available from log");
+            HasTreeData = false;
+            return;
+        }
         
         foreach (var field in fields)
         {
@@ -2153,7 +2164,129 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
         }
 
         HasTreeData = MessageTypesTree.Count > 0;
+        _logger.LogInformation("Loaded {FieldCount} fields in {TypeCount} message types", 
+            AvailableFields.Count, MessageTypesTree.Count);
     }
+
+    /// <summary>
+    /// Auto-selects common flight data fields for initial graph display.
+    /// This ensures users see meaningful data immediately after loading a log.
+    /// </summary>
+    private void AutoSelectDefaultGraphFields()
+    {
+        _logger.LogInformation("Auto-selecting graph fields. Available fields count: {Count}", AvailableFields.Count);
+        
+        if (AvailableFields.Count == 0)
+        {
+            _logger.LogWarning("No available fields to auto-select");
+            return;
+        }
+
+        // Priority list of field patterns to auto-select (in order of preference)
+        // Using partial matches for better compatibility with different log formats
+        var priorityPatterns = new[]
+        {
+            // Attitude data (most common)
+            new[] { "ATT", "Roll" },
+            new[] { "ATT", "Pitch" },
+            new[] { "ATT", "Yaw" },
+            // Altitude data
+            new[] { "GPS", "Alt" },
+            new[] { "BARO", "Alt" },
+            new[] { "POS", "Alt" },
+            // Speed data
+            new[] { "GPS", "Spd" },
+            new[] { "ARSP", "Airspeed" },
+            // Battery data
+            new[] { "BAT", "Volt" },
+            new[] { "BAT", "Curr" },
+            // RC inputs
+            new[] { "RCIN", "C1" },
+            new[] { "RCIN", "C3" },
+            // Motor outputs
+            new[] { "RCOU", "C1" },
+            // IMU data
+            new[] { "IMU", "AccX" },
+            new[] { "IMU", "AccZ" },
+            // Vibration
+            new[] { "VIBE", "VibeX" },
+        };
+
+        var selectedCount = 0;
+        const int maxAutoSelectFields = 4;
+
+        // Try pattern matching
+        foreach (var pattern in priorityPatterns)
+        {
+            if (selectedCount >= maxAutoSelectFields)
+                break;
+
+            var msgType = pattern[0];
+            var fieldName = pattern.Length > 1 ? pattern[1] : null;
+
+            // Find matching field
+            LogFieldInfo? field = null;
+            
+            if (fieldName != null)
+            {
+                // Try exact match first: "ATT.Roll"
+                field = AvailableFields.FirstOrDefault(f => 
+                    f.DisplayName.Equals($"{msgType}.{fieldName}", StringComparison.OrdinalIgnoreCase));
+                
+                // Try contains match: field contains both message type and field name
+                if (field == null)
+                {
+                    field = AvailableFields.FirstOrDefault(f => 
+                        f.MessageType.Equals(msgType, StringComparison.OrdinalIgnoreCase) &&
+                        f.FieldName.Contains(fieldName, StringComparison.OrdinalIgnoreCase));
+                }
+            }
+            else
+            {
+                // Just match by message type
+                field = AvailableFields.FirstOrDefault(f => 
+                    f.MessageType.Equals(msgType, StringComparison.OrdinalIgnoreCase));
+            }
+
+            if (field != null && !SelectedGraphFields.Any(f => f.DisplayName == field.DisplayName))
+            {
+                field.IsSelected = true;
+                field.Color = GraphColors.GetColor(selectedCount);
+                SelectedGraphFields.Add(field);
+                selectedCount++;
+                _logger.LogDebug("Auto-selected field: {Field}", field.DisplayName);
+            }
+        }
+
+        // If no priority fields found, select the first few available fields
+        if (selectedCount == 0)
+        {
+            _logger.LogInformation("No priority fields found, selecting first {Count} available fields", maxAutoSelectFields);
+            foreach (var field in AvailableFields.Take(maxAutoSelectFields))
+            {
+                if (!SelectedGraphFields.Any(f => f.DisplayName == field.DisplayName))
+                {
+                    field.IsSelected = true;
+                    field.Color = GraphColors.GetColor(selectedCount);
+                    SelectedGraphFields.Add(field);
+                    selectedCount++;
+                }
+            }
+        }
+
+        // Update the graph with selected fields
+        if (selectedCount > 0)
+        {
+            _logger.LogInformation("Auto-selected {Count} graph fields for display", selectedCount);
+            UpdateGraph();
+        }
+        else
+        {
+            _logger.LogWarning("No fields could be auto-selected");
+        }
+    }
+
+
 
     private void FilterGraphFields()
     {
@@ -2219,12 +2352,33 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
         {
             CurrentGraph = null;
             HasGraphData = false;
+            _logger.LogDebug("No fields selected for graph");
             return;
         }
 
-        var fieldKeys = SelectedGraphFields.Select(f => f.DisplayName).ToArray();
-        CurrentGraph = _logAnalyzerService.GetGraphData(fieldKeys);
-        HasGraphData = CurrentGraph.Series.Any();
+        try
+        {
+            var fieldKeys = SelectedGraphFields.Select(f => f.DisplayName).ToArray();
+            _logger.LogInformation("Updating graph with {Count} fields: {Fields}", fieldKeys.Length, string.Join(", ", fieldKeys));
+            
+            CurrentGraph = _logAnalyzerService.GetGraphData(fieldKeys);
+            
+            if (CurrentGraph == null)
+            {
+                _logger.LogWarning("GetGraphData returned null");
+                HasGraphData = false;
+                return;
+            }
+            
+            HasGraphData = CurrentGraph.Series != null && CurrentGraph.Series.Any();
+            _logger.LogInformation("Graph updated: HasGraphData={HasData}, SeriesCount={Count}", 
+                HasGraphData, CurrentGraph.Series?.Count ?? 0);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error updating graph");
+            HasGraphData = false;
+        }
     }
 
     [RelayCommand]

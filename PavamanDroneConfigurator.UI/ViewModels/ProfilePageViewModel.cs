@@ -64,6 +64,27 @@ public partial class ProfilePageViewModel : ViewModelBase
     public bool IsUser => !IsAdmin;
 
     /// <summary>
+    /// User initials for avatar display (e.g., "JD" for "John Doe")
+    /// </summary>
+    public string UserInitials
+    {
+        get
+        {
+            if (string.IsNullOrWhiteSpace(UserFullName))
+                return "U";
+            
+            var parts = UserFullName.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length == 0)
+                return "U";
+            
+            if (parts.Length == 1)
+                return parts[0][0].ToString().ToUpper();
+            
+            return $"{parts[0][0]}{parts[^1][0]}".ToUpper();
+        }
+    }
+
+    /// <summary>
     /// Event raised when user requests logout and needs to navigate back to login
     /// </summary>
     public event EventHandler? LogoutRequested;
@@ -112,6 +133,9 @@ public partial class ProfilePageViewModel : ViewModelBase
             UserStatus = user.IsApproved ? "Approved" : "Pending Approval";
             AccountCreatedDate = user.CreatedAt.ToString("MMMM dd, yyyy 'at' hh:mm tt");
             LastLoginDate = user.LastLoginAt?.ToString("MMMM dd, yyyy 'at' hh:mm tt") ?? "Never";
+
+            // Notify UserInitials changed since it depends on UserFullName
+            OnPropertyChanged(nameof(UserInitials));
 
             _logger.LogInformation("Successfully loaded user profile: {Email} ({Role})", user.Email, user.Role);
         }

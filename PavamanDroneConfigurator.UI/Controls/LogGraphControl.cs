@@ -18,9 +18,36 @@ public class LogGraphControl : UserControl
     private AvaPlot? _avaPlot;
     private LogGraphConfiguration? _configuration;
 
+    /// <summary>
+    /// Styled property for graph configuration data binding.
+    /// </summary>
+    public static readonly StyledProperty<LogGraphConfiguration?> GraphDataProperty =
+        AvaloniaProperty.Register<LogGraphControl, LogGraphConfiguration?>(
+            nameof(GraphData),
+            defaultValue: null);
+
+    /// <summary>
+    /// Gets or sets the graph data configuration.
+    /// </summary>
+    public LogGraphConfiguration? GraphData
+    {
+        get => GetValue(GraphDataProperty);
+        set => SetValue(GraphDataProperty, value);
+    }
+
     public LogGraphControl()
     {
         InitializeComponent();
+    }
+
+    protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
+    {
+        base.OnPropertyChanged(change);
+
+        if (change.Property == GraphDataProperty)
+        {
+            UpdateGraph(change.NewValue as LogGraphConfiguration);
+        }
     }
 
     private void InitializeComponent()
