@@ -21,7 +21,7 @@
                 </StackPanel>
                 
                 <Button Grid.Column="1"
-                        Content="?  Refresh"
+                        Content="Refresh"
                         Command="{Binding RefreshCommand}"
                         IsEnabled="{Binding IsConnected}"
                         Classes="btn-primary"/>

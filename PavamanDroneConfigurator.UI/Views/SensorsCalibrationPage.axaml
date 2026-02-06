@@ -456,19 +456,19 @@
                         <!-- Compass table -->
                         <Border Background="#F8FBFF" CornerRadius="14" Padding="14" BorderBrush="#E2E8F0" BorderThickness="1">
                             <Grid RowDefinitions="Auto,*" RowSpacing="8">
-                                <Border Background="#EEF6FF" CornerRadius="10" Padding="10,6">
-                                    <Grid ColumnDefinitions="60,110,80,70,80,90,70,80,120,50,50" >
-                                        <TextBlock Grid.Column="0" Text="Priority" FontWeight="Bold" FontSize="12"/>
-                                        <TextBlock Grid.Column="1" Text="DevID" FontWeight="Bold" FontSize="12"/>
-                                        <TextBlock Grid.Column="2" Text="BusType" FontWeight="Bold" FontSize="12"/>
-                                        <TextBlock Grid.Column="3" Text="Bus" FontWeight="Bold" FontSize="12"/>
-                                        <TextBlock Grid.Column="4" Text="Address" FontWeight="Bold" FontSize="12"/>
-                                        <TextBlock Grid.Column="5" Text="DevType" FontWeight="Bold" FontSize="12"/>
-                                        <TextBlock Grid.Column="6" Text="Missing" FontWeight="Bold" FontSize="12"/>
-                                        <TextBlock Grid.Column="7" Text="External" FontWeight="Bold" FontSize="12"/>
-                                        <TextBlock Grid.Column="8" Text="Orientation" FontWeight="Bold" FontSize="12"/>
-                                        <TextBlock Grid.Column="9" Text="Up" FontWeight="Bold" FontSize="12"/>
-                                        <TextBlock Grid.Column="10" Text="Down" FontWeight="Bold" FontSize="12"/>
+                                <Border Background="#EEF6FF" CornerRadius="10" Padding="10,8">
+                                    <Grid ColumnDefinitions="50,100,70,50,70,80,60,60,*,44,44">
+                                        <TextBlock Grid.Column="0" Text="Priority" FontWeight="Bold" FontSize="12" HorizontalAlignment="Center"/>
+                                        <TextBlock Grid.Column="1" Text="DevID" FontWeight="Bold" FontSize="12" HorizontalAlignment="Center"/>
+                                        <TextBlock Grid.Column="2" Text="BusType" FontWeight="Bold" FontSize="12" HorizontalAlignment="Center"/>
+                                        <TextBlock Grid.Column="3" Text="Bus" FontWeight="Bold" FontSize="12" HorizontalAlignment="Center"/>
+                                        <TextBlock Grid.Column="4" Text="Address" FontWeight="Bold" FontSize="12" HorizontalAlignment="Center"/>
+                                        <TextBlock Grid.Column="5" Text="DevType" FontWeight="Bold" FontSize="12" HorizontalAlignment="Center"/>
+                                        <TextBlock Grid.Column="6" Text="Missing" FontWeight="Bold" FontSize="12" HorizontalAlignment="Center"/>
+                                        <TextBlock Grid.Column="7" Text="External" FontWeight="Bold" FontSize="12" HorizontalAlignment="Center"/>
+                                        <TextBlock Grid.Column="8" Text="Orientation" FontWeight="Bold" FontSize="12" HorizontalAlignment="Center"/>
+                                        <TextBlock Grid.Column="9" Text="Up" FontWeight="Bold" FontSize="12" HorizontalAlignment="Center"/>
+                                        <TextBlock Grid.Column="10" Text="Down" FontWeight="Bold" FontSize="12" HorizontalAlignment="Center"/>
                                     </Grid>
                                 </Border>
 
@@ -477,21 +477,21 @@
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate>
                                                 <Border Classes="CompassRow">
-                                                    <Grid ColumnDefinitions="60,110,80,70,80,90,70,80,120,50,50" VerticalAlignment="Center">
-                                                        <TextBlock Grid.Column="0" Text="{Binding Priority}" HorizontalAlignment="Center"/>
-                                                        <StackPanel Grid.Column="1" Orientation="Vertical" Spacing="2">
-                                                            <TextBlock Text="{Binding DeviceId}" FontWeight="Medium"/>
+                                                    <Grid ColumnDefinitions="50,100,70,50,70,80,60,60,*,44,44" VerticalAlignment="Center">
+                                                        <TextBlock Grid.Column="0" Text="{Binding Priority}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                        <StackPanel Grid.Column="1" Orientation="Vertical" Spacing="2" HorizontalAlignment="Center">
+                                                            <TextBlock Text="{Binding DeviceId}" FontWeight="Medium" HorizontalAlignment="Center"/>
                                                             <CheckBox Content="Use" IsChecked="{Binding IsEnabled}" 
                                                                       Command="{Binding $parent[ItemsControl].((vm:SensorsCalibrationPageViewModel)DataContext).SetCompassEnabledCommand}"
-                                                                      CommandParameter="{Binding}" FontSize="11"/>
+                                                                      CommandParameter="{Binding}" FontSize="11" HorizontalAlignment="Center"/>
                                                         </StackPanel>
-                                                        <TextBlock Grid.Column="2" Text="{Binding BusTypeName}" HorizontalAlignment="Center"/>
-                                                        <TextBlock Grid.Column="3" Text="{Binding BusNumber}" HorizontalAlignment="Center"/>
-                                                        <TextBlock Grid.Column="4" Text="{Binding Address}" HorizontalAlignment="Center"/>
-                                                        <TextBlock Grid.Column="5" Text="{Binding DeviceTypeHex}" HorizontalAlignment="Center"/>
-                                                        <CheckBox Grid.Column="6" IsChecked="{Binding IsMissing}" IsEnabled="False" HorizontalAlignment="Center"/>
-                                                        <CheckBox Grid.Column="7" IsChecked="{Binding IsExternal}" IsEnabled="False" HorizontalAlignment="Center"/>
-                                                        <ComboBox Grid.Column="8" SelectedItem="{Binding Orientation}" Width="110" HorizontalAlignment="Stretch">
+                                                        <TextBlock Grid.Column="2" Text="{Binding BusTypeName}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                        <TextBlock Grid.Column="3" Text="{Binding BusNumber}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                        <TextBlock Grid.Column="4" Text="{Binding Address}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                        <TextBlock Grid.Column="5" Text="{Binding DeviceTypeHex}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                        <CheckBox Grid.Column="6" IsChecked="{Binding IsMissing}" IsEnabled="False" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                        <CheckBox Grid.Column="7" IsChecked="{Binding IsExternal}" IsEnabled="False" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                        <ComboBox Grid.Column="8" SelectedItem="{Binding Orientation}" MinWidth="100" HorizontalAlignment="Center" VerticalAlignment="Center">
                                                             <ComboBox.Items>
                                                                 <x:String>None</x:String>
                                                                 <x:String>Roll 90</x:String>
@@ -501,17 +501,33 @@
                                                                 <x:String>Pitch 270</x:String>
                                                             </ComboBox.Items>
                                                         </ComboBox>
-                                                        <Button Grid.Column="9" FontSize="14" Padding="8,4" Background="#E5F3FF" 
+                                                        <Button Grid.Column="9" 
+                                                                Width="36" Height="36"
+                                                                Padding="0"
+                                                                Background="#E5F3FF" 
+                                                                CornerRadius="6"
+                                                                HorizontalAlignment="Center"
+                                                                VerticalAlignment="Center"
+                                                                HorizontalContentAlignment="Center"
+                                                                VerticalContentAlignment="Center"
                                                                 Command="{Binding $parent[ItemsControl].((vm:SensorsCalibrationPageViewModel)DataContext).MoveCompassUpCommand}"
                                                                 CommandParameter="{Binding}"
                                                                 ToolTip.Tip="Move up in priority">
-                                                            <TextBlock Text="↑" FontSize="14" FontWeight="Bold"/>
+                                                            <TextBlock Text="↑" FontSize="16" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                                         </Button>
-                                                        <Button Grid.Column="10" FontSize="14" Padding="8,4" Background="#E5F3FF" 
+                                                        <Button Grid.Column="10" 
+                                                                Width="36" Height="36"
+                                                                Padding="0"
+                                                                Background="#E5F3FF" 
+                                                                CornerRadius="6"
+                                                                HorizontalAlignment="Center"
+                                                                VerticalAlignment="Center"
+                                                                HorizontalContentAlignment="Center"
+                                                                VerticalContentAlignment="Center"
                                                                 Command="{Binding $parent[ItemsControl].((vm:SensorsCalibrationPageViewModel)DataContext).MoveCompassDownCommand}"
                                                                 CommandParameter="{Binding}"
                                                                 ToolTip.Tip="Move down in priority">
-                                                            <TextBlock Text="↓" FontSize="14" FontWeight="Bold"/>
+                                                            <TextBlock Text="↓" FontSize="16" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                                         </Button>
                                                     </Grid>
                                                 </Border>

@@ -307,27 +307,6 @@
                     
                 </Grid>
                 
-                <!-- Connection Status -->
-                <Border Background="{DynamicResource InfoLightBrush}"
-                        CornerRadius="12"
-                        Padding="20,16"
-                        MaxWidth="600"
-                        HorizontalAlignment="Center"
-                        Margin="0,40,0,0">
-                    <StackPanel Orientation="Horizontal" Spacing="12" HorizontalAlignment="Center">
-                        <Border Width="12" Height="12" CornerRadius="6" VerticalAlignment="Center">
-                            <Border.Background>
-                                <SolidColorBrush Color="{Binding ConnectionStatusColor}"/>
-                            </Border.Background>
-                        </Border>
-                        <TextBlock Text="{Binding ConnectionStatusText}"
-                                   VerticalAlignment="Center"
-                                   FontWeight="Medium"
-                                   FontSize="14"
-                                   Foreground="{DynamicResource TextPrimaryBrush}"/>
-                    </StackPanel>
-                </Border>
-                
             </StackPanel>
             
         </Grid>

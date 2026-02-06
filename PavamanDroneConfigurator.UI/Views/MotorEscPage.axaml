@@ -135,8 +135,9 @@
             <Setter Property="BorderBrush" Value="Transparent"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="CornerRadius" Value="6"/>
-            <Setter Property="Padding" Value="14,10"/>
+            <Setter Property="Padding" Value="14,20"/>
             <Setter Property="Margin" Value="0,0,0,8"/>
+            <Setter Property="MinHeight" Value="56"/>
         </Style>
         
         <Style Selector="Border.motor-row.active">
@@ -147,7 +148,9 @@
         
         <!-- Slider (macOS style) -->
         <Style Selector="Slider">
-            <Setter Property="Height" Value="24"/>
+            <Setter Property="Height" Value="40"/>
+            <Setter Property="Padding" Value="14,12"/>
+            <Setter Property="Margin" Value="0,2"/>
         </Style>
         
         <!-- ComboBox (macOS style) -->
@@ -247,13 +250,14 @@
                     
                     <!-- Test Duration Control -->
                     <Grid ColumnDefinitions="Auto,*,60,Auto">
-                        <TextBlock Grid.Column="0" Classes="field-label" Text="Duration" Width="70"/>
+                        <TextBlock Grid.Column="0" Classes="field-label" Text="Duration" Width="70" VerticalAlignment="Center"/>
                         <Slider Grid.Column="1" 
                                 Value="{Binding TestDuration}" 
                                 Minimum="0.5" Maximum="5" 
                                 TickFrequency="0.5"
                                 IsSnapToTickEnabled="True"
-                                Margin="0,0,12,0"/>
+                                VerticalAlignment="Center"
+                                Margin="8,0,16,0"/>
                         <TextBlock Grid.Column="2" 
                                    Text="{Binding TestDuration, StringFormat={}{0:F1}s}" 
                                    VerticalAlignment="Center"
@@ -281,7 +285,7 @@
                                         Value="{Binding Motor1Throttle}" 
                                         Minimum="0" Maximum="20"
                                         VerticalAlignment="Center"
-                                        Margin="12,0,12,0"/>
+                                        Margin="8,0,16,0"/>
                                 <TextBlock Grid.Column="2" 
                                            Text="{Binding Motor1Throttle, StringFormat={}{0:F0}%}" 
                                            VerticalAlignment="Center" 
@@ -299,7 +303,7 @@
                                         Value="{Binding Motor2Throttle}" 
                                         Minimum="0" Maximum="20"
                                         VerticalAlignment="Center"
-                                        Margin="12,0,12,0"/>
+                                        Margin="8,0,16,0"/>
                                 <TextBlock Grid.Column="2" 
                                            Text="{Binding Motor2Throttle, StringFormat={}{0:F0}%}" 
                                            VerticalAlignment="Center" 
@@ -317,7 +321,7 @@
                                         Value="{Binding Motor3Throttle}" 
                                         Minimum="0" Maximum="20"
                                         VerticalAlignment="Center"
-                                        Margin="12,0,12,0"/>
+                                        Margin="8,0,16,0"/>
                                 <TextBlock Grid.Column="2" 
                                            Text="{Binding Motor3Throttle, StringFormat={}{0:F0}%}" 
                                            VerticalAlignment="Center" 
@@ -335,7 +339,7 @@
                                         Value="{Binding Motor4Throttle}" 
                                         Minimum="0" Maximum="20"
                                         VerticalAlignment="Center"
-                                        Margin="12,0,12,0"/>
+                                        Margin="8,0,16,0"/>
                                 <TextBlock Grid.Column="2" 
                                            Text="{Binding Motor4Throttle, StringFormat={}{0:F0}%}" 
                                            VerticalAlignment="Center" 
@@ -353,7 +357,7 @@
                                         Value="{Binding Motor5Throttle}" 
                                         Minimum="0" Maximum="20"
                                         VerticalAlignment="Center"
-                                        Margin="12,0,12,0"/>
+                                        Margin="8,0,16,0"/>
                                 <TextBlock Grid.Column="2" 
                                            Text="{Binding Motor5Throttle, StringFormat={}{0:F0}%}" 
                                            VerticalAlignment="Center" 
@@ -371,7 +375,7 @@
                                         Value="{Binding Motor6Throttle}" 
                                         Minimum="0" Maximum="20"
                                         VerticalAlignment="Center"
-                                        Margin="12,0,12,0"/>
+                                        Margin="8,0,16,0"/>
                                 <TextBlock Grid.Column="2" 
                                            Text="{Binding Motor6Throttle, StringFormat={}{0:F0}%}" 
                                            VerticalAlignment="Center" 
