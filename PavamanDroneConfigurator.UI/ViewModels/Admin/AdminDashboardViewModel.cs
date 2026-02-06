@@ -108,13 +108,13 @@ public sealed partial class AdminDashboardViewModel : ViewModelBase
                 NotifyStatsChanged();
             });
 
-            StatusMessage = $"? Loaded {Users.Count} users";
+            StatusMessage = $"\u2714 Loaded {Users.Count} users";
             _logger.LogInformation("Loaded {Count} users ({Pending} pending)", Users.Count, PendingCount);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to load users");
-            StatusMessage = "? Failed to load users";
+            StatusMessage = "\u274C Failed to load users";
         }
         finally
         {
@@ -138,7 +138,7 @@ public sealed partial class AdminDashboardViewModel : ViewModelBase
                 var roleSuccess = await _adminService.ChangeUserRoleAsync(user.Id, user.SelectedRole);
                 if (!roleSuccess)
                 {
-                    StatusMessage = "? Failed to update role";
+                    StatusMessage = "\u274C Failed to update role";
                     return;
                 }
             }
@@ -155,18 +155,18 @@ public sealed partial class AdminDashboardViewModel : ViewModelBase
                 });
 
                 StatusMessage = newState 
-                    ? $"? {user.FullName} approved as {user.SelectedRole}" 
-                    : $"? {user.FullName}'s access revoked";
+                    ? $"\u2714 {user.FullName} approved as {user.SelectedRole}" 
+                    : $"\u26D4 {user.FullName}'s access revoked";
             }
             else
             {
-                StatusMessage = "? Operation failed";
+                StatusMessage = "\u274C Operation failed";
             }
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to update user");
-            StatusMessage = $"? Failed to update {user.FullName}";
+            StatusMessage = $"\u274C Failed to update {user.FullName}";
         }
         finally
         {
@@ -190,19 +190,19 @@ public sealed partial class AdminDashboardViewModel : ViewModelBase
             {
                 user.Role = user.SelectedRole;
                 NotifyStatsChanged();
-                StatusMessage = $"? {user.FullName} is now {user.SelectedRole}";
+                StatusMessage = $"\u2714 {user.FullName} is now {user.SelectedRole}";
             }
             else
             {
                 user.SelectedRole = user.Role;
-                StatusMessage = "? Role change failed";
+                StatusMessage = "\u274C Role change failed";
             }
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to change role");
             user.SelectedRole = user.Role;
-            StatusMessage = "? Failed to change role";
+            StatusMessage = "\u274C Failed to change role";
         }
         finally
         {
@@ -231,18 +231,18 @@ public sealed partial class AdminDashboardViewModel : ViewModelBase
                     NotifyStatsChanged();
                 });
 
-                StatusMessage = $"? {user.FullName} has been deleted";
+                StatusMessage = $"\u2714 {user.FullName} has been deleted";
                 _logger.LogInformation("Deleted user {Email}", user.Email);
             }
             else
             {
-                StatusMessage = "? Failed to delete user";
+                StatusMessage = "\u274C Failed to delete user";
             }
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to delete user {Email}", user.Email);
-            StatusMessage = $"? Failed to delete {user.FullName}";
+            StatusMessage = $"\u274C Failed to delete {user.FullName}";
         }
         finally
         {

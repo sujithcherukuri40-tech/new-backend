@@ -197,10 +197,10 @@ public partial class FirmwarePageViewModel : ViewModelBase
             {
                 Name = group.Key switch
                 {
-                    VehicleCategory.Ground => "🚗 Ground",
-                    VehicleCategory.FixedWing => "✈️ Fixed Wing",
-                    VehicleCategory.Multirotor => "🚁 Multirotor",
-                    VehicleCategory.Specialized => "⚙️ Specialized",
+                    VehicleCategory.Ground => "\U0001F697 Ground",        // Car emoji
+                    VehicleCategory.FixedWing => "\u2708 Fixed Wing",     // Airplane
+                    VehicleCategory.Multirotor => "\U0001F681 Multirotor", // Helicopter
+                    VehicleCategory.Specialized => "\u2699 Specialized",   // Gear
                     _ => "Other"
                 },
                 Category = group.Key,
@@ -1335,9 +1335,9 @@ public enum VehicleCategory
 /// </summary>
 public enum FirmwareAvailability
 {
-    Available,    // 🟢 Available online
-    LocalOnly,    // 🟡 Local file only
-    NotSupported  // 🔴 Not supported for this board
+    Available,    // Green - Available online
+    LocalOnly,    // Yellow - Local file only
+    NotSupported  // Red - Not supported for this board
 }
 
 public partial class VehicleTypeItem : ObservableObject
@@ -1377,10 +1377,10 @@ public partial class VehicleTypeItem : ObservableObject
     /// </summary>
     public string CategoryDisplayName => Category switch
     {
-        VehicleCategory.Ground => "🚗 Ground",
-        VehicleCategory.FixedWing => "✈️ Fixed Wing",
-        VehicleCategory.Multirotor => "🚁 Multirotor",
-        VehicleCategory.Specialized => "⚙️ Specialized",
+        VehicleCategory.Ground => "\U0001F697 Ground",        // Car emoji
+        VehicleCategory.FixedWing => "\u2708 Fixed Wing",     // Airplane
+        VehicleCategory.Multirotor => "\U0001F681 Multirotor", // Helicopter
+        VehicleCategory.Specialized => "\u2699 Specialized",   // Gear
         _ => "Other"
     };
 
