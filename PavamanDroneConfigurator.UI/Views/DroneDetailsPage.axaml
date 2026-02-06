@@ -21,7 +21,11 @@
                 </StackPanel>
                 
                 <Button Grid.Column="1"
+<<<<<<< HEAD
                         Content="&#x21BB;  Refresh"
+=======
+                        Content="Refresh"
+>>>>>>> 01ad26381a71ff5263acecc0985b4fbd0bd7ee36
                         Command="{Binding RefreshCommand}"
                         IsEnabled="{Binding IsConnected}"
                         Classes="btn-primary"/>
