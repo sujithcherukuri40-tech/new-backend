@@ -102,6 +102,21 @@ public partial class App : Application
             client.Timeout = TimeSpan.FromSeconds(30);
         });
 
+        // Firmware API HTTP Client for S3 integration
+        services.AddHttpClient<FirmwareApiService>(client =>
+        {
+            var apiUrl = Environment.GetEnvironmentVariable("API_BASE_URL")
+                ?? Configuration?.GetValue<string>("Api:BaseUrl")
+                ?? "http://localhost:5000";
+            
+            client.BaseAddress = new Uri(apiUrl);
+            client.DefaultRequestHeaders.Add("Accept", "application/json");
+            client.Timeout = TimeSpan.FromMinutes(5); // Longer timeout for firmware downloads
+        });
+        
+        // Register FirmwareApiService for S3 firmware loading
+        services.AddSingleton<FirmwareApiService>();
+
         services.AddSingleton<AuthSessionViewModel>();
 
         services.AddTransient<LoginViewModel>();

@@ -106,6 +106,9 @@ builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IAdminService, AdminService>();
 
+// AWS S3 Service for firmware and parameter logs
+builder.Services.AddSingleton<PavamanDroneConfigurator.Infrastructure.Services.AwsS3Service>();
+
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 

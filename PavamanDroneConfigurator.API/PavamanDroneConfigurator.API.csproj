@@ -20,4 +20,9 @@
     <PackageReference Include="Swashbuckle.AspNetCore" Version="7.2.0" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\PavamanDroneConfigurator.Infrastructure\PavamanDroneConfigurator.Infrastructure.csproj" />
+    <ProjectReference Include="..\PavamanDroneConfigurator.Core\PavamanDroneConfigurator.Core.csproj" />
+  </ItemGroup>
+
 </Project>

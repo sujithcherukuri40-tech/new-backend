@@ -24,6 +24,7 @@ public partial class FirmwarePageViewModel : ViewModelBase
 {
     private readonly IFirmwareService _firmwareService;
     private readonly IConnectionService? _connectionService;
+    private readonly FirmwareApiService? _firmwareApiService;
     private readonly ILogger<FirmwarePageViewModel> _logger;
     private CancellationTokenSource? _operationCts;
 
@@ -134,11 +135,13 @@ public partial class FirmwarePageViewModel : ViewModelBase
     public FirmwarePageViewModel(
         IFirmwareService firmwareService, 
         ILogger<FirmwarePageViewModel> logger,
-        IConnectionService? connectionService = null)
+        IConnectionService? connectionService = null,
+        FirmwareApiService? firmwareApiService = null)
     {
         _firmwareService = firmwareService;
         _logger = logger;
         _connectionService = connectionService;
+        _firmwareApiService = firmwareApiService;
 
         _firmwareService.ProgressChanged += OnProgressChanged;
         _firmwareService.BoardDetected += OnBoardDetected;
@@ -268,13 +271,102 @@ public partial class FirmwarePageViewModel : ViewModelBase
 
     private async Task LoadLocalVersionsAsync()
     {
-        StatusMessage = "Looking for local firmware files...";
-        AddLog($"Scanning {_firmwareService.LocalFirmwareDirectory} for firmware files...");
+        StatusMessage = "Loading firmwares from cloud storage...";
+        AddLog("Fetching firmware list from S3...");
 
-        foreach (var vehicleType in VehicleTypes)
+        try
         {
-            var path = await _firmwareService.GetLocalFirmwarePathAsync(vehicleType.Id);
-            vehicleType.VersionText = path != null ? "Local file" : "Add file in FirmwareLocal";
+            if (_firmwareApiService != null)
+            {
+                // Load firmwares from S3 via API
+                var firmwares = await _firmwareApiService.GetInAppFirmwaresAsync();
+                
+                if (firmwares != null && firmwares.Count > 0)
+                {
+                    AddLog($"Found {firmwares.Count} firmwares in S3");
+                    
+                    // Match firmwares to vehicle types
+                    foreach (var vehicleType in VehicleTypes)
+                    {
+                        // Find firmware matching this vehicle type
+                        var matchingFirmware = firmwares.FirstOrDefault(f => 
+                            f.VehicleType.Equals(vehicleType.ArduPilotId, StringComparison.OrdinalIgnoreCase) ||
+                            (vehicleType.ArduPilotId == "Copter" && f.VehicleType == "Copter") ||
+                            (vehicleType.ArduPilotId == "Plane" && f.VehicleType == "Plane") ||
+                            (vehicleType.ArduPilotId == "Rover" && f.VehicleType == "Rover"));
+                        
+                        if (matchingFirmware != null)
+                        {
+                            vehicleType.VersionText = $"S3: {matchingFirmware.DisplayName} ({matchingFirmware.SizeDisplay})";
+                            vehicleType.Availability = FirmwareAvailability.Available;
+                            AddLog($"  {vehicleType.Name}: {matchingFirmware.FileName}");
+                        }
+                        else
+                        {
+                            vehicleType.VersionText = "Not in S3";
+                            vehicleType.Availability = FirmwareAvailability.NotSupported;
+                        }
+                    }
+                    
+                    StatusMessage = $"Loaded {firmwares.Count} firmwares from S3";
+                }
+                else
+                {
+                    AddLog("No firmwares found in S3. Upload firmwares to S3 bucket.");
+                    foreach (var vehicleType in VehicleTypes)
+                    {
+                        vehicleType.VersionText = "No firmwares in S3";
+                        vehicleType.Availability = FirmwareAvailability.NotSupported;
+                    }
+                    StatusMessage = "No firmwares found in S3";
+                }
+            }
+            else
+            {
+                // Fallback to local directory scan
+                AddLog($"FirmwareApiService not available. Scanning {_firmwareService.LocalFirmwareDirectory}...");
+                StatusMessage = "Looking for local firmware files...";
+                
+                foreach (var vehicleType in VehicleTypes)
+                {
+                    var path = await _firmwareService.GetLocalFirmwarePathAsync(vehicleType.Id);
+                    if (path != null)
+                    {
+                        vehicleType.VersionText = "Local file";
+                        vehicleType.Availability = FirmwareAvailability.LocalOnly;
+                    }
+                    else
+                    {
+                        vehicleType.VersionText = "Add file in FirmwareLocal";
+                        vehicleType.Availability = FirmwareAvailability.NotSupported;
+                    }
+                }
+                
+                StatusMessage = "Using local firmware directory";
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to load firmwares from S3");
+            AddLog($"Error loading from S3: {ex.Message}");
+            AddLog("Falling back to local directory scan...");
+            
+            // Fallback to local directory
+            foreach (var vehicleType in VehicleTypes)
+            {
+                var path = await _firmwareService.GetLocalFirmwarePathAsync(vehicleType.Id);
+                vehicleType.VersionText = path != null ? "Local file" : "Unavailable";
+                vehicleType.Availability = path != null ? FirmwareAvailability.LocalOnly : FirmwareAvailability.NotSupported;
+            }
+            
+            StatusMessage = "Using local firmware directory (S3 unavailable)";
+        }
+        finally
+        {
+            foreach (var vehicleType in VehicleTypes)
+            {
+                vehicleType.IsLoading = false;
+            }
         }
     }
 
