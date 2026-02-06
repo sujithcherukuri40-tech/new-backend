@@ -99,3 +99,10 @@ artifacts/
 
 # Log files with potential sensitive data
 **/logs/*.log
+
+# Protect sensitive configuration files
+appsettings.Development.LOCAL.json
+appsettings.*.LOCAL.json
+*.LOCAL.json
+.env.local
+.env.*.local

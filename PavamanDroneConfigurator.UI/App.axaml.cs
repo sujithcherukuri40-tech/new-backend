@@ -103,6 +103,7 @@ public partial class App : Application
         });
 
         // Firmware API HTTP Client for S3 integration
+        // PRODUCTION: Desktop app should NOT access AWS directly - use API only
         services.AddHttpClient<FirmwareApiService>(client =>
         {
             var apiUrl = Environment.GetEnvironmentVariable("API_BASE_URL")
@@ -114,11 +115,12 @@ public partial class App : Application
             client.Timeout = TimeSpan.FromMinutes(5); // Longer timeout for firmware downloads
         });
         
-        // Register FirmwareApiService for S3 firmware loading
+        // Register FirmwareApiService for all firmware operations
         services.AddSingleton<FirmwareApiService>();
         
-        // AWS S3 Service for direct S3 access (Firmware Management Admin Panel)
-        services.AddSingleton<AwsS3Service>();
+        // ? REMOVED: Direct AWS S3 access from desktop app (security risk)
+        // Desktop app should only call backend API, not AWS directly
+        // services.AddSingleton<AwsS3Service>(); // REMOVED FOR PRODUCTION
 
         services.AddSingleton<AuthSessionViewModel>();
 

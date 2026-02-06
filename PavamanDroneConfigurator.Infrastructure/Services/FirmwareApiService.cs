@@ -102,6 +102,113 @@ public class FirmwareApiService
             throw new Exception($"Failed to download firmware: {ex.Message}", ex);
         }
     }
+    
+    /// <summary>
+    /// Upload firmware file to cloud storage via API
+    /// </summary>
+    public async Task<S3FirmwareMetadata> UploadFirmwareAsync(
+        string filePath,
+        string? customFileName = null,
+        IProgress<int>? progress = null,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            _logger.LogInformation("Uploading firmware: {FilePath}", filePath);
+            
+            if (!File.Exists(filePath))
+            {
+                throw new FileNotFoundException("Firmware file not found", filePath);
+            }
+            
+            using var form = new MultipartFormDataContent();
+            using var fileStream = new FileStream(filePath, FileMode.Open, FileAccess.Read);
+            using var streamContent = new StreamContent(fileStream);
+            
+            var fileName = customFileName ?? Path.GetFileName(filePath);
+            form.Add(streamContent, "file", fileName);
+            
+            if (!string.IsNullOrEmpty(customFileName))
+            {
+                form.Add(new StringContent(customFileName), "customFileName");
+            }
+            
+            var response = await _httpClient.PostAsync("/api/firmware/admin/upload", form, cancellationToken);
+            response.EnsureSuccessStatusCode();
+            
+            var result = await response.Content.ReadFromJsonAsync<S3FirmwareMetadata>(cancellationToken);
+            
+            if (result == null)
+            {
+                throw new InvalidOperationException("Server returned null response");
+            }
+            
+            _logger.LogInformation("Firmware uploaded successfully: {Key}", result.Key);
+            return result;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to upload firmware");
+            throw new Exception($"Failed to upload firmware: {ex.Message}", ex);
+        }
+    }
+    
+    /// <summary>
+    /// Delete firmware from cloud storage via API
+    /// </summary>
+    public async Task<bool> DeleteFirmwareAsync(string key, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            _logger.LogInformation("Deleting firmware: {Key}", key);
+            
+            var encodedKey = Uri.EscapeDataString(key);
+            var response = await _httpClient.DeleteAsync($"/api/firmware/admin/{encodedKey}", cancellationToken);
+            
+            if (response.IsSuccessStatusCode)
+            {
+                _logger.LogInformation("Firmware deleted successfully: {Key}", key);
+                return true;
+            }
+            else
+            {
+                _logger.LogWarning("Failed to delete firmware {Key}: {StatusCode}", key, response.StatusCode);
+                return false;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to delete firmware: {Key}", key);
+            return false;
+        }
+    }
+    
+    /// <summary>
+    /// Get download URL for firmware
+    /// </summary>
+    public async Task<string> GetDownloadUrlAsync(string key, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var encodedKey = Uri.EscapeDataString(key);
+            var response = await _httpClient.GetAsync($"/api/firmware/download/{encodedKey}", cancellationToken);
+            response.EnsureSuccessStatusCode();
+            
+            var result = await response.Content.ReadFromJsonAsync<DownloadUrlResponse>(cancellationToken);
+            return result?.DownloadUrl ?? throw new InvalidOperationException("No download URL returned");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to get download URL for: {Key}", key);
+            throw new Exception($"Failed to get download URL: {ex.Message}", ex);
+        }
+    }
+    
+    private class DownloadUrlResponse
+    {
+        public string DownloadUrl { get; set; } = string.Empty;
+        public int ExpiresIn { get; set; }
+    }
 }
 
 /// <summary>

@@ -138,21 +138,38 @@ public sealed class AdminApiService : IAdminService
             var accessToken = await _tokenStorage.GetAccessTokenAsync(cancellationToken);
             if (string.IsNullOrEmpty(accessToken))
             {
+                _logger.LogError("Cannot delete user - no access token available");
                 throw new InvalidOperationException("No access token available");
             }
 
+            _logger.LogInformation("Attempting to delete user {UserId}", userId);
+            
             using var request = new HttpRequestMessage(HttpMethod.Delete, $"/admin/users/{userId}");
             request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
 
             var response = await _httpClient.SendAsync(request, cancellationToken);
+            
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorContent = await response.Content.ReadAsStringAsync(cancellationToken);
+                _logger.LogError("Failed to delete user {UserId}. Status: {StatusCode}, Response: {Response}", 
+                    userId, response.StatusCode, errorContent);
+                return false;
+            }
+            
             response.EnsureSuccessStatusCode();
 
-            _logger.LogInformation("User {UserId} deleted", userId);
+            _logger.LogInformation("Successfully deleted user {UserId}", userId);
             return true;
+        }
+        catch (HttpRequestException ex)
+        {
+            _logger.LogError(ex, "HTTP error while deleting user {UserId}. Message: {Message}", userId, ex.Message);
+            return false;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to delete user {UserId}", userId);
+            _logger.LogError(ex, "Unexpected error while deleting user {UserId}", userId);
             return false;
         }
     }
