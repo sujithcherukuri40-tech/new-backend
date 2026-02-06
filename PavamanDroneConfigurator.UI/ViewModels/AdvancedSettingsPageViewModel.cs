@@ -142,8 +142,20 @@ public partial class AdvancedSettingsPageViewModel : ViewModelBase
     {
         _metadataLoader = metadataLoader;
         
-        // Load metadata asynchronously when the page is created
-        _ = LoadMetadataAsync();
+        // DON'T load metadata automatically in constructor - defer until page is viewed
+        // This significantly improves MainWindow startup time
+        // _ = LoadMetadataAsync();  // REMOVED - call manually when page is opened
+    }
+
+    /// <summary>
+    /// Call this when the page is first shown to load metadata.
+    /// </summary>
+    public async Task InitializeAsync()
+    {
+        if (!IsLoaded && !IsLoading)
+        {
+            await LoadMetadataAsync();
+        }
     }
 
     /// <summary>

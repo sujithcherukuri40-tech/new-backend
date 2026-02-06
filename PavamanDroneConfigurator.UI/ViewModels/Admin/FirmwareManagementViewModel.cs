@@ -75,8 +75,9 @@ public partial class FirmwareManagementViewModel : ViewModelBase
         _s3Service = s3Service;
         _logger = logger;
         
-        // Load existing firmwares on initialization
-        _ = LoadFirmwaresAsync();
+        // DON'T load firmwares in constructor - defer until page is opened
+        // This prevents slow startup when S3 is not accessible
+        // _ = LoadFirmwaresAsync();  // REMOVED - call InitializeAsync when page is shown
     }
     
     /// <summary>
@@ -86,6 +87,17 @@ public partial class FirmwareManagementViewModel : ViewModelBase
     {
         _s3Service = null;
         _logger = null;
+    }
+
+    /// <summary>
+    /// Call this when the page is first shown to load firmwares from S3.
+    /// </summary>
+    public async Task InitializeAsync()
+    {
+        if (!IsLoadingFirmwares && Firmwares.Count == 0)
+        {
+            await LoadFirmwaresAsync();
+        }
     }
     
     #endregion
