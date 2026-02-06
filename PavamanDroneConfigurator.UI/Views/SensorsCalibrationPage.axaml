@@ -700,6 +700,10 @@
 						</Border>
 
 						<StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="12" Margin="0,24,0,0">
+							<Button Classes="Danger" Content="Cancel Calibration"
+                                    Command="{Binding CancelCalibrationCommand}"
+                                    IsVisible="{Binding IsLevelCalibrationActive}"
+                                    MinWidth="140"/>
 							<Button Classes="Primary" Content="Calibrate" Command="{Binding CalibrateLevelHorizonCommand}"
                                     IsVisible="{Binding CanCalibrateLevelHorizon}"/>
 						</StackPanel>
@@ -784,9 +788,10 @@
 
 						<StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="12" Margin="0,8,0,0">
 							<Button Classes="Danger"
-                                    Content="Cancel"
+                                    Content="Cancel Calibration"
                                     Command="{Binding CancelCalibrationCommand}"
-                                    IsVisible="{Binding IsPressureCalibrationActive}"/>
+                                    IsVisible="{Binding IsPressureCalibrationActive}"
+                                    MinWidth="140"/>
 							<Button Classes="Primary"
                                     Content="Calibrate"
                                     Command="{Binding CalibratePressureCommand}"
