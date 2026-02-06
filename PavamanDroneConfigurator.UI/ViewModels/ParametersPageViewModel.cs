@@ -11,8 +11,11 @@ using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Microsoft.Extensions.Logging;
 using PavamanDroneConfigurator.Core.Interfaces;
 using PavamanDroneConfigurator.Core.Models;
+using PavamanDroneConfigurator.Infrastructure.Services;
+using PavamanDroneConfigurator.UI.ViewModels.Auth;
 using PavamanDroneConfigurator.UI.Views;
 
 namespace PavamanDroneConfigurator.UI.ViewModels;
@@ -24,6 +27,10 @@ public partial class ParametersPageViewModel : ViewModelBase
     private readonly IExportService _exportService;
     private readonly IImportService _importService;
     private readonly IParameterMetadataService _metadataService;
+    private readonly IDroneInfoService _droneInfoService;
+    private readonly AuthSessionViewModel _authSession;
+    private readonly AwsS3Service? _s3Service;
+    private readonly ILogger<ParametersPageViewModel>? _logger;
     
     // Track original values for change detection
     private readonly Dictionary<string, float> _originalValues = new();
@@ -126,13 +133,21 @@ public partial class ParametersPageViewModel : ViewModelBase
         IConnectionService connectionService, 
         IExportService exportService,
         IImportService importService,
-        IParameterMetadataService metadataService)
+        IParameterMetadataService metadataService,
+        IDroneInfoService droneInfoService,
+        AuthSessionViewModel authSession,
+        AwsS3Service? s3Service = null,
+        ILogger<ParametersPageViewModel>? logger = null)
     {
         _parameterService = parameterService;
         _connectionService = connectionService;
         _exportService = exportService;
         _importService = importService;
         _metadataService = metadataService;
+        _droneInfoService = droneInfoService;
+        _authSession = authSession;
+        _s3Service = s3Service;
+        _logger = logger;
 
         // Initialize group list
         InitializeGroupList();
@@ -544,6 +559,7 @@ public partial class ParametersPageViewModel : ViewModelBase
             var totalChanges = _pendingChanges.Count;
             var successCount = 0;
             var failedParams = new List<string>();
+            var successfulChanges = new List<Infrastructure.Services.ParameterChange>();
 
             StatusMessage = $"Updating {totalChanges} parameter(s)...";
 
@@ -552,11 +568,21 @@ public partial class ParametersPageViewModel : ViewModelBase
 
             foreach (var (name, newValue) in changesToApply)
             {
+                var originalValue = _originalValues.TryGetValue(name, out var orig) ? orig : 0f;
                 var success = await _parameterService.SetParameterAsync(name, newValue);
                 
                 if (success)
                 {
                     successCount++;
+                    
+                    // Track successful change for S3 logging
+                    successfulChanges.Add(new Infrastructure.Services.ParameterChange
+                    {
+                        ParamName = name,
+                        OldValue = originalValue,
+                        NewValue = newValue,
+                        ChangedAt = DateTime.UtcNow
+                    });
                     
                     // Update original value and mark parameter as saved
                     _originalValues[name] = newValue;
@@ -579,11 +605,17 @@ public partial class ParametersPageViewModel : ViewModelBase
 
             if (failedParams.Count == 0)
             {
-                StatusMessage = $"? Successfully updated {successCount} parameter(s)";
+                StatusMessage = $"\u2714 Successfully updated {successCount} parameter(s)";
             }
             else
             {
-                StatusMessage = $"? Updated {successCount}/{totalChanges} - Failed: {string.Join(", ", failedParams)}";
+                StatusMessage = $"\u26A0 Updated {successCount}/{totalChanges} - Failed: {string.Join(", ", failedParams)}";
+            }
+
+            // Log successful changes to S3 (fire and forget)
+            if (successfulChanges.Count > 0)
+            {
+                _ = LogParameterChangesToS3Async(successfulChanges);
             }
         }
         catch (Exception ex)
@@ -595,6 +627,52 @@ public partial class ParametersPageViewModel : ViewModelBase
             _isSaving = false;
             IsUpdating = false;
             OnPropertyChanged(nameof(CanUpdate));
+        }
+    }
+
+    /// <summary>
+    /// Logs parameter changes to AWS S3 for audit trail.
+    /// Includes user ID and drone/FC ID for tracking.
+    /// </summary>
+    private async Task LogParameterChangesToS3Async(List<Infrastructure.Services.ParameterChange> changes)
+    {
+        if (_s3Service == null || changes.Count == 0)
+        {
+            return;
+        }
+
+        try
+        {
+            // Get current user ID from auth session
+            var userId = _authSession.CurrentState.User?.Id ?? "unknown";
+            var userEmail = _authSession.CurrentState.User?.Email ?? "unknown";
+            
+            // Get drone/FC ID from drone info service
+            var droneInfo = await _droneInfoService.GetDroneInfoAsync();
+            var fcId = droneInfo?.FcId ?? "unknown";
+            var droneId = droneInfo?.DroneId ?? "unknown";
+            
+            _logger?.LogInformation(
+                "Logging {Count} parameter changes to S3 for user={UserId}, drone={DroneId}, fc={FcId}",
+                changes.Count, userId, droneId, fcId);
+
+            // Append user and drone info to each change for comprehensive logging
+            foreach (var change in changes)
+            {
+                _logger?.LogDebug(
+                    "Parameter change: {Param} {Old} -> {New} by {User} on drone {Drone}",
+                    change.ParamName, change.OldValue, change.NewValue, userEmail, droneId);
+            }
+
+            // Upload to S3 using the existing method
+            await _s3Service.AppendParameterChangesAsync(userId, fcId, changes);
+            
+            _logger?.LogInformation("Successfully logged {Count} parameter changes to S3", changes.Count);
+        }
+        catch (Exception ex)
+        {
+            // Log error but don't fail the parameter update operation
+            _logger?.LogError(ex, "Failed to log parameter changes to S3");
         }
     }
 

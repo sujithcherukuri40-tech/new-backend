@@ -234,7 +234,7 @@
                                         CornerRadius="16"
                                         Padding="16,6"
                                         HorizontalAlignment="Center">
-                                    <TextBlock Text="✓ Recommended"
+                                    <TextBlock Text="&#x2714; Recommended"
                                                FontSize="13"
                                                FontWeight="SemiBold"
                                                Foreground="{DynamicResource SuccessDarkBrush}"/>
@@ -286,7 +286,7 @@
                                         CornerRadius="16"
                                         Padding="16,6"
                                         HorizontalAlignment="Center">
-                                    <TextBlock Text="⚙ Advanced"
+                                    <TextBlock Text="&#x2699; Advanced"
                                                FontSize="13"
                                                FontWeight="SemiBold"
                                                Foreground="{DynamicResource SecondaryBrush}"/>
@@ -441,7 +441,7 @@
                         Margin="0,0,0,24"
                         IsVisible="{Binding IsLoadingManifest}">
                     <StackPanel Spacing="20" HorizontalAlignment="Center">
-                        <TextBlock Text="⚡ Loading Firmware Data..."
+                        <TextBlock Text="&#x26A1; Loading Firmware Data..."
                                    FontSize="18"
                                    FontWeight="SemiBold"
                                    Foreground="{DynamicResource PrimaryBrush}"

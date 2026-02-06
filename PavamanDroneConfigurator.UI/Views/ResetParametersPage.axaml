@@ -42,7 +42,7 @@
                         <Border Classes="AccentBar Warning"/>
                         
                         <StackPanel Spacing="12">
-                            <TextBlock Text="⚠ Factory Reset Warning" 
+                            <TextBlock Text="&#x26A0; Factory Reset Warning" 
                                        FontSize="16" 
                                        FontWeight="600" 
                                        Foreground="#92400E"/>
@@ -57,16 +57,16 @@
                             <!-- Compact Bullet List -->
                             <StackPanel Spacing="6" Margin="0,4,0,0">
                                 <TextBlock FontSize="13" Foreground="#78350F">
-                                    • PID tuning and flight modes
+                                    &#x2022; PID tuning and flight modes
                                 </TextBlock>
                                 <TextBlock FontSize="13" Foreground="#78350F">
-                                    • Safety settings and failsafes
+                                    &#x2022; Safety settings and failsafes
                                 </TextBlock>
                                 <TextBlock FontSize="13" Foreground="#78350F">
-                                    • Sensor calibration offsets
+                                    &#x2022; Sensor calibration offsets
                                 </TextBlock>
                                 <TextBlock FontSize="13" Foreground="#78350F">
-                                    • Motor and ESC configurations
+                                    &#x2022; Motor and ESC configurations
                                 </TextBlock>
                             </StackPanel>
                             

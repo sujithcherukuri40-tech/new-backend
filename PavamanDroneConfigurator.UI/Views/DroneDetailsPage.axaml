@@ -21,7 +21,7 @@
                 </StackPanel>
                 
                 <Button Grid.Column="1"
-                        Content="?  Refresh"
+                        Content="&#x21BB;  Refresh"
                         Command="{Binding RefreshCommand}"
                         IsEnabled="{Binding IsConnected}"
                         Classes="btn-primary"/>
@@ -206,7 +206,7 @@
             ??????????????????????????????????????????????????????????????????????????????????? -->
             <Border Classes="alert-warning" IsVisible="{Binding !IsConnected}">
                 <StackPanel Orientation="Horizontal" Spacing="12">
-                    <TextBlock Text="??" FontSize="20"/>
+                    <TextBlock Text="&#x26A0;" FontSize="20"/>
                     <StackPanel Spacing="4">
                         <TextBlock Text="Not Connected" 
                                    FontWeight="SemiBold" 

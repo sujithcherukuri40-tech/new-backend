@@ -116,6 +116,9 @@ public partial class App : Application
         
         // Register FirmwareApiService for S3 firmware loading
         services.AddSingleton<FirmwareApiService>();
+        
+        // AWS S3 Service for direct S3 access (Firmware Management Admin Panel)
+        services.AddSingleton<AwsS3Service>();
 
         services.AddSingleton<AuthSessionViewModel>();
 

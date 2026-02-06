@@ -59,7 +59,7 @@
         <!-- Page Header -->
         <Grid Grid.Row="0" ColumnDefinitions="*,Auto,Auto" Margin="32,24,32,20">
             <StackPanel Grid.Column="0">
-                <TextBlock Text="?? Pavaman Firmware Management"
+                <TextBlock Text="&#x1F680; Pavaman Firmware Management"
                            FontSize="32"
                            FontWeight="Bold"
                            Foreground="{DynamicResource PrimaryBrush}"/>
@@ -112,7 +112,7 @@
                 <Border Classes="admin-card">
                     <StackPanel Spacing="20">
                         <StackPanel Spacing="8">
-                            <TextBlock Text="?? Upload New Firmware"
+                            <TextBlock Text="&#x1F4E4; Upload New Firmware"
                                        FontSize="20"
                                        FontWeight="Bold"
                                        Foreground="{DynamicResource TextPrimaryBrush}"/>
@@ -224,7 +224,7 @@
                         </StackPanel>
                         
                         <!-- Upload Button -->
-                        <Button Content="?? Upload to Cloud"
+                        <Button Content="&#x2601; Upload to Cloud"
                                 Background="{DynamicResource PrimaryBrush}"
                                 Foreground="White"
                                 Height="48"
@@ -249,7 +249,7 @@
                     <StackPanel Spacing="20">
                         <Grid ColumnDefinitions="*,Auto">
                             <StackPanel Grid.Column="0" Spacing="8">
-                                <TextBlock Text="?? Uploaded Firmwares"
+                                <TextBlock Text="&#x1F4C2; Uploaded Firmwares"
                                            FontSize="20"
                                            FontWeight="Bold"
                                            Foreground="{DynamicResource TextPrimaryBrush}"/>
@@ -279,7 +279,7 @@
                                 Padding="24,20"
                                 IsVisible="{Binding IsLoadingFirmwares}">
                             <StackPanel Spacing="12" HorizontalAlignment="Center">
-                                <TextBlock Text="? Loading firmwares..."
+                                <TextBlock Text="&#x23F3; Loading firmwares..."
                                            FontSize="16"
                                            FontWeight="SemiBold"
                                            Foreground="{DynamicResource InfoBrush}"
@@ -319,17 +319,17 @@
                                         <DataTemplate>
                                             <StackPanel Orientation="Horizontal" Spacing="8" Margin="8,0">
                                                 <Button Classes="action-btn download"
-                                                        Content="??"
+                                                        Content="&#x2B07;"
                                                         ToolTip.Tip="Download"
                                                         Command="{Binding $parent[DataGrid].((vm:FirmwareManagementViewModel)DataContext).DownloadFirmwareCommand}"
                                                         CommandParameter="{Binding}"/>
                                                 <Button Classes="action-btn edit"
-                                                        Content="??"
+                                                        Content="&#x270F;"
                                                         ToolTip.Tip="Edit"
                                                         Command="{Binding $parent[DataGrid].((vm:FirmwareManagementViewModel)DataContext).EditFirmwareCommand}"
                                                         CommandParameter="{Binding}"/>
                                                 <Button Classes="action-btn delete"
-                                                        Content="???"
+                                                        Content="&#x1F5D1;"
                                                         ToolTip.Tip="Delete"
                                                         Command="{Binding $parent[DataGrid].((vm:FirmwareManagementViewModel)DataContext).DeleteFirmwareCommand}"
                                                         CommandParameter="{Binding}"/>
@@ -346,7 +346,7 @@
                                 Padding="24,20"
                                 IsVisible="{Binding HasNoFirmwares}">
                             <StackPanel Spacing="8" HorizontalAlignment="Center">
-                                <TextBlock Text="??"
+                                <TextBlock Text="&#x1F4E6;"
                                            FontSize="48"
                                            HorizontalAlignment="Center"/>
                                 <TextBlock Text="No firmwares uploaded yet"

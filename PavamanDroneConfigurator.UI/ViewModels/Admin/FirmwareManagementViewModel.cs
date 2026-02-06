@@ -1,5 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Microsoft.Extensions.Logging;
+using PavamanDroneConfigurator.Infrastructure.Services;
 using System;
 using System.Collections.ObjectModel;
 using System.IO;
@@ -9,10 +11,14 @@ using System.Threading.Tasks;
 namespace PavamanDroneConfigurator.UI.ViewModels.Admin;
 
 /// <summary>
-/// ViewModel for Firmware Management admin panel
+/// ViewModel for Firmware Management admin panel.
+/// Connects to AWS S3 for actual cloud storage operations.
 /// </summary>
 public partial class FirmwareManagementViewModel : ViewModelBase
 {
+    private readonly AwsS3Service? _s3Service;
+    private readonly ILogger<FirmwareManagementViewModel>? _logger;
+
     #region Properties
     
     // Upload Form
@@ -48,21 +54,38 @@ public partial class FirmwareManagementViewModel : ViewModelBase
     
     public ObservableCollection<FirmwareItem> Firmwares { get; } = new();
     
-    public bool CanUpload => !string.IsNullOrEmpty(_newFirmwareName) 
-                             && !string.IsNullOrEmpty(_newFirmwareVersion) 
-                             && !string.IsNullOrEmpty(_selectedFirmwareFilePath)
-                             && !_isUploading;
+    public bool CanUpload => !string.IsNullOrEmpty(NewFirmwareName) 
+                             && !string.IsNullOrEmpty(NewFirmwareVersion) 
+                             && !string.IsNullOrEmpty(SelectedFirmwareFilePath)
+                             && !IsUploading;
     
-    public bool HasNoFirmwares => !_isLoadingFirmwares && Firmwares.Count == 0;
+    public bool HasNoFirmwares => !IsLoadingFirmwares && Firmwares.Count == 0;
     
     #endregion
     
     #region Constructor
     
-    public FirmwareManagementViewModel()
+    /// <summary>
+    /// Constructor with DI for production use
+    /// </summary>
+    public FirmwareManagementViewModel(
+        AwsS3Service s3Service,
+        ILogger<FirmwareManagementViewModel> logger)
     {
+        _s3Service = s3Service;
+        _logger = logger;
+        
         // Load existing firmwares on initialization
         _ = LoadFirmwaresAsync();
+    }
+    
+    /// <summary>
+    /// Parameterless constructor for design-time support
+    /// </summary>
+    public FirmwareManagementViewModel()
+    {
+        _s3Service = null;
+        _logger = null;
     }
     
     #endregion
@@ -76,8 +99,8 @@ public partial class FirmwareManagementViewModel : ViewModelBase
     {
         if (File.Exists(filePath))
         {
-            _selectedFirmwareFilePath = filePath;
-            _selectedFirmwareFileName = Path.GetFileName(filePath);
+            SelectedFirmwareFilePath = filePath;
+            SelectedFirmwareFileName = Path.GetFileName(filePath);
             OnPropertyChanged(nameof(CanUpload));
         }
         return Task.CompletedTask;
@@ -88,73 +111,82 @@ public partial class FirmwareManagementViewModel : ViewModelBase
     #region Commands
     
     /// <summary>
-    /// Uploads firmware to cloud storage
+    /// Uploads firmware to AWS S3 cloud storage
     /// </summary>
     [RelayCommand]
     private async Task UploadFirmwareAsync()
     {
-        if (!CanUpload) return;
+        if (!CanUpload || _s3Service == null) return;
         
         try
         {
-            _isUploading = true;
-            _uploadProgress = 0;
-            _uploadStatusText = "Preparing upload...";
+            IsUploading = true;
+            UploadProgress = 0;
+            UploadStatusText = "Preparing upload...";
             
-            // Simulate upload progress (replace with actual API call)
-            for (int i = 0; i <= 100; i += 10)
-            {
-                _uploadProgress = i;
-                _uploadStatusText = $"Uploading... {i}%";
-                await Task.Delay(200);
-            }
+            // Build filename: name-version.apj
+            var safeFileName = $"{SanitizeFileName(NewFirmwareName!)}-{NewFirmwareVersion}{Path.GetExtension(SelectedFirmwareFilePath)}";
             
-            // Create new firmware item
+            _logger?.LogInformation("Uploading firmware: {FileName} to S3", safeFileName);
+            
+            // Upload progress simulation (S3 SDK doesn't provide real progress for small files)
+            UploadProgress = 20;
+            UploadStatusText = "Uploading to cloud...";
+            
+            // Actually upload to S3
+            var result = await _s3Service.UploadFirmwareAsync(SelectedFirmwareFilePath!, safeFileName);
+            
+            UploadProgress = 80;
+            UploadStatusText = "Finalizing...";
+            
+            // Create firmware item from result
             var firmware = new FirmwareItem
             {
                 Id = Guid.NewGuid().ToString(),
-                Name = _newFirmwareName ?? "",
-                Version = _newFirmwareVersion ?? "",
-                Description = _newFirmwareDescription ?? "",
-                VehicleType = _selectedVehicleType ?? "Copter",
-                FilePath = _selectedFirmwareFilePath ?? "",
-                FileName = _selectedFirmwareFileName ?? "",
-                FileSize = new FileInfo(_selectedFirmwareFilePath!).Length,
+                Name = NewFirmwareName ?? "",
+                Version = NewFirmwareVersion ?? "",
+                Description = NewFirmwareDescription ?? "",
+                VehicleType = SelectedVehicleType ?? "Copter",
+                FilePath = result.Key,
+                FileName = result.FileName,
+                FileSize = result.Size,
                 UploadedDate = DateTime.Now,
                 DownloadCount = 0
             };
             
-            // TODO: Call API to upload to cloud
-            // await _firmwareService.UploadFirmwareAsync(firmware);
-            
             // Add to list
-            Firmwares.Add(firmware);
-            _totalFirmwareCount = Firmwares.Count;
+            Firmwares.Insert(0, firmware);
+            TotalFirmwareCount = Firmwares.Count;
             
             // Calculate storage
             var totalBytes = Firmwares.Sum(f => f.FileSize);
-            _totalStorageUsed = FormatFileSize(totalBytes);
+            TotalStorageUsed = FormatFileSize(totalBytes);
             
             // Clear form
             ClearUploadForm();
             
-            _uploadStatusText = "? Upload completed successfully!";
+            UploadProgress = 100;
+            UploadStatusText = "\u2714 Upload completed successfully!";
+            
+            _logger?.LogInformation("Firmware uploaded successfully: {FileName}", safeFileName);
+            
             await Task.Delay(2000);
         }
         catch (Exception ex)
         {
-            _uploadStatusText = $"? Error: {ex.Message}";
+            _logger?.LogError(ex, "Failed to upload firmware");
+            UploadStatusText = $"\u274C Error: {ex.Message}";
         }
         finally
         {
-            _isUploading = false;
+            IsUploading = false;
             await Task.Delay(3000);
-            _uploadStatusText = string.Empty;
+            UploadStatusText = string.Empty;
         }
     }
     
     /// <summary>
-    /// Loads all firmwares from cloud
+    /// Loads all firmwares from S3 cloud
     /// </summary>
     [RelayCommand]
     private async Task RefreshFirmwaresAsync()
@@ -166,20 +198,33 @@ public partial class FirmwareManagementViewModel : ViewModelBase
     /// Downloads firmware from cloud
     /// </summary>
     [RelayCommand]
-    private async Task DownloadFirmwareAsync(FirmwareItem firmware)
+    private async Task DownloadFirmwareAsync(FirmwareItem? firmware)
     {
-        if (firmware == null) return;
+        if (firmware == null || _s3Service == null) return;
         
-        // TODO: Implement download logic
-        firmware.DownloadCount++;
-        await Task.CompletedTask;
+        try
+        {
+            _logger?.LogInformation("Downloading firmware: {FileName}", firmware.FileName);
+            
+            var localPath = await _s3Service.DownloadFirmwareAsync(firmware.FilePath);
+            
+            firmware.DownloadCount++;
+            
+            _logger?.LogInformation("Firmware downloaded to: {Path}", localPath);
+            
+            // TODO: Open file location or show notification
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Failed to download firmware: {FileName}", firmware.FileName);
+        }
     }
     
     /// <summary>
     /// Edits firmware metadata
     /// </summary>
     [RelayCommand]
-    private async Task EditFirmwareAsync(FirmwareItem firmware)
+    private async Task EditFirmwareAsync(FirmwareItem? firmware)
     {
         if (firmware == null) return;
         
@@ -188,24 +233,37 @@ public partial class FirmwareManagementViewModel : ViewModelBase
     }
     
     /// <summary>
-    /// Deletes firmware from cloud
+    /// Deletes firmware from S3 cloud
     /// </summary>
     [RelayCommand]
-    private async Task DeleteFirmwareAsync(FirmwareItem firmware)
+    private async Task DeleteFirmwareAsync(FirmwareItem? firmware)
     {
-        if (firmware == null) return;
+        if (firmware == null || _s3Service == null) return;
         
-        // TODO: Show confirmation dialog
-        // if (confirmed)
+        try
         {
-            Firmwares.Remove(firmware);
-            _totalFirmwareCount = Firmwares.Count;
+            _logger?.LogInformation("Deleting firmware: {FileName}", firmware.FileName);
             
-            var totalBytes = Firmwares.Sum(f => f.FileSize);
-            _totalStorageUsed = FormatFileSize(totalBytes);
+            // Delete from S3
+            var success = await _s3Service.DeleteFirmwareAsync(firmware.FilePath);
+            
+            if (success)
+            {
+                Firmwares.Remove(firmware);
+                TotalFirmwareCount = Firmwares.Count;
+                
+                var totalBytes = Firmwares.Sum(f => f.FileSize);
+                TotalStorageUsed = FormatFileSize(totalBytes);
+                
+                OnPropertyChanged(nameof(HasNoFirmwares));
+                
+                _logger?.LogInformation("Firmware deleted: {FileName}", firmware.FileName);
+            }
         }
-        
-        await Task.CompletedTask;
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Failed to delete firmware: {FileName}", firmware.FileName);
+        }
     }
     
     #endregion
@@ -214,66 +272,66 @@ public partial class FirmwareManagementViewModel : ViewModelBase
     
     private async Task LoadFirmwaresAsync()
     {
-        _isLoadingFirmwares = true;
+        if (_s3Service == null)
+        {
+            // Design-time: just return
+            return;
+        }
+        
+        IsLoadingFirmwares = true;
         
         try
         {
-            // Simulate API call
-            await Task.Delay(1000);
+            _logger?.LogInformation("Loading firmwares from S3...");
             
-            // TODO: Replace with actual API call
-            // var firmwares = await _firmwareService.GetAllFirmwaresAsync();
+            // Get actual firmware list from S3
+            var s3Firmwares = await _s3Service.ListFirmwareFilesAsync();
             
-            // For now, add dummy data if empty
-            if (Firmwares.Count == 0)
+            Firmwares.Clear();
+            
+            foreach (var s3Firmware in s3Firmwares)
             {
                 Firmwares.Add(new FirmwareItem
                 {
-                    Id = "1",
-                    Name = "Pavaman AgriCopter Pro",
-                    Version = "4.5.2",
-                    Description = "Optimized for agricultural spraying",
-                    VehicleType = "Copter",
-                    FileName = "pavaman-agri-copter-4.5.2.apj",
-                    FileSize = 2048000,
-                    UploadedDate = DateTime.Now.AddDays(-5),
-                    DownloadCount = 42
-                });
-                
-                Firmwares.Add(new FirmwareItem
-                {
-                    Id = "2",
-                    Name = "Pavaman SurveyPlane",
-                    Version = "4.5.1",
-                    Description = "Survey and mapping configuration",
-                    VehicleType = "Plane",
-                    FileName = "pavaman-survey-plane-4.5.1.apj",
-                    FileSize = 1856000,
-                    UploadedDate = DateTime.Now.AddDays(-12),
-                    DownloadCount = 28
+                    Id = s3Firmware.Key,
+                    Name = s3Firmware.DisplayName,
+                    Version = ExtractVersionFromFileName(s3Firmware.FileName),
+                    Description = "",
+                    VehicleType = s3Firmware.VehicleType,
+                    FilePath = s3Firmware.Key,
+                    FileName = s3Firmware.FileName,
+                    FileSize = s3Firmware.Size,
+                    UploadedDate = s3Firmware.LastModified,
+                    DownloadCount = 0
                 });
             }
             
-            _totalFirmwareCount = Firmwares.Count;
+            TotalFirmwareCount = Firmwares.Count;
             var totalBytes = Firmwares.Sum(f => f.FileSize);
-            _totalStorageUsed = FormatFileSize(totalBytes);
+            TotalStorageUsed = FormatFileSize(totalBytes);
             
             OnPropertyChanged(nameof(HasNoFirmwares));
+            
+            _logger?.LogInformation("Loaded {Count} firmwares from S3", Firmwares.Count);
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Failed to load firmwares from S3");
         }
         finally
         {
-            _isLoadingFirmwares = false;
+            IsLoadingFirmwares = false;
         }
     }
     
     private void ClearUploadForm()
     {
-        _newFirmwareName = string.Empty;
-        _newFirmwareVersion = string.Empty;
-        _newFirmwareDescription = string.Empty;
-        _selectedFirmwareFilePath = string.Empty;
-        _selectedFirmwareFileName = string.Empty;
-        _selectedVehicleType = "Copter";
+        NewFirmwareName = string.Empty;
+        NewFirmwareVersion = string.Empty;
+        NewFirmwareDescription = string.Empty;
+        SelectedFirmwareFilePath = string.Empty;
+        SelectedFirmwareFileName = string.Empty;
+        SelectedVehicleType = "Copter";
         OnPropertyChanged(nameof(CanUpload));
     }
     
@@ -288,6 +346,31 @@ public partial class FirmwareManagementViewModel : ViewModelBase
             len = len / 1024;
         }
         return $"{len:0.##} {sizes[order]}";
+    }
+    
+    private static string SanitizeFileName(string name)
+    {
+        // Remove/replace invalid characters
+        var invalid = Path.GetInvalidFileNameChars();
+        var sanitized = string.Join("", name.Split(invalid, StringSplitOptions.RemoveEmptyEntries));
+        return sanitized.Replace(" ", "-").ToLowerInvariant();
+    }
+    
+    private static string ExtractVersionFromFileName(string fileName)
+    {
+        // Try to extract version like "4.5.2" from filename
+        var name = Path.GetFileNameWithoutExtension(fileName);
+        var parts = name.Split('-');
+        
+        foreach (var part in parts.Reverse())
+        {
+            if (System.Text.RegularExpressions.Regex.IsMatch(part, @"^\d+\.\d+(\.\d+)?$"))
+            {
+                return part;
+            }
+        }
+        
+        return "1.0.0";
     }
     
     #endregion

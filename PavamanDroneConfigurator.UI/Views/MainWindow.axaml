@@ -66,7 +66,7 @@
 
                         <!-- Install Firmware Group -->
                         <TextBlock Text="INSTALL FIRMWARE" Classes="nav-group-title"/>
-                        <Button Content="💾  Firmware Upgrade"
+                        <Button Content="&#x1F4BE;  Firmware Upgrade"
                                 Classes="nav-button"
                                 Tag="FirmwarePage"
                                 CommandParameter="{Binding FirmwarePage}"
@@ -74,7 +74,7 @@
 
                         <!-- Hardware Setup Group -->
                         <TextBlock Text="HARDWARE SETUP" Classes="nav-group-title"/>
-                        <Button Content="🛩️  Airframe"
+                        <Button Content="&#x2708;  Airframe"
                                 Classes="nav-button"
                                 Tag="AirframePage"
                                 CommandParameter="{Binding AirframePage}"
@@ -83,27 +83,27 @@
 
                         <!-- Calibration Group -->
                         <TextBlock Text="CALIBRATION" Classes="nav-group-title"/>
-                        <Button Content="📊  Sensors"
+                        <Button Content="&#x1F4CA;  Sensors"
                                 Classes="nav-button"
                                 Tag="SensorsCalibrationPage"
                                 CommandParameter="{Binding SensorsCalibrationPage}"
                                 Click="NavButton_Click" />
-                        <Button Content="🎮  RC Calibration"
+                        <Button Content="&#x1F3AE;  RC Calibration"
                                 Classes="nav-button"
                                 Tag="RcCalibrationPage"
                                 CommandParameter="{Binding RcCalibrationPage}"
                                 Click="NavButton_Click" />
-                        <Button Content="🔀  Flight Modes"
+                        <Button Content="&#x1F500;  Flight Modes"
                                 Classes="nav-button"
                                 Tag="FlightModePage"
                                 CommandParameter="{Binding FlightModePage}"
                                 Click="NavButton_Click" />
-                        <Button Content="⚡  Motor &amp; ESC"
+                        <Button Content="&#x26A1;  Motor &amp; ESC"
                                 Classes="nav-button"
                                 Tag="MotorEscPage"
                                 CommandParameter="{Binding MotorEscPage}"
                                 Click="NavButton_Click" />
-                        <Button Content="🔋  Power"
+                        <Button Content="&#x1F50B;  Power"
                                 Classes="nav-button"
                                 Tag="PowerPage"
                                 CommandParameter="{Binding PowerPage}"
@@ -111,7 +111,7 @@
 
                         <!-- Drone Safety Group -->
                         <TextBlock Text="DRONE SAFETY" Classes="nav-group-title"/>
-                        <Button Content="🛡️  Safety"
+                        <Button Content="&#x1F6E1;  Safety"
                                 Classes="nav-button"
                                 Tag="SafetyPage"
                                 CommandParameter="{Binding SafetyPage}"
@@ -119,22 +119,22 @@
 
                         <!-- Advanced Configuration Group -->
                         <TextBlock Text="ADVANCED CONFIGURATION" Classes="nav-group-title"/>
-                        <Button Content="📷  Camera"
+                        <Button Content="&#x1F4F7;  Camera"
                                 Classes="nav-button"
                                 Tag="CameraConfigPage"
                                 CommandParameter="{Binding CameraConfigPage}"
                                 Click="NavButton_Click" />
-                        <Button Content="🔧  Serial Config"
+                        <Button Content="&#x1F527;  Serial Config"
                                 Classes="nav-button"
                                 Tag="SerialConfigPage"
                                 CommandParameter="{Binding SerialConfigPage}"
                                 Click="NavButton_Click" />
-                        <Button Content="🎯  PID Tuning"
+                        <Button Content="&#x1F3AF;  PID Tuning"
                                 Classes="nav-button"
                                 Tag="PidTuningPage"
                                 CommandParameter="{Binding PidTuningPage}"
                                 Click="NavButton_Click" />
-                        <Button Content="🌾  Spraying Config"
+                        <Button Content="&#x1F33E;  Spraying Config"
                                 Classes="nav-button"
                                 Tag="SprayingConfigPage"
                                 CommandParameter="{Binding SprayingConfigPage}"
@@ -142,28 +142,28 @@
 
                         <!-- Information & Support Group -->
                         <TextBlock Text="INFORMATION &amp; SUPPORT" Classes="nav-group-title"/>
-                        <Button Content="ℹ️  Drone Details"
+                        <Button Content="&#x2139;  Drone Details"
                                 Classes="nav-button"
                                 Tag="DroneDetailsPage"
                                 CommandParameter="{Binding DroneDetailsPage}"
                                 Click="NavButton_Click" />
-                        <Button Content="⚙️  Parameters"
+                        <Button Content="&#x2699;  Parameters"
                                 Classes="nav-button"
                                 Tag="ParametersPage"
                                 CommandParameter="{Binding ParametersPage}"
                                 Click="NavButton_Click"
                                 IsEnabled="{Binding CanAccessParameters}" />
-                        <Button Content="📋  Profiles"
+                        <Button Content="&#x1F4CB;  Profiles"
                                 Classes="nav-button"
                                 Tag="ProfilePage"
                                 CommandParameter="{Binding ProfilePage}"
                                 Click="NavButton_Click" />
-                        <Button Content="📈  Log Analyzer"
+                        <Button Content="&#x1F4C8;  Log Analyzer"
                                 Classes="nav-button"
                                 Tag="LogAnalyzerPage"
                                 CommandParameter="{Binding LogAnalyzerPage}"
                                 Click="NavButton_Click" />
-                        <Button Content="🔄  Reset Parameters"
+                        <Button Content="&#x21BA;  Reset Parameters"
                                 Classes="nav-button"
                                 Tag="ResetParametersPage"
                                 CommandParameter="{Binding ResetParametersPage}"
@@ -173,19 +173,19 @@
                         <TextBlock Text="ADMIN" 
                                    Classes="nav-group-title"
                                    IsVisible="{Binding IsAdmin}"/>
-                        <Button Content="📊  Dashboard"
+                        <Button Content="&#x1F4CA;  Dashboard"
                                 Classes="nav-button"
                                 Tag="AdminDashboardPage"
                                 CommandParameter="{Binding AdminDashboardPage}"
                                 Click="NavButton_Click"
                                 IsVisible="{Binding IsAdmin}" />
-                        <Button Content="👥  User Management"
+                        <Button Content="&#x1F465;  User Management"
                                 Classes="nav-button"
                                 Tag="AdminPanelPage"
                                 CommandParameter="{Binding AdminPanelPage}"
                                 Click="NavButton_Click"
                                 IsVisible="{Binding IsAdmin}" />
-                        <Button Content="🚀  Firmware Management"
+                        <Button Content="&#x1F680;  Firmware Management"
                                 Classes="nav-button"
                                 Tag="FirmwareManagementPage"
                                 CommandParameter="{Binding FirmwareManagementPage}"
@@ -207,7 +207,7 @@
                                    Foreground="#E0E7FF"
                                    FontWeight="SemiBold"
                                    FontFamily="{DynamicResource PrimaryFont}"/>
-                        <TextBlock Text="© 2025 Pavaman Technologies"
+                        <TextBlock Text="&#x00A9; 2025 Pavaman Technologies"
                                    FontSize="{DynamicResource FontSizeXS}"
                                    Foreground="#A5B4FC"
                                    FontFamily="{DynamicResource PrimaryFont}"/>

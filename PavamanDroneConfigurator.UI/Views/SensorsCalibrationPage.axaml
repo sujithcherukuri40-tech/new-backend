@@ -235,7 +235,7 @@
                         <Border Background="#FEF2F2" CornerRadius="8" Padding="12" Margin="0,0,0,16" 
                                 IsVisible="{Binding !IsAccelerometerAvailable}">
                             <StackPanel Orientation="Horizontal" Spacing="8">
-                                <TextBlock Text="⚠" FontSize="16" Foreground="#DC2626"/>
+                                <TextBlock Text="&#x26A0;" FontSize="16" Foreground="#DC2626"/>
                                 <TextBlock Text="Accelerometer sensor not detected. Check hardware connections." 
                                            Foreground="#DC2626" VerticalAlignment="Center"/>
                             </StackPanel>
@@ -649,7 +649,7 @@
                         <Border Background="#FEF2F2" CornerRadius="8" Padding="12" Margin="0,0,0,16" 
                                 IsVisible="{Binding !IsAccelerometerAvailable}">
                             <StackPanel Orientation="Horizontal" Spacing="8">
-                                <TextBlock Text="⚠" FontSize="16" Foreground="#DC2626"/>
+                                <TextBlock Text="&#x26A0;" FontSize="16" Foreground="#DC2626"/>
                                 <TextBlock Text="Accelerometer required for level horizon calibration." 
                                            Foreground="#DC2626" VerticalAlignment="Center"/>
                             </StackPanel>
@@ -851,7 +851,7 @@
                 <StackPanel Spacing="16">
                     <!-- Success Icon -->
                     <Border Width="64" Height="64" CornerRadius="32" Background="#D1FAE5" HorizontalAlignment="Center">
-                        <TextBlock Text="✓" FontSize="32" FontWeight="Bold" Foreground="#10B981" 
+                        <TextBlock Text="&#x2714;" FontSize="32" FontWeight="Bold" Foreground="#10B981" 
                                    HorizontalAlignment="Center" VerticalAlignment="Center"/>
                     </Border>
                     
@@ -879,7 +879,7 @@
                 <StackPanel Spacing="16">
                     <!-- Failed Icon -->
                     <Border Width="64" Height="64" CornerRadius="32" Background="#FEE2E2" HorizontalAlignment="Center">
-                        <TextBlock Text="✗" FontSize="32" FontWeight="Bold" Foreground="#EF4444" 
+                        <TextBlock Text="&#x2718;" FontSize="32" FontWeight="Bold" Foreground="#EF4444" 
                                    HorizontalAlignment="Center" VerticalAlignment="Center"/>
                     </Border>
                     
@@ -892,9 +892,9 @@
                     <Border Background="#FEF2F2" CornerRadius="8" Padding="12" Margin="0,8,0,0">
                         <StackPanel Spacing="4">
                             <TextBlock Text="Troubleshooting Tips:" FontWeight="Bold" FontSize="12" Foreground="#991B1B"/>
-                            <TextBlock Text="• Ensure the vehicle is held steady in each position" FontSize="11" Foreground="#7F1D1D"/>
-                            <TextBlock Text="• Keep the vehicle away from magnetic interference" FontSize="11" Foreground="#7F1D1D"/>
-                            <TextBlock Text="• Check sensor connections and try again" FontSize="11" Foreground="#7F1D1D"/>
+                            <TextBlock Text="&#x2022; Ensure the vehicle is held steady in each position" FontSize="11" Foreground="#7F1D1D"/>
+                            <TextBlock Text="&#x2022; Keep the vehicle away from magnetic interference" FontSize="11" Foreground="#7F1D1D"/>
+                            <TextBlock Text="&#x2022; Check sensor connections and try again" FontSize="11" Foreground="#7F1D1D"/>
                         </StackPanel>
                     </Border>
                     

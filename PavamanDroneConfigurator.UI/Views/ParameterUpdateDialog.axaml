@@ -60,7 +60,7 @@
         <StackPanel Grid.Row="0" Spacing="8" Margin="0,0,0,16">
             <StackPanel Orientation="Horizontal" Spacing="12">
                 <Border Width="48" Height="48" CornerRadius="12" Background="#FEF3C7">
-                    <TextBlock Text="??" FontSize="24" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    <TextBlock Text="&#x26A0;" FontSize="24" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                 </Border>
                 <StackPanel VerticalAlignment="Center">
                     <TextBlock Text="{Binding DialogTitle}" 
@@ -115,7 +115,7 @@
                                     
                                     <!-- Arrow -->
                                     <TextBlock Grid.Column="2" 
-                                               Text="?" 
+                                               Text="&#x2192;" 
                                                FontSize="14"
                                                Foreground="#3B82F6"
                                                VerticalAlignment="Center"
