@@ -341,8 +341,7 @@ public partial class App : Application
 
     /// <summary>
     /// Shows the standalone Firmware Window.
-    /// Does not replace the main window - opens as a separate window.
-    /// Closing this window returns to Entry Page.
+    /// Replaces the main window - closing firmware window returns to Entry Page.
     /// </summary>
     private void ShowFirmwareWindow(IClassicDesktopStyleApplicationLifetime desktop)
     {
@@ -355,11 +354,48 @@ public partial class App : Application
             
             var firmwareWindow = new FirmwareWindow { DataContext = firmwareViewModel };
             
-            // When firmware window closes, the entry page remains visible
-            // (no need to handle BackRequested since Close() is called in the handler)
+            // Track if back was requested to avoid double navigation
+            bool backRequested = false;
             
+            // When back button is clicked, return to Entry Page
+            firmwareWindow.BackRequested += (_, _) =>
+            {
+                Console.WriteLine("[App] FirmwareWindow BackRequested event received");
+                if (_isShuttingDown) return;
+                
+                backRequested = true;
+                
+                // Show entry page first, then close firmware window
+                var oldWindow = desktop.MainWindow;
+                ShowEntryPage(desktop);
+                oldWindow?.Close();
+                
+                Console.WriteLine("[App] Navigated back to Entry Page from Firmware Window");
+            };
+            
+            // Handle window closing via X button (only if back wasn't already requested)
+            firmwareWindow.Closed += (_, _) =>
+            {
+                Console.WriteLine("[App] FirmwareWindow Closed event received");
+                if (_isShuttingDown || backRequested) return;
+
+                Dispatcher.UIThread.Post(() =>
+                {
+                    // Only show entry page if no main window exists (X button was clicked)
+                    if (desktop.MainWindow == null || !desktop.MainWindow.IsVisible)
+                    {
+                        ShowEntryPage(desktop);
+                    }
+                });
+            };
+            
+            // Close the entry page and show firmware window as main window
+            var oldWindow = desktop.MainWindow;
+            desktop.MainWindow = firmwareWindow;
             firmwareWindow.Show();
-            Console.WriteLine("[App] FirmwareWindow shown");
+            oldWindow?.Close();
+            
+            Console.WriteLine("[App] FirmwareWindow shown, Entry Page closed");
         }
         catch (Exception ex)
         {
