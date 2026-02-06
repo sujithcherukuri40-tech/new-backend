@@ -1459,7 +1459,19 @@ public partial class SensorsCalibrationPageViewModel : ViewModelBase
             AccelInstructions = "Calibration cancelled. Click 'Calibrate Accel' to start again.";
             ResetAllStepIndicators();
             
+            // Reset level horizon calibration state
+            IsLevelCalibrationActive = false;
+            LevelCalibrationStatus = IsLevelCalibrated ? "Calibrated" : "Not calibrated";
+            LevelInstructions = "Calibration cancelled. Place vehicle on a level surface and click Calibrate.";
+            
+            // Reset pressure/barometer calibration state
+            IsPressureCalibrationActive = false;
+            PressureCalibrationStatus = IsPressureCalibrated ? "Calibrated" : "Not calibrated";
+            PressureInstructions = "Calibration cancelled. Click Calibrate to calibrate barometer.";
+            PressureCalibrationProgress = 0;
+            
             StatusMessage = "Calibration cancelled";
+            UpdateButtonStates();
         }
         catch (Exception ex)
         {
