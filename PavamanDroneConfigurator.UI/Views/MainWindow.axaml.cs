@@ -80,7 +80,6 @@ public partial class MainWindow : Window
                 {
                     vm.SetCurrentPage(page, view);
                     SetActiveButton(button);
-                    ShowNotification("Navigation", $"Switched to {button.Content}", NotificationType.Success);
                 }
                 else
                 {
