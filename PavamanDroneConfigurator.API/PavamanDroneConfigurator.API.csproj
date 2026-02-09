@@ -7,7 +7,10 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="AWSSDK.SecretsManager" Version="4.0.4.5" />
+    <!-- AWS SDK - All versions must match to avoid conflicts (using 3.7.500 which is compatible) -->
+    <PackageReference Include="AWSSDK.SecretsManager" Version="3.7.400.35" />
+    <PackageReference Include="AWSSDK.Core" Version="3.7.500" />
+    
     <PackageReference Include="BCrypt.Net-Next" Version="4.0.3" />
     <PackageReference Include="DotNetEnv" Version="3.1.1" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="9.0.0" />
