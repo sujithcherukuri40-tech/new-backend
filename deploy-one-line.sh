@@ -1,0 +1,5 @@
+#!/bin/bash
+# FINAL AWS SDK FIX - One-line deployment
+# Copy and paste this entire line into EC2 terminal:
+
+sudo systemctl stop drone-api && pkill -f dotnet && cd ~/drone-config && git pull origin main && git log -1 --oneline && find . -type d \( -name "bin" -o -name "obj" \) -exec rm -rf {} + 2>/dev/null && cd ~/drone-config/PavamanDroneConfigurator.API && rm -rf ~/.nuget/packages/awssdk.* && dotnet restore --force --no-cache && echo "" && echo "=== AWS SDK VERSIONS ===" && dotnet list package | grep AWSSDK && echo "" && echo "=== Checking for NU warnings ===" && dotnet build -c Release 2>&1 | grep "warning NU" && echo "(No warnings above means success!)" && dotnet publish -c Release -o ~/drone-api-published && sudo systemctl start drone-api && sleep 5 && echo "" && echo "=== TESTING ENDPOINTS ===" && curl -s http://localhost:5000/api/firmware/health && echo "" && echo "" && echo "=== DEPLOYMENT COMPLETE ===" && echo "If you see '{"status":"healthy",...}' above, the fix worked!" && echo "Run: sudo journalctl -u drone-api -n 20 --no-pager" && echo "to check for any errors in the logs."
