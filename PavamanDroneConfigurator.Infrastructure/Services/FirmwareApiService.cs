@@ -104,11 +104,14 @@ public class FirmwareApiService
     }
     
     /// <summary>
-    /// Upload firmware file to cloud storage via API
+    /// Upload firmware file to cloud storage via API with metadata
     /// </summary>
     public async Task<S3FirmwareMetadata> UploadFirmwareAsync(
         string filePath,
         string? customFileName = null,
+        string? firmwareName = null,
+        string? firmwareVersion = null,
+        string? firmwareDescription = null,
         IProgress<int>? progress = null,
         CancellationToken cancellationToken = default)
     {
@@ -131,6 +134,22 @@ public class FirmwareApiService
             if (!string.IsNullOrEmpty(customFileName))
             {
                 form.Add(new StringContent(customFileName), "customFileName");
+            }
+            
+            // Add metadata fields
+            if (!string.IsNullOrEmpty(firmwareName))
+            {
+                form.Add(new StringContent(firmwareName), "firmwareName");
+            }
+            
+            if (!string.IsNullOrEmpty(firmwareVersion))
+            {
+                form.Add(new StringContent(firmwareVersion), "firmwareVersion");
+            }
+            
+            if (!string.IsNullOrEmpty(firmwareDescription))
+            {
+                form.Add(new StringContent(firmwareDescription), "firmwareDescription");
             }
             
             var response = await _httpClient.PostAsync("/api/firmware/admin/upload", form, cancellationToken);
@@ -201,6 +220,23 @@ public class FirmwareApiService
         {
             _logger.LogError(ex, "Failed to get download URL for: {Key}", key);
             throw new Exception($"Failed to get download URL: {ex.Message}", ex);
+        }
+    }
+    
+    /// <summary>
+    /// Check S3 health via API
+    /// </summary>
+    public async Task<bool> CheckHealthAsync(CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var response = await _httpClient.GetAsync("/api/firmware/health", cancellationToken);
+            return response.IsSuccessStatusCode;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Health check failed");
+            return false;
         }
     }
     

@@ -18,7 +18,6 @@ namespace PavamanDroneConfigurator.UI.ViewModels;
 
 /// <summary>
 /// ViewModel for the Firmware Flashing page - Mission Planner compatible.
-/// Displays all vehicle types with version info and supports beta/custom firmware.
 /// </summary>
 public partial class FirmwarePageViewModel : ViewModelBase
 {
@@ -33,8 +32,9 @@ public partial class FirmwarePageViewModel : ViewModelBase
     [ObservableProperty] private bool _isFirmwareUpgradeMode = true;
     [ObservableProperty] private bool _isBootloaderUpdateMode;
     [ObservableProperty] private FirmwareUpgradeMode _upgradeMode = FirmwareUpgradeMode.Automatic;
-    [ObservableProperty] private bool _isAutomaticMode = false; // Changed: Start with mode selection screen
-    [ObservableProperty] private bool _isManualMode = false;    // Changed: Start with mode selection screen
+    [ObservableProperty] private bool _isAutomaticMode = false;
+    [ObservableProperty] private bool _isManualMode = false;
+    [ObservableProperty] private bool _isAdminMode = false;
     [ObservableProperty] private bool _showBetaFirmware;
     [ObservableProperty] private bool _showAllOptions;
     #endregion
@@ -96,7 +96,7 @@ public partial class FirmwarePageViewModel : ViewModelBase
     [ObservableProperty] private string _reconnectPromptMessage = string.Empty;
     #endregion
     
-    #region Bootloader Mode Dialog - Mission Planner equivalent "Please unplug and plug back in"
+    #region Bootloader Mode Dialog
     [ObservableProperty] private bool _showBootloaderModeDialog;
     [ObservableProperty] private string _bootloaderModeMessage = string.Empty;
     private TaskCompletionSource<bool>? _bootloaderDialogTcs;
@@ -105,7 +105,7 @@ public partial class FirmwarePageViewModel : ViewModelBase
     #region Connection Status
     [ObservableProperty] private bool _isConnected;
     [ObservableProperty] private string _connectionStatusText = "Disconnected";
-    [ObservableProperty] private string _connectionStatusColor = "#EF4444"; // Red for disconnected
+    [ObservableProperty] private string _connectionStatusColor = "#EF4444";
     #endregion
     
     #region Vehicle Groups
@@ -130,6 +130,22 @@ public partial class FirmwarePageViewModel : ViewModelBase
     [ObservableProperty] private bool _isLogPanelExpanded;
     [ObservableProperty] private LogFilterLevel _selectedLogFilter = LogFilterLevel.Info;
     [ObservableProperty] private bool _autoScrollLogs = true;
+    #endregion
+    
+    #region Admin Upload
+    [ObservableProperty] private string _adminUploadFilePath = string.Empty;
+    [ObservableProperty] private string _adminUploadFileName = string.Empty;
+    [ObservableProperty] private string _adminFirmwareName = string.Empty;
+    [ObservableProperty] private string _adminFirmwareVersion = string.Empty;
+    [ObservableProperty] private string _adminFirmwareDescription = string.Empty;
+    [ObservableProperty] private bool _isUploading;
+    [ObservableProperty] private double _uploadProgressPercent;
+    
+    /// <summary>
+    /// List of S3 firmwares for admin management
+    /// </summary>
+    public ObservableCollection<S3FirmwareMetadata> S3Firmwares { get; } = new();
+    [ObservableProperty] private S3FirmwareMetadata? _selectedS3Firmware;
     #endregion
 
     public FirmwarePageViewModel(

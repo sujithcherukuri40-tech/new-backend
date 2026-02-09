@@ -158,7 +158,7 @@ public partial class FirmwareManagementViewModel : ViewModelBase
             UploadProgress = 10;
             UploadStatusText = "Uploading to cloud...";
             
-            // Upload via API
+            // Upload via API with metadata
             var progress = new Progress<int>(percent =>
             {
                 UploadProgress = percent;
@@ -167,7 +167,10 @@ public partial class FirmwareManagementViewModel : ViewModelBase
             var result = await _firmwareApi.UploadFirmwareAsync(
                 SelectedFirmwareFilePath!,
                 safeFileName,
-                progress
+                NewFirmwareName,           // firmwareName
+                NewFirmwareVersion,        // firmwareVersion  
+                NewFirmwareDescription,    // firmwareDescription
+                progress                   // progress
             );
             
             UploadProgress = 90;

@@ -167,6 +167,28 @@
 			<Setter Property="Background" Value="#1E1E1E"/>
 			<Setter Property="CornerRadius" Value="8"/>
 		</Style>
+		
+		<!-- Dialog Button Styles -->
+		<Style Selector="Button.dialog-btn-primary">
+			<Setter Property="Background" Value="{DynamicResource PrimaryBrush}"/>
+			<Setter Property="Foreground" Value="White"/>
+			<Setter Property="Padding" Value="24,12"/>
+			<Setter Property="CornerRadius" Value="8"/>
+			<Setter Property="FontWeight" Value="SemiBold"/>
+			<Setter Property="Cursor" Value="Hand"/>
+			<Setter Property="BorderThickness" Value="0"/>
+		</Style>
+		
+		<Style Selector="Button.dialog-btn-secondary">
+			<Setter Property="Background" Value="{DynamicResource SurfaceBrush}"/>
+			<Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+			<Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
+			<Setter Property="BorderThickness" Value="1"/>
+			<Setter Property="Padding" Value="24,12"/>
+			<Setter Property="CornerRadius" Value="8"/>
+			<Setter Property="FontWeight" Value="SemiBold"/>
+			<Setter Property="Cursor" Value="Hand"/>
+		</Style>
 	</UserControl.Styles>
 
 	<Grid RowDefinitions="Auto,*" Classes="mp-background">
@@ -833,43 +855,530 @@
 					</Grid>
 				</Border>
 
-				<!-- Status Messages -->
-				<Border Background="{DynamicResource SuccessLightBrush}"
-                        BorderBrush="{DynamicResource SuccessBrush}"
-                        BorderThickness="1"
-                        CornerRadius="10"
-                        Padding="16,12"
-                        IsVisible="{Binding IsSuccess}">
-					<StackPanel Orientation="Horizontal" Spacing="12">
-						<PathIcon Data="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"
-                                  Width="20" Height="20"
-                                  Foreground="{DynamicResource SuccessBrush}"/>
-						<TextBlock Text="{Binding StatusMessage}"
-                                   VerticalAlignment="Center"
-                                   FontWeight="SemiBold"
-                                   Foreground="{DynamicResource SuccessDarkBrush}"/>
-					</StackPanel>
-				</Border>
-
-				<Border Background="{DynamicResource ErrorLightBrush}"
-                        BorderBrush="{DynamicResource ErrorBrush}"
-                        BorderThickness="1"
-                        CornerRadius="10"
-                        Padding="16,12"
-                        IsVisible="{Binding IsError}">
-					<StackPanel Orientation="Horizontal" Spacing="12">
-						<PathIcon Data="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
-                                  Width="20" Height="20"
-                                  Foreground="{DynamicResource ErrorBrush}"/>
-						<TextBlock Text="{Binding StatusMessage}"
-                                   VerticalAlignment="Center"
-                                   TextWrapping="Wrap"
-                                   FontWeight="SemiBold"
-                                   Foreground="{DynamicResource ErrorDarkBrush}"/>
-					</StackPanel>
-				</Border>
-
 			</StackPanel>
 		</ScrollViewer>
+
+		<!-- ============================================ -->
+		<!-- DIALOG OVERLAYS -->
+		<!-- ============================================ -->
+
+		<!-- Confirmation Dialog -->
+		<Border Grid.Row="0" Grid.RowSpan="2"
+		        Classes="dialog-overlay"
+		        IsVisible="{Binding ShowConfirmationDialog}"
+		        ZIndex="100">
+			<Border Classes="dialog-box"
+			        VerticalAlignment="Center"
+			        HorizontalAlignment="Center">
+				<StackPanel Spacing="24">
+					<!-- Header -->
+					<StackPanel Spacing="12">
+						<Border Background="{DynamicResource WarningLightBrush}"
+						        CornerRadius="12"
+						        Width="64" Height="64"
+						        HorizontalAlignment="Center">
+							<PathIcon Data="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
+							          Width="32" Height="32"
+							          Foreground="{DynamicResource WarningBrush}"
+							          HorizontalAlignment="Center"
+							          VerticalAlignment="Center"/>
+						</Border>
+						<TextBlock Text="Confirm Installation"
+						           FontSize="22"
+						           FontWeight="Bold"
+						           HorizontalAlignment="Center"
+						           Foreground="{DynamicResource TextPrimaryBrush}"/>
+					</StackPanel>
+					
+					<!-- Message -->
+					<TextBlock Text="{Binding ConfirmationMessage}"
+					           TextWrapping="Wrap"
+					           TextAlignment="Center"
+					           FontSize="14"
+					           LineHeight="22"
+					           Foreground="{DynamicResource TextSecondaryBrush}"/>
+					
+					<!-- Buttons -->
+					<StackPanel Orientation="Horizontal" 
+					            Spacing="12" 
+					            HorizontalAlignment="Center">
+						<Button Classes="dialog-btn-secondary"
+						        Content="Cancel"
+						        Command="{Binding CancelConfirmationCommand}"
+						        MinWidth="120"/>
+						<Button Classes="dialog-btn-primary"
+						        Content="Install Firmware"
+						        Command="{Binding ConfirmInstallationCommand}"
+						        MinWidth="160"/>
+					</StackPanel>
+				</StackPanel>
+			</Border>
+		</Border>
+
+		<!-- Platform Selection Dialog -->
+		<Border Grid.Row="0" Grid.RowSpan="2"
+		        Classes="dialog-overlay"
+		        IsVisible="{Binding ShowPlatformSelectionDialog}"
+		        ZIndex="100">
+			<Border Classes="dialog-box"
+			        VerticalAlignment="Center"
+			        HorizontalAlignment="Center">
+				<StackPanel Spacing="24">
+					<!-- Header -->
+					<StackPanel Spacing="12">
+						<Border Background="{DynamicResource InfoLightBrush}"
+						        CornerRadius="12"
+						        Width="64" Height="64"
+						        HorizontalAlignment="Center">
+							<PathIcon Data="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 3c1.93 0 3.5 1.57 3.5 3.5S13.93 13 12 13s-3.5-1.57-3.5-3.5S10.07 6 12 6zm7 13H5v-.23c0-.62.28-1.2.76-1.58C7.47 15.82 9.64 15 12 15s4.53.82 6.24 2.19c.48.38.76.97.76 1.58V19z"
+							          Width="32" Height="32"
+							          Foreground="{DynamicResource InfoBrush}"
+							          HorizontalAlignment="Center"
+							          VerticalAlignment="Center"/>
+						</Border>
+						<TextBlock Text="Select Firmware Variant"
+						           FontSize="22"
+						           FontWeight="Bold"
+						           HorizontalAlignment="Center"
+						           Foreground="{DynamicResource TextPrimaryBrush}"/>
+					</StackPanel>
+					
+					<!-- Message -->
+					<TextBlock Text="{Binding PlatformSelectionMessage}"
+					           TextWrapping="Wrap"
+					           TextAlignment="Center"
+					           FontSize="14"
+					           Foreground="{DynamicResource TextSecondaryBrush}"/>
+					
+					<!-- Platform List -->
+					<ListBox ItemsSource="{Binding AvailablePlatformVariants}"
+					         SelectedItem="{Binding SelectedPlatformVariant}"
+					         MaxHeight="200"
+					         CornerRadius="8"
+					         Padding="4">
+						<ListBox.ItemTemplate>
+							<DataTemplate>
+								<Border Padding="12,8">
+									<TextBlock Text="{Binding}" FontSize="14"/>
+								</Border>
+							</DataTemplate>
+						</ListBox.ItemTemplate>
+					</ListBox>
+					
+					<!-- Buttons -->
+					<StackPanel Orientation="Horizontal" 
+					            Spacing="12" 
+					            HorizontalAlignment="Center">
+						<Button Classes="dialog-btn-secondary"
+						        Content="Cancel"
+						        Command="{Binding CancelPlatformSelectionCommand}"
+						        MinWidth="120"/>
+						<Button Classes="dialog-btn-primary"
+						        Content="Continue"
+						        Command="{Binding ConfirmPlatformSelectionCommand}"
+						        IsEnabled="{Binding SelectedPlatformVariant, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+						        MinWidth="140"/>
+					</StackPanel>
+				</StackPanel>
+			</Border>
+		</Border>
+
+		<!-- Bootloader Mode Dialog -->
+		<Border Grid.Row="0" Grid.RowSpan="2"
+		        Classes="dialog-overlay"
+		        IsVisible="{Binding ShowBootloaderModeDialog}"
+		        ZIndex="100">
+			<Border Classes="dialog-box"
+			        VerticalAlignment="Center"
+			        HorizontalAlignment="Center">
+				<StackPanel Spacing="24">
+					<!-- Header -->
+					<StackPanel Spacing="12">
+						<Border Background="{DynamicResource PrimaryLightBrush}"
+						        CornerRadius="12"
+						        Width="64" Height="64"
+						        HorizontalAlignment="Center">
+							<PathIcon Data="M9 16h6v-6h4l-7-7-7 7h4zm-4 2h14v2H5z"
+							          Width="32" Height="32"
+							          Foreground="{DynamicResource PrimaryBrush}"
+							          HorizontalAlignment="Center"
+							          VerticalAlignment="Center"/>
+						</Border>
+						<TextBlock Text="Enter Bootloader Mode"
+						           FontSize="22"
+						           FontWeight="Bold"
+						           HorizontalAlignment="Center"
+						           Foreground="{DynamicResource TextPrimaryBrush}"/>
+					</StackPanel>
+					
+					<!-- Message -->
+					<TextBlock Text="{Binding BootloaderModeMessage}"
+					           TextWrapping="Wrap"
+					           TextAlignment="Center"
+					           FontSize="14"
+					           LineHeight="22"
+					           Foreground="{DynamicResource TextSecondaryBrush}"/>
+					
+					<!-- Visual Instructions -->
+					<Border Background="{DynamicResource SurfaceBrush}"
+					        CornerRadius="10"
+					        Padding="20">
+						<StackPanel Spacing="12">
+							<StackPanel Orientation="Horizontal" Spacing="12">
+								<Border Background="{DynamicResource PrimaryBrush}" CornerRadius="12" Width="24" Height="24">
+									<TextBlock Text="1" Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center" FontWeight="Bold"/>
+								</Border>
+								<TextBlock Text="Unplug the USB cable from the flight controller" VerticalAlignment="Center"/>
+							</StackPanel>
+							<StackPanel Orientation="Horizontal" Spacing="12">
+								<Border Background="{DynamicResource PrimaryBrush}" CornerRadius="12" Width="24" Height="24">
+									<TextBlock Text="2" Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center" FontWeight="Bold"/>
+								</Border>
+								<TextBlock Text="Press and hold the BOOT button on the board" VerticalAlignment="Center"/>
+							</StackPanel>
+							<StackPanel Orientation="Horizontal" Spacing="12">
+								<Border Background="{DynamicResource PrimaryBrush}" CornerRadius="12" Width="24" Height="24">
+									<TextBlock Text="3" Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center" FontWeight="Bold"/>
+								</Border>
+								<TextBlock Text="While holding BOOT, plug the USB cable back in" VerticalAlignment="Center"/>
+							</StackPanel>
+							<StackPanel Orientation="Horizontal" Spacing="12">
+								<Border Background="{DynamicResource PrimaryBrush}" CornerRadius="12" Width="24" Height="24">
+									<TextBlock Text="4" Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center" FontWeight="Bold"/>
+								</Border>
+								<TextBlock Text="Release the BOOT button after 2 seconds" VerticalAlignment="Center"/>
+							</StackPanel>
+						</StackPanel>
+					</Border>
+					
+					<!-- Buttons -->
+					<StackPanel Orientation="Horizontal" 
+					            Spacing="12" 
+					            HorizontalAlignment="Center">
+						<Button Classes="dialog-btn-secondary"
+						        Content="Cancel"
+						        Command="{Binding CancelBootloaderModeCommand}"
+						        MinWidth="120"/>
+						<Button Classes="dialog-btn-primary"
+						        Content="OK, Board is Ready"
+						        Command="{Binding ConfirmBootloaderModeCommand}"
+						        MinWidth="180"/>
+					</StackPanel>
+				</StackPanel>
+			</Border>
+		</Border>
+
+		<!-- Reconnect Prompt Dialog -->
+		<Border Grid.Row="0" Grid.RowSpan="2"
+		        Classes="dialog-overlay"
+		        IsVisible="{Binding ShowReconnectPromptDialog}"
+		        ZIndex="100">
+			<Border Classes="dialog-box"
+			        VerticalAlignment="Center"
+			        HorizontalAlignment="Center">
+				<StackPanel Spacing="24">
+					<!-- Header with Success Icon -->
+					<StackPanel Spacing="12">
+						<Border Background="{DynamicResource SuccessLightBrush}"
+						        CornerRadius="12"
+						        Width="64" Height="64"
+						        HorizontalAlignment="Center">
+							<PathIcon Data="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"
+							          Width="32" Height="32"
+							          Foreground="{DynamicResource SuccessBrush}"
+							          HorizontalAlignment="Center"
+							          VerticalAlignment="Center"/>
+						</Border>
+						<TextBlock Text="Installation Complete!"
+						           FontSize="22"
+						           FontWeight="Bold"
+						           HorizontalAlignment="Center"
+						           Foreground="{DynamicResource SuccessBrush}"/>
+					</StackPanel>
+					
+					<!-- Message -->
+					<TextBlock Text="{Binding ReconnectPromptMessage}"
+					           TextWrapping="Wrap"
+					           TextAlignment="Center"
+					           FontSize="14"
+					           LineHeight="22"
+					           Foreground="{DynamicResource TextSecondaryBrush}"/>
+					
+					<!-- OK Button -->
+					<Button Classes="dialog-btn-primary"
+					        Content="OK"
+					        Command="{Binding AcknowledgeReconnectPromptCommand}"
+					        HorizontalAlignment="Center"
+					        MinWidth="160"/>
+				</StackPanel>
+			</Border>
+		</Border>
+
+		<!-- Flashing Progress Dialog -->
+		<Border Grid.Row="0" Grid.RowSpan="2"
+		        Classes="dialog-overlay"
+		        IsVisible="{Binding IsOperationInProgress}"
+		        ZIndex="100">
+			<Border Classes="dialog-box"
+			        VerticalAlignment="Center"
+			        HorizontalAlignment="Center"
+			        MinWidth="480">
+				<StackPanel Spacing="28">
+					<!-- Header -->
+					<StackPanel Spacing="12">
+						<TextBlock Text="Installing Firmware"
+						           FontSize="24"
+						           FontWeight="Bold"
+						           HorizontalAlignment="Center"
+						           Foreground="{DynamicResource TextPrimaryBrush}"/>
+						<TextBlock Text="{Binding StatusMessage}"
+						           FontSize="14"
+						           HorizontalAlignment="Center"
+						           Foreground="{DynamicResource TextSecondaryBrush}"/>
+					</StackPanel>
+					
+					<!-- Progress Bar -->
+					<StackPanel Spacing="8">
+						<ProgressBar Value="{Binding ProgressPercent}"
+						             Maximum="100"
+						             Height="12"
+						             CornerRadius="6"
+						             Classes="mp-progress"/>
+						<Grid>
+							<TextBlock Text="{Binding ProgressPercent, StringFormat={}{0:F0}%}"
+							           HorizontalAlignment="Left"
+							           FontSize="13"
+							           FontWeight="SemiBold"
+							           Foreground="{DynamicResource PrimaryBrush}"/>
+							<TextBlock Text="{Binding EstimatedTimeRemaining}"
+							           HorizontalAlignment="Right"
+							           FontSize="12"
+							           Foreground="{DynamicResource TextMutedBrush}"/>
+						</Grid>
+					</StackPanel>
+					
+					<!-- Step Indicators -->
+					<Border Background="{DynamicResource SurfaceBrush}"
+					        CornerRadius="10"
+					        Padding="20,16">
+						<StackPanel Spacing="12">
+							<!-- Downloading Step -->
+							<StackPanel Orientation="Horizontal" Spacing="12">
+								<Border Width="28" Height="28" CornerRadius="14"
+								        Background="{Binding CurrentFlashingStep, Converter={x:Static converters:FlashingStepConverters.StepToBackground}, ConverterParameter=Downloading}">
+									<TextBlock Text="1" Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center" FontWeight="Bold" FontSize="12"/>
+								</Border>
+								<TextBlock Text="Downloading firmware" 
+								           VerticalAlignment="Center"
+								           Opacity="{Binding CurrentFlashingStep, Converter={x:Static converters:FlashingStepConverters.StepToOpacity}, ConverterParameter=Downloading}"/>
+							</StackPanel>
+							
+							<!-- Verifying Step -->
+							<StackPanel Orientation="Horizontal" Spacing="12">
+								<Border Width="28" Height="28" CornerRadius="14"
+								        Background="{Binding CurrentFlashingStep, Converter={x:Static converters:FlashingStepConverters.StepToBackground}, ConverterParameter=Verifying}">
+									<TextBlock Text="2" Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center" FontWeight="Bold" FontSize="12"/>
+								</Border>
+								<TextBlock Text="Verifying firmware" 
+								           VerticalAlignment="Center"
+								           Opacity="{Binding CurrentFlashingStep, Converter={x:Static converters:FlashingStepConverters.StepToOpacity}, ConverterParameter=Verifying}"/>
+							</StackPanel>
+							
+							<!-- Uploading Step -->
+							<StackPanel Orientation="Horizontal" Spacing="12">
+								<Border Width="28" Height="28" CornerRadius="14"
+								        Background="{Binding CurrentFlashingStep, Converter={x:Static converters:FlashingStepConverters.StepToBackground}, ConverterParameter=Uploading}">
+									<TextBlock Text="3" Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center" FontWeight="Bold" FontSize="12"/>
+								</Border>
+								<TextBlock Text="Uploading to board" 
+								           VerticalAlignment="Center"
+								           Opacity="{Binding CurrentFlashingStep, Converter={x:Static converters:FlashingStepConverters.StepToOpacity}, ConverterParameter=Uploading}"/>
+							</StackPanel>
+							
+							<!-- Finalizing Step -->
+							<StackPanel Orientation="Horizontal" Spacing="12">
+								<Border Width="28" Height="28" CornerRadius="14"
+								        Background="{Binding CurrentFlashingStep, Converter={x:Static converters:FlashingStepConverters.StepToBackground}, ConverterParameter=Finalizing}">
+									<TextBlock Text="4" Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center" FontWeight="Bold" FontSize="12"/>
+								</Border>
+								<TextBlock Text="Finalizing installation" 
+								           VerticalAlignment="Center"
+								           Opacity="{Binding CurrentFlashingStep, Converter={x:Static converters:FlashingStepConverters.StepToOpacity}, ConverterParameter=Finalizing}"/>
+							</StackPanel>
+						</StackPanel>
+					</Border>
+					
+					<!-- Detail Message -->
+					<TextBlock Text="{Binding DetailMessage}"
+					           FontSize="13"
+					           HorizontalAlignment="Center"
+					           Foreground="{DynamicResource TextMutedBrush}"
+					           IsVisible="{Binding DetailMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+					
+					<!-- Cancel Button -->
+					<Button Classes="dialog-btn-secondary"
+					        Content="Cancel"
+					        Command="{Binding CancelOperationCommand}"
+					        HorizontalAlignment="Center"
+					        MinWidth="140"
+					        IsEnabled="{Binding CanCancelFlashing}"/>
+				</StackPanel>
+			</Border>
+		</Border>
+
+		<!-- Failure Dialog -->
+		<Border Grid.Row="0" Grid.RowSpan="2"
+		        Classes="dialog-overlay"
+		        IsVisible="{Binding ShowFailureDialog}"
+		        ZIndex="100">
+			<Border Classes="dialog-box"
+			        VerticalAlignment="Center"
+			        HorizontalAlignment="Center">
+				<StackPanel Spacing="24">
+					<!-- Header with Error Icon -->
+					<StackPanel Spacing="12">
+						<Border Background="{DynamicResource ErrorLightBrush}"
+						        CornerRadius="12"
+						        Width="64" Height="64"
+						        HorizontalAlignment="Center">
+							<PathIcon Data="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"
+							          Width="32" Height="32"
+							          Foreground="{DynamicResource ErrorBrush}"
+							          HorizontalAlignment="Center"
+							          VerticalAlignment="Center"/>
+						</Border>
+						<TextBlock Text="Installation Failed"
+						           FontSize="22"
+						           FontWeight="Bold"
+						           HorizontalAlignment="Center"
+						           Foreground="{DynamicResource ErrorBrush}"/>
+					</StackPanel>
+					
+					<!-- Error Message -->
+					<TextBlock Text="{Binding FailureMessage}"
+					           TextWrapping="Wrap"
+					           TextAlignment="Center"
+					           FontSize="14"
+					           Foreground="{DynamicResource TextSecondaryBrush}"/>
+					
+					<!-- Suggestion -->
+					<Border Background="{DynamicResource InfoLightBrush}"
+					        CornerRadius="8"
+					        Padding="16"
+					        IsVisible="{Binding FailureSuggestion, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+						<StackPanel Orientation="Horizontal" Spacing="12">
+							<PathIcon Data="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"
+							          Width="18" Height="18"
+							          Foreground="{DynamicResource InfoBrush}"/>
+							<TextBlock Text="{Binding FailureSuggestion}"
+							           TextWrapping="Wrap"
+							           FontSize="13"
+							           Foreground="{DynamicResource TextSecondaryBrush}"/>
+						</StackPanel>
+					</Border>
+					
+					<!-- Buttons -->
+					<StackPanel Orientation="Horizontal" 
+					            Spacing="12" 
+					            HorizontalAlignment="Center">
+						<Button Classes="dialog-btn-secondary"
+						        Content="Close"
+						        Command="{Binding CloseFailureDialogCommand}"
+						        MinWidth="120"/>
+						<Button Classes="dialog-btn-primary"
+						        Content="Retry"
+						        Command="{Binding RetryFlashingCommand}"
+						        MinWidth="120"/>
+					</StackPanel>
+				</StackPanel>
+			</Border>
+		</Border>
+
+		<!-- Log Panel (Collapsible at bottom) -->
+		<Border Grid.Row="1"
+		        Classes="log-panel"
+		        VerticalAlignment="Bottom"
+		        HorizontalAlignment="Stretch"
+		        Margin="20"
+		        MaxHeight="300"
+		        IsVisible="{Binding IsLogPanelExpanded}">
+			<Grid RowDefinitions="Auto,*">
+				<!-- Log Header -->
+				<Border Grid.Row="0" 
+				        Background="#2D2D2D" 
+				        Padding="16,10"
+				        CornerRadius="8,8,0,0">
+					<Grid ColumnDefinitions="*,Auto,Auto">
+						<TextBlock Text="Operation Log"
+						           FontWeight="SemiBold"
+						           Foreground="White"
+						           VerticalAlignment="Center"/>
+						<Button Grid.Column="1"
+						        Content="Clear"
+						        Background="Transparent"
+						        Foreground="#888"
+						        Padding="12,4"
+						        Command="{Binding ClearLogCommand}"
+						        Margin="0,0,8,0"/>
+						<Button Grid.Column="2"
+						        Content="✕"
+						        Background="Transparent"
+						        Foreground="#888"
+						        Padding="8,4"
+						        Command="{Binding ToggleLogPanelCommand}"/>
+					</Grid>
+				</Border>
+				
+				<!-- Log Content -->
+				<ScrollViewer Grid.Row="1" 
+				              Padding="12"
+				              VerticalScrollBarVisibility="Auto">
+					<ItemsControl ItemsSource="{Binding LogMessages}">
+						<ItemsControl.ItemTemplate>
+							<DataTemplate>
+								<TextBlock Text="{Binding}"
+								           FontFamily="Consolas, Monaco, monospace"
+								           FontSize="12"
+								           Foreground="#A0A0A0"
+								           Margin="0,2"/>
+							</DataTemplate>
+						</ItemsControl.ItemTemplate>
+					</ItemsControl>
+				</ScrollViewer>
+			</Grid>
+		</Border>
+
+		<!-- Log Toggle Button (Floating) -->
+		<Button Grid.Row="1"
+		        VerticalAlignment="Bottom"
+		        HorizontalAlignment="Right"
+		        Margin="20"
+		        Background="{DynamicResource SurfaceBrush}"
+		        BorderBrush="{DynamicResource BorderBrush}"
+		        BorderThickness="1"
+		        CornerRadius="20"
+		        Padding="16,10"
+		        Command="{Binding ToggleLogPanelCommand}"
+		        IsVisible="{Binding !IsLogPanelExpanded}"
+		        ZIndex="50">
+			<StackPanel Orientation="Horizontal" Spacing="8">
+				<PathIcon Data="M4 6h16M4 12h16M4 18h7"
+				          Width="16" Height="16"
+				          Foreground="{DynamicResource TextSecondaryBrush}"/>
+				<TextBlock Text="Show Log"
+				           FontSize="13"
+				           Foreground="{DynamicResource TextSecondaryBrush}"/>
+				<Border Background="{DynamicResource PrimaryBrush}"
+				        CornerRadius="10"
+				        Padding="6,2"
+				        IsVisible="{Binding LogMessages.Count}">
+					<TextBlock Text="{Binding LogMessages.Count}"
+					           FontSize="10"
+					           FontWeight="Bold"
+					           Foreground="White"/>
+				</Border>
+			</StackPanel>
+		</Button>
+
 	</Grid>
 </UserControl>
