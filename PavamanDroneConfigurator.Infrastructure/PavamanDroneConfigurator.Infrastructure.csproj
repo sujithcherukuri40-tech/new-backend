@@ -21,9 +21,9 @@
     <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="9.0.0" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="9.0.0" />
     
-    <!-- AWS SDK for S3 - Updated to use available version 3.7.500 (compatible with 3.7.x) -->
-    <PackageReference Include="AWSSDK.S3" Version="3.7.404.7" />
-    <PackageReference Include="AWSSDK.Core" Version="3.7.500" />
+    <!-- AWS SDK for S3 - Use stable 3.7.400 series with matching Core -->
+    <PackageReference Include="AWSSDK.S3" Version="3.7.400" />
+    <PackageReference Include="AWSSDK.Core" Version="3.7.400" />
     
     <!-- System packages -->
     <PackageReference Include="System.IO.Ports" Version="9.0.0" />
