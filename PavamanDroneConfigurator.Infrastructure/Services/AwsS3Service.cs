@@ -103,8 +103,8 @@ public class AwsS3Service : IDisposable
                     {
                         Key = obj.Key,
                         FileName = Path.GetFileName(obj.Key),
-                        Size = obj.Size,
-                        LastModified = obj.LastModified,
+                        Size = obj.Size ?? 0,
+                        LastModified = obj.LastModified ?? DateTime.UtcNow,
                         VehicleType = InferVehicleTypeFromFileName(obj.Key)
                     };
                     
@@ -129,8 +129,8 @@ public class AwsS3Service : IDisposable
                     {
                         Key = obj.Key,
                         FileName = Path.GetFileName(obj.Key),
-                        Size = obj.Size,
-                        LastModified = obj.LastModified,
+                        Size = obj.Size ?? 0,
+                        LastModified = obj.LastModified ?? DateTime.UtcNow,
                         VehicleType = InferVehicleTypeFromFileName(obj.Key)
                     });
                 }
