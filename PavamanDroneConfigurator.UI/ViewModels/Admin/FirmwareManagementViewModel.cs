@@ -12,11 +12,12 @@ namespace PavamanDroneConfigurator.UI.ViewModels.Admin;
 
 /// <summary>
 /// ViewModel for Firmware Management admin panel.
-/// Connects to AWS S3 for actual cloud storage operations.
+/// PRODUCTION: Connects to backend API which handles AWS S3 operations.
+/// Desktop app never accesses AWS directly for security.
 /// </summary>
 public partial class FirmwareManagementViewModel : ViewModelBase
 {
-    private readonly AwsS3Service? _s3Service;
+    private readonly FirmwareApiService _firmwareApi;
     private readonly ILogger<FirmwareManagementViewModel>? _logger;
 
     #region Properties
@@ -37,6 +38,8 @@ public partial class FirmwareManagementViewModel : ViewModelBase
     // List Management
     [ObservableProperty] private bool _isLoadingFirmwares;
     [ObservableProperty] private FirmwareItem? _selectedFirmware;
+    [ObservableProperty] private string? _statusMessage;
+    [ObservableProperty] private bool _hasError;
     
     // Stats
     [ObservableProperty] private int _totalFirmwareCount;
@@ -69,14 +72,14 @@ public partial class FirmwareManagementViewModel : ViewModelBase
     /// Constructor with DI for production use
     /// </summary>
     public FirmwareManagementViewModel(
-        AwsS3Service s3Service,
+        FirmwareApiService firmwareApi,
         ILogger<FirmwareManagementViewModel> logger)
     {
-        _s3Service = s3Service;
+        _firmwareApi = firmwareApi;
         _logger = logger;
         
-        // Load existing firmwares on initialization
-        _ = LoadFirmwaresAsync();
+        // DON'T load firmwares in constructor - defer until page is opened
+        // This prevents slow startup when API is not accessible
     }
     
     /// <summary>
@@ -84,8 +87,30 @@ public partial class FirmwareManagementViewModel : ViewModelBase
     /// </summary>
     public FirmwareManagementViewModel()
     {
-        _s3Service = null;
+        _firmwareApi = null!;
         _logger = null;
+    }
+
+    /// <summary>
+    /// Call this when the page is first shown to load firmwares from S3.
+    /// </summary>
+    public async Task InitializeAsync()
+    {
+        if (!IsLoadingFirmwares && Firmwares.Count == 0)
+        {
+            await LoadFirmwaresAsync();
+        }
+    }
+    
+    /// <summary>
+    /// Force refresh - clears cache and reloads
+    /// </summary>
+    public async Task ForceRefreshAsync()
+    {
+        if (!IsLoadingFirmwares)
+        {
+            await LoadFirmwaresAsync();
+        }
     }
     
     #endregion
@@ -111,12 +136,12 @@ public partial class FirmwareManagementViewModel : ViewModelBase
     #region Commands
     
     /// <summary>
-    /// Uploads firmware to AWS S3 cloud storage
+    /// Uploads firmware to AWS S3 cloud storage via API
     /// </summary>
     [RelayCommand]
     private async Task UploadFirmwareAsync()
     {
-        if (!CanUpload || _s3Service == null) return;
+        if (!CanUpload || _firmwareApi == null) return;
         
         try
         {
@@ -124,25 +149,34 @@ public partial class FirmwareManagementViewModel : ViewModelBase
             UploadProgress = 0;
             UploadStatusText = "Preparing upload...";
             
-            // Build filename: name-version.apj
-            var safeFileName = $"{SanitizeFileName(NewFirmwareName!)}-{NewFirmwareVersion}{Path.GetExtension(SelectedFirmwareFilePath)}";
+            // Build filename: name-version.ext
+            var ext = Path.GetExtension(SelectedFirmwareFilePath);
+            var safeFileName = $"{SanitizeFileName(NewFirmwareName!)}-{NewFirmwareVersion}{ext}";
             
-            _logger?.LogInformation("Uploading firmware: {FileName} to S3", safeFileName);
+            _logger?.LogInformation("Uploading firmware: {FileName} to API", safeFileName);
             
-            // Upload progress simulation (S3 SDK doesn't provide real progress for small files)
-            UploadProgress = 20;
+            UploadProgress = 10;
             UploadStatusText = "Uploading to cloud...";
             
-            // Actually upload to S3
-            var result = await _s3Service.UploadFirmwareAsync(SelectedFirmwareFilePath!, safeFileName);
+            // Upload via API
+            var progress = new Progress<int>(percent =>
+            {
+                UploadProgress = percent;
+            });
             
-            UploadProgress = 80;
+            var result = await _firmwareApi.UploadFirmwareAsync(
+                SelectedFirmwareFilePath!,
+                safeFileName,
+                progress
+            );
+            
+            UploadProgress = 90;
             UploadStatusText = "Finalizing...";
             
             // Create firmware item from result
             var firmware = new FirmwareItem
             {
-                Id = Guid.NewGuid().ToString(),
+                Id = result.Key,
                 Name = NewFirmwareName ?? "",
                 Version = NewFirmwareVersion ?? "",
                 Description = NewFirmwareDescription ?? "",
@@ -150,7 +184,7 @@ public partial class FirmwareManagementViewModel : ViewModelBase
                 FilePath = result.Key,
                 FileName = result.FileName,
                 FileSize = result.Size,
-                UploadedDate = DateTime.Now,
+                UploadedDate = result.LastModified,
                 DownloadCount = 0
             };
             
@@ -167,6 +201,7 @@ public partial class FirmwareManagementViewModel : ViewModelBase
             
             UploadProgress = 100;
             UploadStatusText = "\u2714 Upload completed successfully!";
+            StatusMessage = $"? Uploaded {firmware.FileName}";
             
             _logger?.LogInformation("Firmware uploaded successfully: {FileName}", safeFileName);
             
@@ -176,6 +211,7 @@ public partial class FirmwareManagementViewModel : ViewModelBase
         {
             _logger?.LogError(ex, "Failed to upload firmware");
             UploadStatusText = $"\u274C Error: {ex.Message}";
+            StatusMessage = $"? Upload failed: {ex.Message}";
         }
         finally
         {
@@ -186,37 +222,54 @@ public partial class FirmwareManagementViewModel : ViewModelBase
     }
     
     /// <summary>
-    /// Loads all firmwares from S3 cloud
+    /// Loads all firmwares from S3 cloud (forces refresh)
     /// </summary>
     [RelayCommand]
     private async Task RefreshFirmwaresAsync()
     {
-        await LoadFirmwaresAsync();
+        await ForceRefreshAsync();
     }
     
     /// <summary>
-    /// Downloads firmware from cloud
+    /// Downloads firmware from cloud via API
     /// </summary>
     [RelayCommand]
     private async Task DownloadFirmwareAsync(FirmwareItem? firmware)
     {
-        if (firmware == null || _s3Service == null) return;
+        if (firmware == null || _firmwareApi == null) return;
         
         try
         {
+            StatusMessage = $"Downloading {firmware.FileName}...";
             _logger?.LogInformation("Downloading firmware: {FileName}", firmware.FileName);
             
-            var localPath = await _s3Service.DownloadFirmwareAsync(firmware.FilePath);
+            // Download using presigned URL from firmware metadata
+            var progress = new Progress<int>(percent =>
+            {
+                StatusMessage = $"Downloading {firmware.FileName}... {percent}%";
+            });
+            
+            var localPath = await _firmwareApi.DownloadFirmwareAsync(
+                firmware.DownloadUrl,
+                firmware.FileName,
+                progress
+            );
             
             firmware.DownloadCount++;
+            StatusMessage = $"? Downloaded to: {localPath}";
             
             _logger?.LogInformation("Firmware downloaded to: {Path}", localPath);
             
-            // TODO: Open file location or show notification
+            // TODO: Open file location
+            await Task.Delay(3000);
+            StatusMessage = string.Empty;
         }
         catch (Exception ex)
         {
             _logger?.LogError(ex, "Failed to download firmware: {FileName}", firmware.FileName);
+            StatusMessage = $"? Download failed: {ex.Message}";
+            await Task.Delay(3000);
+            StatusMessage = string.Empty;
         }
     }
     
@@ -228,24 +281,26 @@ public partial class FirmwareManagementViewModel : ViewModelBase
     {
         if (firmware == null) return;
         
-        // TODO: Implement edit dialog
-        await Task.CompletedTask;
+        StatusMessage = "?? Edit feature coming soon";
+        await Task.Delay(2000);
+        StatusMessage = string.Empty;
     }
     
     /// <summary>
-    /// Deletes firmware from S3 cloud
+    /// Deletes firmware from S3 cloud via API
     /// </summary>
     [RelayCommand]
     private async Task DeleteFirmwareAsync(FirmwareItem? firmware)
     {
-        if (firmware == null || _s3Service == null) return;
+        if (firmware == null || _firmwareApi == null) return;
         
         try
         {
-            _logger?.LogInformation("Deleting firmware: {FileName}", firmware.FileName);
+            StatusMessage = $"Deleting {firmware.FileName}...";
+            _logger?.LogInformation("User requested delete for firmware: {FileName}", firmware.FileName);
             
-            // Delete from S3
-            var success = await _s3Service.DeleteFirmwareAsync(firmware.FilePath);
+            // Delete via API
+            var success = await _firmwareApi.DeleteFirmwareAsync(firmware.FilePath);
             
             if (success)
             {
@@ -257,12 +312,24 @@ public partial class FirmwareManagementViewModel : ViewModelBase
                 
                 OnPropertyChanged(nameof(HasNoFirmwares));
                 
-                _logger?.LogInformation("Firmware deleted: {FileName}", firmware.FileName);
+                StatusMessage = $"? Deleted {firmware.FileName}";
+                _logger?.LogInformation("Firmware deleted successfully: {FileName}", firmware.FileName);
             }
+            else
+            {
+                StatusMessage = $"? Failed to delete {firmware.FileName}";
+                _logger?.LogWarning("Failed to delete firmware from S3: {FileName}", firmware.FileName);
+            }
+            
+            await Task.Delay(3000);
+            StatusMessage = string.Empty;
         }
         catch (Exception ex)
         {
-            _logger?.LogError(ex, "Failed to delete firmware: {FileName}", firmware.FileName);
+            _logger?.LogError(ex, "Error deleting firmware: {FileName}", firmware?.FileName ?? "unknown");
+            StatusMessage = $"? Delete failed: {ex.Message}";
+            await Task.Delay(3000);
+            StatusMessage = string.Empty;
         }
     }
     
@@ -272,37 +339,41 @@ public partial class FirmwareManagementViewModel : ViewModelBase
     
     private async Task LoadFirmwaresAsync()
     {
-        if (_s3Service == null)
+        if (_firmwareApi == null)
         {
-            // Design-time: just return
+            HasError = true;
+            StatusMessage = "?? API Service not initialized - design mode";
             return;
         }
         
         IsLoadingFirmwares = true;
+        HasError = false;
+        StatusMessage = "Loading firmwares from cloud...";
         
         try
         {
-            _logger?.LogInformation("Loading firmwares from S3...");
+            _logger?.LogInformation("Loading firmwares from API...");
             
-            // Get actual firmware list from S3
-            var s3Firmwares = await _s3Service.ListFirmwareFilesAsync();
+            // Get firmware list from backend API (which accesses S3)
+            var firmwares = await _firmwareApi.GetInAppFirmwaresAsync();
             
             Firmwares.Clear();
             
-            foreach (var s3Firmware in s3Firmwares)
+            foreach (var firmware in firmwares)
             {
                 Firmwares.Add(new FirmwareItem
                 {
-                    Id = s3Firmware.Key,
-                    Name = s3Firmware.DisplayName,
-                    Version = ExtractVersionFromFileName(s3Firmware.FileName),
+                    Id = firmware.Key,
+                    Name = firmware.DisplayName,
+                    Version = ExtractVersionFromFileName(firmware.FileName),
                     Description = "",
-                    VehicleType = s3Firmware.VehicleType,
-                    FilePath = s3Firmware.Key,
-                    FileName = s3Firmware.FileName,
-                    FileSize = s3Firmware.Size,
-                    UploadedDate = s3Firmware.LastModified,
-                    DownloadCount = 0
+                    VehicleType = firmware.VehicleType,
+                    FilePath = firmware.Key,
+                    FileName = firmware.FileName,
+                    FileSize = firmware.Size,
+                    UploadedDate = firmware.LastModified,
+                    DownloadCount = 0,
+                    DownloadUrl = firmware.DownloadUrl
                 });
             }
             
@@ -312,11 +383,20 @@ public partial class FirmwareManagementViewModel : ViewModelBase
             
             OnPropertyChanged(nameof(HasNoFirmwares));
             
-            _logger?.LogInformation("Loaded {Count} firmwares from S3", Firmwares.Count);
+            StatusMessage = $"? Loaded {Firmwares.Count} firmware(s) successfully";
+            _logger?.LogInformation("Loaded {Count} firmwares from API", Firmwares.Count);
+        }
+        catch (HttpRequestException ex)
+        {
+            HasError = true;
+            StatusMessage = $"? Cannot connect to server: {ex.Message}";
+            _logger?.LogError(ex, "Failed to connect to API");
         }
         catch (Exception ex)
         {
-            _logger?.LogError(ex, "Failed to load firmwares from S3");
+            HasError = true;
+            StatusMessage = $"? Failed to load firmwares: {ex.Message}";
+            _logger?.LogError(ex, "Failed to load firmwares from API");
         }
         finally
         {
@@ -391,6 +471,7 @@ public class FirmwareItem
     public long FileSize { get; set; }
     public DateTime UploadedDate { get; set; }
     public int DownloadCount { get; set; }
+    public string DownloadUrl { get; set; } = string.Empty;
     
     public string FileSizeFormatted => FormatSize(FileSize);
     public string UploadedDateFormatted => UploadedDate.ToString("MMM dd, yyyy");

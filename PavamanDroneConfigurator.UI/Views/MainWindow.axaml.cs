@@ -4,6 +4,7 @@ using PavamanDroneConfigurator.UI.ViewModels;
 using PavamanDroneConfigurator.UI.ViewModels.Admin;
 using System;
 using System.Linq;
+using System.Threading.Tasks;
 using Avalonia.Controls.Notifications;
 using views = PavamanDroneConfigurator.UI.Views;
 using adminViews = PavamanDroneConfigurator.UI.Views.Admin;
@@ -45,6 +46,9 @@ public partial class MainWindow : Window
                     {
                         vm.SetCurrentPage(pageVm, view);
                         SetActiveButton(firstButton);
+                        
+                        // Initialize pages that need lazy loading
+                        _ = InitializePageIfNeededAsync(pageVm);
                     }
                 }
             }
@@ -80,6 +84,9 @@ public partial class MainWindow : Window
                 {
                     vm.SetCurrentPage(page, view);
                     SetActiveButton(button);
+                    
+                    // Initialize pages that need lazy loading when navigated to
+                    _ = InitializePageIfNeededAsync(page);
                 }
                 else
                 {
@@ -94,6 +101,34 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             ShowNotification("Navigation Error", ex.Message, NotificationType.Error);
+        }
+    }
+
+    /// <summary>
+    /// Initializes pages that have lazy-loading requirements.
+    /// This is called after navigation to defer heavy initialization until the page is actually viewed.
+    /// </summary>
+    private static async Task InitializePageIfNeededAsync(ViewModelBase page)
+    {
+        try
+        {
+            switch (page)
+            {
+                case AdvancedSettingsPageViewModel advSettings:
+                    await advSettings.InitializeAsync();
+                    break;
+                case AdminDashboardViewModel adminDash:
+                    await adminDash.InitializeAsync();
+                    break;
+                case FirmwareManagementViewModel fwMgmt:
+                    await fwMgmt.InitializeAsync();
+                    break;
+                // Add other pages that need lazy initialization here
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Page initialization failed: {ex.Message}");
         }
     }
 

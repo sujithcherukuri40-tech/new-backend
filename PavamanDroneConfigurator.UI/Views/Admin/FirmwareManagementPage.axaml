@@ -273,6 +273,18 @@
                             </Button>
                         </Grid>
                         
+                        <!-- Status Message -->
+                        <Border Background="{DynamicResource InfoLightBrush}"
+                                CornerRadius="8"
+                                Padding="16,12"
+                                IsVisible="{Binding StatusMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                                Margin="0,0,0,12">
+                            <TextBlock Text="{Binding StatusMessage}"
+                                       FontSize="13"
+                                       Foreground="{DynamicResource TextPrimaryBrush}"
+                                       TextWrapping="Wrap"/>
+                        </Border>
+                        
                         <!-- Loading State -->
                         <Border Background="{DynamicResource InfoLightBrush}"
                                 CornerRadius="8"
@@ -294,7 +306,8 @@
                                   IsReadOnly="True"
                                   SelectionMode="Single"
                                   SelectedItem="{Binding SelectedFirmware}"
-                                  Height="400">
+                                  Height="400"
+                                  RowHeight="48">
                             <DataGrid.Columns>
                                 <DataGridTextColumn Header="Name" 
                                                     Binding="{Binding Name}" 
@@ -321,17 +334,17 @@
                                                 <Button Classes="action-btn download"
                                                         Content="&#x2B07;"
                                                         ToolTip.Tip="Download"
-                                                        Command="{Binding $parent[DataGrid].((vm:FirmwareManagementViewModel)DataContext).DownloadFirmwareCommand}"
+                                                        Command="{Binding $parent[UserControl].((vm:FirmwareManagementViewModel)DataContext).DownloadFirmwareCommand}"
                                                         CommandParameter="{Binding}"/>
                                                 <Button Classes="action-btn edit"
                                                         Content="&#x270F;"
                                                         ToolTip.Tip="Edit"
-                                                        Command="{Binding $parent[DataGrid].((vm:FirmwareManagementViewModel)DataContext).EditFirmwareCommand}"
+                                                        Command="{Binding $parent[UserControl].((vm:FirmwareManagementViewModel)DataContext).EditFirmwareCommand}"
                                                         CommandParameter="{Binding}"/>
                                                 <Button Classes="action-btn delete"
                                                         Content="&#x1F5D1;"
                                                         ToolTip.Tip="Delete"
-                                                        Command="{Binding $parent[DataGrid].((vm:FirmwareManagementViewModel)DataContext).DeleteFirmwareCommand}"
+                                                        Command="{Binding $parent[UserControl].((vm:FirmwareManagementViewModel)DataContext).DeleteFirmwareCommand}"
                                                         CommandParameter="{Binding}"/>
                                             </StackPanel>
                                         </DataTemplate>

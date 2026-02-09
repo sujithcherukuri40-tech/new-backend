@@ -9,9 +9,28 @@ namespace PavamanDroneConfigurator.UI.Views.Admin;
 
 public partial class FirmwareManagementPage : UserControl
 {
+    private bool _isInitialized = false;
+
     public FirmwareManagementPage()
     {
         InitializeComponent();
+        
+        // Subscribe to AttachedToVisualTree to lazy load data
+        AttachedToVisualTree += OnAttachedToVisualTree;
+    }
+    
+    /// <summary>
+    /// Initialize data when page becomes visible
+    /// </summary>
+    private async void OnAttachedToVisualTree(object? sender, Avalonia.VisualTreeAttachmentEventArgs e)
+    {
+        if (_isInitialized) return;
+        _isInitialized = true;
+        
+        if (DataContext is FirmwareManagementViewModel viewModel)
+        {
+            await viewModel.InitializeAsync();
+        }
     }
     
     /// <summary>

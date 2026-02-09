@@ -8,224 +8,224 @@
              x:DataType="vm:DroneDetailsPageViewModel"
              Background="{DynamicResource BackgroundBrush}">
 
-    <ScrollViewer>
-        <StackPanel Margin="{DynamicResource PagePadding}" Spacing="24" MaxWidth="1000">
-            
-            <!-- ???????????????????????????????????????????????????????????
+	<ScrollViewer>
+		<StackPanel Margin="{DynamicResource PagePadding}" Spacing="24" MaxWidth="1000">
+
+			<!-- ═══════════════════════════════════════════════════════════════
                  PAGE HEADER
-            ??????????????????????????????????????????????????????????? -->
-            <Grid ColumnDefinitions="*,Auto">
-                <StackPanel Grid.Column="0" Spacing="8">
-                    <TextBlock Text="Drone Details" Classes="page-title"/>
-                    <TextBlock Text="View your drone's identification and version information" Classes="page-subtitle"/>
-                </StackPanel>
-                
-                <Button Grid.Column="1"
+            ═══════════════════════════════════════════════════════════════ -->
+			<Grid ColumnDefinitions="*,Auto">
+				<StackPanel Grid.Column="0" Spacing="8">
+					<TextBlock Text="Drone Details" Classes="page-title"/>
+					<TextBlock Text="View your drone's identification and version information" Classes="page-subtitle"/>
+				</StackPanel>
+
+				<Button Grid.Column="1"
                         Content="&#x21BB;  Refresh"
                         Command="{Binding RefreshCommand}"
                         IsEnabled="{Binding IsConnected}"
                         Classes="btn-primary"/>
-            </Grid>
+			</Grid>
 
-            <!-- ???????????????????????????????????????????????????????????
+			<!-- ═══════════════════════════════════════════════════════════════
                  LOADING INDICATOR
-            ??????????????????????????????????????????????????????????? -->
-            <Border Classes="card" IsVisible="{Binding IsLoading}">
-                <StackPanel Spacing="16" HorizontalAlignment="Center" Margin="40">
-                    <ProgressBar IsIndeterminate="True" 
-                                 Width="200" 
+            ═══════════════════════════════════════════════════════════════ -->
+			<Border Classes="card" IsVisible="{Binding IsLoading}">
+				<StackPanel Spacing="16" HorizontalAlignment="Center" Margin="40">
+					<ProgressBar IsIndeterminate="True"
+                                 Width="200"
                                  Height="6"
                                  Classes="progress"/>
-                    <TextBlock Text="Loading drone details..." 
+					<TextBlock Text="Loading drone details..."
                                Classes="body"
                                Foreground="{DynamicResource TextSecondaryBrush}"
                                HorizontalAlignment="Center"/>
-                </StackPanel>
-            </Border>
+				</StackPanel>
+			</Border>
 
-            <!-- ???????????????????????????????????????????????????????????
+			<!-- ═══════════════════════════════════════════════════════════════
                  MAIN CONTENT - DRONE INFO
-            ??????????????????????????????????????????????????????????? -->
-            <Border Classes="card-elevated" IsVisible="{Binding !IsLoading}">
-                <Grid ColumnDefinitions="350,*">
-                    
-                    <!-- Left Side - Drone Image -->
-                    <Border Grid.Column="0" 
+            ═══════════════════════════════════════════════════════════════ -->
+			<Border Classes="card-elevated" IsVisible="{Binding !IsLoading}">
+				<Grid ColumnDefinitions="350,*">
+
+					<!-- Left Side - Drone Image -->
+					<Border Grid.Column="0"
                             Background="{DynamicResource SecondaryLightBrush}"
                             CornerRadius="{DynamicResource RadiusLG}"
                             Padding="24"
                             Margin="0,0,24,0">
-                        <Image Source="avares://PavamanDroneConfigurator.UI/Assets/Images/Drone-Image.png"
+						<Image Source="avares://PavamanDroneConfigurator.UI/Assets/Images/Drone-Image.png"
                                Stretch="Uniform"
                                MaxHeight="300"
                                MaxWidth="280"
                                HorizontalAlignment="Center"
                                VerticalAlignment="Center"/>
-                    </Border>
+					</Border>
 
-                    <!-- Right Side - Drone Information -->
-                    <StackPanel Grid.Column="1" Spacing="20">
-                        <TextBlock Text="Identification" Classes="section-title"/>
-                        
-                        <Grid ColumnDefinitions="160,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto" RowSpacing="16">
-                            
-                            <!-- Drone ID -->
-                            <TextBlock Grid.Row="0" Grid.Column="0" Text="Drone ID" Classes="caption"/>
-                            <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding DroneId}" 
+					<!-- Right Side - Drone Information -->
+					<StackPanel Grid.Column="1" Spacing="20">
+						<TextBlock Text="Identification" Classes="section-title"/>
+
+						<Grid ColumnDefinitions="160,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto" RowSpacing="16">
+
+							<!-- Drone ID -->
+							<TextBlock Grid.Row="0" Grid.Column="0" Text="Drone ID" Classes="caption"/>
+							<TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding DroneId}"
                                        Classes="value" FontFamily="{DynamicResource MonospaceFont}"/>
 
-                            <!-- FC ID -->
-                            <TextBlock Grid.Row="1" Grid.Column="0" Text="Flight Controller ID" Classes="caption"/>
-                            <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding FcId}" 
+							<!-- FC ID -->
+							<TextBlock Grid.Row="1" Grid.Column="0" Text="Flight Controller ID" Classes="caption"/>
+							<TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding FcId}"
                                        Classes="value" FontFamily="{DynamicResource MonospaceFont}"/>
 
-                            <!-- Firmware Version -->
-                            <TextBlock Grid.Row="2" Grid.Column="0" Text="Firmware Version" Classes="caption"/>
-                            <Border Grid.Row="2" Grid.Column="1" Classes="badge-info" HorizontalAlignment="Left">
-                                <TextBlock Text="{Binding FirmwareVersion}" 
+							<!-- Firmware Version -->
+							<TextBlock Grid.Row="2" Grid.Column="0" Text="Firmware Version" Classes="caption"/>
+							<Border Grid.Row="2" Grid.Column="1" Classes="badge-info" HorizontalAlignment="Left">
+								<TextBlock Text="{Binding FirmwareVersion}"
                                            FontSize="{DynamicResource FontSizeSM}"
                                            FontWeight="SemiBold"
                                            Foreground="{DynamicResource PrimaryBrush}"/>
-                            </Border>
+							</Border>
 
-                            <!-- Code Checksum -->
-                            <TextBlock Grid.Row="3" Grid.Column="0" Text="Code Checksum" Classes="caption"/>
-                            <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding CodeChecksum}" 
+							<!-- Code Checksum -->
+							<TextBlock Grid.Row="3" Grid.Column="0" Text="Code Checksum" Classes="caption"/>
+							<TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding CodeChecksum}"
                                        FontFamily="{DynamicResource MonospaceFont}"
                                        FontSize="{DynamicResource FontSizeSM}"
                                        Foreground="{DynamicResource TextMutedBrush}"
                                        TextWrapping="Wrap"/>
 
-                            <!-- Data Checksum -->
-                            <TextBlock Grid.Row="4" Grid.Column="0" Text="Data Checksum" Classes="caption"/>
-                            <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding DataChecksum}" 
+							<!-- Data Checksum -->
+							<TextBlock Grid.Row="4" Grid.Column="0" Text="Data Checksum" Classes="caption"/>
+							<TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding DataChecksum}"
                                        FontFamily="{DynamicResource MonospaceFont}"
                                        FontSize="{DynamicResource FontSizeSM}"
                                        Foreground="{DynamicResource TextMutedBrush}"
                                        TextWrapping="Wrap"/>
-                        </Grid>
-                    </StackPanel>
-                </Grid>
-            </Border>
+						</Grid>
+					</StackPanel>
+				</Grid>
+			</Border>
 
-            <!-- ???????????????????????????????????????????????????????????
+			<!-- ═══════════════════════════════════════════════════════════════
                  ADDITIONAL INFORMATION CARD
-            ??????????????????????????????????????????????????????????? -->
-            <Border Classes="card" IsVisible="{Binding IsConnected}">
-                <StackPanel Spacing="20">
-                    <TextBlock Text="System Information" Classes="section-title"/>
-                    
-                    <Grid ColumnDefinitions="*,*,*,*" RowDefinitions="Auto,Auto" ColumnSpacing="24" RowSpacing="20">
-                        
-                        <!-- Vehicle Type -->
-                        <Border Grid.Row="0" Grid.Column="0" 
+            ═══════════════════════════════════════════════════════════════ -->
+			<Border Classes="card" IsVisible="{Binding IsConnected}">
+				<StackPanel Spacing="20">
+					<TextBlock Text="System Information" Classes="section-title"/>
+
+					<Grid ColumnDefinitions="*,*,*,*" RowDefinitions="Auto,Auto" ColumnSpacing="24" RowSpacing="20">
+
+						<!-- Vehicle Type -->
+						<Border Grid.Row="0" Grid.Column="0"
                                 Background="{DynamicResource SecondaryLightBrush}"
                                 CornerRadius="{DynamicResource RadiusBase}"
                                 Padding="16">
-                            <StackPanel Spacing="4">
-                                <TextBlock Text="Vehicle Type" Classes="caption"/>
-                                <TextBlock Text="{Binding VehicleType}" Classes="value"/>
-                            </StackPanel>
-                        </Border>
+							<StackPanel Spacing="4">
+								<TextBlock Text="Vehicle Type" Classes="caption"/>
+								<TextBlock Text="{Binding VehicleType}" Classes="value"/>
+							</StackPanel>
+						</Border>
 
-                        <!-- Autopilot Type -->
-                        <Border Grid.Row="0" Grid.Column="1"
+						<!-- Autopilot Type -->
+						<Border Grid.Row="0" Grid.Column="1"
                                 Background="{DynamicResource SecondaryLightBrush}"
                                 CornerRadius="{DynamicResource RadiusBase}"
                                 Padding="16">
-                            <StackPanel Spacing="4">
-                                <TextBlock Text="Autopilot" Classes="caption"/>
-                                <TextBlock Text="{Binding AutopilotType}" Classes="value"/>
-                            </StackPanel>
-                        </Border>
+							<StackPanel Spacing="4">
+								<TextBlock Text="Autopilot" Classes="caption"/>
+								<TextBlock Text="{Binding AutopilotType}" Classes="value"/>
+							</StackPanel>
+						</Border>
 
-                        <!-- Board Type -->
-                        <Border Grid.Row="0" Grid.Column="2"
+						<!-- Board Type -->
+						<Border Grid.Row="0" Grid.Column="2"
                                 Background="{DynamicResource SecondaryLightBrush}"
                                 CornerRadius="{DynamicResource RadiusBase}"
                                 Padding="16">
-                            <StackPanel Spacing="4">
-                                <TextBlock Text="Board Type" Classes="caption"/>
-                                <TextBlock Text="{Binding BoardType}" Classes="value"/>
-                            </StackPanel>
-                        </Border>
+							<StackPanel Spacing="4">
+								<TextBlock Text="Board Type" Classes="caption"/>
+								<TextBlock Text="{Binding BoardType}" Classes="value"/>
+							</StackPanel>
+						</Border>
 
-                        <!-- Flight Mode -->
-                        <Border Grid.Row="0" Grid.Column="3"
+						<!-- Flight Mode -->
+						<Border Grid.Row="0" Grid.Column="3"
                                 Background="{DynamicResource SecondaryLightBrush}"
                                 CornerRadius="{DynamicResource RadiusBase}"
                                 Padding="16">
-                            <StackPanel Spacing="4">
-                                <TextBlock Text="Flight Mode" Classes="caption"/>
-                                <TextBlock Text="{Binding FlightMode}" Classes="value"/>
-                            </StackPanel>
-                        </Border>
+							<StackPanel Spacing="4">
+								<TextBlock Text="Flight Mode" Classes="caption"/>
+								<TextBlock Text="{Binding FlightMode}" Classes="value"/>
+							</StackPanel>
+						</Border>
 
-                        <!-- System ID -->
-                        <Border Grid.Row="1" Grid.Column="0"
+						<!-- System ID -->
+						<Border Grid.Row="1" Grid.Column="0"
                                 Background="{DynamicResource SecondaryLightBrush}"
                                 CornerRadius="{DynamicResource RadiusBase}"
                                 Padding="16">
-                            <StackPanel Spacing="4">
-                                <TextBlock Text="System ID" Classes="caption"/>
-                                <TextBlock Text="{Binding SystemId}" Classes="value" FontFamily="{DynamicResource MonospaceFont}"/>
-                            </StackPanel>
-                        </Border>
+							<StackPanel Spacing="4">
+								<TextBlock Text="System ID" Classes="caption"/>
+								<TextBlock Text="{Binding SystemId}" Classes="value" FontFamily="{DynamicResource MonospaceFont}"/>
+							</StackPanel>
+						</Border>
 
-                        <!-- Component ID -->
-                        <Border Grid.Row="1" Grid.Column="1"
+						<!-- Component ID -->
+						<Border Grid.Row="1" Grid.Column="1"
                                 Background="{DynamicResource SecondaryLightBrush}"
                                 CornerRadius="{DynamicResource RadiusBase}"
                                 Padding="16">
-                            <StackPanel Spacing="4">
-                                <TextBlock Text="Component ID" Classes="caption"/>
-                                <TextBlock Text="{Binding ComponentId}" Classes="value" FontFamily="{DynamicResource MonospaceFont}"/>
-                            </StackPanel>
-                        </Border>
+							<StackPanel Spacing="4">
+								<TextBlock Text="Component ID" Classes="caption"/>
+								<TextBlock Text="{Binding ComponentId}" Classes="value" FontFamily="{DynamicResource MonospaceFont}"/>
+							</StackPanel>
+						</Border>
 
-                        <!-- Armed Status -->
-                        <Border Grid.Row="1" Grid.Column="2"
+						<!-- Armed Status -->
+						<Border Grid.Row="1" Grid.Column="2"
                                 CornerRadius="{DynamicResource RadiusBase}"
                                 Padding="16">
-                            <Border.Background>
-                                <SolidColorBrush Color="{Binding IsArmed, Converter={StaticResource BoolToColorConverter}}"/>
-                            </Border.Background>
-                            <StackPanel Spacing="4">
-                                <TextBlock Text="Armed Status" Classes="caption"/>
-                                <TextBlock Text="{Binding IsArmed, Converter={StaticResource BoolToArmedTextConverter}}" 
+							<Border.Background>
+								<SolidColorBrush Color="{Binding IsArmed, Converter={StaticResource BoolToColorConverter}}"/>
+							</Border.Background>
+							<StackPanel Spacing="4">
+								<TextBlock Text="Armed Status" Classes="caption"/>
+								<TextBlock Text="{Binding IsArmed, Converter={StaticResource BoolToArmedTextConverter}}"
                                            Classes="value"
                                            Foreground="{Binding IsArmed, Converter={StaticResource BoolToArmedColorConverter}}"/>
-                            </StackPanel>
-                        </Border>
-                    </Grid>
-                </StackPanel>
-            </Border>
+							</StackPanel>
+						</Border>
+					</Grid>
+				</StackPanel>
+			</Border>
 
-            <!-- ???????????????????????????????????????????????????????????
+			<!-- ═══════════════════════════════════════════════════════════════
                  NOT CONNECTED WARNING
-            ??????????????????????????????????????????????????????????? -->
-            <Border Classes="alert-warning" IsVisible="{Binding !IsConnected}">
-                <StackPanel Orientation="Horizontal" Spacing="12">
-                    <TextBlock Text="&#x26A0;" FontSize="20"/>
-                    <StackPanel Spacing="4">
-                        <TextBlock Text="Not Connected" 
-                                   FontWeight="SemiBold" 
+            ═══════════════════════════════════════════════════════════════ -->
+			<Border Classes="alert-warning" IsVisible="{Binding !IsConnected}">
+				<StackPanel Orientation="Horizontal" Spacing="12">
+					<TextBlock Text="&#x26A0;" FontSize="20"/>
+					<StackPanel Spacing="4">
+						<TextBlock Text="Not Connected"
+                                   FontWeight="SemiBold"
                                    Foreground="{DynamicResource WarningDarkBrush}"/>
-                        <TextBlock Text="Connect to a drone to view its details" 
-                                   FontSize="{DynamicResource FontSizeBase}" 
+						<TextBlock Text="Connect to a drone to view its details"
+                                   FontSize="{DynamicResource FontSizeBase}"
                                    Foreground="{DynamicResource WarningDarkBrush}"/>
-                    </StackPanel>
-                </StackPanel>
-            </Border>
+					</StackPanel>
+				</StackPanel>
+			</Border>
 
-            <!-- Status Message -->
-            <TextBlock Text="{Binding StatusMessage}" 
+			<!-- Status Message -->
+			<TextBlock Text="{Binding StatusMessage}"
                        Classes="caption"
                        HorizontalAlignment="Center"
                        Margin="0,8,0,0"/>
-            
-            <!-- Bottom Spacing -->
-            <Panel Height="24"/>
-        </StackPanel>
-    </ScrollViewer>
+
+			<!-- Bottom Spacing -->
+			<Panel Height="24"/>
+		</StackPanel>
+	</ScrollViewer>
 </UserControl>

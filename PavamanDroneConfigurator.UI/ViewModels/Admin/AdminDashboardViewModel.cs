@@ -220,6 +220,8 @@ public sealed partial class AdminDashboardViewModel : ViewModelBase
 
         try
         {
+            _logger.LogInformation("Attempting to delete user: {Email} (ID: {Id})", user.Email, user.Id);
+            
             var success = await _adminService.DeleteUserAsync(user.Id);
 
             if (success)
@@ -232,17 +234,19 @@ public sealed partial class AdminDashboardViewModel : ViewModelBase
                 });
 
                 StatusMessage = $"\u2714 {user.FullName} has been deleted";
-                _logger.LogInformation("Deleted user {Email}", user.Email);
+                _logger.LogInformation("Successfully deleted user {Email}", user.Email);
             }
             else
             {
-                StatusMessage = "\u274C Failed to delete user";
+                var errorMsg = "\u274C Failed to delete user - check if you have admin permissions";
+                StatusMessage = errorMsg;
+                _logger.LogWarning("Delete user failed for {Email} - service returned false", user.Email);
             }
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to delete user {Email}", user.Email);
-            StatusMessage = $"\u274C Failed to delete {user.FullName}";
+            _logger.LogError(ex, "Exception while deleting user {Email}: {Message}", user.Email, ex.Message);
+            StatusMessage = $"\u274C Error: {ex.Message}";
         }
         finally
         {

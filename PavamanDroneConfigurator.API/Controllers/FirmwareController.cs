@@ -175,6 +175,29 @@ public class FirmwareController : ControllerBase
     }
     
     /// <summary>
+    /// GET /api/firmware/download/{key}
+    /// Download firmware file (generates presigned URL for direct S3 download)
+    /// </summary>
+    [HttpGet("download/{**key}")]
+    public ActionResult DownloadFirmware(string key)
+    {
+        try
+        {
+            _logger.LogInformation("Generating download URL for firmware: {Key}", key);
+            
+            // Generate presigned URL valid for 1 hour
+            var downloadUrl = _s3Service.GeneratePresignedUrl(key, TimeSpan.FromHours(1));
+            
+            return Ok(new { downloadUrl, expiresIn = 3600 });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to generate download URL: {Key}", key);
+            return StatusCode(500, new { error = $"Download failed: {ex.Message}" });
+        }
+    }
+    
+    /// <summary>
     /// GET /api/firmware/health
     /// Check S3 connectivity (health check)
     /// </summary>
