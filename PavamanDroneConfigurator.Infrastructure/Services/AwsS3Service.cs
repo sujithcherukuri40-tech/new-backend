@@ -16,22 +16,53 @@ namespace PavamanDroneConfigurator.Infrastructure.Services;
 /// </summary>
 public class AwsS3Service : IDisposable
 {
-    private readonly IAmazonS3 _s3Client;
+    private IAmazonS3? _s3Client;
     private readonly ILogger<AwsS3Service> _logger;
     private const string BucketName = "drone-config-param-logs";
     private const string FirmwarePrefix = "firmwares/";
     private const string ParamsLogsPrefix = "params-logs/";
+    private bool _initializationFailed = false;
+    private string? _initializationError = null;
     
     public AwsS3Service(ILogger<AwsS3Service> logger)
     {
         _logger = logger;
+        _logger.LogInformation("AWS S3 Service created (lazy initialization)");
+    }
+    
+    private IAmazonS3 GetS3Client()
+    {
+        if (_initializationFailed)
+        {
+            throw new InvalidOperationException($"S3 client initialization failed: {_initializationError}");
+        }
         
-        // PRODUCTION: Initialize S3 client with EC2 IAM Role (auto-discovers credentials)
-        // No explicit AWS_ACCESS_KEY_ID or AWS_SECRET_ACCESS_KEY needed
-        // Credentials are automatically provided by EC2 instance metadata service
-        _s3Client = new AmazonS3Client(Amazon.RegionEndpoint.APSouth1);
+        if (_s3Client == null)
+        {
+            try
+            {
+                _logger.LogInformation("Initializing S3 client for region ap-south-1...");
+                
+                var config = new AmazonS3Config
+                {
+                    RegionEndpoint = Amazon.RegionEndpoint.APSouth1,
+                    Timeout = TimeSpan.FromSeconds(30),
+                    MaxErrorRetry = 3
+                };
+                
+                _s3Client = new AmazonS3Client(config);
+                _logger.LogInformation("AWS S3 Service initialized successfully for bucket: {Bucket}", BucketName);
+            }
+            catch (Exception ex)
+            {
+                _initializationFailed = true;
+                _initializationError = ex.Message;
+                _logger.LogError(ex, "Failed to initialize S3 client");
+                throw new InvalidOperationException($"Failed to initialize S3 client: {ex.Message}", ex);
+            }
+        }
         
-        _logger.LogInformation("AWS S3 Service initialized with EC2 IAM Role for bucket: {Bucket}", BucketName);
+        return _s3Client;
     }
     
     /// <summary>
@@ -42,6 +73,7 @@ public class AwsS3Service : IDisposable
     {
         try
         {
+            var client = GetS3Client();
             _logger.LogInformation("Listing firmware files from S3 bucket: {Bucket}/{Prefix}", BucketName, FirmwarePrefix);
             
             var request = new ListObjectsV2Request
@@ -50,7 +82,7 @@ public class AwsS3Service : IDisposable
                 Prefix = FirmwarePrefix
             };
             
-            var response = await _s3Client.ListObjectsV2Async(request, cancellationToken);
+            var response = await client.ListObjectsV2Async(request, cancellationToken);
             
             var firmwares = new List<S3FirmwareInfo>();
             
@@ -65,7 +97,7 @@ public class AwsS3Service : IDisposable
                         Key = obj.Key
                     };
                     
-                    var metadataResponse = await _s3Client.GetObjectMetadataAsync(metadataRequest, cancellationToken);
+                    var metadataResponse = await client.GetObjectMetadataAsync(metadataRequest, cancellationToken);
                     
                     var firmwareInfo = new S3FirmwareInfo
                     {
@@ -78,19 +110,13 @@ public class AwsS3Service : IDisposable
                     
                     // Extract custom metadata
                     if (metadataResponse.Metadata["x-amz-meta-firmware-name"] != null)
-                    {
                         firmwareInfo.FirmwareName = metadataResponse.Metadata["x-amz-meta-firmware-name"];
-                    }
                     
                     if (metadataResponse.Metadata["x-amz-meta-firmware-version"] != null)
-                    {
                         firmwareInfo.FirmwareVersion = metadataResponse.Metadata["x-amz-meta-firmware-version"];
-                    }
                     
                     if (metadataResponse.Metadata["x-amz-meta-firmware-description"] != null)
-                    {
                         firmwareInfo.FirmwareDescription = metadataResponse.Metadata["x-amz-meta-firmware-description"];
-                    }
                     
                     firmwares.Add(firmwareInfo);
                 }
@@ -110,11 +136,7 @@ public class AwsS3Service : IDisposable
                 }
             }
             
-            firmwares = firmwares
-                .OrderBy(f => f.VehicleType)
-                .ThenBy(f => f.FileName)
-                .ToList();
-            
+            firmwares = firmwares.OrderBy(f => f.VehicleType).ThenBy(f => f.FileName).ToList();
             _logger.LogInformation("Found {Count} firmware files in S3", firmwares.Count);
             
             foreach (var fw in firmwares)
@@ -135,12 +157,13 @@ public class AwsS3Service : IDisposable
     }
     
     /// <summary>
-    /// Generate a presigned URL for downloading a firmware file (1 hour expiry)
+    /// Generate a presigned URL for downloading a firmware file
     /// </summary>
     public string GeneratePresignedUrl(string s3Key, TimeSpan expiration)
     {
         try
         {
+            var client = GetS3Client();
             var request = new GetPreSignedUrlRequest
             {
                 BucketName = BucketName,
@@ -148,10 +171,7 @@ public class AwsS3Service : IDisposable
                 Expires = DateTime.UtcNow.Add(expiration)
             };
             
-            var url = _s3Client.GetPreSignedURL(request);
-            _logger.LogDebug("Generated presigned URL for {Key}, expires in {Expiration}", s3Key, expiration);
-            
-            return url;
+            return client.GetPreSignedURL(request);
         }
         catch (Exception ex)
         {
@@ -167,24 +187,19 @@ public class AwsS3Service : IDisposable
     {
         try
         {
+            var client = GetS3Client();
             _logger.LogInformation("Downloading firmware from S3: {Key}", s3Key);
             
             var fileName = Path.GetFileName(s3Key);
             var tempDir = Path.Combine(Path.GetTempPath(), "PavamanDroneConfigurator", "Firmwares");
             Directory.CreateDirectory(tempDir);
-            
             var localPath = Path.Combine(tempDir, fileName);
             
-            var request = new GetObjectRequest
-            {
-                BucketName = BucketName,
-                Key = s3Key
-            };
-            
-            using var response = await _s3Client.GetObjectAsync(request, cancellationToken);
+            var request = new GetObjectRequest { BucketName = BucketName, Key = s3Key };
+            using var response = await client.GetObjectAsync(request, cancellationToken);
             await response.WriteResponseStreamToFileAsync(localPath, false, cancellationToken);
             
-            _logger.LogInformation("Firmware downloaded to: {Path} ({Size} bytes)", localPath, new FileInfo(localPath).Length);
+            _logger.LogInformation("Firmware downloaded to: {Path}", localPath);
             return localPath;
         }
         catch (Exception ex)
@@ -195,7 +210,7 @@ public class AwsS3Service : IDisposable
     }
     
     /// <summary>
-    /// ADMIN: Upload firmware file to S3 (for admin firmware upload feature)
+    /// Upload firmware file to S3
     /// NOW SUPPORTS METADATA: name, version, description
     /// </summary>
     public async Task<S3FirmwareInfo> UploadFirmwareAsync(
@@ -208,16 +223,12 @@ public class AwsS3Service : IDisposable
     {
         try
         {
+            var client = GetS3Client();
             if (!File.Exists(localFilePath))
-            {
                 throw new FileNotFoundException($"Firmware file not found: {localFilePath}");
-            }
             
             var fileName = customFileName ?? Path.GetFileName(localFilePath);
             var s3Key = $"{FirmwarePrefix}{fileName}";
-            
-            _logger.LogInformation("Uploading firmware to S3: {Key}", s3Key);
-            
             var fileInfo = new FileInfo(localFilePath);
             
             var request = new PutObjectRequest
@@ -226,28 +237,19 @@ public class AwsS3Service : IDisposable
                 Key = s3Key,
                 FilePath = localFilePath,
                 ContentType = "application/octet-stream",
-                ServerSideEncryptionMethod = ServerSideEncryptionMethod.AES256 // Enable encryption
+                ServerSideEncryptionMethod = ServerSideEncryptionMethod.AES256
             };
             
             // Add custom metadata if provided
             if (!string.IsNullOrWhiteSpace(firmwareName))
-            {
                 request.Metadata["x-amz-meta-firmware-name"] = firmwareName;
-            }
-            
             if (!string.IsNullOrWhiteSpace(firmwareVersion))
-            {
                 request.Metadata["x-amz-meta-firmware-version"] = firmwareVersion;
-            }
-            
             if (!string.IsNullOrWhiteSpace(firmwareDescription))
-            {
                 request.Metadata["x-amz-meta-firmware-description"] = firmwareDescription;
-            }
             
-            var response = await _s3Client.PutObjectAsync(request, cancellationToken);
-            
-            _logger.LogInformation("Firmware uploaded successfully: {Key} ({Size} bytes) with metadata", s3Key, fileInfo.Length);
+            await client.PutObjectAsync(request, cancellationToken);
+            _logger.LogInformation("Firmware uploaded: {Key}", s3Key);
             
             return new S3FirmwareInfo
             {
@@ -269,28 +271,20 @@ public class AwsS3Service : IDisposable
     }
     
     /// <summary>
-    /// ADMIN: Delete firmware file from S3
+    /// Delete firmware file from S3
     /// </summary>
     public async Task<bool> DeleteFirmwareAsync(string s3Key, CancellationToken cancellationToken = default)
     {
         try
         {
-            _logger.LogInformation("Deleting firmware from S3: {Key}", s3Key);
-            
-            var request = new DeleteObjectRequest
-            {
-                BucketName = BucketName,
-                Key = s3Key
-            };
-            
-            await _s3Client.DeleteObjectAsync(request, cancellationToken);
-            
-            _logger.LogInformation("Firmware deleted successfully: {Key}", s3Key);
+            var client = GetS3Client();
+            await client.DeleteObjectAsync(BucketName, s3Key, cancellationToken);
+            _logger.LogInformation("Firmware deleted: {Key}", s3Key);
             return true;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to delete firmware from S3: {Key}", s3Key);
+            _logger.LogError(ex, "Failed to delete firmware: {Key}", s3Key);
             return false;
         }
     }
@@ -299,20 +293,16 @@ public class AwsS3Service : IDisposable
     /// Upload parameter change log to S3
     /// </summary>
     public async Task UploadParameterChangeLogAsync(
-        string userId, 
-        string fcId, 
-        string csvContent, 
+        string userId, string fcId, string csvContent, 
         CancellationToken cancellationToken = default)
     {
         try
         {
+            var client = GetS3Client();
             var timestamp = DateTime.UtcNow.ToString("yyyyMMdd_HHmmss");
             var s3Key = $"{ParamsLogsPrefix}user_{userId}/drone_{fcId}/params_{timestamp}.csv";
             
-            _logger.LogInformation("Uploading parameter change log to S3: {Key}", s3Key);
-            
             using var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(csvContent));
-            
             var request = new PutObjectRequest
             {
                 BucketName = BucketName,
@@ -322,47 +312,29 @@ public class AwsS3Service : IDisposable
                 ServerSideEncryptionMethod = ServerSideEncryptionMethod.AES256
             };
             
-            await _s3Client.PutObjectAsync(request, cancellationToken);
-            
-            _logger.LogInformation("Parameter change log uploaded successfully");
+            await client.PutObjectAsync(request, cancellationToken);
+            _logger.LogInformation("Parameter log uploaded: {Key}", s3Key);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to upload parameter change log to S3");
+            _logger.LogError(ex, "Failed to upload parameter log");
             throw;
         }
     }
     
     /// <summary>
-    /// Append parameter changes to existing log or create new one
+    /// Append parameter changes
     /// </summary>
     public async Task AppendParameterChangesAsync(
-        string userId,
-        string fcId,
-        List<ParameterChange> changes,
+        string userId, string fcId, List<ParameterChange> changes,
         CancellationToken cancellationToken = default)
     {
-        try
-        {
-            var timestamp = DateTime.UtcNow.ToString("yyyyMMdd_HHmmss");
-            var s3Key = $"{ParamsLogsPrefix}user_{userId}/drone_{fcId}/params_{timestamp}.csv";
-            
-            // Build CSV content
-            var csv = new System.Text.StringBuilder();
-            csv.AppendLine("param_name,old_value,new_value,changed_at");
-            
-            foreach (var change in changes)
-            {
-                csv.AppendLine($"{change.ParamName},{change.OldValue},{change.NewValue},{change.ChangedAt:yyyy-MM-dd HH:mm:ss}");
-            }
-            
-            await UploadParameterChangeLogAsync(userId, fcId, csv.ToString(), cancellationToken);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to append parameter changes");
-            throw;
-        }
+        var csv = new System.Text.StringBuilder();
+        csv.AppendLine("param_name,old_value,new_value,changed_at");
+        foreach (var change in changes)
+            csv.AppendLine($"{change.ParamName},{change.OldValue},{change.NewValue},{change.ChangedAt:yyyy-MM-dd HH:mm:ss}");
+        
+        await UploadParameterChangeLogAsync(userId, fcId, csv.ToString(), cancellationToken);
     }
     
     /// <summary>
@@ -372,13 +344,9 @@ public class AwsS3Service : IDisposable
     {
         try
         {
-            var request = new ListObjectsV2Request
-            {
-                BucketName = BucketName,
-                MaxKeys = 1
-            };
-            
-            await _s3Client.ListObjectsV2Async(request, cancellationToken);
+            var client = GetS3Client();
+            var request = new ListObjectsV2Request { BucketName = BucketName, MaxKeys = 1 };
+            await client.ListObjectsV2Async(request, cancellationToken);
             _logger.LogInformation("S3 bucket is accessible: {Bucket}", BucketName);
             return true;
         }
@@ -392,20 +360,12 @@ public class AwsS3Service : IDisposable
     private static string InferVehicleTypeFromFileName(string fileName)
     {
         var name = fileName.ToLowerInvariant();
-        
-        if (name.Contains("arducopter") || name.Contains("copter"))
-            return "Copter";
-        if (name.Contains("plane"))
-            return "Plane";
-        if (name.Contains("rover"))
-            return "Rover";
-        if (name.Contains("sub"))
-            return "Sub";
-        if (name.Contains("heli"))
-            return "Heli";
-        if (name.Contains("tracker"))
-            return "Tracker";
-        
+        if (name.Contains("arducopter") || name.Contains("copter")) return "Copter";
+        if (name.Contains("plane")) return "Plane";
+        if (name.Contains("rover")) return "Rover";
+        if (name.Contains("sub")) return "Sub";
+        if (name.Contains("heli")) return "Heli";
+        if (name.Contains("tracker")) return "Tracker";
         return "Unknown";
     }
     
@@ -425,15 +385,12 @@ public class S3FirmwareInfo
     public long Size { get; set; }
     public DateTime LastModified { get; set; }
     public string VehicleType { get; set; } = string.Empty;
-    
-    // Custom metadata from S3 object metadata
     public string? FirmwareName { get; set; }
     public string? FirmwareVersion { get; set; }
     public string? FirmwareDescription { get; set; }
     
     public string DisplayName => !string.IsNullOrWhiteSpace(FirmwareName) 
-        ? FirmwareName 
-        : Path.GetFileNameWithoutExtension(FileName);
+        ? FirmwareName : Path.GetFileNameWithoutExtension(FileName);
     
     public string SizeDisplay => FormatBytes(Size);
     
@@ -442,11 +399,7 @@ public class S3FirmwareInfo
         string[] sizes = { "B", "KB", "MB", "GB" };
         double len = bytes;
         int order = 0;
-        while (len >= 1024 && order < sizes.Length - 1)
-        {
-            order++;
-            len /= 1024;
-        }
+        while (len >= 1024 && order < sizes.Length - 1) { order++; len /= 1024; }
         return $"{len:0.##} {sizes[order]}";
     }
 }
