@@ -297,9 +297,37 @@ public partial class FirmwarePageViewModel : ViewModelBase
                         
                         if (matchingFirmware != null)
                         {
-                            vehicleType.VersionText = $"S3: {matchingFirmware.DisplayName} ({matchingFirmware.SizeDisplay})";
+                            // Build rich display text with metadata
+                            var displayText = "S3: ";
+                            
+                            if (!string.IsNullOrWhiteSpace(matchingFirmware.FirmwareName))
+                            {
+                                displayText += matchingFirmware.FirmwareName;
+                                
+                                if (!string.IsNullOrWhiteSpace(matchingFirmware.FirmwareVersion))
+                                {
+                                    displayText += $" v{matchingFirmware.FirmwareVersion}";
+                                }
+                            }
+                            else
+                            {
+                                displayText += matchingFirmware.DisplayName;
+                            }
+                            
+                            displayText += $" ({matchingFirmware.SizeDisplay})";
+                            
+                            vehicleType.VersionText = displayText;
                             vehicleType.Availability = FirmwareAvailability.Available;
-                            AddLog($"  {vehicleType.Name}: {matchingFirmware.FileName}");
+                            
+                            var logInfo = !string.IsNullOrWhiteSpace(matchingFirmware.FirmwareName)
+                                ? $"{matchingFirmware.FirmwareName} v{matchingFirmware.FirmwareVersion}"
+                                : matchingFirmware.FileName;
+                            AddLog($"  {vehicleType.Name}: {logInfo}");
+                            
+                            if (!string.IsNullOrWhiteSpace(matchingFirmware.FirmwareDescription))
+                            {
+                                AddLog($"    Description: {matchingFirmware.FirmwareDescription}");
+                            }
                         }
                         else
                         {

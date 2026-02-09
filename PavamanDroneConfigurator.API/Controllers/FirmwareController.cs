@@ -42,7 +42,10 @@ public class FirmwareController : ControllerBase
                 Size = f.Size,
                 SizeDisplay = f.SizeDisplay,
                 LastModified = f.LastModified,
-                DownloadUrl = _s3Service.GeneratePresignedUrl(f.Key, TimeSpan.FromHours(1))
+                DownloadUrl = _s3Service.GeneratePresignedUrl(f.Key, TimeSpan.FromHours(1)),
+                FirmwareName = f.FirmwareName,
+                FirmwareVersion = f.FirmwareVersion,
+                FirmwareDescription = f.FirmwareDescription
             }).ToList();
             
             _logger.LogInformation("Returning {Count} firmware files", metadata.Count);
@@ -63,6 +66,9 @@ public class FirmwareController : ControllerBase
     public async Task<ActionResult<FirmwareMetadata>> UploadFirmware(
         [FromForm] IFormFile file, 
         [FromForm] string? customFileName,
+        [FromForm] string? firmwareName,
+        [FromForm] string? firmwareVersion,
+        [FromForm] string? firmwareDescription,
         CancellationToken cancellationToken)
     {
         try
@@ -97,9 +103,15 @@ public class FirmwareController : ControllerBase
                     await file.CopyToAsync(stream, cancellationToken);
                 }
                 
-                // Upload to S3
+                // Upload to S3 with metadata
                 var fileName = string.IsNullOrWhiteSpace(customFileName) ? file.FileName : customFileName;
-                var s3Info = await _s3Service.UploadFirmwareAsync(tempPath, fileName, cancellationToken);
+                var s3Info = await _s3Service.UploadFirmwareAsync(
+                    tempPath, 
+                    fileName,
+                    firmwareName,
+                    firmwareVersion,
+                    firmwareDescription,
+                    cancellationToken);
                 
                 // Generate metadata response
                 var metadata = new FirmwareMetadata
@@ -111,7 +123,10 @@ public class FirmwareController : ControllerBase
                     Size = s3Info.Size,
                     SizeDisplay = s3Info.SizeDisplay,
                     LastModified = s3Info.LastModified,
-                    DownloadUrl = _s3Service.GeneratePresignedUrl(s3Info.Key, TimeSpan.FromHours(1))
+                    DownloadUrl = _s3Service.GeneratePresignedUrl(s3Info.Key, TimeSpan.FromHours(1)),
+                    FirmwareName = s3Info.FirmwareName,
+                    FirmwareVersion = s3Info.FirmwareVersion,
+                    FirmwareDescription = s3Info.FirmwareDescription
                 };
                 
                 _logger.LogInformation("Firmware uploaded successfully: {Key}", s3Info.Key);
@@ -200,4 +215,9 @@ public class FirmwareMetadata
     public string SizeDisplay { get; set; } = string.Empty;
     public DateTime LastModified { get; set; }
     public string DownloadUrl { get; set; } = string.Empty;
+    
+    // Custom metadata
+    public string? FirmwareName { get; set; }
+    public string? FirmwareVersion { get; set; }
+    public string? FirmwareDescription { get; set; }
 }

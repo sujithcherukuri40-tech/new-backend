@@ -36,6 +36,7 @@ public class AwsS3Service : IDisposable
     
     /// <summary>
     /// List all firmware files (.apj) from S3 - FOR USERS (In-App source)
+    /// NOW RETRIEVES METADATA: name, version, description
     /// </summary>
     public async Task<List<S3FirmwareInfo>> ListFirmwareFilesAsync(CancellationToken cancellationToken = default)
     {
@@ -51,16 +52,65 @@ public class AwsS3Service : IDisposable
             
             var response = await _s3Client.ListObjectsV2Async(request, cancellationToken);
             
-            var firmwares = response.S3Objects
-                .Where(obj => obj.Key.EndsWith(".apj", StringComparison.OrdinalIgnoreCase))
-                .Select(obj => new S3FirmwareInfo
+            var firmwares = new List<S3FirmwareInfo>();
+            
+            foreach (var obj in response.S3Objects.Where(o => o.Key.EndsWith(".apj", StringComparison.OrdinalIgnoreCase)))
+            {
+                // Get object metadata to retrieve custom metadata
+                try
                 {
-                    Key = obj.Key,
-                    FileName = Path.GetFileName(obj.Key),
-                    Size = obj.Size,
-                    LastModified = obj.LastModified,
-                    VehicleType = InferVehicleTypeFromFileName(obj.Key)
-                })
+                    var metadataRequest = new GetObjectMetadataRequest
+                    {
+                        BucketName = BucketName,
+                        Key = obj.Key
+                    };
+                    
+                    var metadataResponse = await _s3Client.GetObjectMetadataAsync(metadataRequest, cancellationToken);
+                    
+                    var firmwareInfo = new S3FirmwareInfo
+                    {
+                        Key = obj.Key,
+                        FileName = Path.GetFileName(obj.Key),
+                        Size = obj.Size,
+                        LastModified = obj.LastModified,
+                        VehicleType = InferVehicleTypeFromFileName(obj.Key)
+                    };
+                    
+                    // Extract custom metadata
+                    if (metadataResponse.Metadata["x-amz-meta-firmware-name"] != null)
+                    {
+                        firmwareInfo.FirmwareName = metadataResponse.Metadata["x-amz-meta-firmware-name"];
+                    }
+                    
+                    if (metadataResponse.Metadata["x-amz-meta-firmware-version"] != null)
+                    {
+                        firmwareInfo.FirmwareVersion = metadataResponse.Metadata["x-amz-meta-firmware-version"];
+                    }
+                    
+                    if (metadataResponse.Metadata["x-amz-meta-firmware-description"] != null)
+                    {
+                        firmwareInfo.FirmwareDescription = metadataResponse.Metadata["x-amz-meta-firmware-description"];
+                    }
+                    
+                    firmwares.Add(firmwareInfo);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to get metadata for {Key}, using default info", obj.Key);
+                    
+                    // Fallback: add without metadata
+                    firmwares.Add(new S3FirmwareInfo
+                    {
+                        Key = obj.Key,
+                        FileName = Path.GetFileName(obj.Key),
+                        Size = obj.Size,
+                        LastModified = obj.LastModified,
+                        VehicleType = InferVehicleTypeFromFileName(obj.Key)
+                    });
+                }
+            }
+            
+            firmwares = firmwares
                 .OrderBy(f => f.VehicleType)
                 .ThenBy(f => f.FileName)
                 .ToList();
@@ -69,7 +119,10 @@ public class AwsS3Service : IDisposable
             
             foreach (var fw in firmwares)
             {
-                _logger.LogDebug("Firmware: {File} ({Type}) - {Size}", fw.FileName, fw.VehicleType, fw.SizeDisplay);
+                var displayInfo = !string.IsNullOrWhiteSpace(fw.FirmwareName) 
+                    ? $"{fw.FirmwareName} v{fw.FirmwareVersion}" 
+                    : fw.FileName;
+                _logger.LogDebug("Firmware: {DisplayInfo} ({Type}) - {Size}", displayInfo, fw.VehicleType, fw.SizeDisplay);
             }
             
             return firmwares;
@@ -143,10 +196,14 @@ public class AwsS3Service : IDisposable
     
     /// <summary>
     /// ADMIN: Upload firmware file to S3 (for admin firmware upload feature)
+    /// NOW SUPPORTS METADATA: name, version, description
     /// </summary>
     public async Task<S3FirmwareInfo> UploadFirmwareAsync(
         string localFilePath, 
         string? customFileName = null,
+        string? firmwareName = null,
+        string? firmwareVersion = null,
+        string? firmwareDescription = null,
         CancellationToken cancellationToken = default)
     {
         try
@@ -172,9 +229,25 @@ public class AwsS3Service : IDisposable
                 ServerSideEncryptionMethod = ServerSideEncryptionMethod.AES256 // Enable encryption
             };
             
+            // Add custom metadata if provided
+            if (!string.IsNullOrWhiteSpace(firmwareName))
+            {
+                request.Metadata["x-amz-meta-firmware-name"] = firmwareName;
+            }
+            
+            if (!string.IsNullOrWhiteSpace(firmwareVersion))
+            {
+                request.Metadata["x-amz-meta-firmware-version"] = firmwareVersion;
+            }
+            
+            if (!string.IsNullOrWhiteSpace(firmwareDescription))
+            {
+                request.Metadata["x-amz-meta-firmware-description"] = firmwareDescription;
+            }
+            
             var response = await _s3Client.PutObjectAsync(request, cancellationToken);
             
-            _logger.LogInformation("Firmware uploaded successfully: {Key} ({Size} bytes)", s3Key, fileInfo.Length);
+            _logger.LogInformation("Firmware uploaded successfully: {Key} ({Size} bytes) with metadata", s3Key, fileInfo.Length);
             
             return new S3FirmwareInfo
             {
@@ -182,7 +255,10 @@ public class AwsS3Service : IDisposable
                 FileName = fileName,
                 Size = fileInfo.Length,
                 LastModified = DateTime.UtcNow,
-                VehicleType = InferVehicleTypeFromFileName(fileName)
+                VehicleType = InferVehicleTypeFromFileName(fileName),
+                FirmwareName = firmwareName,
+                FirmwareVersion = firmwareVersion,
+                FirmwareDescription = firmwareDescription
             };
         }
         catch (Exception ex)
@@ -350,7 +426,15 @@ public class S3FirmwareInfo
     public DateTime LastModified { get; set; }
     public string VehicleType { get; set; } = string.Empty;
     
-    public string DisplayName => Path.GetFileNameWithoutExtension(FileName);
+    // Custom metadata from S3 object metadata
+    public string? FirmwareName { get; set; }
+    public string? FirmwareVersion { get; set; }
+    public string? FirmwareDescription { get; set; }
+    
+    public string DisplayName => !string.IsNullOrWhiteSpace(FirmwareName) 
+        ? FirmwareName 
+        : Path.GetFileNameWithoutExtension(FileName);
+    
     public string SizeDisplay => FormatBytes(Size);
     
     private static string FormatBytes(long bytes)

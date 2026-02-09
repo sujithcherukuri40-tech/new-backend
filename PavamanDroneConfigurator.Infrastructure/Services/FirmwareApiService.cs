@@ -117,4 +117,9 @@ public class S3FirmwareMetadata
     public string SizeDisplay { get; set; } = string.Empty;
     public DateTime LastModified { get; set; }
     public string DownloadUrl { get; set; } = string.Empty;
+    
+    // Custom metadata
+    public string? FirmwareName { get; set; }
+    public string? FirmwareVersion { get; set; }
+    public string? FirmwareDescription { get; set; }
 }
