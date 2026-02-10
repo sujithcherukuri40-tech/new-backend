@@ -158,6 +158,7 @@ public partial class MainWindow : Window
             AdminDashboardViewModel => new adminViews.AdminDashboardView { DataContext = vm },
             AdminPanelViewModel => new adminViews.AdminPanelView { DataContext = vm },
             FirmwareManagementViewModel => new adminViews.FirmwareManagementPage { DataContext = vm },
+            ParamLogsViewModel => new adminViews.ParamLogsPage { DataContext = vm },
             _ => null
         };
     }

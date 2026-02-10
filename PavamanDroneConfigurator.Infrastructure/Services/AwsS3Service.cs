@@ -338,6 +338,133 @@ public class AwsS3Service : IDisposable
     }
     
     /// <summary>
+    /// List all parameter log files from S3
+    /// </summary>
+    public async Task<List<ParamLogEntry>> ListParameterLogsAsync(CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var client = GetS3Client();
+            _logger.LogInformation("Listing parameter logs from S3 bucket: {Bucket}/{Prefix}", BucketName, ParamsLogsPrefix);
+            
+            var logs = new List<ParamLogEntry>();
+            var request = new ListObjectsV2Request
+            {
+                BucketName = BucketName,
+                Prefix = ParamsLogsPrefix
+            };
+            
+            ListObjectsV2Response response;
+            do
+            {
+                response = await client.ListObjectsV2Async(request, cancellationToken);
+                
+                foreach (var obj in response.S3Objects.Where(o => o.Key.EndsWith(".csv", StringComparison.OrdinalIgnoreCase)))
+                {
+                    // Parse key: params-logs/user_{userId}/drone_{droneId}/params_{timestamp}.csv
+                    var entry = ParseParamLogKey(obj.Key, obj.Size ?? 0, obj.LastModified ?? DateTime.UtcNow);
+                    if (entry != null)
+                    {
+                        logs.Add(entry);
+                    }
+                }
+                
+                request.ContinuationToken = response.NextContinuationToken;
+            }
+            while (response.IsTruncated == true);
+            
+            _logger.LogInformation("Found {Count} parameter log files in S3", logs.Count);
+            return logs;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to list parameter logs from S3");
+            throw;
+        }
+    }
+    
+    /// <summary>
+    /// Get contents of a parameter log file
+    /// </summary>
+    public async Task<string> GetParameterLogContentAsync(string s3Key, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var client = GetS3Client();
+            _logger.LogInformation("Reading parameter log content: {Key}", s3Key);
+            
+            var request = new GetObjectRequest
+            {
+                BucketName = BucketName,
+                Key = s3Key
+            };
+            
+            using var response = await client.GetObjectAsync(request, cancellationToken);
+            using var reader = new StreamReader(response.ResponseStream);
+            
+            var content = await reader.ReadToEndAsync(cancellationToken);
+            
+            _logger.LogInformation("Read {Length} bytes from parameter log", content.Length);
+            return content;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to read parameter log: {Key}", s3Key);
+            throw;
+        }
+    }
+    
+    private ParamLogEntry? ParseParamLogKey(string key, long size, DateTime lastModified)
+    {
+        try
+        {
+            // Expected format: params-logs/user_{userId}/drone_{droneId}/params_{timestamp}.csv
+            var parts = key.Split('/');
+            if (parts.Length < 4) return null;
+            
+            var userId = parts[1].Replace("user_", "");
+            var droneId = parts[2].Replace("drone_", "");
+            var fileName = parts[3];
+            
+            // Extract timestamp from filename: params_20250115_103045.csv
+            var timestampStr = fileName.Replace("params_", "").Replace(".csv", "");
+            DateTime timestamp = lastModified;
+            
+            if (DateTime.TryParseExact(timestampStr, "yyyyMMdd_HHmmss", 
+                System.Globalization.CultureInfo.InvariantCulture,
+                System.Globalization.DateTimeStyles.AssumeUniversal, out var parsed))
+            {
+                timestamp = parsed;
+            }
+            
+            return new ParamLogEntry
+            {
+                Key = key,
+                FileName = fileName,
+                UserId = userId,
+                DroneId = droneId,
+                Timestamp = timestamp,
+                Size = size,
+                SizeDisplay = FormatBytes(size)
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to parse param log key: {Key}", key);
+            return null;
+        }
+    }
+    
+    private static string FormatBytes(long bytes)
+    {
+        string[] sizes = { "B", "KB", "MB", "GB" };
+        double len = bytes;
+        int order = 0;
+        while (len >= 1024 && order < sizes.Length - 1) { order++; len /= 1024; }
+        return $"{len:0.##} {sizes[order]}";
+    }
+    
+    /// <summary>
     /// Check if S3 bucket is accessible (health check)
     /// </summary>
     public async Task<bool> IsS3AccessibleAsync(CancellationToken cancellationToken = default)
@@ -413,4 +540,18 @@ public class ParameterChange
     public float OldValue { get; set; }
     public float NewValue { get; set; }
     public DateTime ChangedAt { get; set; }
+}
+
+/// <summary>
+/// Parameter log entry from S3
+/// </summary>
+public class ParamLogEntry
+{
+    public string Key { get; set; } = string.Empty;
+    public string FileName { get; set; } = string.Empty;
+    public string UserId { get; set; } = string.Empty;
+    public string DroneId { get; set; } = string.Empty;
+    public DateTime Timestamp { get; set; }
+    public long Size { get; set; }
+    public string SizeDisplay { get; set; } = string.Empty;
 }

@@ -202,6 +202,9 @@ public partial class App : Application
         services.AddTransient<CameraConfigPageViewModel>();
         services.AddTransient<AdvancedSettingsPageViewModel>();
         services.AddTransient<FirmwarePageViewModel>();
+        
+        // Admin ViewModels
+        services.AddTransient<ViewModels.Admin.ParamLogsViewModel>();
 
         Services = services.BuildServiceProvider();
     }
