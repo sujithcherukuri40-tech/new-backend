@@ -174,6 +174,7 @@ public class FirmwareApiService
     
     /// <summary>
     /// Delete firmware from cloud storage via API
+    /// Note: Don't URL-encode the key - the catch-all route {**key} handles slashes
     /// </summary>
     public async Task<bool> DeleteFirmwareAsync(string key, CancellationToken cancellationToken = default)
     {
@@ -181,8 +182,8 @@ public class FirmwareApiService
         {
             _logger.LogInformation("Deleting firmware: {Key}", key);
             
-            var encodedKey = Uri.EscapeDataString(key);
-            var response = await _httpClient.DeleteAsync($"/api/firmware/admin/{encodedKey}", cancellationToken);
+            // Don't URL-encode - the API uses {**key} catch-all route that handles slashes
+            var response = await _httpClient.DeleteAsync($"/api/firmware/admin/{key}", cancellationToken);
             
             if (response.IsSuccessStatusCode)
             {
@@ -204,13 +205,14 @@ public class FirmwareApiService
     
     /// <summary>
     /// Get download URL for firmware
+    /// Note: Don't URL-encode the key - the catch-all route {**key} handles slashes
     /// </summary>
     public async Task<string> GetDownloadUrlAsync(string key, CancellationToken cancellationToken = default)
     {
         try
         {
-            var encodedKey = Uri.EscapeDataString(key);
-            var response = await _httpClient.GetAsync($"/api/firmware/download/{encodedKey}", cancellationToken);
+            // Don't URL-encode - the API uses {**key} catch-all route that handles slashes
+            var response = await _httpClient.GetAsync($"/api/firmware/download/{key}", cancellationToken);
             response.EnsureSuccessStatusCode();
             
             var result = await response.Content.ReadFromJsonAsync<DownloadUrlResponse>(cancellationToken);
@@ -306,14 +308,15 @@ public class FirmwareApiService
     
     /// <summary>
     /// Get content of a specific parameter log file
+    /// Note: Don't URL-encode the key - the catch-all route {**key} handles slashes
     /// </summary>
     public async Task<ParamLogContentResponse?> GetParamLogContentAsync(string key, CancellationToken cancellationToken = default)
     {
         try
         {
-            var encodedKey = Uri.EscapeDataString(key);
             _logger.LogInformation("Fetching param log content: {Key}", key);
-            var response = await _httpClient.GetAsync($"/api/param-logs/{encodedKey}", cancellationToken);
+            // Don't URL-encode - the API uses {**key} catch-all route that handles slashes
+            var response = await _httpClient.GetAsync($"/api/param-logs/{key}", cancellationToken);
             response.EnsureSuccessStatusCode();
             
             return await response.Content.ReadFromJsonAsync<ParamLogContentResponse>(cancellationToken);
@@ -327,14 +330,15 @@ public class FirmwareApiService
     
     /// <summary>
     /// Get presigned download URL for a parameter log file
+    /// Note: Don't URL-encode the key - the catch-all route {**key} handles slashes
     /// </summary>
     public async Task<string?> GetParamLogDownloadUrlAsync(string key, CancellationToken cancellationToken = default)
     {
         try
         {
-            var encodedKey = Uri.EscapeDataString(key);
             _logger.LogInformation("Getting download URL for param log: {Key}", key);
-            var response = await _httpClient.GetAsync($"/api/param-logs/download/{encodedKey}", cancellationToken);
+            // Don't URL-encode - the API uses {**key} catch-all route that handles slashes
+            var response = await _httpClient.GetAsync($"/api/param-logs/download/{key}", cancellationToken);
             response.EnsureSuccessStatusCode();
             
             var result = await response.Content.ReadFromJsonAsync<DownloadUrlResponse>(cancellationToken);
