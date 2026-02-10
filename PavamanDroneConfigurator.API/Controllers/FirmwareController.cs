@@ -223,6 +223,63 @@ public class FirmwareController : ControllerBase
             return StatusCode(503, new { status = "unhealthy", error = ex.Message });
         }
     }
+    
+    /// <summary>
+    /// POST /api/firmware/param-logs
+    /// Upload parameter change log to S3 (param-logs folder)
+    /// </summary>
+    [HttpPost("param-logs")]
+    public async Task<ActionResult> UploadParameterLog(
+        [FromBody] ParameterLogRequest request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            if (request?.Changes == null || request.Changes.Count == 0)
+            {
+                return BadRequest(new { error = "No parameter changes provided" });
+            }
+            
+            if (string.IsNullOrWhiteSpace(request.UserId))
+            {
+                return BadRequest(new { error = "UserId is required" });
+            }
+            
+            _logger.LogInformation(
+                "Uploading parameter log for user={UserId}, drone={DroneId}, fc={FcId}, changes={Count}",
+                request.UserId, request.DroneId ?? "unknown", request.FcId ?? "unknown", request.Changes.Count);
+            
+            // Convert to ParameterChange list for S3 service
+            var changes = request.Changes.Select(c => new Infrastructure.Services.ParameterChange
+            {
+                ParamName = c.ParamName,
+                OldValue = c.OldValue,
+                NewValue = c.NewValue,
+                ChangedAt = c.ChangedAt ?? DateTime.UtcNow
+            }).ToList();
+            
+            await _s3Service.AppendParameterChangesAsync(
+                request.UserId,
+                request.FcId ?? "unknown",
+                changes,
+                cancellationToken);
+            
+            _logger.LogInformation("Parameter log uploaded successfully: {Count} changes", changes.Count);
+            
+            return Ok(new { 
+                message = "Parameter log uploaded successfully",
+                changeCount = changes.Count,
+                userId = request.UserId,
+                droneId = request.DroneId,
+                fcId = request.FcId
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to upload parameter log");
+            return StatusCode(500, new { error = $"Upload failed: {ex.Message}" });
+        }
+    }
 }
 
 /// <summary>
@@ -243,4 +300,26 @@ public class FirmwareMetadata
     public string? FirmwareName { get; set; }
     public string? FirmwareVersion { get; set; }
     public string? FirmwareDescription { get; set; }
+}
+
+/// <summary>
+/// Request model for parameter log upload
+/// </summary>
+public class ParameterLogRequest
+{
+    public string UserId { get; set; } = string.Empty;
+    public string? DroneId { get; set; }
+    public string? FcId { get; set; }
+    public List<ParameterChangeDto> Changes { get; set; } = new();
+}
+
+/// <summary>
+/// Parameter change data transfer object
+/// </summary>
+public class ParameterChangeDto
+{
+    public string ParamName { get; set; } = string.Empty;
+    public float OldValue { get; set; }
+    public float NewValue { get; set; }
+    public DateTime? ChangedAt { get; set; }
 }

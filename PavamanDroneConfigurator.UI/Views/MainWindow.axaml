@@ -179,12 +179,6 @@
                                 CommandParameter="{Binding AdminDashboardPage}"
                                 Click="NavButton_Click"
                                 IsVisible="{Binding IsAdmin}" />
-                        <Button Content="&#x1F465;  User Management"
-                                Classes="nav-button"
-                                Tag="AdminPanelPage"
-                                CommandParameter="{Binding AdminPanelPage}"
-                                Click="NavButton_Click"
-                                IsVisible="{Binding IsAdmin}" />
                         <Button Content="&#x1F680;  Firmware Management"
                                 Classes="nav-button"
                                 Tag="FirmwareManagementPage"

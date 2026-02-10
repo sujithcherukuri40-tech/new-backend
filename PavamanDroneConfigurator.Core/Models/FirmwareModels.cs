@@ -195,6 +195,25 @@ public class DetectedBoard
 }
 
 /// <summary>
+/// Custom firmware item for display in In-App firmware selection
+/// </summary>
+public class CustomFirmwareItem
+{
+    public string Key { get; set; } = string.Empty;
+    public string FileName { get; set; } = string.Empty;
+    public string DisplayName { get; set; } = string.Empty;
+    public string? FirmwareName { get; set; }
+    public string? FirmwareVersion { get; set; }
+    public string? FirmwareDescription { get; set; }
+    public string VehicleType { get; set; } = string.Empty;
+    public long Size { get; set; }
+    public string SizeDisplay { get; set; } = string.Empty;
+    public DateTime LastModified { get; set; }
+    public string DownloadUrl { get; set; } = string.Empty;
+    public bool IsSelected { get; set; }
+}
+
+/// <summary>
 /// Firmware manifest from ArduPilot firmware server
 /// The manifest.json has structure: { "format-version": "1.0.0", "firmware": [...] }
 /// </summary>

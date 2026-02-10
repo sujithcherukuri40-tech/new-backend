@@ -146,6 +146,14 @@ public partial class FirmwarePageViewModel : ViewModelBase
     /// </summary>
     public ObservableCollection<S3FirmwareMetadata> S3Firmwares { get; } = new();
     [ObservableProperty] private S3FirmwareMetadata? _selectedS3Firmware;
+    
+    /// <summary>
+    /// List of custom firmwares from S3 (for In-App source display)
+    /// </summary>
+    public ObservableCollection<CustomFirmwareItem> CustomFirmwares { get; } = new();
+    [ObservableProperty] private CustomFirmwareItem? _selectedCustomFirmware;
+    [ObservableProperty] private bool _isInAppSource;
+    [ObservableProperty] private bool _hasNoCustomFirmwares;
     #endregion
 
     public FirmwarePageViewModel(
@@ -297,14 +305,51 @@ public partial class FirmwarePageViewModel : ViewModelBase
                 // Load firmwares from S3 via API
                 var firmwares = await _firmwareApiService.GetInAppFirmwaresAsync();
                 
+                // Clear and populate CustomFirmwares collection
+                CustomFirmwares.Clear();
+                
                 if (firmwares != null && firmwares.Count > 0)
                 {
-                    AddLog($"Found {firmwares.Count} firmwares in S3");
+                    AddLog($"Found {firmwares.Count} firmware(s) in S3");
+                    StatusMessage = $"Loaded {firmwares.Count} firmware(s) from S3";
                     
-                    // Match firmwares to vehicle types
+                    // Add each firmware to the custom firmwares list
+                    foreach (var firmware in firmwares)
+                    {
+                        var customItem = new CustomFirmwareItem
+                        {
+                            Key = firmware.Key,
+                            FileName = firmware.FileName,
+                            DisplayName = firmware.DisplayName,
+                            FirmwareName = firmware.FirmwareName,
+                            FirmwareVersion = firmware.FirmwareVersion,
+                            FirmwareDescription = firmware.FirmwareDescription,
+                            VehicleType = firmware.VehicleType,
+                            Size = firmware.Size,
+                            SizeDisplay = firmware.SizeDisplay,
+                            LastModified = firmware.LastModified,
+                            DownloadUrl = firmware.DownloadUrl,
+                            IsSelected = false
+                        };
+                        
+                        CustomFirmwares.Add(customItem);
+                        
+                        var logInfo = !string.IsNullOrWhiteSpace(firmware.FirmwareName)
+                            ? $"{firmware.FirmwareName} v{firmware.FirmwareVersion}"
+                            : firmware.FileName;
+                        AddLog($"  {firmware.VehicleType}: {logInfo} ({firmware.SizeDisplay})");
+                        
+                        if (!string.IsNullOrWhiteSpace(firmware.FirmwareDescription))
+                        {
+                            AddLog($"    Description: {firmware.FirmwareDescription}");
+                        }
+                    }
+                    
+                    HasNoCustomFirmwares = false;
+                    
+                    // Still match firmwares to vehicle types for legacy support
                     foreach (var vehicleType in VehicleTypes)
                     {
-                        // Find firmware matching this vehicle type
                         var matchingFirmware = firmwares.FirstOrDefault(f => 
                             f.VehicleType.Equals(vehicleType.ArduPilotId, StringComparison.OrdinalIgnoreCase) ||
                             (vehicleType.ArduPilotId == "Copter" && f.VehicleType == "Copter") ||
@@ -313,7 +358,6 @@ public partial class FirmwarePageViewModel : ViewModelBase
                         
                         if (matchingFirmware != null)
                         {
-                            // Build rich display text with metadata
                             var displayText = "S3: ";
                             
                             if (!string.IsNullOrWhiteSpace(matchingFirmware.FirmwareName))
@@ -334,16 +378,6 @@ public partial class FirmwarePageViewModel : ViewModelBase
                             
                             vehicleType.VersionText = displayText;
                             vehicleType.Availability = FirmwareAvailability.Available;
-                            
-                            var logInfo = !string.IsNullOrWhiteSpace(matchingFirmware.FirmwareName)
-                                ? $"{matchingFirmware.FirmwareName} v{matchingFirmware.FirmwareVersion}"
-                                : matchingFirmware.FileName;
-                            AddLog($"  {vehicleType.Name}: {logInfo}");
-                            
-                            if (!string.IsNullOrWhiteSpace(matchingFirmware.FirmwareDescription))
-                            {
-                                AddLog($"    Description: {matchingFirmware.FirmwareDescription}");
-                            }
                         }
                         else
                         {
@@ -351,18 +385,17 @@ public partial class FirmwarePageViewModel : ViewModelBase
                             vehicleType.Availability = FirmwareAvailability.NotSupported;
                         }
                     }
-                    
-                    StatusMessage = $"Loaded {firmwares.Count} firmwares from S3";
                 }
                 else
                 {
                     AddLog("No firmwares found in S3. Upload firmwares to S3 bucket.");
+                    HasNoCustomFirmwares = true;
                     foreach (var vehicleType in VehicleTypes)
                     {
                         vehicleType.VersionText = "No firmwares in S3";
                         vehicleType.Availability = FirmwareAvailability.NotSupported;
                     }
-                    StatusMessage = "No firmwares found in S3";
+                    StatusMessage = "No firmwares found in S3. Admin can upload firmwares in the Admin Panel.";
                 }
             }
             else
@@ -434,11 +467,6 @@ public partial class FirmwarePageViewModel : ViewModelBase
         AddLog("Firmware versions loaded");
     }
 
-    partial void OnSelectedFirmwareSourceChanged(FirmwareSourceOption? value)
-    {
-        _ = LoadFirmwareVersionsAsync();
-    }
-
     #region Mode Selection Commands
     partial void OnIsFirmwareUpgradeModeChanged(bool value)
     {
@@ -485,6 +513,15 @@ public partial class FirmwarePageViewModel : ViewModelBase
     [RelayCommand] private void ToggleBetaFirmware() { ShowBetaFirmware = !ShowBetaFirmware; AddLog(ShowBetaFirmware ? "Showing BETA firmwares" : "Showing OFFICIAL firmwares only"); }
     [RelayCommand] private void ToggleAllOptions() => ShowAllOptions = !ShowAllOptions;
     [RelayCommand] private Task RefreshFirmwareVersionsAsync() => LoadFirmwareVersionsAsync();
+    
+    partial void OnSelectedFirmwareSourceChanged(FirmwareSourceOption? value)
+    {
+        if (value != null)
+        {
+            IsInAppSource = value.Source == FirmwareSource.InApp;
+            _ = LoadFirmwareVersionsAsync();
+        }
+    }
     #endregion
 
     #region Vehicle Type Selection
@@ -524,6 +561,50 @@ public partial class FirmwarePageViewModel : ViewModelBase
         {
             StatusMessage = $"Ready to install {vehicleType.Description} firmware";
         }
+    }
+    
+    /// <summary>
+    /// Handles custom firmware selection (for In-App source)
+    /// </summary>
+    [RelayCommand]
+    private async Task SelectCustomFirmwareAsync(CustomFirmwareItem? firmware)
+    {
+        if (firmware == null) return;
+        
+        // Deselect all custom firmwares
+        foreach (var fw in CustomFirmwares)
+        {
+            fw.IsSelected = false;
+        }
+        
+        // Select the clicked firmware
+        firmware.IsSelected = true;
+        SelectedCustomFirmware = firmware;
+        
+        AddLog($"Selected custom firmware: {firmware.DisplayName} v{firmware.FirmwareVersion}");
+        StatusMessage = $"Ready to install {firmware.DisplayName} v{firmware.FirmwareVersion}";
+        
+        // Show confirmation dialog
+        if (_connectionService?.IsConnected == true)
+        {
+            ConfirmationMessage = $"You are about to install custom firmware:\n\n" +
+                                  $"{firmware.DisplayName} v{firmware.FirmwareVersion}\n" +
+                                  $"Type: {firmware.VehicleType}\n" +
+                                  $"Size: {firmware.SizeDisplay}\n\n" +
+                                  "The current MAVLink connection will be closed.\n" +
+                                  "Continue with firmware installation?";
+        }
+        else
+        {
+            ConfirmationMessage = $"You are about to install custom firmware:\n\n" +
+                                  $"{firmware.DisplayName} v{firmware.FirmwareVersion}\n" +
+                                  $"Type: {firmware.VehicleType}\n" +
+                                  $"Size: {firmware.SizeDisplay}\n\n" +
+                                  "Please ensure your flight controller is connected.\n" +
+                                  "Continue with firmware installation?";
+        }
+        
+        ShowConfirmationDialog = true;
     }
 
     /// <summary>

@@ -497,8 +497,9 @@
 						</StackPanel>
 					</Border>
 
-					<!-- Vehicle Categories -->
-					<ItemsControl ItemsSource="{Binding VehicleGroups}">
+					<!-- Vehicle Categories (for Web sources) -->
+					<ItemsControl ItemsSource="{Binding VehicleGroups}"
+								  IsVisible="{Binding !IsInAppSource}">
 						<ItemsControl.ItemTemplate>
 							<DataTemplate>
 								<StackPanel Margin="0,0,0,32">
@@ -606,6 +607,164 @@
 							</DataTemplate>
 						</ItemsControl.ItemTemplate>
 					</ItemsControl>
+					
+					<!-- Custom Firmware Cards (for In-App source) -->
+					<StackPanel Spacing="20" IsVisible="{Binding IsInAppSource}">
+						<!-- Info message -->
+						<Border Background="{DynamicResource InfoLightBrush}"
+								BorderBrush="{DynamicResource InfoBrush}"
+								BorderThickness="1"
+								CornerRadius="10"
+								Padding="16,12">
+							<StackPanel Orientation="Horizontal" Spacing="12">
+								<PathIcon Data="M19.35 10.04C18.67 6.59 15.64 4 12 4c-1.48 0-2.85.43-4.01 1.17l1.46 1.46C10.21 6.23 11.08 6 12 6c3.04 0 5.5 2.46 5.5 5.5v.5H19c1.66 0 3 1.34 3 3 0 1.13-.64 2.11-1.56 2.62l1.45 1.45C23.16 18.16 24 16.68 24 15c0-2.64-2.05-4.78-4.65-4.96zM3 5.27l2.75 2.74C2.56 8.15 0 10.77 0 14c0 3.31 2.69 6 6 6h11.73l2 2L21 20.73 4.27 4 3 5.27zM7.73 10l8 8H6c-2.21 0-4-1.79-4-4s1.79-4 4-4h1.73z"
+										  Width="20" Height="20"
+										  Foreground="{DynamicResource InfoBrush}"/>
+								<TextBlock Text="{Binding StatusMessage}"
+										   VerticalAlignment="Center"
+										   FontSize="14"
+										   Foreground="{DynamicResource TextPrimaryBrush}"/>
+							</StackPanel>
+						</Border>
+						
+						<!-- Custom Firmware Cards Grid -->
+						<ItemsControl ItemsSource="{Binding CustomFirmwares}">
+							<ItemsControl.ItemsPanel>
+								<ItemsPanelTemplate>
+									<WrapPanel Orientation="Horizontal"/>
+								</ItemsPanelTemplate>
+							</ItemsControl.ItemsPanel>
+							
+							<ItemsControl.ItemTemplate>
+								<DataTemplate>
+									<!-- Custom Firmware Card -->
+									<Button Classes="firmware-card"
+											Classes.firmware-card-selected="{Binding IsSelected}"
+											Command="{Binding $parent[ItemsControl].((vm:FirmwarePageViewModel)DataContext).SelectCustomFirmwareCommand}"
+											CommandParameter="{Binding}"
+											Width="240"
+											Height="280"
+											Margin="12,8">
+										<Grid RowDefinitions="Auto,Auto,*,Auto,Auto,Auto">
+											<!-- Vehicle Type Badge -->
+											<Border Grid.Row="0"
+													Background="{DynamicResource PrimaryLightBrush}"
+													CornerRadius="6"
+													Padding="10,6"
+													HorizontalAlignment="Right"
+													Margin="0,0,0,12">
+												<TextBlock Text="{Binding VehicleType}"
+														   FontSize="11"
+														   FontWeight="Bold"
+														   Foreground="{DynamicResource PrimaryBrush}"/>
+											</Border>
+											
+											<!-- Firmware Icon -->
+											<Border Grid.Row="1"
+													Background="{DynamicResource SecondaryLightBrush}"
+													CornerRadius="12"
+													Width="80"
+													Height="80"
+													HorizontalAlignment="Center"
+													Margin="0,0,0,16">
+												<TextBlock Text="&#x1F680;"
+														   FontSize="40"
+														   HorizontalAlignment="Center"
+														   VerticalAlignment="Center"/>
+											</Border>
+											
+											<!-- Firmware Name & Version -->
+											<StackPanel Grid.Row="2" Spacing="6">
+												<TextBlock Text="{Binding DisplayName}"
+														   FontSize="16"
+														   FontWeight="Bold"
+														   Foreground="{DynamicResource TextPrimaryBrush}"
+														   TextAlignment="Center"
+														   TextWrapping="Wrap"
+														   MaxLines="2"
+														   TextTrimming="CharacterEllipsis"/>
+												<TextBlock Text="{Binding FirmwareVersion, StringFormat='v{0}'}"
+														   FontSize="13"
+														   Foreground="{DynamicResource TextSecondaryBrush}"
+														   TextAlignment="Center"
+														   IsVisible="{Binding FirmwareVersion, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+											</StackPanel>
+											
+											<!-- Description -->
+											<TextBlock Grid.Row="3"
+													   Text="{Binding FirmwareDescription}"
+													   FontSize="11"
+													   Foreground="{DynamicResource TextSecondaryBrush}"
+													   TextAlignment="Center"
+													   TextWrapping="Wrap"
+													   MaxLines="2"
+													   TextTrimming="CharacterEllipsis"
+													   Margin="8,12,8,12"
+													   IsVisible="{Binding FirmwareDescription, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+											
+											<!-- File Size -->
+											<TextBlock Grid.Row="4"
+													   Text="{Binding SizeDisplay}"
+													   FontSize="12"
+													   FontWeight="SemiBold"
+													   Foreground="{DynamicResource SuccessBrush}"
+													   TextAlignment="Center"
+													   Margin="0,0,0,8"/>
+											
+											<!-- Last Modified -->
+											<TextBlock Grid.Row="5"
+													   Text="{Binding LastModified, StringFormat='Updated: {0:MMM dd}'}"
+													   FontSize="10"
+													   Foreground="{DynamicResource TextMutedBrush}"
+													   TextAlignment="Center"/>
+											
+											<!-- Selected Indicator -->
+											<Border Grid.Row="0" Grid.RowSpan="6"
+													Background="{DynamicResource PrimaryBrush}"
+													CornerRadius="24"
+													Width="32" Height="32"
+													HorizontalAlignment="Left"
+													VerticalAlignment="Top"
+													Margin="-8,-8,0,0"
+													IsVisible="{Binding IsSelected}">
+												<PathIcon Data="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"
+														  Width="16" Height="16"
+														  Foreground="White"
+														  HorizontalAlignment="Center"
+														  VerticalAlignment="Center"/>
+											</Border>
+										</Grid>
+									</Button>
+								</DataTemplate>
+							</ItemsControl.ItemTemplate>
+						</ItemsControl>
+						
+						<!-- Empty State -->
+						<Border Background="{DynamicResource WarningLightBrush}"
+								BorderBrush="{DynamicResource WarningBrush}"
+								BorderThickness="1"
+								CornerRadius="12"
+								Padding="40,32"
+								IsVisible="{Binding HasNoCustomFirmwares}">
+							<StackPanel Spacing="16" HorizontalAlignment="Center">
+								<TextBlock Text="&#x1F4E6;"
+										   FontSize="64"
+										   HorizontalAlignment="Center"/>
+								<TextBlock Text="No Custom Firmwares Available"
+										   FontSize="20"
+										   FontWeight="Bold"
+										   Foreground="{DynamicResource WarningDarkBrush}"
+										   HorizontalAlignment="Center"/>
+								<TextBlock Text="Admin users can upload custom firmware files in the Admin Panel"
+										   FontSize="14"
+										   Foreground="{DynamicResource TextSecondaryBrush}"
+										   HorizontalAlignment="Center"
+										   TextAlignment="Center"
+										   TextWrapping="Wrap"
+										   MaxWidth="400"/>
+							</StackPanel>
+						</Border>
+					</StackPanel>
 
 					<!-- Detected Board Info -->
 					<Border Background="{DynamicResource CardBrush}"
@@ -834,17 +993,17 @@
                                        FontSize="12"/>
 							<StackPanel Orientation="Horizontal" Spacing="8">
 								<TextBlock Text="{Binding DetectedBoardName}"
-                                           Foreground="{DynamicResource SuccessBrush}"
-                                           FontWeight="Bold"
-                                           FontSize="16"/>
+                                               Foreground="{DynamicResource SuccessBrush}"
+                                               FontWeight="Bold"
+                                               FontSize="16"/>
 								<TextBlock Text="on"
-                                           Foreground="{DynamicResource TextMutedBrush}"
-                                           VerticalAlignment="Center"
-                                           FontSize="13"/>
+                                               Foreground="{DynamicResource TextMutedBrush}"
+                                               VerticalAlignment="Center"
+                                               FontSize="13"/>
 								<TextBlock Text="{Binding DetectedBoardPort}"
-                                           Foreground="{DynamicResource TextSecondaryBrush}"
-                                           VerticalAlignment="Center"
-                                           FontSize="13"/>
+                                               Foreground="{DynamicResource TextSecondaryBrush}"
+                                               VerticalAlignment="Center"
+                                               FontSize="13"/>
 							</StackPanel>
 						</StackPanel>
 

@@ -115,9 +115,6 @@ public partial class App : Application
             client.Timeout = TimeSpan.FromMinutes(5); // Longer timeout for firmware downloads
         });
         
-        // Register FirmwareApiService for all firmware operations
-        services.AddSingleton<FirmwareApiService>();
-        
         // ? REMOVED: Direct AWS S3 access from desktop app (security risk)
         // Desktop app should only call backend API, not AWS directly
         // services.AddSingleton<AwsS3Service>(); // REMOVED FOR PRODUCTION

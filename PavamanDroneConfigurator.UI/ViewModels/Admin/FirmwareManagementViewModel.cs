@@ -476,6 +476,13 @@ public class FirmwareItem
     public int DownloadCount { get; set; }
     public string DownloadUrl { get; set; } = string.Empty;
     
+    // Alias properties for XAML binding compatibility
+    public string FirmwareName => Name;
+    public string FirmwareVersion => Version;
+    public string FirmwareDescription => Description;
+    public string SizeDisplay => FileSizeFormatted;
+    public DateTime LastModified => UploadedDate;
+    
     public string FileSizeFormatted => FormatSize(FileSize);
     public string UploadedDateFormatted => UploadedDate.ToString("MMM dd, yyyy");
     

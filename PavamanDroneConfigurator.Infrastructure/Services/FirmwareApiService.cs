@@ -240,6 +240,48 @@ public class FirmwareApiService
         }
     }
     
+    /// <summary>
+    /// Upload parameter change log to S3 via API
+    /// </summary>
+    public async Task UploadParameterLogAsync(
+        string userId,
+        string? droneId,
+        string? fcId,
+        List<ParameterChange> changes,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            _logger.LogInformation(
+                "Uploading parameter log: user={UserId}, drone={DroneId}, fc={FcId}, changes={Count}",
+                userId, droneId ?? "unknown", fcId ?? "unknown", changes.Count);
+            
+            var request = new ParameterLogRequest
+            {
+                UserId = userId,
+                DroneId = droneId,
+                FcId = fcId,
+                Changes = changes.Select(c => new ParameterChangeDto
+                {
+                    ParamName = c.ParamName,
+                    OldValue = c.OldValue,
+                    NewValue = c.NewValue,
+                    ChangedAt = c.ChangedAt
+                }).ToList()
+            };
+            
+            var response = await _httpClient.PostAsJsonAsync("/api/firmware/param-logs", request, cancellationToken);
+            response.EnsureSuccessStatusCode();
+            
+            _logger.LogInformation("Parameter log uploaded successfully: {Count} changes", changes.Count);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to upload parameter log");
+            throw new Exception($"Failed to upload parameter log: {ex.Message}", ex);
+        }
+    }
+    
     private class DownloadUrlResponse
     {
         public string DownloadUrl { get; set; } = string.Empty;
@@ -265,4 +307,26 @@ public class S3FirmwareMetadata
     public string? FirmwareName { get; set; }
     public string? FirmwareVersion { get; set; }
     public string? FirmwareDescription { get; set; }
+}
+
+/// <summary>
+/// Request model for parameter log upload
+/// </summary>
+public class ParameterLogRequest
+{
+    public string UserId { get; set; } = string.Empty;
+    public string? DroneId { get; set; }
+    public string? FcId { get; set; }
+    public List<ParameterChangeDto> Changes { get; set; } = new();
+}
+
+/// <summary>
+/// Parameter change DTO for API
+/// </summary>
+public class ParameterChangeDto
+{
+    public string ParamName { get; set; } = string.Empty;
+    public float OldValue { get; set; }
+    public float NewValue { get; set; }
+    public DateTime? ChangedAt { get; set; }
 }

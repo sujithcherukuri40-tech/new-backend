@@ -29,7 +29,7 @@ public partial class ParametersPageViewModel : ViewModelBase
     private readonly IParameterMetadataService _metadataService;
     private readonly IDroneInfoService _droneInfoService;
     private readonly AuthSessionViewModel _authSession;
-    private readonly AwsS3Service? _s3Service;
+    private readonly FirmwareApiService? _firmwareApiService;
     private readonly ILogger<ParametersPageViewModel>? _logger;
     
     // Track original values for change detection
@@ -136,7 +136,7 @@ public partial class ParametersPageViewModel : ViewModelBase
         IParameterMetadataService metadataService,
         IDroneInfoService droneInfoService,
         AuthSessionViewModel authSession,
-        AwsS3Service? s3Service = null,
+        FirmwareApiService? firmwareApiService = null,
         ILogger<ParametersPageViewModel>? logger = null)
     {
         _parameterService = parameterService;
@@ -146,7 +146,7 @@ public partial class ParametersPageViewModel : ViewModelBase
         _metadataService = metadataService;
         _droneInfoService = droneInfoService;
         _authSession = authSession;
-        _s3Service = s3Service;
+        _firmwareApiService = firmwareApiService;
         _logger = logger;
 
         // Initialize group list
@@ -631,12 +631,13 @@ public partial class ParametersPageViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// Logs parameter changes to AWS S3 for audit trail.
+    /// Logs parameter changes to AWS S3 via API for audit trail.
     /// Includes user ID and drone/FC ID for tracking.
+    /// Uploads CSV file to param-logs folder in S3.
     /// </summary>
     private async Task LogParameterChangesToS3Async(List<Infrastructure.Services.ParameterChange> changes)
     {
-        if (_s3Service == null || changes.Count == 0)
+        if (_firmwareApiService == null || changes.Count == 0)
         {
             return;
         }
@@ -656,7 +657,7 @@ public partial class ParametersPageViewModel : ViewModelBase
                 "Logging {Count} parameter changes to S3 for user={UserId}, drone={DroneId}, fc={FcId}",
                 changes.Count, userId, droneId, fcId);
 
-            // Append user and drone info to each change for comprehensive logging
+            // Log each change for debugging
             foreach (var change in changes)
             {
                 _logger?.LogDebug(
@@ -664,10 +665,10 @@ public partial class ParametersPageViewModel : ViewModelBase
                     change.ParamName, change.OldValue, change.NewValue, userEmail, droneId);
             }
 
-            // Upload to S3 using the existing method
-            await _s3Service.AppendParameterChangesAsync(userId, fcId, changes);
+            // Upload parameter changes to S3 via API (creates CSV in param-logs folder)
+            await _firmwareApiService.UploadParameterLogAsync(userId, droneId, fcId, changes);
             
-            _logger?.LogInformation("Successfully logged {Count} parameter changes to S3", changes.Count);
+            _logger?.LogInformation("Successfully logged {Count} parameter changes to S3 param-logs folder", changes.Count);
         }
         catch (Exception ex)
         {
