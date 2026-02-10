@@ -290,10 +290,13 @@ public class AwsS3Service : IDisposable
     }
     
     /// <summary>
-    /// Upload parameter change log to S3
+    /// Upload parameter change log to S3 with optional username
     /// </summary>
     public async Task UploadParameterChangeLogAsync(
-        string userId, string fcId, string csvContent, 
+        string userId, 
+        string? userName,
+        string fcId, 
+        string csvContent, 
         CancellationToken cancellationToken = default)
     {
         try
@@ -312,6 +315,12 @@ public class AwsS3Service : IDisposable
                 ServerSideEncryptionMethod = ServerSideEncryptionMethod.AES256
             };
             
+            // Store username in S3 metadata for display
+            if (!string.IsNullOrEmpty(userName))
+            {
+                request.Metadata.Add("username", userName);
+            }
+            
             await client.PutObjectAsync(request, cancellationToken);
             _logger.LogInformation("Parameter log uploaded: {Key}", s3Key);
         }
@@ -323,10 +332,23 @@ public class AwsS3Service : IDisposable
     }
     
     /// <summary>
+    /// Legacy overload for compatibility
+    /// </summary>
+    public Task UploadParameterChangeLogAsync(
+        string userId, string fcId, string csvContent, 
+        CancellationToken cancellationToken = default)
+    {
+        return UploadParameterChangeLogAsync(userId, null, fcId, csvContent, cancellationToken);
+    }
+    
+    /// <summary>
     /// Append parameter changes
     /// </summary>
     public async Task AppendParameterChangesAsync(
-        string userId, string fcId, List<ParameterChange> changes,
+        string userId, 
+        string? userName,
+        string fcId, 
+        List<ParameterChange> changes,
         CancellationToken cancellationToken = default)
     {
         var csv = new System.Text.StringBuilder();
@@ -334,7 +356,17 @@ public class AwsS3Service : IDisposable
         foreach (var change in changes)
             csv.AppendLine($"{change.ParamName},{change.OldValue},{change.NewValue},{change.ChangedAt:yyyy-MM-dd HH:mm:ss}");
         
-        await UploadParameterChangeLogAsync(userId, fcId, csv.ToString(), cancellationToken);
+        await UploadParameterChangeLogAsync(userId, userName, fcId, csv.ToString(), cancellationToken);
+    }
+    
+    /// <summary>
+    /// Legacy overload for compatibility
+    /// </summary>
+    public Task AppendParameterChangesAsync(
+        string userId, string fcId, List<ParameterChange> changes,
+        CancellationToken cancellationToken = default)
+    {
+        return AppendParameterChangesAsync(userId, null, fcId, changes, cancellationToken);
     }
     
     /// <summary>
@@ -550,6 +582,7 @@ public class ParamLogEntry
     public string Key { get; set; } = string.Empty;
     public string FileName { get; set; } = string.Empty;
     public string UserId { get; set; } = string.Empty;
+    public string? UserName { get; set; }
     public string DroneId { get; set; } = string.Empty;
     public DateTime Timestamp { get; set; }
     public long Size { get; set; }

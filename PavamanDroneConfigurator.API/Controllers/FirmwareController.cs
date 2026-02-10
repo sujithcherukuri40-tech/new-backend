@@ -246,8 +246,8 @@ public class FirmwareController : ControllerBase
             }
             
             _logger.LogInformation(
-                "Uploading parameter log for user={UserId}, drone={DroneId}, fc={FcId}, changes={Count}",
-                request.UserId, request.DroneId ?? "unknown", request.FcId ?? "unknown", request.Changes.Count);
+                "Uploading parameter log for user={UserId} ({UserName}), drone={DroneId}, fc={FcId}, changes={Count}",
+                request.UserId, request.UserName ?? "unknown", request.DroneId ?? "unknown", request.FcId ?? "unknown", request.Changes.Count);
             
             // Convert to ParameterChange list for S3 service
             var changes = request.Changes.Select(c => new Infrastructure.Services.ParameterChange
@@ -260,6 +260,7 @@ public class FirmwareController : ControllerBase
             
             await _s3Service.AppendParameterChangesAsync(
                 request.UserId,
+                request.UserName,
                 request.FcId ?? "unknown",
                 changes,
                 cancellationToken);
@@ -270,6 +271,7 @@ public class FirmwareController : ControllerBase
                 message = "Parameter log uploaded successfully",
                 changeCount = changes.Count,
                 userId = request.UserId,
+                userName = request.UserName,
                 droneId = request.DroneId,
                 fcId = request.FcId
             });
@@ -308,6 +310,7 @@ public class FirmwareMetadata
 public class ParameterLogRequest
 {
     public string UserId { get; set; } = string.Empty;
+    public string? UserName { get; set; }
     public string? DroneId { get; set; }
     public string? FcId { get; set; }
     public List<ParameterChangeDto> Changes { get; set; } = new();

@@ -245,6 +245,7 @@ public class FirmwareApiService
     /// </summary>
     public async Task UploadParameterLogAsync(
         string userId,
+        string? userName,
         string? droneId,
         string? fcId,
         List<ParameterChange> changes,
@@ -253,12 +254,13 @@ public class FirmwareApiService
         try
         {
             _logger.LogInformation(
-                "Uploading parameter log: user={UserId}, drone={DroneId}, fc={FcId}, changes={Count}",
-                userId, droneId ?? "unknown", fcId ?? "unknown", changes.Count);
+                "Uploading parameter log: user={UserId} ({UserName}), drone={DroneId}, fc={FcId}, changes={Count}",
+                userId, userName ?? "unknown", droneId ?? "unknown", fcId ?? "unknown", changes.Count);
             
             var request = new ParameterLogRequest
             {
                 UserId = userId,
+                UserName = userName,
                 DroneId = droneId,
                 FcId = fcId,
                 Changes = changes.Select(c => new ParameterChangeDto
@@ -378,6 +380,7 @@ public class S3FirmwareMetadata
 public class ParameterLogRequest
 {
     public string UserId { get; set; } = string.Empty;
+    public string? UserName { get; set; }
     public string? DroneId { get; set; }
     public string? FcId { get; set; }
     public List<ParameterChangeDto> Changes { get; set; } = new();
@@ -416,6 +419,7 @@ public class ParamLogDto
     public string Key { get; set; } = string.Empty;
     public string FileName { get; set; } = string.Empty;
     public string UserId { get; set; } = string.Empty;
+    public string? UserName { get; set; }
     public string DroneId { get; set; } = string.Empty;
     public DateTime Timestamp { get; set; }
     public long Size { get; set; }

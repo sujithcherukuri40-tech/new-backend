@@ -152,6 +152,8 @@ public partial class ParamLogsViewModel : ViewModelBase
     public bool HasNextPage => CurrentPage < TotalPages;
     public bool HasNoLogs => !IsLoading && ParamLogs.Count == 0;
     public bool HasSelectedLog => SelectedLog != null;
+    public bool HasNoChanges => HasSelectedLog && !IsLoadingContent && SelectedLogChanges.Count == 0;
+    public bool HasChangesToShow => HasSelectedLog && !IsLoadingContent && SelectedLogChanges.Count > 0;
     
     #endregion
     
@@ -236,6 +238,7 @@ public partial class ParamLogsViewModel : ViewModelBase
             var queryString = string.Join("&", queryParams);
             var result = await _apiService.GetParamLogsAsync(queryString);
             
+            
             if (result != null)
             {
                 ParamLogs.Clear();
@@ -246,6 +249,7 @@ public partial class ParamLogsViewModel : ViewModelBase
                         Key = log.Key,
                         FileName = log.FileName,
                         UserId = log.UserId,
+                        UserName = log.UserName,
                         DroneId = log.DroneId,
                         Timestamp = log.Timestamp,
                         Size = log.Size,
@@ -347,6 +351,7 @@ public partial class ParamLogsViewModel : ViewModelBase
         SelectedLog = log;
         IsLoadingContent = true;
         SelectedLogChanges.Clear();
+        StatusMessage = null;
         
         try
         {
@@ -354,7 +359,7 @@ public partial class ParamLogsViewModel : ViewModelBase
             
             var result = await _apiService.GetParamLogContentAsync(log.Key);
             
-            if (result?.Changes != null)
+            if (result?.Changes != null && result.Changes.Count > 0)
             {
                 foreach (var change in result.Changes)
                 {
@@ -366,18 +371,25 @@ public partial class ParamLogsViewModel : ViewModelBase
                         ChangedAt = change.ChangedAt
                     });
                 }
+                StatusMessage = $"Loaded {SelectedLogChanges.Count} parameter change(s)";
             }
-            
-            OnPropertyChanged(nameof(HasSelectedLog));
+            else
+            {
+                StatusMessage = "No parameter changes found in this log";
+            }
         }
         catch (Exception ex)
         {
             _logger?.LogError(ex, "Failed to load param log content: {Key}", log.Key);
             StatusMessage = $"Failed to load log content: {ex.Message}";
+            HasError = true;
         }
         finally
         {
             IsLoadingContent = false;
+            OnPropertyChanged(nameof(HasSelectedLog));
+            OnPropertyChanged(nameof(HasNoChanges));
+            OnPropertyChanged(nameof(HasChangesToShow));
         }
     }
     
@@ -430,12 +442,23 @@ public class ParamLogItem
     public string Key { get; set; } = string.Empty;
     public string FileName { get; set; } = string.Empty;
     public string UserId { get; set; } = string.Empty;
+    public string? UserName { get; set; }
     public string DroneId { get; set; } = string.Empty;
     public DateTime Timestamp { get; set; }
     public long Size { get; set; }
     public string SizeDisplay { get; set; } = string.Empty;
     
     public string TimestampDisplay => Timestamp.ToString("yyyy-MM-dd HH:mm:ss");
+    
+    /// <summary>
+    /// Display name: shows UserName if available, otherwise truncated UserId
+    /// </summary>
+    public string UserDisplay => !string.IsNullOrEmpty(UserName) ? UserName : UserIdShort;
+    
+    /// <summary>
+    /// Short version of User ID for display (first 12 chars + ...)
+    /// </summary>
+    public string UserIdShort => UserId.Length > 15 ? UserId[..12] + "..." : UserId;
 }
 
 public class ParamChangeItem

@@ -68,8 +68,9 @@
             </StackPanel>
         </Border>
         
+        
         <!-- Main Content -->
-        <Grid Grid.Row="1" Margin="24,20" ColumnDefinitions="*,360" ColumnSpacing="20">
+        <Grid Grid.Row="1" Margin="24,20" ColumnDefinitions="*,380" ColumnSpacing="20">
             
             <!-- Left: Log List -->
             <StackPanel Grid.Column="0" Spacing="16">
@@ -82,45 +83,43 @@
                                    FontSize="13"
                                    Foreground="{DynamicResource TextSecondaryBrush}"/>
                         
-                        <Grid ColumnDefinitions="*,*,*,*,Auto,Auto" ColumnSpacing="12">
-                            <!-- User Filter -->
+                        <!-- Row 1: User and Build ID -->
+                        <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
                             <StackPanel Grid.Column="0" Spacing="4">
                                 <TextBlock Text="User" FontSize="11" Foreground="{DynamicResource TextMutedBrush}"/>
                                 <ComboBox ItemsSource="{Binding AvailableUsers}"
                                           SelectedItem="{Binding SelectedUserId}"
-                                          MinWidth="120"
+                                          HorizontalAlignment="Stretch"
                                           PlaceholderText="All Users"/>
                             </StackPanel>
                             
-                            <!-- Drone Filter -->
                             <StackPanel Grid.Column="1" Spacing="4">
-                                <TextBlock Text="Drone ID" FontSize="11" Foreground="{DynamicResource TextMutedBrush}"/>
+                                <TextBlock Text="Build ID" FontSize="11" Foreground="{DynamicResource TextMutedBrush}"/>
                                 <ComboBox ItemsSource="{Binding AvailableDrones}"
                                           SelectedItem="{Binding SelectedDroneId}"
-                                          MinWidth="120"
-                                          PlaceholderText="All Drones"/>
+                                          HorizontalAlignment="Stretch"
+                                          PlaceholderText="All Builds"/>
                             </StackPanel>
-                            
-                            <!-- From Date -->
-                            <StackPanel Grid.Column="2" Spacing="4">
+                        </Grid>
+                        
+                        <!-- Row 2: Dates and Buttons -->
+                        <Grid ColumnDefinitions="*,*,Auto,Auto" ColumnSpacing="12">
+                            <StackPanel Grid.Column="0" Spacing="4">
                                 <TextBlock Text="From Date" FontSize="11" Foreground="{DynamicResource TextMutedBrush}"/>
-                                <CalendarDatePicker SelectedDate="{Binding FromDate}" MinWidth="130"/>
+                                <CalendarDatePicker SelectedDate="{Binding FromDate}" HorizontalAlignment="Stretch"/>
                             </StackPanel>
                             
-                            <!-- To Date -->
-                            <StackPanel Grid.Column="3" Spacing="4">
+                            <StackPanel Grid.Column="1" Spacing="4">
                                 <TextBlock Text="To Date" FontSize="11" Foreground="{DynamicResource TextMutedBrush}"/>
-                                <CalendarDatePicker SelectedDate="{Binding ToDate}" MinWidth="130"/>
+                                <CalendarDatePicker SelectedDate="{Binding ToDate}" HorizontalAlignment="Stretch"/>
                             </StackPanel>
                             
-                            <!-- Apply -->
-                            <Button Grid.Column="4" Classes="btn-primary"
+                            <Button Grid.Column="2" Classes="btn-primary"
                                     Command="{Binding ApplyFiltersCommand}"
                                     VerticalAlignment="Bottom"
                                     Content="Apply"/>
                             
-                            <!-- Clear -->
-                            <Button Grid.Column="5" Classes="btn-secondary"
+                            <Button Grid.Column="3" Classes="btn-secondary"
                                     Command="{Binding ClearFiltersCommand}"
                                     VerticalAlignment="Bottom"
                                     Content="Clear"/>
@@ -135,8 +134,10 @@
                         IsVisible="{Binding StatusMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
                     <TextBlock Text="{Binding StatusMessage}"
                                FontSize="12"
+                               TextWrapping="Wrap"
                                Foreground="{DynamicResource TextPrimaryBrush}"/>
                 </Border>
+                
                 
                 <!-- Loading -->
                 <Border Classes="card" IsVisible="{Binding IsLoading}" Padding="40">
@@ -171,9 +172,9 @@
                         <Border Background="{DynamicResource SurfaceBrush}"
                                 Padding="12,10"
                                 CornerRadius="8,8,0,0">
-                            <Grid ColumnDefinitions="*,100,100,100,70">
-                                <TextBlock Grid.Column="0" Text="User" FontWeight="SemiBold" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}"/>
-                                <TextBlock Grid.Column="1" Text="Drone ID" FontWeight="SemiBold" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}"/>
+                            <Grid ColumnDefinitions="150,*,90,70,50">
+                                <TextBlock Grid.Column="0" Text="User ID" FontWeight="SemiBold" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                <TextBlock Grid.Column="1" Text="Build ID" FontWeight="SemiBold" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}"/>
                                 <TextBlock Grid.Column="2" Text="Date" FontWeight="SemiBold" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}"/>
                                 <TextBlock Grid.Column="3" Text="Time" FontWeight="SemiBold" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}"/>
                                 <TextBlock Grid.Column="4" Text="Size" FontWeight="SemiBold" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}"/>
@@ -181,38 +182,44 @@
                         </Border>
                         
                         <!-- Table Rows -->
-                        <ItemsControl ItemsSource="{Binding ParamLogs}">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                    <Button Classes="log-row"
-                                            Command="{Binding $parent[ItemsControl].((vm:ParamLogsViewModel)DataContext).ViewLogCommand}"
-                                            CommandParameter="{Binding}">
-                                        <Grid ColumnDefinitions="*,100,100,100,70">
-                                            <TextBlock Grid.Column="0"
-                                                       Text="{Binding UserId}"
-                                                       FontWeight="Medium"
-                                                       VerticalAlignment="Center"/>
-                                            <TextBlock Grid.Column="1"
-                                                       Text="{Binding DroneId}"
-                                                       VerticalAlignment="Center"
-                                                       Foreground="{DynamicResource TextSecondaryBrush}"/>
-                                            <TextBlock Grid.Column="2"
-                                                       Text="{Binding Timestamp, StringFormat='{}{0:yyyy-MM-dd}'}"
-                                                       VerticalAlignment="Center"
-                                                       Foreground="{DynamicResource TextSecondaryBrush}"/>
-                                            <TextBlock Grid.Column="3"
-                                                       Text="{Binding Timestamp, StringFormat='{}{0:HH:mm:ss}'}"
-                                                       VerticalAlignment="Center"
-                                                       Foreground="{DynamicResource TextMutedBrush}"/>
-                                            <TextBlock Grid.Column="4"
-                                                       Text="{Binding SizeDisplay}"
-                                                       VerticalAlignment="Center"
-                                                       Foreground="{DynamicResource TextMutedBrush}"/>
-                                        </Grid>
-                                    </Button>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
+                        <ScrollViewer MaxHeight="400" VerticalScrollBarVisibility="Auto">
+                            <ItemsControl ItemsSource="{Binding ParamLogs}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Button Classes="log-row"
+                                                Command="{Binding $parent[ItemsControl].((vm:ParamLogsViewModel)DataContext).ViewLogCommand}"
+                                                CommandParameter="{Binding}">
+                                            <Grid ColumnDefinitions="150,*,90,70,50">
+                                                <TextBlock Grid.Column="0"
+                                                           Text="{Binding UserDisplay}"
+                                                           FontWeight="Medium"
+                                                           VerticalAlignment="Center"
+                                                           TextTrimming="CharacterEllipsis"
+                                                           ToolTip.Tip="{Binding UserId}"/>
+                                                <TextBlock Grid.Column="1"
+                                                           Text="{Binding DroneId}"
+                                                           VerticalAlignment="Center"
+                                                           TextTrimming="CharacterEllipsis"
+                                                           ToolTip.Tip="{Binding DroneId}"
+                                                           Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                                <TextBlock Grid.Column="2"
+                                                           Text="{Binding Timestamp, StringFormat='{}{0:yyyy-MM-dd}'}"
+                                                           VerticalAlignment="Center"
+                                                           Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                                <TextBlock Grid.Column="3"
+                                                           Text="{Binding Timestamp, StringFormat='{}{0:HH:mm:ss}'}"
+                                                           VerticalAlignment="Center"
+                                                           Foreground="{DynamicResource TextMutedBrush}"/>
+                                                <TextBlock Grid.Column="4"
+                                                           Text="{Binding SizeDisplay}"
+                                                           VerticalAlignment="Center"
+                                                           Foreground="{DynamicResource TextMutedBrush}"/>
+                                            </Grid>
+                                        </Button>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
                         
                         <!-- Pagination -->
                         <Border Background="{DynamicResource SurfaceBrush}"
@@ -253,24 +260,25 @@
             
             <!-- Right: Details Panel -->
             <Border Grid.Column="1" Classes="card">
-                <!-- No Selection -->
-                <StackPanel IsVisible="{Binding !HasSelectedLog}"
-                            Spacing="8"
-                            VerticalAlignment="Center"
-                            HorizontalAlignment="Center">
-                    <TextBlock Text="Select a Log"
-                               FontSize="14"
-                               FontWeight="SemiBold"
-                               HorizontalAlignment="Center"
-                               Foreground="{DynamicResource TextSecondaryBrush}"/>
-                    <TextBlock Text="Click on a log entry to view details"
-                               FontSize="12"
-                               HorizontalAlignment="Center"
-                               Foreground="{DynamicResource TextMutedBrush}"/>
-                </StackPanel>
-                
-                <!-- Log Details -->
-                <StackPanel IsVisible="{Binding HasSelectedLog}" Spacing="16">
+                <Grid>
+                    <!-- No Selection -->
+                    <StackPanel IsVisible="{Binding !HasSelectedLog}"
+                                Spacing="8"
+                                VerticalAlignment="Center"
+                                HorizontalAlignment="Center">
+                        <TextBlock Text="Select a Log"
+                                   FontSize="14"
+                                   FontWeight="SemiBold"
+                                   HorizontalAlignment="Center"
+                                   Foreground="{DynamicResource TextSecondaryBrush}"/>
+                        <TextBlock Text="Click on a log entry to view details"
+                                   FontSize="12"
+                                   HorizontalAlignment="Center"
+                                   Foreground="{DynamicResource TextMutedBrush}"/>
+                    </StackPanel>
+                    
+                    <!-- Log Details -->
+                    <StackPanel IsVisible="{Binding HasSelectedLog}" Spacing="16">
                     <!-- Header -->
                     <Grid ColumnDefinitions="*,Auto">
                         <StackPanel Grid.Column="0" Spacing="2">
@@ -296,11 +304,15 @@
                         <StackPanel Spacing="6">
                             <Grid ColumnDefinitions="70,*">
                                 <TextBlock Text="User:" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}"/>
-                                <TextBlock Grid.Column="1" Text="{Binding SelectedLog.UserId}"/>
+                                <TextBlock Grid.Column="1" Text="{Binding SelectedLog.UserDisplay}" 
+                                           TextTrimming="CharacterEllipsis"
+                                           ToolTip.Tip="{Binding SelectedLog.UserId}"/>
                             </Grid>
                             <Grid ColumnDefinitions="70,*">
-                                <TextBlock Text="Drone:" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}"/>
-                                <TextBlock Grid.Column="1" Text="{Binding SelectedLog.DroneId}"/>
+                                <TextBlock Text="Build ID:" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                <TextBlock Grid.Column="1" Text="{Binding SelectedLog.DroneId}"
+                                           TextTrimming="CharacterEllipsis"
+                                           ToolTip.Tip="{Binding SelectedLog.DroneId}"/>
                             </Grid>
                             <Grid ColumnDefinitions="70,*">
                                 <TextBlock Text="Time:" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}"/>
@@ -328,16 +340,28 @@
                                Foreground="{DynamicResource TextMutedBrush}"
                                HorizontalAlignment="Center"/>
                     
+                    <!-- No Changes Message -->
+                    <Border Background="{DynamicResource SurfaceBrush}"
+                            CornerRadius="6"
+                            Padding="16"
+                            IsVisible="{Binding HasNoChanges}">
+                        <TextBlock Text="No parameter changes in this log"
+                                   FontSize="12"
+                                   Foreground="{DynamicResource TextMutedBrush}"
+                                   HorizontalAlignment="Center"/>
+                    </Border>
+                    
+                    <!-- Changes Table -->
                     <Border Background="{DynamicResource SurfaceBrush}"
                             CornerRadius="6"
                             Padding="0"
-                            IsVisible="{Binding !IsLoadingContent}">
+                            IsVisible="{Binding HasChangesToShow}">
                         <StackPanel>
                             <!-- Changes Header -->
                             <Border Background="{DynamicResource SecondaryLightBrush}"
                                     Padding="10,6"
                                     CornerRadius="6,6,0,0">
-                                <Grid ColumnDefinitions="*,55,55">
+                                <Grid ColumnDefinitions="*,70,70">
                                     <TextBlock Text="Parameter" FontWeight="SemiBold" FontSize="10" Foreground="{DynamicResource TextSecondaryBrush}"/>
                                     <TextBlock Grid.Column="1" Text="Old" FontWeight="SemiBold" FontSize="10" Foreground="{DynamicResource TextSecondaryBrush}" TextAlignment="Right"/>
                                     <TextBlock Grid.Column="2" Text="New" FontWeight="SemiBold" FontSize="10" Foreground="{DynamicResource SuccessBrush}" TextAlignment="Right"/>
@@ -352,7 +376,7 @@
                                             <Border Padding="10,6"
                                                     BorderBrush="{DynamicResource BorderBrush}"
                                                     BorderThickness="0,0,0,1">
-                                                <Grid ColumnDefinitions="*,55,55">
+                                                <Grid ColumnDefinitions="*,70,70">
                                                     <TextBlock Text="{Binding ParamName}"
                                                                FontSize="11"
                                                                FontWeight="Medium"
@@ -375,9 +399,19 @@
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
                             </ScrollViewer>
+                            
+                            <!-- Changes Count -->
+                            <Border Background="{DynamicResource SecondaryLightBrush}"
+                                    Padding="10,6"
+                                    CornerRadius="0,0,6,6">
+                                <TextBlock Text="{Binding SelectedLogChanges.Count, StringFormat='Total: {0} change(s)'}"
+                                           FontSize="10"
+                                           Foreground="{DynamicResource TextSecondaryBrush}"/>
+                            </Border>
                         </StackPanel>
                     </Border>
                 </StackPanel>
+                </Grid>
             </Border>
         </Grid>
     </Grid>
