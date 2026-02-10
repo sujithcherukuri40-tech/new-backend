@@ -282,6 +282,69 @@ public class FirmwareApiService
         }
     }
     
+    /// <summary>
+    /// Get list of parameter logs with optional filters
+    /// </summary>
+    public async Task<ParamLogListResponse?> GetParamLogsAsync(string queryString, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            _logger.LogInformation("Fetching param logs with query: {Query}", queryString);
+            var response = await _httpClient.GetAsync($"/api/param-logs?{queryString}", cancellationToken);
+            response.EnsureSuccessStatusCode();
+            
+            return await response.Content.ReadFromJsonAsync<ParamLogListResponse>(cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to fetch param logs");
+            throw;
+        }
+    }
+    
+    /// <summary>
+    /// Get content of a specific parameter log file
+    /// </summary>
+    public async Task<ParamLogContentResponse?> GetParamLogContentAsync(string key, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var encodedKey = Uri.EscapeDataString(key);
+            _logger.LogInformation("Fetching param log content: {Key}", key);
+            var response = await _httpClient.GetAsync($"/api/param-logs/{encodedKey}", cancellationToken);
+            response.EnsureSuccessStatusCode();
+            
+            return await response.Content.ReadFromJsonAsync<ParamLogContentResponse>(cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to fetch param log content: {Key}", key);
+            throw;
+        }
+    }
+    
+    /// <summary>
+    /// Get presigned download URL for a parameter log file
+    /// </summary>
+    public async Task<string?> GetParamLogDownloadUrlAsync(string key, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var encodedKey = Uri.EscapeDataString(key);
+            _logger.LogInformation("Getting download URL for param log: {Key}", key);
+            var response = await _httpClient.GetAsync($"/api/param-logs/download/{encodedKey}", cancellationToken);
+            response.EnsureSuccessStatusCode();
+            
+            var result = await response.Content.ReadFromJsonAsync<DownloadUrlResponse>(cancellationToken);
+            return result?.DownloadUrl;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to get download URL for param log: {Key}", key);
+            throw;
+        }
+    }
+    
     private class DownloadUrlResponse
     {
         public string DownloadUrl { get; set; } = string.Empty;
@@ -329,4 +392,53 @@ public class ParameterChangeDto
     public float OldValue { get; set; }
     public float NewValue { get; set; }
     public DateTime? ChangedAt { get; set; }
+}
+
+/// <summary>
+/// Response for listing parameter logs
+/// </summary>
+public class ParamLogListResponse
+{
+    public List<ParamLogDto> Logs { get; set; } = new();
+    public int TotalCount { get; set; }
+    public int Page { get; set; }
+    public int PageSize { get; set; }
+    public int TotalPages { get; set; }
+    public List<string> AvailableUsers { get; set; } = new();
+    public List<string> AvailableDrones { get; set; } = new();
+}
+
+/// <summary>
+/// Parameter log metadata
+/// </summary>
+public class ParamLogDto
+{
+    public string Key { get; set; } = string.Empty;
+    public string FileName { get; set; } = string.Empty;
+    public string UserId { get; set; } = string.Empty;
+    public string DroneId { get; set; } = string.Empty;
+    public DateTime Timestamp { get; set; }
+    public long Size { get; set; }
+    public string SizeDisplay { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// Response for parameter log content
+/// </summary>
+public class ParamLogContentResponse
+{
+    public string Key { get; set; } = string.Empty;
+    public string RawContent { get; set; } = string.Empty;
+    public List<ParamChangeDetailDto> Changes { get; set; } = new();
+}
+
+/// <summary>
+/// Parameter change detail from CSV
+/// </summary>
+public class ParamChangeDetailDto
+{
+    public string ParamName { get; set; } = string.Empty;
+    public string OldValue { get; set; } = string.Empty;
+    public string NewValue { get; set; } = string.Empty;
+    public string ChangedAt { get; set; } = string.Empty;
 }

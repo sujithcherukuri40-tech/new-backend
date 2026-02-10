@@ -10,13 +10,13 @@ public partial class ParamLogsPage : UserControl
         InitializeComponent();
     }
     
-    protected override async void OnDataContextChanged(System.EventArgs e)
+    protected override void OnDataContextChanged(System.EventArgs e)
     {
         base.OnDataContextChanged(e);
         
         if (DataContext is ParamLogsViewModel vm)
         {
-            await vm.InitializeAsync();
+            _ = vm.InitializeAsync();
         }
     }
 }

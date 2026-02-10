@@ -1,6 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
+using PavamanDroneConfigurator.Infrastructure.Services;
 using System;
 using System.Collections.ObjectModel;
 using System.Linq;
@@ -16,7 +17,7 @@ namespace PavamanDroneConfigurator.UI.ViewModels.Admin;
 /// </summary>
 public partial class ParamLogsViewModel : ViewModelBase
 {
-    private readonly HttpClient? _httpClient;
+    private readonly FirmwareApiService? _apiService;
     private readonly ILogger<ParamLogsViewModel>? _logger;
 
     #region Backing Fields
@@ -156,9 +157,9 @@ public partial class ParamLogsViewModel : ViewModelBase
     
     #region Constructor
     
-    public ParamLogsViewModel(HttpClient httpClient, ILogger<ParamLogsViewModel>? logger = null)
+    public ParamLogsViewModel(FirmwareApiService apiService, ILogger<ParamLogsViewModel>? logger = null)
     {
-        _httpClient = httpClient;
+        _apiService = apiService;
         _logger = logger;
         
         // Set default date range (last 30 days)
@@ -171,7 +172,7 @@ public partial class ParamLogsViewModel : ViewModelBase
     /// </summary>
     public ParamLogsViewModel()
     {
-        _httpClient = null;
+        _apiService = null;
         _logger = null;
         
         // Add design-time data
@@ -203,7 +204,7 @@ public partial class ParamLogsViewModel : ViewModelBase
     [RelayCommand]
     private async Task LoadParamLogsAsync()
     {
-        if (_httpClient == null) return;
+        if (_apiService == null) return;
         
         IsLoading = true;
         HasError = false;
@@ -233,10 +234,7 @@ public partial class ParamLogsViewModel : ViewModelBase
                 queryParams.Add($"toDate={ToDate.Value:yyyy-MM-dd}");
             
             var queryString = string.Join("&", queryParams);
-            var response = await _httpClient.GetAsync($"/api/param-logs?{queryString}");
-            response.EnsureSuccessStatusCode();
-            
-            var result = await response.Content.ReadFromJsonAsync<ParamLogListResponse>();
+            var result = await _apiService.GetParamLogsAsync(queryString);
             
             if (result != null)
             {
@@ -273,8 +271,12 @@ public partial class ParamLogsViewModel : ViewModelBase
                     AvailableDrones.Add(drone);
                 }
                 
-                StatusMessage = $"? Loaded {ParamLogs.Count} of {TotalCount} log(s)";
+                StatusMessage = $"Loaded {ParamLogs.Count} of {TotalCount} log(s)";
                 _logger?.LogInformation("Loaded {Count} param logs", ParamLogs.Count);
+            }
+            else
+            {
+                StatusMessage = "No logs found";
             }
             
             OnPropertyChanged(nameof(HasNoLogs));
@@ -284,13 +286,13 @@ public partial class ParamLogsViewModel : ViewModelBase
         catch (HttpRequestException ex)
         {
             HasError = true;
-            StatusMessage = $"? Cannot connect to server: {ex.Message}";
+            StatusMessage = $"Cannot connect to server: {ex.Message}";
             _logger?.LogError(ex, "Failed to connect to API");
         }
         catch (Exception ex)
         {
             HasError = true;
-            StatusMessage = $"? Failed to load logs: {ex.Message}";
+            StatusMessage = $"Failed to load logs: {ex.Message}";
             _logger?.LogError(ex, "Failed to load param logs");
         }
         finally
@@ -340,7 +342,7 @@ public partial class ParamLogsViewModel : ViewModelBase
     [RelayCommand]
     private async Task ViewLogAsync(ParamLogItem? log)
     {
-        if (log == null || _httpClient == null) return;
+        if (log == null || _apiService == null) return;
         
         SelectedLog = log;
         IsLoadingContent = true;
@@ -350,11 +352,7 @@ public partial class ParamLogsViewModel : ViewModelBase
         {
             _logger?.LogInformation("Loading param log content: {Key}", log.Key);
             
-            var encodedKey = Uri.EscapeDataString(log.Key);
-            var response = await _httpClient.GetAsync($"/api/param-logs/{encodedKey}");
-            response.EnsureSuccessStatusCode();
-            
-            var result = await response.Content.ReadFromJsonAsync<ParamLogContentResponse>();
+            var result = await _apiService.GetParamLogContentAsync(log.Key);
             
             if (result?.Changes != null)
             {
@@ -375,7 +373,7 @@ public partial class ParamLogsViewModel : ViewModelBase
         catch (Exception ex)
         {
             _logger?.LogError(ex, "Failed to load param log content: {Key}", log.Key);
-            StatusMessage = $"? Failed to load log content: {ex.Message}";
+            StatusMessage = $"Failed to load log content: {ex.Message}";
         }
         finally
         {
@@ -386,35 +384,31 @@ public partial class ParamLogsViewModel : ViewModelBase
     [RelayCommand]
     private async Task DownloadLogAsync(ParamLogItem? log)
     {
-        if (log == null || _httpClient == null) return;
+        if (log == null || _apiService == null) return;
         
         try
         {
             _logger?.LogInformation("Getting download URL for: {Key}", log.Key);
             
-            var encodedKey = Uri.EscapeDataString(log.Key);
-            var response = await _httpClient.GetAsync($"/api/param-logs/download/{encodedKey}");
-            response.EnsureSuccessStatusCode();
+            var downloadUrl = await _apiService.GetParamLogDownloadUrlAsync(log.Key);
             
-            var result = await response.Content.ReadFromJsonAsync<DownloadUrlResponse>();
-            
-            if (result?.DownloadUrl != null)
+            if (!string.IsNullOrEmpty(downloadUrl))
             {
                 // Open in browser for download
                 var process = new System.Diagnostics.ProcessStartInfo
                 {
-                    FileName = result.DownloadUrl,
+                    FileName = downloadUrl,
                     UseShellExecute = true
                 };
                 System.Diagnostics.Process.Start(process);
                 
-                StatusMessage = $"? Download started for {log.FileName}";
+                StatusMessage = $"Download started for {log.FileName}";
             }
         }
         catch (Exception ex)
         {
             _logger?.LogError(ex, "Failed to download log: {Key}", log.Key);
-            StatusMessage = $"? Download failed: {ex.Message}";
+            StatusMessage = $"Download failed: {ex.Message}";
         }
     }
     
@@ -429,7 +423,7 @@ public partial class ParamLogsViewModel : ViewModelBase
     #endregion
 }
 
-#region Models
+#region View Models
 
 public class ParamLogItem
 {
@@ -450,50 +444,6 @@ public class ParamChangeItem
     public string OldValue { get; set; } = string.Empty;
     public string NewValue { get; set; } = string.Empty;
     public string ChangedAt { get; set; } = string.Empty;
-}
-
-// Response DTOs (matching API)
-public class ParamLogListResponse
-{
-    public System.Collections.Generic.List<ParamLogDto> Logs { get; set; } = new();
-    public int TotalCount { get; set; }
-    public int Page { get; set; }
-    public int PageSize { get; set; }
-    public int TotalPages { get; set; }
-    public System.Collections.Generic.List<string> AvailableUsers { get; set; } = new();
-    public System.Collections.Generic.List<string> AvailableDrones { get; set; } = new();
-}
-
-public class ParamLogDto
-{
-    public string Key { get; set; } = string.Empty;
-    public string FileName { get; set; } = string.Empty;
-    public string UserId { get; set; } = string.Empty;
-    public string DroneId { get; set; } = string.Empty;
-    public DateTime Timestamp { get; set; }
-    public long Size { get; set; }
-    public string SizeDisplay { get; set; } = string.Empty;
-}
-
-public class ParamLogContentResponse
-{
-    public string Key { get; set; } = string.Empty;
-    public string RawContent { get; set; } = string.Empty;
-    public System.Collections.Generic.List<ParamChangeDto> Changes { get; set; } = new();
-}
-
-public class ParamChangeDto
-{
-    public string ParamName { get; set; } = string.Empty;
-    public string OldValue { get; set; } = string.Empty;
-    public string NewValue { get; set; } = string.Empty;
-    public string ChangedAt { get; set; } = string.Empty;
-}
-
-public class DownloadUrlResponse
-{
-    public string DownloadUrl { get; set; } = string.Empty;
-    public int ExpiresIn { get; set; }
 }
 
 #endregion
