@@ -1,9 +1,10 @@
 <UserControl xmlns="https://github.com/avaloniaui"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:vm="using:PavamanDroneConfigurator.UI.ViewModels.Admin"
-             x:Class="PavamanDroneConfigurator.UI.Views.Admin.AdminDashboardView"
-             x:DataType="vm:AdminDashboardViewModel"
-             Background="#F9FAFB">
+xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+xmlns:vm="using:PavamanDroneConfigurator.UI.ViewModels.Admin"
+x:Class="PavamanDroneConfigurator.UI.Views.Admin.AdminDashboardView"
+x:DataType="vm:AdminDashboardViewModel"
+Background="#F9FAFB">
+    
 
     <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
         <StackPanel Margin="32" MaxWidth="1400" Spacing="24">
@@ -11,7 +12,7 @@
             <!-- Header -->
             <Grid ColumnDefinitions="*,Auto">
                 <StackPanel Spacing="8">
-                    <TextBlock Text="&#x2699; Admin Dashboard"
+                    <TextBlock Text="Admin Dashboard"
                                FontSize="28"
                                FontWeight="Bold"
                                Foreground="#111827"/>
@@ -20,7 +21,7 @@
                                Foreground="#6B7280"/>
                 </StackPanel>
                 <Button Grid.Column="1"
-                        Content="&#x21BB; Refresh"
+                        Content="Refresh"
                         Background="#3B82F6"
                         Foreground="White"
                         Padding="20,12"
@@ -35,35 +36,35 @@
                 <!-- Total Users -->
                 <Border Background="White" CornerRadius="12" Padding="20" BoxShadow="0 2 8 0 #10000000">
                     <StackPanel>
-                        <TextBlock Text="&#x1F465; Total Users" FontSize="13" Foreground="#6B7280"/>
+                        <TextBlock Text="Total Users" FontSize="13" Foreground="#6B7280"/>
                         <TextBlock Text="{Binding TotalCount}" FontSize="36" FontWeight="Bold" Foreground="#111827" Margin="0,8,0,0"/>
                     </StackPanel>
                 </Border>
                 <!-- Pending -->
                 <Border Grid.Column="1" Background="#FFFBEB" CornerRadius="12" Padding="20" BoxShadow="0 2 8 0 #10000000">
                     <StackPanel>
-                        <TextBlock Text="&#x23F3; Pending" FontSize="13" Foreground="#92400E"/>
+                        <TextBlock Text="Pending" FontSize="13" Foreground="#92400E"/>
                         <TextBlock Text="{Binding PendingCount}" FontSize="36" FontWeight="Bold" Foreground="#F59E0B" Margin="0,8,0,0"/>
                     </StackPanel>
                 </Border>
                 <!-- Approved -->
                 <Border Grid.Column="2" Background="#ECFDF5" CornerRadius="12" Padding="20" BoxShadow="0 2 8 0 #10000000">
                     <StackPanel>
-                        <TextBlock Text="&#x2714; Approved" FontSize="13" Foreground="#065F46"/>
+                        <TextBlock Text="Approved" FontSize="13" Foreground="#065F46"/>
                         <TextBlock Text="{Binding ApprovedCount}" FontSize="36" FontWeight="Bold" Foreground="#10B981" Margin="0,8,0,0"/>
                     </StackPanel>
                 </Border>
                 <!-- Admins -->
                 <Border Grid.Column="3" Background="#EEF2FF" CornerRadius="12" Padding="20" BoxShadow="0 2 8 0 #10000000">
                     <StackPanel>
-                        <TextBlock Text="&#x1F6E1; Admins" FontSize="13" Foreground="#3730A3"/>
+                        <TextBlock Text="Admins" FontSize="13" Foreground="#3730A3"/>
                         <TextBlock Text="{Binding AdminCount}" FontSize="36" FontWeight="Bold" Foreground="#6366F1" Margin="0,8,0,0"/>
                     </StackPanel>
                 </Border>
                 <!-- Regular Users -->
                 <Border Grid.Column="4" Background="#F0F9FF" CornerRadius="12" Padding="20" BoxShadow="0 2 8 0 #10000000">
                     <StackPanel>
-                        <TextBlock Text="&#x1F464; Users" FontSize="13" Foreground="#0369A1"/>
+                        <TextBlock Text="Users" FontSize="13" Foreground="#0369A1"/>
                         <TextBlock Text="{Binding UserCount}" FontSize="36" FontWeight="Bold" Foreground="#0EA5E9" Margin="0,8,0,0"/>
                     </StackPanel>
                 </Border>
@@ -73,7 +74,7 @@
             <Border Background="White" CornerRadius="12" Padding="16" BoxShadow="0 2 8 0 #10000000">
                 <Grid ColumnDefinitions="*,Auto">
                     <StackPanel Orientation="Horizontal" Spacing="12">
-                        <TextBox Watermark="&#x1F50D; Search by name or email..."
+                        <TextBox Watermark="Search by name or email..."
                                  Text="{Binding SearchText, Mode=TwoWay}"
                                  Width="300"
                                  CornerRadius="8"
@@ -84,16 +85,16 @@
                                   CornerRadius="8"
                                   Padding="12,8">
                             <ComboBoxItem Content="All Status"/>
-                            <ComboBoxItem Content="&#x2714; Approved"/>
-                            <ComboBoxItem Content="&#x23F3; Pending"/>
+                            <ComboBoxItem Content="Approved"/>
+                            <ComboBoxItem Content="Pending"/>
                         </ComboBox>
                         <ComboBox SelectedIndex="{Binding RoleFilter}"
                                   Width="150"
                                   CornerRadius="8"
                                   Padding="12,8">
                             <ComboBoxItem Content="All Roles"/>
-                            <ComboBoxItem Content="&#x1F6E1; Admin"/>
-                            <ComboBoxItem Content="&#x1F464; User"/>
+                            <ComboBoxItem Content="Admin"/>
+                            <ComboBoxItem Content="User"/>
                         </ComboBox>
                         <Button Content="Clear Filters"
                                 Background="#F3F4F6"
@@ -198,12 +199,13 @@
                                                     CommandParameter="{Binding}"/>
                                             
                                             <!-- Delete Button -->
-                                            <Button Content="&#x1F5D1;"
+                                            <Button Content="×"
                                                     Background="#FEF2F2"
                                                     Foreground="#DC2626"
                                                     Padding="10,8"
                                                     CornerRadius="6"
-                                                    FontSize="14"
+                                                    FontSize="18"
+                                                    FontWeight="Bold"
                                                     BorderThickness="0"
                                                     ToolTip.Tip="Delete User"
                                                     Command="{Binding $parent[UserControl].((vm:AdminDashboardViewModel)DataContext).DeleteUserCommand}"
@@ -218,7 +220,7 @@
                     <!-- Empty State -->
                     <Border Padding="60" IsVisible="{Binding ShowEmptyState}">
                         <StackPanel HorizontalAlignment="Center" Spacing="16">
-                            <TextBlock Text="&#x1F465;" FontSize="64" HorizontalAlignment="Center" Opacity="0.4"/>
+                            <TextBlock Text="??" FontSize="64" HorizontalAlignment="Center" Opacity="0.4"/>
                             <TextBlock Text="No users found" FontSize="18" FontWeight="SemiBold" Foreground="#64748B" HorizontalAlignment="Center"/>
                             <TextBlock Text="Try adjusting your search or filter criteria" FontSize="14" Foreground="#94A3B8" HorizontalAlignment="Center"/>
                             <Button Content="Clear All Filters"

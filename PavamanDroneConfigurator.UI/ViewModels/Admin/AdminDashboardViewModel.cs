@@ -7,6 +7,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 using PavamanDroneConfigurator.Core.Interfaces;
+using PavamanDroneConfigurator.Infrastructure.Services;
 
 namespace PavamanDroneConfigurator.UI.ViewModels.Admin;
 
@@ -16,8 +17,12 @@ namespace PavamanDroneConfigurator.UI.ViewModels.Admin;
 public sealed partial class AdminDashboardViewModel : ViewModelBase
 {
     private readonly IAdminService _adminService;
+    private readonly FirmwareApiService? _firmwareApiService;
     private readonly ILogger<AdminDashboardViewModel> _logger;
     private bool _isInitialized;
+    
+    // Navigation callback - set by MainWindow
+    public Action<string>? NavigateToPage { get; set; }
 
     [ObservableProperty]
     private ObservableCollection<UserListItem> _users = new();
@@ -40,7 +45,58 @@ public sealed partial class AdminDashboardViewModel : ViewModelBase
     [ObservableProperty]
     private string _statusMessage = "Ready";
 
-    // Stats
+    // S3 Storage Analytics
+    private string _s3TotalStorageValue = "5 GB";
+    public string S3TotalStorage
+    {
+        get => _s3TotalStorageValue;
+        set => SetProperty(ref _s3TotalStorageValue, value);
+    }
+    
+    private string _s3UsedStorageValue = "0 MB";
+    public string S3UsedStorage
+    {
+        get => _s3UsedStorageValue;
+        set => SetProperty(ref _s3UsedStorageValue, value);
+    }
+    
+    private double _s3UsagePercentValue = 0;
+    public double S3UsagePercent
+    {
+        get => _s3UsagePercentValue;
+        set => SetProperty(ref _s3UsagePercentValue, value);
+    }
+    
+    private int _totalParamLogsValue = 0;
+    public int TotalParamLogs
+    {
+        get => _totalParamLogsValue;
+        set => SetProperty(ref _totalParamLogsValue, value);
+    }
+    
+    private int _totalFirmwareFilesValue = 0;
+    public int TotalFirmwareFiles
+    {
+        get => _totalFirmwareFilesValue;
+        set => SetProperty(ref _totalFirmwareFilesValue, value);
+    }
+
+    // User Activity Analytics
+    private ObservableCollection<ActivityDataItem> _userActivityDataCollection = new();
+    public ObservableCollection<ActivityDataItem> UserActivityData
+    {
+        get => _userActivityDataCollection;
+        set => SetProperty(ref _userActivityDataCollection, value);
+    }
+    
+    private ObservableCollection<DailyUsageItem> _dailyUsageDataCollection = new();
+    public ObservableCollection<DailyUsageItem> DailyUsageData
+    {
+        get => _dailyUsageDataCollection;
+        set => SetProperty(ref _dailyUsageDataCollection, value);
+    }
+
+    // Stats - computed from real user data
     public int TotalCount => Users.Count;
     public int PendingCount => Users.Count(u => !u.IsApproved);
     public int ApprovedCount => Users.Count(u => u.IsApproved);
@@ -51,10 +107,12 @@ public sealed partial class AdminDashboardViewModel : ViewModelBase
 
     public AdminDashboardViewModel(
         IAdminService adminService,
-        ILogger<AdminDashboardViewModel> logger)
+        ILogger<AdminDashboardViewModel> logger,
+        FirmwareApiService? firmwareApiService = null)
     {
         _adminService = adminService;
         _logger = logger;
+        _firmwareApiService = firmwareApiService;
 
         PropertyChanged += (s, e) =>
         {
@@ -73,6 +131,158 @@ public sealed partial class AdminDashboardViewModel : ViewModelBase
         _isInitialized = true;
         
         await RefreshAsync();
+        await LoadAnalyticsAsync();
+    }
+    
+    private async Task LoadAnalyticsAsync()
+    {
+        try
+        {
+            // Load real param logs data from API
+            if (_firmwareApiService != null)
+            {
+                try
+                {
+                    var paramLogsResponse = await _firmwareApiService.GetParamLogsAsync("page=1&pageSize=1");
+                    if (paramLogsResponse != null)
+                    {
+                        TotalParamLogs = paramLogsResponse.TotalCount;
+                        
+                        // Estimate storage used (average ~2KB per log)
+                        var estimatedBytes = paramLogsResponse.TotalCount * 2048L;
+                        S3UsedStorage = FormatFileSize(estimatedBytes);
+                        S3UsagePercent = Math.Min((estimatedBytes / (5.0 * 1024 * 1024 * 1024)) * 100, 100);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to load param logs analytics");
+                }
+                
+                // Load firmware count
+                try
+                {
+                    var firmwares = await _firmwareApiService.GetInAppFirmwaresAsync();
+                    TotalFirmwareFiles = firmwares?.Count ?? 0;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to load firmware analytics");
+                }
+            }
+            
+            // Build user activity data from real user stats
+            await Dispatcher.UIThread.InvokeAsync(() =>
+            {
+                UserActivityData.Clear();
+                UserActivityData.Add(new ActivityDataItem { Activity = "Total Users", Count = TotalCount, Color = "#667EEA" });
+                UserActivityData.Add(new ActivityDataItem { Activity = "Approved", Count = ApprovedCount, Color = "#10B981" });
+                UserActivityData.Add(new ActivityDataItem { Activity = "Pending", Count = PendingCount, Color = "#F59E0B" });
+                UserActivityData.Add(new ActivityDataItem { Activity = "Administrators", Count = AdminCount, Color = "#EF4444" });
+                
+                // Generate activity chart data based on user creation dates (last 7 days)
+                DailyUsageData.Clear();
+                for (int i = 6; i >= 0; i--)
+                {
+                    var date = DateTime.Now.Date.AddDays(-i);
+                    var nextDate = date.AddDays(1);
+                    
+                    var usersJoined = Users.Count(u => u.CreatedAt.Date >= date && u.CreatedAt.Date < nextDate);
+                    var usersApproved = Users.Count(u => u.IsApproved && u.CreatedAt.Date >= date && u.CreatedAt.Date < nextDate);
+                    
+                    DailyUsageData.Add(new DailyUsageItem
+                    {
+                        Date = date.ToString("MMM dd"),
+                        ActiveUsers = Math.Max(usersJoined, 1), // At least 1 for visibility
+                        ParamChanges = TotalParamLogs > 0 ? TotalParamLogs / 7 : 0, // Distribute evenly
+                        FirmwareDownloads = TotalFirmwareFiles > 0 ? TotalFirmwareFiles / 7 : 0
+                    });
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to load analytics");
+        }
+    }
+    
+    private static string FormatFileSize(long bytes)
+    {
+        string[] sizes = ["B", "KB", "MB", "GB", "TB"];
+        int order = 0;
+        double size = bytes;
+        while (size >= 1024 && order < sizes.Length - 1)
+        {
+            order++;
+            size /= 1024;
+        }
+        return $"{size:0.##} {sizes[order]}";
+    }
+    
+    // Navigation commands for cards - navigate to actual pages
+    [RelayCommand]
+    private void NavigateToPending()
+    {
+        // Set filter to pending and scroll to user table
+        StatusFilter = 2;
+        StatusMessage = $"Showing {PendingCount} pending user(s)";
+    }
+    
+    [RelayCommand]
+    private void NavigateToApproved()
+    {
+        // Set filter to approved and scroll to user table
+        StatusFilter = 1;
+        StatusMessage = $"Showing {ApprovedCount} approved user(s)";
+    }
+    
+    [RelayCommand]
+    private void NavigateToAdmins()
+    {
+        StatusFilter = 0;
+        RoleFilter = 1;
+        StatusMessage = $"Showing {AdminCount} administrator(s)";
+    }
+    
+    [RelayCommand]
+    private void NavigateToAllUsers()
+    {
+        ClearFilters();
+        StatusMessage = $"Showing all {TotalCount} user(s)";
+    }
+    
+    [RelayCommand]
+    private void NavigateToParamLogs()
+    {
+        NavigateToPage?.Invoke("ParamLogsPage");
+    }
+    
+    [RelayCommand]
+    private void NavigateToFirmware()
+    {
+        NavigateToPage?.Invoke("FirmwareManagementPage");
+    }
+    
+    /// <summary>
+    /// Set filter preset when navigating from another page
+    /// </summary>
+    public void SetFilterPreset(string filter)
+    {
+        switch (filter.ToLower())
+        {
+            case "pending":
+                StatusFilter = 2;
+                break;
+            case "approved":
+                StatusFilter = 1;
+                break;
+            case "admin":
+                RoleFilter = 1;
+                break;
+            default:
+                ClearFilters();
+                break;
+        }
     }
 
     [RelayCommand]
@@ -333,4 +543,25 @@ public sealed partial class UserListItem : ObservableObject
     }
 
     partial void OnSelectedRoleChanged(string value) => OnPropertyChanged(nameof(ApprovalButtonText));
+}
+
+/// <summary>
+/// Data model for daily usage statistics
+/// </summary>
+public class DailyUsageItem
+{
+    public string Date { get; set; } = string.Empty;
+    public int ActiveUsers { get; set; }
+    public int ParamChanges { get; set; }
+    public int FirmwareDownloads { get; set; }
+}
+
+/// <summary>
+/// Data model for user activity breakdown
+/// </summary>
+public class ActivityDataItem
+{
+    public string Activity { get; set; } = string.Empty;
+    public int Count { get; set; }
+    public string Color { get; set; } = "#667EEA";
 }

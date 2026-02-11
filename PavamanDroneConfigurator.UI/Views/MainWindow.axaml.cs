@@ -35,6 +35,12 @@ public partial class MainWindow : Window
 
         try
         {
+            // Set up navigation callback for AdminDashboard
+            if (vm.AdminDashboardPage != null)
+            {
+                vm.AdminDashboardPage.NavigateToPage = NavigateToAdminPage;
+            }
+            
             if (this.FindControl<StackPanel>("NavigationMenu") is StackPanel navMenu)
             {
                 var firstButton = navMenu.Children.OfType<Button>()
@@ -56,6 +62,58 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             ShowNotification("Navigation Error", ex.Message, NotificationType.Error);
+        }
+    }
+    
+    private void NavigateToAdminPage(string pageNameWithFilter)
+    {
+        if (DataContext is not MainWindowViewModel vm) return;
+        
+        // Parse page name and optional filter (e.g., "AdminDashboardPage:pending")
+        var parts = pageNameWithFilter.Split(':');
+        var pageName = parts[0];
+        var filter = parts.Length > 1 ? parts[1] : null;
+        
+        ViewModelBase? targetPage = pageName switch
+        {
+            "ParamLogsPage" => vm.ParamLogsPage,
+            "FirmwareManagementPage" => vm.FirmwareManagementPage,
+            "AdminPanelPage" or "AdminDashboardPage" => vm.AdminDashboardPage,
+            _ => null
+        };
+        
+        if (targetPage == null) return;
+        
+        // Apply filter preset if specified for AdminDashboard
+        if (targetPage is AdminDashboardViewModel adminDash && filter != null)
+        {
+            adminDash.SetFilterPreset(filter);
+        }
+        
+        var view = CreateView(targetPage);
+        if (view != null)
+        {
+            vm.SetCurrentPage(targetPage, view);
+            
+            // Find and set the active button in the navigation menu
+            if (this.FindControl<StackPanel>("NavigationMenu") is StackPanel navMenu)
+            {
+                // Map to actual button tag
+                var buttonTag = pageName switch
+                {
+                    "AdminPanelPage" or "AdminDashboardPage" => "AdminDashboardPage",
+                    _ => pageName
+                };
+                
+                var button = navMenu.Children.OfType<Button>()
+                    .FirstOrDefault(b => b.Tag?.ToString() == buttonTag);
+                if (button != null)
+                {
+                    SetActiveButton(button);
+                }
+            }
+            
+            _ = InitializePageIfNeededAsync(targetPage);
         }
     }
 
@@ -122,6 +180,9 @@ public partial class MainWindow : Window
                     break;
                 case FirmwareManagementViewModel fwMgmt:
                     await fwMgmt.InitializeAsync();
+                    break;
+                case ParamLogsViewModel paramLogs:
+                    await paramLogs.InitializeAsync();
                     break;
                 // Add other pages that need lazy initialization here
             }
