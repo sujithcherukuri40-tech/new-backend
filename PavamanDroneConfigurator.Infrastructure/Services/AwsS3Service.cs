@@ -342,7 +342,7 @@ public class AwsS3Service : IDisposable
     }
     
     /// <summary>
-    /// Append parameter changes
+    /// Append parameter changes with metadata header in CSV
     /// </summary>
     public async Task AppendParameterChangesAsync(
         string userId, 
@@ -352,6 +352,11 @@ public class AwsS3Service : IDisposable
         CancellationToken cancellationToken = default)
     {
         var csv = new System.Text.StringBuilder();
+        // Add metadata header as comment
+        csv.AppendLine($"# user_name={userName ?? "unknown"}");
+        csv.AppendLine($"# user_id={userId}");
+        csv.AppendLine($"# board_id={fcId}");
+        csv.AppendLine($"# timestamp={DateTime.UtcNow:yyyy-MM-dd HH:mm:ss}");
         csv.AppendLine("param_name,old_value,new_value,changed_at");
         foreach (var change in changes)
             csv.AppendLine($"{change.ParamName},{change.OldValue},{change.NewValue},{change.ChangedAt:yyyy-MM-dd HH:mm:ss}");

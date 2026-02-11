@@ -140,14 +140,16 @@ public class ParamLogsController : ControllerBase
             
             var content = await _s3Service.GetParameterLogContentAsync(key, cancellationToken);
             
-            // Parse CSV content
-            var changes = ParseCsvContent(content);
+            // Parse CSV content and extract metadata
+            var (changes, metadata) = ParseCsvContent(content);
             
             return Ok(new ParamLogContentResponse
             {
                 Key = key,
                 RawContent = content,
-                Changes = changes
+                Changes = changes,
+                UserName = metadata.GetValueOrDefault("user_name"),
+                BoardId = metadata.GetValueOrDefault("board_id")
             });
         }
         catch (Exception ex)
@@ -179,19 +181,40 @@ public class ParamLogsController : ControllerBase
         }
     }
     
-    private List<ParamChangeEntry> ParseCsvContent(string csvContent)
+    private (List<ParamChangeEntry> Changes, Dictionary<string, string> Metadata) ParseCsvContent(string csvContent)
     {
         var changes = new List<ParamChangeEntry>();
+        var metadata = new Dictionary<string, string>();
         
         if (string.IsNullOrWhiteSpace(csvContent))
-            return changes;
+            return (changes, metadata);
         
         var lines = csvContent.Split('\n', StringSplitOptions.RemoveEmptyEntries);
         
-        // Skip header line
-        foreach (var line in lines.Skip(1))
+        foreach (var line in lines)
         {
-            var parts = line.Split(',');
+            var trimmedLine = line.Trim();
+            
+            // Parse metadata comments (e.g., "# user_name=John Doe")
+            if (trimmedLine.StartsWith("#"))
+            {
+                var metaLine = trimmedLine.TrimStart('#', ' ');
+                var eqIndex = metaLine.IndexOf('=');
+                if (eqIndex > 0)
+                {
+                    var key = metaLine[..eqIndex].Trim();
+                    var value = metaLine[(eqIndex + 1)..].Trim();
+                    metadata[key] = value;
+                }
+                continue;
+            }
+            
+            // Skip header line
+            if (trimmedLine.StartsWith("param_name", StringComparison.OrdinalIgnoreCase))
+                continue;
+            
+            // Parse data lines
+            var parts = trimmedLine.Split(',');
             if (parts.Length >= 4)
             {
                 changes.Add(new ParamChangeEntry
@@ -204,7 +227,7 @@ public class ParamLogsController : ControllerBase
             }
         }
         
-        return changes;
+        return (changes, metadata);
     }
 }
 
@@ -226,6 +249,8 @@ public class ParamLogContentResponse
     public string Key { get; set; } = string.Empty;
     public string RawContent { get; set; } = string.Empty;
     public List<ParamChangeEntry> Changes { get; set; } = new();
+    public string? UserName { get; set; }
+    public string? BoardId { get; set; }
 }
 
 public class ParamChangeEntry

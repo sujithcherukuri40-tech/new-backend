@@ -343,6 +343,7 @@ public partial class ParamLogsViewModel : ViewModelBase
         }
     }
     
+    
     [RelayCommand]
     private async Task ViewLogAsync(ParamLogItem? log)
     {
@@ -358,6 +359,13 @@ public partial class ParamLogsViewModel : ViewModelBase
             _logger?.LogInformation("Loading param log content: {Key}", log.Key);
             
             var result = await _apiService.GetParamLogContentAsync(log.Key);
+            
+            // Update log with username from CSV metadata if available
+            if (!string.IsNullOrEmpty(result?.UserName))
+            {
+                log.UserName = result.UserName;
+                OnPropertyChanged(nameof(SelectedLog));
+            }
             
             if (result?.Changes != null && result.Changes.Count > 0)
             {

@@ -438,6 +438,8 @@ public class ParamLogContentResponse
     public string Key { get; set; } = string.Empty;
     public string RawContent { get; set; } = string.Empty;
     public List<ParamChangeDetailDto> Changes { get; set; } = new();
+    public string? UserName { get; set; }
+    public string? BoardId { get; set; }
 }
 
 /// <summary>
