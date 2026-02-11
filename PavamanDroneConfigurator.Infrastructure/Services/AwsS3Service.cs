@@ -291,6 +291,7 @@ public class AwsS3Service : IDisposable
     
     /// <summary>
     /// Upload parameter change log to S3 with optional username
+    /// Key format: params-logs/user_{userId}_{userName}/board_{boardId}/params_{timestamp}.csv
     /// </summary>
     public async Task UploadParameterChangeLogAsync(
         string userId, 
@@ -303,7 +304,14 @@ public class AwsS3Service : IDisposable
         {
             var client = GetS3Client();
             var timestamp = DateTime.UtcNow.ToString("yyyyMMdd_HHmmss");
-            var s3Key = $"{ParamsLogsPrefix}user_{userId}/drone_{fcId}/params_{timestamp}.csv";
+            
+            // Sanitize username for use in S3 key (replace spaces and special chars)
+            var safeUserName = string.IsNullOrEmpty(userName) 
+                ? "unknown" 
+                : System.Text.RegularExpressions.Regex.Replace(userName, @"[^a-zA-Z0-9_\-\.]", "_");
+            
+            // Include username in path: params-logs/user_{userId}_{userName}/board_{boardId}/params_{timestamp}.csv
+            var s3Key = $"{ParamsLogsPrefix}user_{userId}_{safeUserName}/board_{fcId}/params_{timestamp}.csv";
             
             using var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(csvContent));
             var request = new PutObjectRequest
@@ -315,7 +323,7 @@ public class AwsS3Service : IDisposable
                 ServerSideEncryptionMethod = ServerSideEncryptionMethod.AES256
             };
             
-            // Store username in S3 metadata for display
+            // Store username in S3 metadata for backup
             if (!string.IsNullOrEmpty(userName))
             {
                 request.Metadata.Add("username", userName);
@@ -455,12 +463,43 @@ public class AwsS3Service : IDisposable
     {
         try
         {
-            // Expected format: params-logs/user_{userId}/drone_{droneId}/params_{timestamp}.csv
+            // New format: params-logs/user_{userId}_{userName}/board_{boardId}/params_{timestamp}.csv
+            // Old format: params-logs/user_{userId}/drone_{droneId}/params_{timestamp}.csv
             var parts = key.Split('/');
             if (parts.Length < 4) return null;
             
-            var userId = parts[1].Replace("user_", "");
-            var droneId = parts[2].Replace("drone_", "");
+            // Parse user folder: "user_{userId}_{userName}" or "user_{userId}"
+            var userPart = parts[1];
+            string userId, userName = string.Empty;
+            
+            if (userPart.StartsWith("user_"))
+            {
+                var userInfo = userPart.Replace("user_", "");
+                var underscoreIndex = userInfo.IndexOf('_');
+                
+                if (underscoreIndex > 0)
+                {
+                    // New format with username
+                    userId = userInfo[..underscoreIndex];
+                    userName = userInfo[(underscoreIndex + 1)..].Replace("_", " "); // Restore spaces
+                }
+                else
+                {
+                    // Old format without username
+                    userId = userInfo;
+                }
+            }
+            else
+            {
+                userId = userPart;
+            }
+            
+            // Parse board/drone folder: "board_{boardId}" or "drone_{droneId}"
+            var boardPart = parts[2];
+            var boardId = boardPart.StartsWith("board_") 
+                ? boardPart.Replace("board_", "") 
+                : boardPart.Replace("drone_", "");
+            
             var fileName = parts[3];
             
             // Extract timestamp from filename: params_20250115_103045.csv
@@ -479,7 +518,8 @@ public class AwsS3Service : IDisposable
                 Key = key,
                 FileName = fileName,
                 UserId = userId,
-                DroneId = droneId,
+                UserName = !string.IsNullOrEmpty(userName) ? userName : null,
+                DroneId = boardId,  // This is actually the Board ID
                 Timestamp = timestamp,
                 Size = size,
                 SizeDisplay = FormatBytes(size)

@@ -648,25 +648,26 @@ public partial class ParametersPageViewModel : ViewModelBase
             var userId = _authSession.CurrentState.User?.Id ?? "unknown";
             var userName = _authSession.CurrentState.User?.FullName ?? _authSession.CurrentState.User?.Email ?? "unknown";
             
-            // Get drone/FC ID from drone info service
+            // Get Board ID (FcId) from drone info service
             var droneInfo = await _droneInfoService.GetDroneInfoAsync();
-            var fcId = droneInfo?.FcId ?? "unknown";
-            var droneId = droneInfo?.DroneId ?? "unknown";
+            var boardId = droneInfo?.FcId ?? "unknown";  // FcId is the Board ID
+            var buildId = droneInfo?.DroneId ?? "unknown";  // DroneId is the Build ID
             
             _logger?.LogInformation(
-                "Logging {Count} parameter changes to S3 for user={UserId} ({UserName}), drone={DroneId}, fc={FcId}",
-                changes.Count, userId, userName, droneId, fcId);
+                "Logging {Count} parameter changes to S3 for user={UserId} ({UserName}), build={BuildId}, board={BoardId}",
+                changes.Count, userId, userName, buildId, boardId);
 
             // Log each change for debugging
             foreach (var change in changes)
             {
                 _logger?.LogDebug(
-                    "Parameter change: {Param} {Old} -> {New} by {User} on drone {Drone}",
-                    change.ParamName, change.OldValue, change.NewValue, userName, droneId);
+                    "Parameter change: {Param} {Old} -> {New} by {User} on board {Board}",
+                    change.ParamName, change.OldValue, change.NewValue, userName, boardId);
             }
 
             // Upload parameter changes to S3 via API (creates CSV in param-logs folder)
-            await _firmwareApiService.UploadParameterLogAsync(userId, userName, droneId, fcId, changes);
+            // Note: Using buildId as droneId parameter and boardId as fcId parameter
+            await _firmwareApiService.UploadParameterLogAsync(userId, userName, buildId, boardId, changes);
             
             _logger?.LogInformation("Successfully logged {Count} parameter changes to S3 param-logs folder", changes.Count);
         }
