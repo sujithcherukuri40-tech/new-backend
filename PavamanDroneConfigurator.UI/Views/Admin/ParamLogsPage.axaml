@@ -83,7 +83,7 @@
                                    FontSize="13"
                                    Foreground="{DynamicResource TextSecondaryBrush}"/>
                         
-                        <!-- Row 1: User and Board ID -->
+                        <!-- Row 1: User and Drone ID -->
                         <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
                             <StackPanel Grid.Column="0" Spacing="4">
                                 <TextBlock Text="User" FontSize="11" Foreground="{DynamicResource TextMutedBrush}"/>
@@ -94,11 +94,11 @@
                             </StackPanel>
                             
                             <StackPanel Grid.Column="1" Spacing="4">
-                                <TextBlock Text="Board ID" FontSize="11" Foreground="{DynamicResource TextMutedBrush}"/>
+                                <TextBlock Text="Drone ID" FontSize="11" Foreground="{DynamicResource TextMutedBrush}"/>
                                 <ComboBox ItemsSource="{Binding AvailableDrones}"
                                           SelectedItem="{Binding SelectedDroneId}"
                                           HorizontalAlignment="Stretch"
-                                          PlaceholderText="All Boards"/>
+                                          PlaceholderText="All Drones"/>
                             </StackPanel>
                         </Grid>
                         
@@ -174,7 +174,7 @@
                                 CornerRadius="8,8,0,0">
                             <Grid ColumnDefinitions="150,*,90,70,50">
                                 <TextBlock Grid.Column="0" Text="User" FontWeight="SemiBold" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}"/>
-                                <TextBlock Grid.Column="1" Text="Board ID" FontWeight="SemiBold" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                <TextBlock Grid.Column="1" Text="Drone ID" FontWeight="SemiBold" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}"/>
                                 <TextBlock Grid.Column="2" Text="Date" FontWeight="SemiBold" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}"/>
                                 <TextBlock Grid.Column="3" Text="Time" FontWeight="SemiBold" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}"/>
                                 <TextBlock Grid.Column="4" Text="Size" FontWeight="SemiBold" FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}"/>
@@ -309,7 +309,7 @@
                                            ToolTip.Tip="{Binding SelectedLog.UserId}"/>
                             </Grid>
                             <Grid ColumnDefinitions="70,*">
-                                <TextBlock Text="Board ID:" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                <TextBlock Text="Drone ID:" FontWeight="Medium" Foreground="{DynamicResource TextSecondaryBrush}"/>
                                 <TextBlock Grid.Column="1" Text="{Binding SelectedLog.DroneId}"
                                            TextTrimming="CharacterEllipsis"
                                            ToolTip.Tip="{Binding SelectedLog.DroneId}"/>

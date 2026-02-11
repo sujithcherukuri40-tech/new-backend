@@ -120,19 +120,27 @@ public class DroneInfoService : IDroneInfoService
         
         bool hasChanges = false;
         
+        _logger.LogInformation("=== AUTOPILOT_VERSION received ===");
+        
         // Get FC ID from AUTOPILOT_VERSION message using the proper method
         var newFcId = versionData.GetFcId();
-        if (_currentInfo.FcId != newFcId)
+        _logger.LogInformation("Extracted FC ID: {FcId}", newFcId);
+        
+        if (_currentInfo.FcId != newFcId && !string.IsNullOrEmpty(newFcId) && newFcId != "FW-UNAVAILABLE")
         {
+            _logger.LogInformation("Updating FC ID: {Old} -> {New}", _currentInfo.FcId, newFcId);
             _currentInfo.FcId = newFcId;
             hasChanges = true;
         }
         
         // Extract firmware version from AUTOPILOT_VERSION
         var newFirmwareVersion = versionData.FirmwareVersionString;
+        _logger.LogInformation("Extracted firmware version: {Version}", newFirmwareVersion);
+        
         if (!string.IsNullOrEmpty(newFirmwareVersion) && newFirmwareVersion != "N/A" && 
             _currentInfo.FirmwareVersion != newFirmwareVersion)
         {
+            _logger.LogInformation("Updating firmware version: {Old} -> {New}", _currentInfo.FirmwareVersion, newFirmwareVersion);
             _currentInfo.FirmwareVersion = newFirmwareVersion;
             hasChanges = true;
         }
@@ -147,9 +155,13 @@ public class DroneInfoService : IDroneInfoService
         
         if (hasChanges)
         {
-            _logger.LogInformation("AUTOPILOT_VERSION received: FcId={FcId}, FW={FwVer}, GitHash={GitHash}", 
+            _logger.LogInformation("? AUTOPILOT_VERSION processed successfully: FcId={FcId}, FW={FwVer}, GitHash={GitHash}", 
                 newFcId, newFirmwareVersion, newGitHash);
             NotifyIfChanged();
+        }
+        else
+        {
+            _logger.LogWarning("? AUTOPILOT_VERSION received but no changes detected");
         }
     }
     
@@ -273,8 +285,11 @@ public class DroneInfoService : IDroneInfoService
                 }
             }
 
-            // Get firmware version from params (if not already set from AUTOPILOT_VERSION)
-            if (string.IsNullOrEmpty(_currentInfo.FirmwareVersion) || _currentInfo.FirmwareVersion == "N/A")
+            // Get firmware version from params (ONLY if not already set from AUTOPILOT_VERSION)
+            // AUTOPILOT_VERSION provides the most accurate firmware version
+            if (string.IsNullOrEmpty(_currentInfo.FirmwareVersion) || 
+                _currentInfo.FirmwareVersion == "N/A" ||
+                _currentInfo.FirmwareVersion == "Pending...")  // Allow updating from pending
             {
                 var swVersion = await _parameterService.GetParameterAsync("SYSID_SW_MREV");
                 
@@ -284,12 +299,13 @@ public class DroneInfoService : IDroneInfoService
                     var major = (ver >> 24) & 0xFF;
                     var minor = (ver >> 16) & 0xFF;
                     var patch = ver & 0xFFFF;
-                    _currentInfo.FirmwareVersion = $"{major}.{minor}.{patch}";
-                }
-                else
-                {
-                    // Default version format
-                    _currentInfo.FirmwareVersion = "4.4.4";
+                    
+                    // Only use if it looks valid (not 0.0.0)
+                    if (major > 0 || minor > 0 || patch > 0)
+                    {
+                        _currentInfo.FirmwareVersion = $"{major}.{minor}.{patch}";
+                        _logger.LogInformation("Firmware version from SYSID_SW_MREV: {Version}", _currentInfo.FirmwareVersion);
+                    }
                 }
             }
 
@@ -301,10 +317,19 @@ public class DroneInfoService : IDroneInfoService
             _currentInfo.CodeChecksum = GenerateCodeChecksum();
             _currentInfo.DataChecksum = GenerateDataChecksum();
 
-            // Only generate fallback FCID if not already set from AUTOPILOT_VERSION
-            if (string.IsNullOrEmpty(_currentInfo.FcId) || _currentInfo.FcId.Contains("UNAVAILABLE") || _currentInfo.FcId.Contains(FirmwareIdPlaceholderSuffix))
+            // ONLY generate fallback FCID if AUTOPILOT_VERSION has not provided a real one
+            // Check if we need to generate a fallback FC ID
+            if (string.IsNullOrEmpty(_currentInfo.FcId) || 
+                _currentInfo.FcId == "Pending..." ||
+                _currentInfo.FcId.Contains("UNAVAILABLE"))
             {
-                _currentInfo.FcId = GenerateFcId();
+                // Try to generate from system info as fallback
+                var generatedId = GenerateFcId();
+                if (!generatedId.Contains("UNAVAILABLE"))
+                {
+                    _currentInfo.FcId = generatedId;
+                    _logger.LogInformation("Generated fallback FC ID: {FcId}", generatedId);
+                }
             }
 
             _logger.LogInformation("Drone info refreshed: ID={DroneId}, FW={FwVer}, FcId={FcId}", 

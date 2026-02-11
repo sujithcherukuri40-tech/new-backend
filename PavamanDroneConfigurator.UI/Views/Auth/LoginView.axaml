@@ -103,10 +103,12 @@
                                             Spacing="10"
                                             IsVisible="{Binding IsLoading}"
                                             HorizontalAlignment="Center">
-                                    <ProgressBar IsIndeterminate="True"
-                                                 Width="18"
-                                                 Height="18"
-                                                 Foreground="White"/>
+                                    <!-- Simple Spinner using ProgressBar -->
+                                    <ProgressBar Width="18" Height="18"
+                                                 IsIndeterminate="True"
+                                                 Foreground="White"
+                                                 Background="Transparent"
+                                                 VerticalAlignment="Center"/>
                                     <TextBlock Text="Signing in..."
                                                Foreground="White"
                                                FontWeight="SemiBold"/>

@@ -291,7 +291,8 @@ public class AwsS3Service : IDisposable
     
     /// <summary>
     /// Upload parameter change log to S3 with optional username
-    /// Key format: params-logs/user_{userId}_{userName}/board_{boardId}/params_{timestamp}.csv
+    /// Key format: params-logs/user_{userId}_{userName}/drone_{droneId}/params_{timestamp}.csv
+    /// fcId parameter is the Drone ID (P003B04H22...)
     /// </summary>
     public async Task UploadParameterChangeLogAsync(
         string userId, 
@@ -310,8 +311,13 @@ public class AwsS3Service : IDisposable
                 ? "unknown" 
                 : System.Text.RegularExpressions.Regex.Replace(userName, @"[^a-zA-Z0-9_\-\.]", "_");
             
-            // Include username in path: params-logs/user_{userId}_{userName}/board_{boardId}/params_{timestamp}.csv
-            var s3Key = $"{ParamsLogsPrefix}user_{userId}_{safeUserName}/board_{fcId}/params_{timestamp}.csv";
+            // Sanitize drone ID for path (replace special chars but keep alphanumeric)
+            var safeDroneId = string.IsNullOrEmpty(fcId)
+                ? "unknown"
+                : System.Text.RegularExpressions.Regex.Replace(fcId, @"[^a-zA-Z0-9_\-]", "_");
+            
+            // S3 key: params-logs/user_{userId}_{userName}/drone_{droneId}/params_{timestamp}.csv
+            var s3Key = $"{ParamsLogsPrefix}user_{userId}_{safeUserName}/drone_{safeDroneId}/params_{timestamp}.csv";
             
             using var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(csvContent));
             var request = new PutObjectRequest
@@ -351,6 +357,7 @@ public class AwsS3Service : IDisposable
     
     /// <summary>
     /// Append parameter changes with metadata header in CSV
+    /// Includes user, drone, and board identification
     /// </summary>
     public async Task AppendParameterChangesAsync(
         string userId, 
@@ -360,10 +367,10 @@ public class AwsS3Service : IDisposable
         CancellationToken cancellationToken = default)
     {
         var csv = new System.Text.StringBuilder();
-        // Add metadata header as comment
+        // Add metadata header as comment with clear identification
         csv.AppendLine($"# user_name={userName ?? "unknown"}");
         csv.AppendLine($"# user_id={userId}");
-        csv.AppendLine($"# board_id={fcId}");
+        csv.AppendLine($"# drone_id={fcId}");  // This is the actual Drone ID (P003B04...)
         csv.AppendLine($"# timestamp={DateTime.UtcNow:yyyy-MM-dd HH:mm:ss}");
         csv.AppendLine("param_name,old_value,new_value,changed_at");
         foreach (var change in changes)
@@ -463,8 +470,9 @@ public class AwsS3Service : IDisposable
     {
         try
         {
-            // New format: params-logs/user_{userId}_{userName}/board_{boardId}/params_{timestamp}.csv
-            // Old format: params-logs/user_{userId}/drone_{droneId}/params_{timestamp}.csv
+            // New format: params-logs/user_{userId}_{userName}/drone_{droneId}/params_{timestamp}.csv
+            // Old format: params-logs/user_{userId}_{userName}/board_{boardId}/params_{timestamp}.csv
+            // Legacy format: params-logs/user_{userId}/drone_{droneId}/params_{timestamp}.csv
             var parts = key.Split('/');
             if (parts.Length < 4) return null;
             
@@ -494,11 +502,22 @@ public class AwsS3Service : IDisposable
                 userId = userPart;
             }
             
-            // Parse board/drone folder: "board_{boardId}" or "drone_{droneId}"
-            var boardPart = parts[2];
-            var boardId = boardPart.StartsWith("board_") 
-                ? boardPart.Replace("board_", "") 
-                : boardPart.Replace("drone_", "");
+            // Parse drone/board folder: "drone_{droneId}" or "board_{boardId}"
+            var dronePart = parts[2];
+            string droneId;
+            
+            if (dronePart.StartsWith("drone_"))
+            {
+                droneId = dronePart.Replace("drone_", "");
+            }
+            else if (dronePart.StartsWith("board_"))
+            {
+                droneId = dronePart.Replace("board_", "");
+            }
+            else
+            {
+                droneId = dronePart;
+            }
             
             var fileName = parts[3];
             
@@ -519,7 +538,7 @@ public class AwsS3Service : IDisposable
                 FileName = fileName,
                 UserId = userId,
                 UserName = !string.IsNullOrEmpty(userName) ? userName : null,
-                DroneId = boardId,  // This is actually the Board ID
+                DroneId = droneId,  // This is now the Drone ID (P003B04...)
                 Timestamp = timestamp,
                 Size = size,
                 SizeDisplay = FormatBytes(size)

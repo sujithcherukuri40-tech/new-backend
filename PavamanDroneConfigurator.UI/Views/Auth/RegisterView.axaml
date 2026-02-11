@@ -217,10 +217,12 @@
                                     Spacing="8"
                                     IsVisible="{Binding IsLoading}"
                                     HorizontalAlignment="Center">
-                            <ProgressBar IsIndeterminate="True"
-                                         Width="16"
-                                         Height="16"
-                                         Foreground="White"/>
+                            <!-- Simple Spinner using ProgressBar -->
+                            <ProgressBar Width="16" Height="16"
+                                         IsIndeterminate="True"
+                                         Foreground="White"
+                                         Background="Transparent"
+                                         VerticalAlignment="Center"/>
                             <TextBlock Text="Creating account..."
                                        Foreground="White"/>
                         </StackPanel>

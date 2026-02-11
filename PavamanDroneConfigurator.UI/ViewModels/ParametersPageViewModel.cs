@@ -648,26 +648,26 @@ public partial class ParametersPageViewModel : ViewModelBase
             var userId = _authSession.CurrentState.User?.Id ?? "unknown";
             var userName = _authSession.CurrentState.User?.FullName ?? _authSession.CurrentState.User?.Email ?? "unknown";
             
-            // Get Board ID (FcId) from drone info service
+            // Get Drone ID and Board ID from drone info service
             var droneInfo = await _droneInfoService.GetDroneInfoAsync();
-            var boardId = droneInfo?.FcId ?? "unknown";  // FcId is the Board ID
-            var buildId = droneInfo?.DroneId ?? "unknown";  // DroneId is the Build ID
+            var droneId = droneInfo?.DroneId ?? "unknown";  // Drone ID (P003B04H22...)
+            var boardId = droneInfo?.FcId ?? "unknown";  // Board ID (FC-xxx or FW-xxx)
             
             _logger?.LogInformation(
-                "Logging {Count} parameter changes to S3 for user={UserId} ({UserName}), build={BuildId}, board={BoardId}",
-                changes.Count, userId, userName, buildId, boardId);
+                "Logging {Count} parameter changes to S3 for user={UserId} ({UserName}), drone={DroneId}, board={BoardId}",
+                changes.Count, userId, userName, droneId, boardId);
 
             // Log each change for debugging
             foreach (var change in changes)
             {
                 _logger?.LogDebug(
-                    "Parameter change: {Param} {Old} -> {New} by {User} on board {Board}",
-                    change.ParamName, change.OldValue, change.NewValue, userName, boardId);
+                    "Parameter change: {Param} {Old} -> {New} by {User} on drone {Drone}",
+                    change.ParamName, change.OldValue, change.NewValue, userName, droneId);
             }
 
-            // Upload parameter changes to S3 via API (creates CSV in param-logs folder)
-            // Note: Using buildId as droneId parameter and boardId as fcId parameter
-            await _firmwareApiService.UploadParameterLogAsync(userId, userName, buildId, boardId, changes);
+            // Upload parameter changes to S3 via API
+            // Send: userId, userName, droneId (actual drone identifier), boardId (FC hardware ID)
+            await _firmwareApiService.UploadParameterLogAsync(userId, userName, droneId, boardId, changes);
             
             _logger?.LogInformation("Successfully logged {Count} parameter changes to S3 param-logs folder", changes.Count);
         }
