@@ -1,167 +1,343 @@
 <UserControl xmlns="https://github.com/avaloniaui"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:vm="using:PavamanDroneConfigurator.UI.ViewModels.Admin"
-             x:Class="PavamanDroneConfigurator.UI.Views.Admin.ParamLogsPage"
-             x:DataType="vm:ParamLogsViewModel">
+         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+         xmlns:vm="using:PavamanDroneConfigurator.UI.ViewModels.Admin"
+         x:Class="PavamanDroneConfigurator.UI.Views.Admin.ParamLogsPage"
+         x:DataType="vm:ParamLogsViewModel">
 
-    <UserControl.Styles>
-        <Style Selector="Border.card">
-            <Setter Property="Background" Value="{DynamicResource CardBrush}"/>
-            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="CornerRadius" Value="8"/>
-            <Setter Property="Padding" Value="16"/>
-        </Style>
+<UserControl.Styles>
+    <!-- Glassmorphic Card -->
+    <Style Selector="Border.glass-card">
+        <Setter Property="Background">
+            <Setter.Value>
+                <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
+                    <GradientStop Color="#08FFFFFF" Offset="0"/>
+                    <GradientStop Color="#04FFFFFF" Offset="1"/>
+                </LinearGradientBrush>
+            </Setter.Value>
+        </Setter>
+        <Setter Property="BorderBrush">
+            <Setter.Value>
+                <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
+                    <GradientStop Color="#20FFFFFF" Offset="0"/>
+                    <GradientStop Color="#08FFFFFF" Offset="1"/>
+                </LinearGradientBrush>
+            </Setter.Value>
+        </Setter>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius" Value="16"/>
+        <Setter Property="Padding" Value="20"/>
+        <Setter Property="BoxShadow" Value="0 8 32 0 #15000000, 0 2 8 0 #08000000"/>
+    </Style>
         
-        <Style Selector="Border.filter-card">
-            <Setter Property="Background" Value="{DynamicResource SurfaceBrush}"/>
-            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="CornerRadius" Value="8"/>
-            <Setter Property="Padding" Value="16"/>
-        </Style>
+    <!-- Modern Table Row -->
+    <Style Selector="Button.log-row">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Padding" Value="16,12"/>
+        <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="CornerRadius" Value="8"/>
+        <Setter Property="Transitions">
+            <Transitions>
+                <BrushTransition Property="Background" Duration="0:0:0.2"/>
+                <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.2"/>
+            </Transitions>
+        </Setter>
+    </Style>
         
-        <Style Selector="Button.log-row">
-            <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Padding" Value="12,10"/>
-            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
-            <Setter Property="Cursor" Value="Hand"/>
-        </Style>
+    <Style Selector="Button.log-row:pointerover">
+        <Setter Property="Background">
+            <Setter.Value>
+                <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,0%">
+                    <GradientStop Color="#08667EEA" Offset="0"/>
+                    <GradientStop Color="#04667EEA" Offset="1"/>
+                </LinearGradientBrush>
+            </Setter.Value>
+        </Setter>
+        <Setter Property="RenderTransform" Value="scale(1.01)"/>
+    </Style>
         
-        <Style Selector="Button.log-row:pointerover">
-            <Setter Property="Background" Value="#10000000"/>
-        </Style>
+    <!-- Gradient Primary Button -->
+    <Style Selector="Button.btn-gradient">
+        <Setter Property="Background">
+            <Setter.Value>
+                <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,0%">
+                    <GradientStop Color="#667EEA" Offset="0"/>
+                    <GradientStop Color="#764BA2" Offset="1"/>
+                </LinearGradientBrush>
+            </Setter.Value>
+        </Setter>
+        <Setter Property="Foreground" Value="White"/>
+        <Setter Property="Padding" Value="20,10"/>
+        <Setter Property="CornerRadius" Value="10"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="BoxShadow" Value="0 4 16 0 #30667EEA"/>
+        <Setter Property="Transitions">
+            <Transitions>
+                <BoxShadowsTransition Property="BoxShadow" Duration="0:0:0.3"/>
+                <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.2"/>
+            </Transitions>
+        </Setter>
+    </Style>
         
-        <Style Selector="Button.btn-primary">
-            <Setter Property="Background" Value="{DynamicResource PrimaryBrush}"/>
-            <Setter Property="Foreground" Value="White"/>
-            <Setter Property="Padding" Value="16,8"/>
-            <Setter Property="CornerRadius" Value="6"/>
-            <Setter Property="Cursor" Value="Hand"/>
-        </Style>
+    <Style Selector="Button.btn-gradient:pointerover">
+        <Setter Property="BoxShadow" Value="0 6 24 0 #50667EEA"/>
+        <Setter Property="RenderTransform" Value="translateY(-2px)"/>
+    </Style>
         
-        <Style Selector="Button.btn-secondary">
-            <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
-            <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="Padding" Value="16,8"/>
-            <Setter Property="CornerRadius" Value="6"/>
-            <Setter Property="Cursor" Value="Hand"/>
-        </Style>
-    </UserControl.Styles>
+    <!-- Ghost Button -->
+    <Style Selector="Button.btn-ghost">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}"/>
+        <Setter Property="BorderBrush" Value="#20FFFFFF"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="Padding" Value="20,10"/>
+        <Setter Property="CornerRadius" Value="10"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Transitions">
+            <Transitions>
+                <BrushTransition Property="BorderBrush" Duration="0:0:0.2"/>
+            </Transitions>
+        </Setter>
+    </Style>
+        
+    <Style Selector="Button.btn-ghost:pointerover">
+        <Setter Property="BorderBrush" Value="#40FFFFFF"/>
+    </Style>
+        
+    <!-- Search Box -->
+    <Style Selector="TextBox.search-box">
+        <Setter Property="Background" Value="#08FFFFFF"/>
+        <Setter Property="BorderBrush" Value="#15FFFFFF"/>
+        <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}"/>
+        <Setter Property="Padding" Value="40,12,12,12"/>
+        <Setter Property="CornerRadius" Value="12"/>
+        <Setter Property="FontSize" Value="14"/>
+        <Setter Property="Transitions">
+            <Transitions>
+                <BrushTransition Property="BorderBrush" Duration="0:0:0.2"/>
+                <BoxShadowsTransition Property="BoxShadow" Duration="0:0:0.3"/>
+            </Transitions>
+        </Setter>
+    </Style>
+        
+    <Style Selector="TextBox.search-box:focus">
+        <Setter Property="BorderBrush" Value="#667EEA"/>
+        <Setter Property="BoxShadow" Value="0 0 0 3 #20667EEA"/>
+    </Style>
+</UserControl.Styles>
 
-    <Grid RowDefinitions="Auto,*" Background="{DynamicResource BackgroundBrush}">
+
+    <!-- Background with subtle gradient -->
+    <Grid RowDefinitions="Auto,*">
+        <Grid.Background>
+            <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
+                <GradientStop Color="#0F0F1E" Offset="0"/>
+                <GradientStop Color="#1A1A2E" Offset="1"/>
+            </LinearGradientBrush>
+        </Grid.Background>
         
-        <!-- Header -->
-        <Border Grid.Row="0" Padding="24,20" Background="{DynamicResource CardBrush}"
-                BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,0,1">
-            <StackPanel Spacing="4">
-                <TextBlock Text="Parameter Change Logs"
-                           FontSize="24"
-                           FontWeight="SemiBold"
-                           Foreground="{DynamicResource TextPrimaryBrush}"/>
-                <TextBlock Text="View and filter parameter changes made by users"
-                           FontSize="13"
-                           Foreground="{DynamicResource TextSecondaryBrush}"/>
+        <!-- Header with gradient text -->
+        <Border Grid.Row="0" Padding="32,24">
+            <StackPanel Spacing="8">
+                <TextBlock FontSize="32" FontWeight="Bold">
+                    <TextBlock.Foreground>
+                        <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,0%">
+                            <GradientStop Color="#667EEA" Offset="0"/>
+                            <GradientStop Color="#764BA2" Offset="0.5"/>
+                            <GradientStop Color="#F093FB" Offset="1"/>
+                        </LinearGradientBrush>
+                    </TextBlock.Foreground>
+                    <Run Text="Parameter Change Logs"/>
+                </TextBlock>
+                <TextBlock Text="Track and monitor parameter modifications across your fleet"
+                           FontSize="14"
+                           Foreground="#80FFFFFF"
+                           FontWeight="Light"/>
             </StackPanel>
         </Border>
         
         
-        <!-- Main Content -->
-        <Grid Grid.Row="1" Margin="24,20" ColumnDefinitions="*,380" ColumnSpacing="20">
+        
+        <!-- Main Content with modern spacing -->
+        <Grid Grid.Row="1" Margin="32,0,32,32" ColumnDefinitions="*,420" ColumnSpacing="24">
             
-            <!-- Left: Log List -->
-            <StackPanel Grid.Column="0" Spacing="16">
+            <!-- Left: Search + Filters + Table -->
+            <StackPanel Grid.Column="0" Spacing="20">
                 
-                <!-- Filter Card -->
-                <Border Classes="filter-card">
-                    <StackPanel Spacing="12">
-                        <TextBlock Text="Filters"
-                                   FontWeight="SemiBold"
-                                   FontSize="13"
-                                   Foreground="{DynamicResource TextSecondaryBrush}"/>
+                <!-- Search Bar -->
+                <Border Classes="glass-card" Padding="0">
+                    <Grid>
+                        <TextBox Classes="search-box"
+                                 Watermark="Search logs by user, drone ID, or date..."
+                                 FontSize="14"/>
+                        <!-- Search Icon -->
+                        <Path Data="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"
+                              Fill="#60FFFFFF"
+                              Width="20" Height="20"
+                              Stretch="Uniform"
+                              Margin="14,0,0,0"
+                              HorizontalAlignment="Left"
+                              VerticalAlignment="Center"
+                              IsHitTestVisible="False"/>
+                    </Grid>
+                </Border>
+                
+                <!-- Filters Card -->
+                <Border Classes="glass-card">
+                    <StackPanel Spacing="16">
+                        <!-- Header -->
+                        <Grid ColumnDefinitions="*,Auto">
+                            <TextBlock Text="Filters"
+                                       FontSize="16"
+                                       FontWeight="SemiBold"
+                                       Foreground="White"/>
+                            <Path Grid.Column="1"
+                                  Data="M3 17v2h6v-2H3zM3 5v2h10V5H3zm10 16v-2h8v-2h-8v-2h-2v6h2zM7 9v2H3v2h4v2h2V9H7zm14 4v-2H11v2h10zm-6-4h2V7h4V5h-4V3h-2v6z"
+                                  Fill="#80FFFFFF"
+                                  Width="20" Height="20"
+                                  Stretch="Uniform"/>
+                        </Grid>
                         
-                        <!-- Row 1: User and Drone ID -->
-                        <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
-                            <StackPanel Grid.Column="0" Spacing="4">
-                                <TextBlock Text="User" FontSize="11" Foreground="{DynamicResource TextMutedBrush}"/>
+                        <!-- Filter Controls -->
+                        <Grid ColumnDefinitions="*,*" ColumnSpacing="12" RowDefinitions="Auto,Auto" RowSpacing="12">
+                            <!-- User Filter -->
+                            <StackPanel Grid.Row="0" Grid.Column="0" Spacing="6">
+                                <TextBlock Text="User" 
+                                           FontSize="12" 
+                                           Foreground="#A0FFFFFF"
+                                           FontWeight="Medium"/>
                                 <ComboBox ItemsSource="{Binding AvailableUsers}"
                                           SelectedItem="{Binding SelectedUserId}"
                                           HorizontalAlignment="Stretch"
-                                          PlaceholderText="All Users"/>
+                                          PlaceholderText="All Users"
+                                          CornerRadius="8"/>
                             </StackPanel>
                             
-                            <StackPanel Grid.Column="1" Spacing="4">
-                                <TextBlock Text="Drone ID" FontSize="11" Foreground="{DynamicResource TextMutedBrush}"/>
+                            <!-- Drone ID Filter -->
+                            <StackPanel Grid.Row="0" Grid.Column="1" Spacing="6">
+                                <TextBlock Text="Drone ID" 
+                                           FontSize="12" 
+                                           Foreground="#A0FFFFFF"
+                                           FontWeight="Medium"/>
                                 <ComboBox ItemsSource="{Binding AvailableDrones}"
                                           SelectedItem="{Binding SelectedDroneId}"
                                           HorizontalAlignment="Stretch"
-                                          PlaceholderText="All Drones"/>
+                                          PlaceholderText="All Drones"
+                                          CornerRadius="8"/>
+                            </StackPanel>
+                            
+                            <!-- From Date -->
+                            <StackPanel Grid.Row="1" Grid.Column="0" Spacing="6">
+                                <TextBlock Text="From Date" 
+                                           FontSize="12" 
+                                           Foreground="#A0FFFFFF"
+                                           FontWeight="Medium"/>
+                                <CalendarDatePicker SelectedDate="{Binding FromDate}" 
+                                                    HorizontalAlignment="Stretch"/>
+                            </StackPanel>
+                            
+                            <!-- To Date -->
+                            <StackPanel Grid.Row="1" Grid.Column="1" Spacing="6">
+                                <TextBlock Text="To Date" 
+                                           FontSize="12" 
+                                           Foreground="#A0FFFFFF"
+                                           FontWeight="Medium"/>
+                                <CalendarDatePicker SelectedDate="{Binding ToDate}" 
+                                                    HorizontalAlignment="Stretch"/>
                             </StackPanel>
                         </Grid>
                         
-                        <!-- Row 2: Dates and Buttons -->
-                        <Grid ColumnDefinitions="*,*,Auto,Auto" ColumnSpacing="12">
-                            <StackPanel Grid.Column="0" Spacing="4">
-                                <TextBlock Text="From Date" FontSize="11" Foreground="{DynamicResource TextMutedBrush}"/>
-                                <CalendarDatePicker SelectedDate="{Binding FromDate}" HorizontalAlignment="Stretch"/>
-                            </StackPanel>
-                            
-                            <StackPanel Grid.Column="1" Spacing="4">
-                                <TextBlock Text="To Date" FontSize="11" Foreground="{DynamicResource TextMutedBrush}"/>
-                                <CalendarDatePicker SelectedDate="{Binding ToDate}" HorizontalAlignment="Stretch"/>
-                            </StackPanel>
-                            
-                            <Button Grid.Column="2" Classes="btn-primary"
+                        <!-- Action Buttons -->
+                        <Grid ColumnDefinitions="*,*" ColumnSpacing="12" Margin="0,8,0,0">
+                            <Button Grid.Column="0"
+                                    Classes="btn-gradient"
                                     Command="{Binding ApplyFiltersCommand}"
-                                    VerticalAlignment="Bottom"
-                                    Content="Apply"/>
+                                    HorizontalAlignment="Stretch"
+                                    Content="Apply Filters"/>
                             
-                            <Button Grid.Column="3" Classes="btn-secondary"
+                            <Button Grid.Column="1"
+                                    Classes="btn-ghost"
                                     Command="{Binding ClearFiltersCommand}"
-                                    VerticalAlignment="Bottom"
+                                    HorizontalAlignment="Stretch"
                                     Content="Clear"/>
                         </Grid>
                     </StackPanel>
                 </Border>
                 
+                
                 <!-- Status Message -->
-                <Border Background="{DynamicResource InfoLightBrush}"
-                        CornerRadius="6"
-                        Padding="12,8"
-                        IsVisible="{Binding StatusMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                <Border IsVisible="{Binding StatusMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                        Padding="16,12"
+                        CornerRadius="12"
+                        BoxShadow="0 4 16 0 #10667EEA">
+                    <Border.Background>
+                        <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,0%">
+                            <GradientStop Color="#10667EEA" Offset="0"/>
+                            <GradientStop Color="#08764BA2" Offset="1"/>
+                        </LinearGradientBrush>
+                    </Border.Background>
                     <TextBlock Text="{Binding StatusMessage}"
-                               FontSize="12"
+                               FontSize="13"
                                TextWrapping="Wrap"
-                               Foreground="{DynamicResource TextPrimaryBrush}"/>
+                               Foreground="White"/>
                 </Border>
                 
-                
-                <!-- Loading -->
-                <Border Classes="card" IsVisible="{Binding IsLoading}" Padding="40">
-                    <TextBlock Text="Loading parameter logs..."
-                               FontSize="14"
-                               HorizontalAlignment="Center"
-                               Foreground="{DynamicResource TextSecondaryBrush}"/>
+                <!-- Loading State -->
+                <Border Classes="glass-card" 
+                        IsVisible="{Binding IsLoading}" 
+                        Padding="48"
+                        HorizontalAlignment="Center">
+                    <StackPanel Spacing="16" HorizontalAlignment="Center">
+                        <ProgressBar IsIndeterminate="True"
+                                     Width="200"
+                                     Height="4"
+                                     Foreground="#667EEA"
+                                     CornerRadius="2"/>
+                        <TextBlock Text="Loading parameter logs..."
+                                   FontSize="14"
+                                   Foreground="#A0FFFFFF"
+                                   HorizontalAlignment="Center"/>
+                    </StackPanel>
                 </Border>
                 
-                <!-- Empty State -->
-                <Border Classes="card" IsVisible="{Binding HasNoLogs}" Padding="40">
-                    <StackPanel Spacing="12" HorizontalAlignment="Center">
-                        <TextBlock Text="No Parameter Logs Found"
-                                   FontSize="16"
-                                   FontWeight="SemiBold"
-                                   HorizontalAlignment="Center"
-                                   Foreground="{DynamicResource TextPrimaryBrush}"/>
-                        <TextBlock Text="Parameter changes will appear here when users modify drone parameters."
-                                   FontSize="13"
-                                   HorizontalAlignment="Center"
-                                   TextAlignment="Center"
-                                   Foreground="{DynamicResource TextSecondaryBrush}"
-                                   TextWrapping="Wrap"
-                                   MaxWidth="400"/>
+                <!-- Empty State with Icon -->
+                <Border Classes="glass-card" 
+                        IsVisible="{Binding HasNoLogs}" 
+                        Padding="64">
+                    <StackPanel Spacing="20" HorizontalAlignment="Center">
+                        <!-- Empty Icon -->
+                        <Border Width="80" Height="80"
+                                CornerRadius="40"
+                                HorizontalAlignment="Center">
+                            <Border.Background>
+                                <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
+                                    <GradientStop Color="#15667EEA" Offset="0"/>
+                                    <GradientStop Color="#08764BA2" Offset="1"/>
+                                </LinearGradientBrush>
+                            </Border.Background>
+                            <Path Data="M13,9H11V7H13M13,17H11V11H13M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z"
+                                  Fill="#667EEA"
+                                  Width="40" Height="40"
+                                  Stretch="Uniform"/>
+                        </Border>
+                        
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="No Parameter Logs Found"
+                                       FontSize="20"
+                                       FontWeight="SemiBold"
+                                       HorizontalAlignment="Center"
+                                       Foreground="White"/>
+                            <TextBlock Text="Parameter changes will appear here when users modify drone parameters."
+                                       FontSize="14"
+                                       HorizontalAlignment="Center"
+                                       TextAlignment="Center"
+                                       Foreground="#80FFFFFF"
+                                       TextWrapping="Wrap"
+                                       MaxWidth="400"
+                                       LineHeight="22"/>
+                        </StackPanel>
                     </StackPanel>
                 </Border>
                 
