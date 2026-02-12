@@ -455,6 +455,12 @@ public sealed partial class AdminDashboardViewModel : ViewModelBase
     }
 
     [RelayCommand]
+    private void NavigateToFirmwareManagement()
+    {
+        NavigateToPage?.Invoke("FirmwareManagement");
+    }
+
+    [RelayCommand]
     private async Task DeleteUserAsync(UserListItem user)
     {
         if (IsBusy || user == null) return;
