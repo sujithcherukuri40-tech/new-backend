@@ -524,13 +524,17 @@
                                            Foreground="#6B7280"/>
                             </StackPanel>
                             <Button Grid.Column="1"
-                                    Content="×"
                                     Background="Transparent"
-                                    Foreground="#9CA3AF"
-                                    Padding="8,4"
-                                    FontSize="18"
-                                    FontWeight="Bold"
-                                    Command="{Binding CloseLogDetailsCommand}"/>
+                                    BorderThickness="0"
+                                    Padding="8"
+                                    ToolTip.Tip="Close details"
+                                    Command="{Binding CloseLogDetailsCommand}">
+                                <Path Data="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z"
+                                      Fill="#9CA3AF"
+                                      Width="18"
+                                      Height="18"
+                                      Stretch="Uniform"/>
+                            </Button>
                         </Grid>
                         
                         <!-- Info Card -->

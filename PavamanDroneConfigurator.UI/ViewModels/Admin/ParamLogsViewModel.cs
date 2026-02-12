@@ -223,10 +223,11 @@ public partial class ParamLogsViewModel : ViewModelBase
                 $"pageSize={PageSize}"
             };
             
-            if (!string.IsNullOrWhiteSpace(SelectedUserId))
+            // Only add filters if not "All Users" or "All Drones"
+            if (!string.IsNullOrWhiteSpace(SelectedUserId) && SelectedUserId != "All Users")
                 queryParams.Add($"userId={Uri.EscapeDataString(SelectedUserId)}");
             
-            if (!string.IsNullOrWhiteSpace(SelectedDroneId))
+            if (!string.IsNullOrWhiteSpace(SelectedDroneId) && SelectedDroneId != "All Drones")
                 queryParams.Add($"droneId={Uri.EscapeDataString(SelectedDroneId)}");
             
             if (FromDate.HasValue)
@@ -262,15 +263,15 @@ public partial class ParamLogsViewModel : ViewModelBase
                 
                 // Update filter options
                 AvailableUsers.Clear();
-                AvailableUsers.Add(""); // Empty option for "All"
-                foreach (var user in result.AvailableUsers)
+                AvailableUsers.Add("All Users"); // Friendly "All" option
+                foreach (var user in result.AvailableUsers.Where(u => !string.IsNullOrWhiteSpace(u)))
                 {
                     AvailableUsers.Add(user);
                 }
                 
                 AvailableDrones.Clear();
-                AvailableDrones.Add(""); // Empty option for "All"
-                foreach (var drone in result.AvailableDrones)
+                AvailableDrones.Add("All Drones"); // Friendly "All" option
+                foreach (var drone in result.AvailableDrones.Where(d => !string.IsNullOrWhiteSpace(d)))
                 {
                     AvailableDrones.Add(drone);
                 }

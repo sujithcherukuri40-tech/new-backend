@@ -199,17 +199,19 @@ Background="#F9FAFB">
                                                     CommandParameter="{Binding}"/>
                                             
                                             <!-- Delete Button -->
-                                            <Button Content="×"
-                                                    Background="#FEF2F2"
-                                                    Foreground="#DC2626"
+                                            <Button Background="#FEF2F2"
                                                     Padding="10,8"
                                                     CornerRadius="6"
-                                                    FontSize="18"
-                                                    FontWeight="Bold"
                                                     BorderThickness="0"
                                                     ToolTip.Tip="Delete User"
                                                     Command="{Binding $parent[UserControl].((vm:AdminDashboardViewModel)DataContext).DeleteUserCommand}"
-                                                    CommandParameter="{Binding}"/>
+                                                    CommandParameter="{Binding}">
+                                                <Path Data="M19,4H15.5L14.5,3H9.5L8.5,4H5V6H19M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19Z"
+                                                      Fill="#DC2626"
+                                                      Width="16"
+                                                      Height="16"
+                                                      Stretch="Uniform"/>
+                                            </Button>
                                         </StackPanel>
                                     </Grid>
                                 </Border>
