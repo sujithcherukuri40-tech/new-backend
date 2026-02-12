@@ -74,14 +74,16 @@ public class ParamLogsController : ControllerBase
             // Apply filters
             var filtered = logs.AsEnumerable();
             
-            // Search filter (matches userId, droneId, or userName)
+            // Search filter (matches userId, droneId, userName, or filename)
             if (!string.IsNullOrWhiteSpace(search))
             {
                 var searchLower = search.ToLower();
                 filtered = filtered.Where(l => 
                     l.UserId.Contains(searchLower, StringComparison.OrdinalIgnoreCase) ||
                     l.DroneId.Contains(searchLower, StringComparison.OrdinalIgnoreCase) ||
-                    (l.UserName != null && l.UserName.Contains(searchLower, StringComparison.OrdinalIgnoreCase)));
+                    l.FileName.Contains(searchLower, StringComparison.OrdinalIgnoreCase) ||
+                    (l.UserName != null && l.UserName.Contains(searchLower, StringComparison.OrdinalIgnoreCase)) ||
+                    l.Timestamp.ToString("yyyy-MM-dd").Contains(searchLower));
             }
             
             if (!string.IsNullOrWhiteSpace(userId))
