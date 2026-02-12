@@ -48,6 +48,24 @@ public class User
     public DateTimeOffset? LastLoginAt { get; set; }
 
     /// <summary>
+    /// Whether the user must change their password on next login.
+    /// Set to true when password is auto-generated or reset by admin.
+    /// </summary>
+    public bool MustChangePassword { get; set; }
+
+    /// <summary>
+    /// Number of consecutive failed login attempts.
+    /// Used for account lockout protection.
+    /// </summary>
+    public int FailedLoginAttempts { get; set; }
+
+    /// <summary>
+    /// When the account was locked due to failed login attempts.
+    /// Null if account is not locked.
+    /// </summary>
+    public DateTimeOffset? LockoutEnd { get; set; }
+
+    /// <summary>
     /// Navigation property for refresh tokens.
     /// </summary>
     public ICollection<RefreshToken> RefreshTokens { get; set; } = new List<RefreshToken>();

@@ -1,5 +1,6 @@
 using Amazon.S3;
 using Amazon.S3.Model;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
@@ -18,16 +19,28 @@ public class AwsS3Service : IDisposable
 {
     private IAmazonS3? _s3Client;
     private readonly ILogger<AwsS3Service> _logger;
-    private const string BucketName = "drone-config-param-logs";
+    private readonly string _bucketName;
+    private readonly string _region;
     private const string FirmwarePrefix = "firmwares/";
     private const string ParamsLogsPrefix = "params-logs/";
     private bool _initializationFailed = false;
     private string? _initializationError = null;
     
-    public AwsS3Service(ILogger<AwsS3Service> logger)
+    public AwsS3Service(ILogger<AwsS3Service> logger, IConfiguration? configuration = null)
     {
         _logger = logger;
-        _logger.LogInformation("AWS S3 Service created (lazy initialization)");
+        
+        // SECURITY: Get bucket name from configuration/environment instead of hardcoding
+        _bucketName = Environment.GetEnvironmentVariable("AWS_S3_BUCKET_NAME")
+            ?? configuration?["AWS:S3:BucketName"]
+            ?? "drone-config-param-logs";
+            
+        _region = Environment.GetEnvironmentVariable("AWS_S3_REGION")
+            ?? configuration?["AWS:S3:Region"]
+            ?? "ap-south-1";
+            
+        _logger.LogInformation("AWS S3 Service created (lazy initialization) - Bucket: {Bucket}, Region: {Region}", 
+            _bucketName, _region);
     }
     
     private IAmazonS3 GetS3Client()
@@ -41,17 +54,19 @@ public class AwsS3Service : IDisposable
         {
             try
             {
-                _logger.LogInformation("Initializing S3 client for region ap-south-1...");
+                _logger.LogInformation("Initializing S3 client for region {Region}...", _region);
+                
+                var regionEndpoint = Amazon.RegionEndpoint.GetBySystemName(_region);
                 
                 var config = new AmazonS3Config
                 {
-                    RegionEndpoint = Amazon.RegionEndpoint.APSouth1,
+                    RegionEndpoint = regionEndpoint,
                     Timeout = TimeSpan.FromSeconds(30),
                     MaxErrorRetry = 3
                 };
                 
                 _s3Client = new AmazonS3Client(config);
-                _logger.LogInformation("AWS S3 Service initialized successfully for bucket: {Bucket}", BucketName);
+                _logger.LogInformation("AWS S3 Service initialized successfully for bucket: {Bucket}", _bucketName);
             }
             catch (Exception ex)
             {
@@ -74,11 +89,11 @@ public class AwsS3Service : IDisposable
         try
         {
             var client = GetS3Client();
-            _logger.LogInformation("Listing firmware files from S3 bucket: {Bucket}/{Prefix}", BucketName, FirmwarePrefix);
+            _logger.LogInformation("Listing firmware files from S3 bucket: {Bucket}/{Prefix}", _bucketName, FirmwarePrefix);
             
             var request = new ListObjectsV2Request
             {
-                BucketName = BucketName,
+                BucketName = _bucketName,
                 Prefix = FirmwarePrefix
             };
             
@@ -93,7 +108,7 @@ public class AwsS3Service : IDisposable
                 {
                     var metadataRequest = new GetObjectMetadataRequest
                     {
-                        BucketName = BucketName,
+                        BucketName = _bucketName,
                         Key = obj.Key
                     };
                     
@@ -166,7 +181,7 @@ public class AwsS3Service : IDisposable
             var client = GetS3Client();
             var request = new GetPreSignedUrlRequest
             {
-                BucketName = BucketName,
+                BucketName = _bucketName,
                 Key = s3Key,
                 Expires = DateTime.UtcNow.Add(expiration)
             };
@@ -195,7 +210,7 @@ public class AwsS3Service : IDisposable
             Directory.CreateDirectory(tempDir);
             var localPath = Path.Combine(tempDir, fileName);
             
-            var request = new GetObjectRequest { BucketName = BucketName, Key = s3Key };
+            var request = new GetObjectRequest { BucketName = _bucketName, Key = s3Key };
             using var response = await client.GetObjectAsync(request, cancellationToken);
             await response.WriteResponseStreamToFileAsync(localPath, false, cancellationToken);
             
@@ -233,7 +248,7 @@ public class AwsS3Service : IDisposable
             
             var request = new PutObjectRequest
             {
-                BucketName = BucketName,
+                BucketName = _bucketName,
                 Key = s3Key,
                 FilePath = localFilePath,
                 ContentType = "application/octet-stream",
@@ -278,7 +293,7 @@ public class AwsS3Service : IDisposable
         try
         {
             var client = GetS3Client();
-            await client.DeleteObjectAsync(BucketName, s3Key, cancellationToken);
+            await client.DeleteObjectAsync(_bucketName, s3Key, cancellationToken);
             _logger.LogInformation("Firmware deleted: {Key}", s3Key);
             return true;
         }
@@ -322,7 +337,7 @@ public class AwsS3Service : IDisposable
             using var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(csvContent));
             var request = new PutObjectRequest
             {
-                BucketName = BucketName,
+                BucketName = _bucketName,
                 Key = s3Key,
                 InputStream = stream,
                 ContentType = "text/csv",
@@ -397,12 +412,12 @@ public class AwsS3Service : IDisposable
         try
         {
             var client = GetS3Client();
-            _logger.LogInformation("Listing parameter logs from S3 bucket: {Bucket}/{Prefix}", BucketName, ParamsLogsPrefix);
+            _logger.LogInformation("Listing parameter logs from S3 bucket: {Bucket}/{Prefix}", _bucketName, ParamsLogsPrefix);
             
             var logs = new List<ParamLogEntry>();
             var request = new ListObjectsV2Request
             {
-                BucketName = BucketName,
+                BucketName = _bucketName,
                 Prefix = ParamsLogsPrefix
             };
             
@@ -447,7 +462,7 @@ public class AwsS3Service : IDisposable
             
             var request = new GetObjectRequest
             {
-                BucketName = BucketName,
+                BucketName = _bucketName,
                 Key = s3Key
             };
             
@@ -570,7 +585,7 @@ public class AwsS3Service : IDisposable
             var client = GetS3Client();
             var request = new ListObjectsV2Request
             {
-                BucketName = BucketName,
+                BucketName = _bucketName,
                 Prefix = FirmwarePrefix
             };
             
@@ -616,7 +631,7 @@ public class AwsS3Service : IDisposable
             var client = GetS3Client();
             var request = new ListObjectsV2Request
             {
-                BucketName = BucketName,
+                BucketName = _bucketName,
                 Prefix = ParamsLogsPrefix
             };
             
@@ -660,14 +675,14 @@ public class AwsS3Service : IDisposable
         try
         {
             var client = GetS3Client();
-            var request = new ListObjectsV2Request { BucketName = BucketName, MaxKeys = 1 };
+            var request = new ListObjectsV2Request { BucketName = _bucketName, MaxKeys = 1 };
             await client.ListObjectsV2Async(request, cancellationToken);
-            _logger.LogInformation("S3 bucket is accessible: {Bucket}", BucketName);
+            _logger.LogInformation("S3 bucket is accessible: {Bucket}", _bucketName);
             return true;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "S3 bucket is NOT accessible: {Bucket}", BucketName);
+            _logger.LogError(ex, "S3 bucket is NOT accessible: {Bucket}", _bucketName);
             return false;
         }
     }

@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using PavamanDroneConfigurator.API.DTOs;
 using PavamanDroneConfigurator.API.Exceptions;
 using PavamanDroneConfigurator.API.Services;
@@ -14,6 +15,7 @@ namespace PavamanDroneConfigurator.API.Controllers;
 [ApiController]
 [Route("auth")]
 [Produces("application/json")]
+[EnableRateLimiting("auth")] // Apply stricter rate limiting to all auth endpoints
 public class AuthController : ControllerBase
 {
     private readonly IAuthService _authService;
@@ -38,6 +40,7 @@ public class AuthController : ControllerBase
     [ProducesResponseType(typeof(AuthResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status409Conflict)]
+    [ProducesResponseType(StatusCodes.Status429TooManyRequests)]
     public async Task<ActionResult<AuthResponse>> Register([FromBody] RegisterRequest request)
     {
         try
@@ -70,6 +73,7 @@ public class AuthController : ControllerBase
     [ProducesResponseType(typeof(AuthResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status429TooManyRequests)]
     public async Task<ActionResult<AuthResponse>> Login([FromBody] LoginRequest request)
     {
         try
@@ -97,6 +101,7 @@ public class AuthController : ControllerBase
     /// <response code="401">Not authenticated.</response>
     [HttpGet("me")]
     [Authorize]
+    [EnableRateLimiting("fixed")] // Less strict rate limiting for authenticated requests
     [ProducesResponseType(typeof(AuthResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status401Unauthorized)]
     public async Task<ActionResult<AuthResponse>> GetCurrentUser()
@@ -130,6 +135,7 @@ public class AuthController : ControllerBase
     /// <response code="401">Not authenticated.</response>
     [HttpPost("logout")]
     [Authorize]
+    [EnableRateLimiting("fixed")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> Logout()
@@ -183,6 +189,7 @@ public class AuthController : ControllerBase
     [ProducesResponseType(typeof(AuthResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status429TooManyRequests)]
     public async Task<ActionResult<AuthResponse>> RefreshToken([FromBody] RefreshTokenRequest request)
     {
         try
@@ -226,6 +233,7 @@ public class AuthController : ControllerBase
         var forwardedFor = Request.Headers["X-Forwarded-For"].FirstOrDefault();
         if (!string.IsNullOrEmpty(forwardedFor))
         {
+            // Take the first IP in the chain (original client)
             return forwardedFor.Split(',')[0].Trim();
         }
 

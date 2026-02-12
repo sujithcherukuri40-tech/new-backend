@@ -72,6 +72,18 @@ public class AppDbContext : DbContext
             entity.Property(e => e.LastLoginAt)
                 .HasColumnName("last_login_at");
 
+            // New security fields
+            entity.Property(e => e.MustChangePassword)
+                .HasColumnName("must_change_password")
+                .HasDefaultValue(false);
+
+            entity.Property(e => e.FailedLoginAttempts)
+                .HasColumnName("failed_login_attempts")
+                .HasDefaultValue(0);
+
+            entity.Property(e => e.LockoutEnd)
+                .HasColumnName("lockout_end");
+
             // Relationship to refresh tokens
             entity.HasMany(e => e.RefreshTokens)
                 .WithOne(e => e.User)

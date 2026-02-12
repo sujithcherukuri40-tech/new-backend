@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using PavamanDroneConfigurator.API.DTOs;
 using PavamanDroneConfigurator.API.Exceptions;
 using PavamanDroneConfigurator.API.Models;
@@ -15,6 +16,7 @@ namespace PavamanDroneConfigurator.API.Controllers;
 [ApiController]
 [Route("admin")]
 [Authorize(Roles = "Admin")]
+[EnableRateLimiting("admin")] // SECURITY: Apply stricter rate limiting to admin endpoints
 [Produces("application/json")]
 public class AdminController : ControllerBase
 {
@@ -38,6 +40,7 @@ public class AdminController : ControllerBase
     [ProducesResponseType(typeof(UsersListResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status429TooManyRequests)]
     public async Task<ActionResult<UsersListResponse>> GetAllUsers()
     {
         try
@@ -70,6 +73,7 @@ public class AdminController : ControllerBase
     [HttpPost("users/{userId}/approve")]
     [ProducesResponseType(typeof(SuccessResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status429TooManyRequests)]
     public async Task<ActionResult<SuccessResponse>> ApproveUser(
         [FromRoute] Guid userId,
         [FromBody] ApproveUserRequest request)
@@ -117,6 +121,7 @@ public class AdminController : ControllerBase
     [ProducesResponseType(typeof(SuccessResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status429TooManyRequests)]
     public async Task<ActionResult<SuccessResponse>> ChangeUserRole(
         [FromRoute] Guid userId,
         [FromBody] ChangeUserRoleRequest request)
@@ -134,6 +139,17 @@ public class AdminController : ControllerBase
             }
 
             var adminId = GetCurrentUserId();
+            
+            // SECURITY: Prevent admin from demoting themselves
+            if (adminId == userId && newRole != UserRole.Admin)
+            {
+                return BadRequest(new ErrorResponse
+                {
+                    Message = "Cannot change your own role",
+                    Code = "SELF_ROLE_CHANGE_NOT_ALLOWED"
+                });
+            }
+            
             _logger.LogInformation("Admin {AdminId} changing role for user {UserId} to {Role}",
                 adminId, userId, newRole);
 
@@ -169,6 +185,7 @@ public class AdminController : ControllerBase
     [HttpDelete("users/{userId}")]
     [ProducesResponseType(typeof(SuccessResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status429TooManyRequests)]
     public async Task<ActionResult<SuccessResponse>> DeleteUser([FromRoute] Guid userId)
     {
         try

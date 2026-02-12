@@ -1,5 +1,7 @@
 using System.Text;
+using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
@@ -42,7 +44,9 @@ if (string.IsNullOrEmpty(connectionString))
 
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(connectionString)
-        .EnableSensitiveDataLogging(builder.Environment.IsDevelopment())
+        // Only enable sensitive data logging in development AND when explicitly enabled
+        .EnableSensitiveDataLogging(builder.Environment.IsDevelopment() && 
+            Environment.GetEnvironmentVariable("ENABLE_SENSITIVE_LOGGING") == "true")
 );
 
 var jwtSettings = builder.Configuration.GetSection("Jwt");
@@ -73,7 +77,8 @@ builder.Services.AddAuthentication(options =>
 })
 .AddJwtBearer(options =>
 {
-    options.RequireHttpsMetadata = false;
+    // SECURITY: Require HTTPS in production
+    options.RequireHttpsMetadata = !builder.Environment.IsDevelopment();
     options.SaveToken = true;
     options.TokenValidationParameters = new TokenValidationParameters
     {
@@ -101,6 +106,40 @@ builder.Services.AddAuthentication(options =>
 });
 
 builder.Services.AddAuthorization();
+
+// SECURITY: Add Rate Limiting
+var rateLimitConfig = builder.Configuration.GetSection("Security:RateLimiting");
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    
+    // Global rate limit
+    options.AddFixedWindowLimiter("fixed", limiterOptions =>
+    {
+        limiterOptions.PermitLimit = int.Parse(rateLimitConfig["PermitLimit"] ?? "100");
+        limiterOptions.Window = TimeSpan.FromSeconds(int.Parse(rateLimitConfig["WindowSeconds"] ?? "60"));
+        limiterOptions.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+        limiterOptions.QueueLimit = int.Parse(rateLimitConfig["QueueLimit"] ?? "10");
+    });
+    
+    // Stricter rate limit for authentication endpoints
+    options.AddFixedWindowLimiter("auth", limiterOptions =>
+    {
+        limiterOptions.PermitLimit = 10; // 10 attempts per window
+        limiterOptions.Window = TimeSpan.FromMinutes(1);
+        limiterOptions.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+        limiterOptions.QueueLimit = 2;
+    });
+    
+    // Very strict rate limit for sensitive admin operations
+    options.AddFixedWindowLimiter("admin", limiterOptions =>
+    {
+        limiterOptions.PermitLimit = 30;
+        limiterOptions.Window = TimeSpan.FromMinutes(1);
+        limiterOptions.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+        limiterOptions.QueueLimit = 5;
+    });
+});
 
 builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
@@ -146,13 +185,29 @@ builder.Services.AddSwaggerGen(options =>
     });
 });
 
+// SECURITY: Restrict CORS - only allow specific origins in production
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowDesktopApp", policy =>
     {
-        policy.AllowAnyOrigin()
-              .AllowAnyMethod()
-              .AllowAnyHeader();
+        if (builder.Environment.IsDevelopment())
+        {
+            // More permissive in development
+            policy.AllowAnyOrigin()
+                  .AllowAnyMethod()
+                  .AllowAnyHeader();
+        }
+        else
+        {
+            // Restrictive in production - specify allowed origins
+            var allowedOrigins = Environment.GetEnvironmentVariable("ALLOWED_ORIGINS")?.Split(',') 
+                ?? new[] { "http://localhost:5000", "https://localhost:5001" };
+            
+            policy.WithOrigins(allowedOrigins)
+                  .AllowAnyMethod()
+                  .AllowAnyHeader()
+                  .AllowCredentials();
+        }
     });
 });
 
@@ -164,6 +219,9 @@ var app = builder.Build();
 
 app.UseExceptionMiddleware();
 
+// SECURITY: Use rate limiting
+app.UseRateLimiter();
+
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
@@ -173,6 +231,22 @@ if (app.Environment.IsDevelopment())
         options.RoutePrefix = "swagger";
     });
 }
+
+// SECURITY: Add security headers
+app.Use(async (context, next) =>
+{
+    context.Response.Headers.Append("X-Content-Type-Options", "nosniff");
+    context.Response.Headers.Append("X-Frame-Options", "DENY");
+    context.Response.Headers.Append("X-XSS-Protection", "1; mode=block");
+    context.Response.Headers.Append("Referrer-Policy", "strict-origin-when-cross-origin");
+    
+    if (!app.Environment.IsDevelopment())
+    {
+        context.Response.Headers.Append("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+    }
+    
+    await next();
+});
 
 app.UseCors("AllowDesktopApp");
 
@@ -259,7 +333,7 @@ static async Task<string?> BuildConnectionStringAsync(IConfiguration configurati
         Console.WriteLine($"??  Failed to retrieve database secret from AWS Secrets Manager: {ex.Message}");
     }
     
-    // Priority 4: appsettings.json (fallback)
+    // Priority 4: appsettings.json (fallback - SHOULD BE EMPTY in production)
     var appSettingsConnStr = configuration.GetConnectionString("PostgresDb");
     if (!string.IsNullOrEmpty(appSettingsConnStr))
     {
@@ -303,7 +377,7 @@ static async Task<string?> GetJwtSecretKeyAsync(IConfiguration configuration, IS
         Console.WriteLine($"??  Failed to retrieve JWT secret from AWS Secrets Manager: {ex.Message}");
     }
     
-    // Priority 3: appsettings.json (fallback)
+    // Priority 3: appsettings.json (fallback - SHOULD BE EMPTY in production)
     var jwtSettings = configuration.GetSection("Jwt");
     var appSettingsSecret = jwtSettings["SecretKey"];
     if (!string.IsNullOrEmpty(appSettingsSecret) && !appSettingsSecret.Contains("REPLACE"))

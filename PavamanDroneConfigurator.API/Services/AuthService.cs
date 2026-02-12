@@ -13,16 +13,50 @@ public class AuthService : IAuthService
 {
     private readonly AppDbContext _context;
     private readonly ITokenService _tokenService;
+    private readonly IConfiguration _configuration;
     private readonly ILogger<AuthService> _logger;
+
+    // Account lockout settings
+    private readonly int _maxFailedAttempts;
+    private readonly int _lockoutDurationMinutes;
+
+    // Password policy settings
+    private readonly int _minPasswordLength;
+    private readonly bool _requireSpecialChar;
+    private readonly bool _requireUppercase;
+    private readonly bool _requireLowercase;
+    private readonly bool _requireDigit;
+
+    // Common weak passwords to reject
+    private static readonly HashSet<string> CommonPasswords = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "password", "password123", "123456", "12345678", "qwerty", "admin", "letmein",
+        "welcome", "monkey", "dragon", "master", "abc123", "111111", "baseball",
+        "iloveyou", "trustno1", "sunshine", "princess", "admin123", "password1"
+    };
 
     public AuthService(
         AppDbContext context,
         ITokenService tokenService,
+        IConfiguration configuration,
         ILogger<AuthService> logger)
     {
         _context = context;
         _tokenService = tokenService;
+        _configuration = configuration;
         _logger = logger;
+
+        // Load security settings from configuration
+        var lockoutConfig = configuration.GetSection("Security:AccountLockout");
+        _maxFailedAttempts = int.Parse(lockoutConfig["MaxFailedAttempts"] ?? "5");
+        _lockoutDurationMinutes = int.Parse(lockoutConfig["LockoutDurationMinutes"] ?? "15");
+
+        var passwordConfig = configuration.GetSection("Security:PasswordPolicy");
+        _minPasswordLength = int.Parse(passwordConfig["MinimumLength"] ?? "12");
+        _requireSpecialChar = bool.Parse(passwordConfig["RequireSpecialCharacter"] ?? "true");
+        _requireUppercase = bool.Parse(passwordConfig["RequireUppercase"] ?? "true");
+        _requireLowercase = bool.Parse(passwordConfig["RequireLowercase"] ?? "true");
+        _requireDigit = bool.Parse(passwordConfig["RequireDigit"] ?? "true");
     }
 
     /// <inheritdoc />
@@ -39,11 +73,10 @@ public class AuthService : IAuthService
         }
 
         // Validate password complexity
-        if (!IsPasswordValid(request.Password))
+        var passwordValidation = ValidatePassword(request.Password, request.Email, request.FullName);
+        if (!passwordValidation.IsValid)
         {
-            throw new AuthException(
-                "Password must contain at least one uppercase letter, one lowercase letter, and one number",
-                "WEAK_PASSWORD");
+            throw new AuthException(passwordValidation.ErrorMessage!, "WEAK_PASSWORD");
         }
 
         // Create new user (NOT approved by default)
@@ -55,7 +88,10 @@ public class AuthService : IAuthService
             PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
             IsApproved = false, // CRITICAL: New users must be approved by admin
             Role = UserRole.User,
-            CreatedAt = DateTimeOffset.UtcNow
+            CreatedAt = DateTimeOffset.UtcNow,
+            MustChangePassword = false,
+            FailedLoginAttempts = 0,
+            LockoutEnd = null
         };
 
         _context.Users.Add(user);
@@ -80,13 +116,38 @@ public class AuthService : IAuthService
         if (user == null)
         {
             _logger.LogWarning("Login failed: User not found for email {Email}", request.Email);
+            // Use same error message to prevent user enumeration
             throw new AuthException("Invalid email or password", "INVALID_CREDENTIALS");
+        }
+
+        // Check if account is locked
+        if (user.LockoutEnd.HasValue && user.LockoutEnd > DateTimeOffset.UtcNow)
+        {
+            var remainingMinutes = (int)(user.LockoutEnd.Value - DateTimeOffset.UtcNow).TotalMinutes + 1;
+            _logger.LogWarning("Login denied: Account {UserId} is locked until {LockoutEnd}", user.Id, user.LockoutEnd);
+            throw new AuthException(
+                $"Account is temporarily locked. Please try again in {remainingMinutes} minutes.",
+                "ACCOUNT_LOCKED",
+                403);
         }
 
         // Verify password
         if (!BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
         {
-            _logger.LogWarning("Login failed: Invalid password for user {UserId}", user.Id);
+            // Increment failed attempts
+            user.FailedLoginAttempts++;
+            
+            if (user.FailedLoginAttempts >= _maxFailedAttempts)
+            {
+                user.LockoutEnd = DateTimeOffset.UtcNow.AddMinutes(_lockoutDurationMinutes);
+                _logger.LogWarning("Account {UserId} locked after {Attempts} failed attempts", 
+                    user.Id, user.FailedLoginAttempts);
+            }
+            
+            await _context.SaveChangesAsync();
+            
+            _logger.LogWarning("Login failed: Invalid password for user {UserId} (attempt {Attempt}/{Max})", 
+                user.Id, user.FailedLoginAttempts, _maxFailedAttempts);
             throw new AuthException("Invalid email or password", "INVALID_CREDENTIALS");
         }
 
@@ -100,7 +161,9 @@ public class AuthService : IAuthService
                 403);
         }
 
-        // Update last login
+        // Reset failed login attempts on successful login
+        user.FailedLoginAttempts = 0;
+        user.LockoutEnd = null;
         user.LastLoginAt = DateTimeOffset.UtcNow;
         await _context.SaveChangesAsync();
 
@@ -217,22 +280,114 @@ public class AuthService : IAuthService
         };
     }
 
-    private static bool IsPasswordValid(string password)
+    /// <summary>
+    /// Validates password against security policy.
+    /// </summary>
+    private (bool IsValid, string? ErrorMessage) ValidatePassword(string password, string email, string fullName)
     {
-        var hasUppercase = false;
-        var hasLowercase = false;
-        var hasDigit = false;
+        var errors = new List<string>();
 
-        foreach (var c in password)
+        // Check minimum length
+        if (password.Length < _minPasswordLength)
         {
-            if (char.IsUpper(c)) hasUppercase = true;
-            else if (char.IsLower(c)) hasLowercase = true;
-            else if (char.IsDigit(c)) hasDigit = true;
-
-            if (hasUppercase && hasLowercase && hasDigit)
-                return true;
+            errors.Add($"at least {_minPasswordLength} characters");
         }
 
-        return hasUppercase && hasLowercase && hasDigit;
+        // Check for uppercase
+        if (_requireUppercase && !password.Any(char.IsUpper))
+        {
+            errors.Add("one uppercase letter");
+        }
+
+        // Check for lowercase
+        if (_requireLowercase && !password.Any(char.IsLower))
+        {
+            errors.Add("one lowercase letter");
+        }
+
+        // Check for digit
+        if (_requireDigit && !password.Any(char.IsDigit))
+        {
+            errors.Add("one number");
+        }
+
+        // Check for special character
+        if (_requireSpecialChar && !password.Any(c => !char.IsLetterOrDigit(c)))
+        {
+            errors.Add("one special character (!@#$%^&*...)");
+        }
+
+        if (errors.Count > 0)
+        {
+            return (false, $"Password must contain {string.Join(", ", errors)}");
+        }
+
+        // Check for common passwords
+        if (CommonPasswords.Contains(password))
+        {
+            return (false, "This password is too common. Please choose a stronger password.");
+        }
+
+        // Check if password contains email or name
+        var emailPrefix = email.Split('@')[0].ToLower();
+        var nameParts = fullName.ToLower().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        
+        if (password.ToLower().Contains(emailPrefix) && emailPrefix.Length >= 3)
+        {
+            return (false, "Password cannot contain your email address");
+        }
+
+        foreach (var namePart in nameParts.Where(n => n.Length >= 3))
+        {
+            if (password.ToLower().Contains(namePart))
+            {
+                return (false, "Password cannot contain your name");
+            }
+        }
+
+        // Check for sequential patterns
+        if (HasSequentialPattern(password))
+        {
+            return (false, "Password cannot contain sequential characters (abc, 123, etc.)");
+        }
+
+        return (true, null);
+    }
+
+    /// <summary>
+    /// Checks for sequential character patterns.
+    /// </summary>
+    private static bool HasSequentialPattern(string password)
+    {
+        if (password.Length < 4) return false;
+
+        for (int i = 0; i < password.Length - 3; i++)
+        {
+            // Check for ascending sequence
+            if (password[i] + 1 == password[i + 1] && 
+                password[i + 1] + 1 == password[i + 2] && 
+                password[i + 2] + 1 == password[i + 3])
+            {
+                return true;
+            }
+
+            // Check for descending sequence
+            if (password[i] - 1 == password[i + 1] && 
+                password[i + 1] - 1 == password[i + 2] && 
+                password[i + 2] - 1 == password[i + 3])
+            {
+                return true;
+            }
+
+            // Check for repeated characters
+            if (password[i] == password[i + 1] && 
+                password[i + 1] == password[i + 2] && 
+                password[i + 2] == password[i + 3])
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

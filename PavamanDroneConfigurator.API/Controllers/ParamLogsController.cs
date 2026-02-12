@@ -1,4 +1,6 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using PavamanDroneConfigurator.Infrastructure.Services;
 using System;
 using System.Collections.Generic;
@@ -10,6 +12,8 @@ namespace PavamanDroneConfigurator.API.Controllers;
 
 [ApiController]
 [Route("api/param-logs")]
+[Authorize] // SECURITY: Require authentication for all endpoints
+[EnableRateLimiting("fixed")]
 public class ParamLogsController : ControllerBase
 {
     private readonly AwsS3Service _s3Service;
@@ -26,6 +30,7 @@ public class ParamLogsController : ControllerBase
     /// Health check for param logs API
     /// </summary>
     [HttpGet("health")]
+    [AllowAnonymous] // Health check can be public
     public async Task<ActionResult> HealthCheck(CancellationToken cancellationToken)
     {
         try
@@ -44,15 +49,17 @@ public class ParamLogsController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Param logs health check failed");
-            return StatusCode(503, new { status = "unhealthy", error = ex.Message });
+            return StatusCode(503, new { status = "unhealthy", error = "Service unavailable" });
         }
     }
     
     /// <summary>
     /// GET /api/param-logs/storage-stats
-    /// Get storage statistics for parameter logs
+    /// Get storage statistics for parameter logs (Admin only)
     /// </summary>
     [HttpGet("storage-stats")]
+    [Authorize(Roles = "Admin")] // SECURITY: Admin only
+    [EnableRateLimiting("admin")]
     public async Task<ActionResult> GetStorageStats(CancellationToken cancellationToken)
     {
         try
@@ -69,9 +76,11 @@ public class ParamLogsController : ControllerBase
     
     /// <summary>
     /// GET /api/param-logs
-    /// List all parameter log files from S3 with optional filters
+    /// List all parameter log files from S3 with optional filters (Admin only)
     /// </summary>
     [HttpGet]
+    [Authorize(Roles = "Admin")] // SECURITY: Admin only - contains all user data
+    [EnableRateLimiting("admin")]
     public async Task<ActionResult<ParamLogListResponse>> ListParamLogs(
         [FromQuery] string? search = null,
         [FromQuery] string? userId = null,
@@ -84,6 +93,11 @@ public class ParamLogsController : ControllerBase
     {
         try
         {
+            // SECURITY: Validate pagination parameters
+            if (page < 1) page = 1;
+            if (pageSize < 1) pageSize = 10;
+            if (pageSize > 100) pageSize = 100; // Limit max page size
+            
             _logger.LogInformation(
                 "Listing param logs: search={Search}, userId={UserId}, droneId={DroneId}, from={From}, to={To}",
                 search, userId, droneId, fromDate, toDate);
@@ -93,10 +107,10 @@ public class ParamLogsController : ControllerBase
             // Apply filters
             var filtered = logs.AsEnumerable();
             
-            // Search filter (matches userId, droneId, userName, or filename)
+            // SECURITY: Sanitize search input
             if (!string.IsNullOrWhiteSpace(search))
             {
-                var searchLower = search.ToLower();
+                var searchLower = SanitizeSearchInput(search).ToLower();
                 filtered = filtered.Where(l => 
                     l.UserId.Contains(searchLower, StringComparison.OrdinalIgnoreCase) ||
                     l.DroneId.Contains(searchLower, StringComparison.OrdinalIgnoreCase) ||
@@ -107,15 +121,16 @@ public class ParamLogsController : ControllerBase
             
             if (!string.IsNullOrWhiteSpace(userId))
             {
-                // Match by UserId OR UserName
+                var sanitizedUserId = SanitizeSearchInput(userId);
                 filtered = filtered.Where(l => 
-                    l.UserId.Contains(userId, StringComparison.OrdinalIgnoreCase) ||
-                    (l.UserName != null && l.UserName.Contains(userId, StringComparison.OrdinalIgnoreCase)));
+                    l.UserId.Contains(sanitizedUserId, StringComparison.OrdinalIgnoreCase) ||
+                    (l.UserName != null && l.UserName.Contains(sanitizedUserId, StringComparison.OrdinalIgnoreCase)));
             }
             
             if (!string.IsNullOrWhiteSpace(droneId))
             {
-                filtered = filtered.Where(l => l.DroneId.Contains(droneId, StringComparison.OrdinalIgnoreCase));
+                var sanitizedDroneId = SanitizeSearchInput(droneId);
+                filtered = filtered.Where(l => l.DroneId.Contains(sanitizedDroneId, StringComparison.OrdinalIgnoreCase));
             }
             
             if (fromDate.HasValue)
@@ -139,7 +154,6 @@ public class ParamLogsController : ControllerBase
                 .ToList();
             
             // Get unique users and drones for filter dropdowns
-            // Use UserName for display (fallback to UserId if no name)
             var allUsers = logs
                 .Select(l => !string.IsNullOrWhiteSpace(l.UserName) ? l.UserName : l.UserId)
                 .Distinct()
@@ -161,21 +175,43 @@ public class ParamLogsController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to list param logs");
-            return StatusCode(500, new { error = $"Failed to list param logs: {ex.Message}" });
+            return StatusCode(500, new { error = "Failed to list parameter logs" });
         }
     }
     
     /// <summary>
     /// GET /api/param-logs/{key}
-    /// Get contents of a specific parameter log CSV file
+    /// Get contents of a specific parameter log CSV file (Admin only)
     /// </summary>
     [HttpGet("{**key}")]
+    [Authorize(Roles = "Admin")] // SECURITY: Admin only
+    [EnableRateLimiting("admin")]
     public async Task<ActionResult<ParamLogContentResponse>> GetParamLogContent(
         string key,
         CancellationToken cancellationToken)
     {
         try
         {
+            // SECURITY: Validate and sanitize the key
+            if (string.IsNullOrWhiteSpace(key))
+            {
+                return BadRequest(new { error = "Invalid key" });
+            }
+            
+            // SECURITY: Ensure key is within the params-logs folder
+            if (!key.StartsWith("params-logs/", StringComparison.OrdinalIgnoreCase))
+            {
+                _logger.LogWarning("Rejected param log request - invalid key path: {Key}", key);
+                return BadRequest(new { error = "Invalid parameter log key" });
+            }
+            
+            // SECURITY: Prevent path traversal
+            if (key.Contains("..") || key.Contains("//"))
+            {
+                _logger.LogWarning("Rejected param log request - path traversal attempt: {Key}", key);
+                return BadRequest(new { error = "Invalid key format" });
+            }
+            
             _logger.LogInformation("Getting param log content: {Key}", key);
             
             var content = await _s3Service.GetParameterLogContentAsync(key, cancellationToken);
@@ -195,19 +231,32 @@ public class ParamLogsController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to get param log content: {Key}", key);
-            return StatusCode(500, new { error = $"Failed to get param log: {ex.Message}" });
+            return StatusCode(500, new { error = "Failed to get parameter log" });
         }
     }
     
     /// <summary>
     /// GET /api/param-logs/download/{key}
-    /// Get presigned URL for downloading a param log file
+    /// Get presigned URL for downloading a param log file (Admin only)
     /// </summary>
     [HttpGet("download/{**key}")]
+    [Authorize(Roles = "Admin")] // SECURITY: Admin only
+    [EnableRateLimiting("admin")]
     public ActionResult GetDownloadUrl(string key)
     {
         try
         {
+            // SECURITY: Validate key
+            if (string.IsNullOrWhiteSpace(key) || !key.StartsWith("params-logs/", StringComparison.OrdinalIgnoreCase))
+            {
+                return BadRequest(new { error = "Invalid parameter log key" });
+            }
+            
+            if (key.Contains("..") || key.Contains("//"))
+            {
+                return BadRequest(new { error = "Invalid key format" });
+            }
+            
             _logger.LogInformation("Generating download URL for param log: {Key}", key);
             
             var downloadUrl = _s3Service.GeneratePresignedUrl(key, TimeSpan.FromHours(1));
@@ -217,8 +266,20 @@ public class ParamLogsController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to generate download URL: {Key}", key);
-            return StatusCode(500, new { error = $"Download failed: {ex.Message}" });
+            return StatusCode(500, new { error = "Download failed" });
         }
+    }
+    
+    /// <summary>
+    /// Sanitizes search input to prevent injection attacks.
+    /// </summary>
+    private static string SanitizeSearchInput(string input)
+    {
+        if (string.IsNullOrWhiteSpace(input))
+            return string.Empty;
+        
+        // Remove potentially dangerous characters
+        return new string(input.Where(c => char.IsLetterOrDigit(c) || c == '-' || c == '_' || c == '@' || c == '.' || c == ' ').ToArray());
     }
     
     private (List<ParamChangeEntry> Changes, Dictionary<string, string> Metadata) ParseCsvContent(string csvContent)
@@ -236,7 +297,7 @@ public class ParamLogsController : ControllerBase
             var trimmedLine = line.Trim();
             
             // Parse metadata comments (e.g., "# user_name=John Doe")
-            if (trimmedLine.StartsWith("#"))
+            if (trimmedLine.StartsWith('#'))
             {
                 var metaLine = trimmedLine.TrimStart('#', ' ');
                 var eqIndex = metaLine.IndexOf('=');

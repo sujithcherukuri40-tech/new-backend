@@ -1,4 +1,6 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using PavamanDroneConfigurator.Infrastructure.Services;
 using System;
 using System.Collections.Generic;
@@ -14,6 +16,17 @@ public class FirmwareController : ControllerBase
     private readonly AwsS3Service _s3Service;
     private readonly ILogger<FirmwareController> _logger;
     
+    // Allowed firmware file extensions
+    private static readonly string[] AllowedExtensions = { ".apj", ".px4", ".bin" };
+    
+    // Firmware file magic bytes for validation
+    private static readonly Dictionary<string, byte[]> FileMagicBytes = new()
+    {
+        { ".apj", new byte[] { 0x7B } }, // JSON format starts with {
+        { ".bin", Array.Empty<byte>() }, // Binary files don't have specific magic
+        { ".px4", Array.Empty<byte>() }
+    };
+    
     public FirmwareController(AwsS3Service s3Service, ILogger<FirmwareController> logger)
     {
         _s3Service = s3Service;
@@ -25,6 +38,8 @@ public class FirmwareController : ControllerBase
     /// Lists all firmware files available in S3 with presigned download URLs (FOR USERS)
     /// </summary>
     [HttpGet("inapp")]
+    [Authorize] // SECURITY: Require authentication to list firmware
+    [EnableRateLimiting("fixed")]
     public async Task<ActionResult<List<FirmwareMetadata>>> GetInAppFirmwares(CancellationToken cancellationToken)
     {
         try
@@ -63,6 +78,8 @@ public class FirmwareController : ControllerBase
     /// Upload firmware file to S3 (Admin only)
     /// </summary>
     [HttpPost("admin/upload")]
+    [Authorize(Roles = "Admin")] // SECURITY: Require Admin role
+    [EnableRateLimiting("admin")]
     public async Task<ActionResult<FirmwareMetadata>> UploadFirmware(
         [FromForm] IFormFile file, 
         [FromForm] string? customFileName,
@@ -78,21 +95,30 @@ public class FirmwareController : ControllerBase
                 return BadRequest(new { error = "No file uploaded" });
             }
             
-            // Validate file extension
-            var allowedExtensions = new[] { ".apj", ".px4", ".bin" };
+            // SECURITY: Validate file extension
             var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
-            if (!allowedExtensions.Contains(extension))
+            if (!AllowedExtensions.Contains(extension))
             {
-                return BadRequest(new { error = $"Invalid file type. Allowed: {string.Join(", ", allowedExtensions)}" });
+                _logger.LogWarning("Rejected firmware upload with invalid extension: {Extension}", extension);
+                return BadRequest(new { error = $"Invalid file type. Allowed: {string.Join(", ", AllowedExtensions)}" });
             }
             
-            // Validate file size (max 10MB)
-            if (file.Length > 10 * 1024 * 1024)
+            // SECURITY: Validate file size (max 50MB for firmware files)
+            const long maxFileSize = 50 * 1024 * 1024;
+            if (file.Length > maxFileSize)
             {
-                return BadRequest(new { error = "File too large (max 10MB)" });
+                _logger.LogWarning("Rejected firmware upload - file too large: {Size} bytes", file.Length);
+                return BadRequest(new { error = "File too large (max 50MB)" });
             }
             
-            _logger.LogInformation("Admin uploading firmware: {FileName} ({Size} bytes)", file.FileName, file.Length);
+            // SECURITY: Validate file name to prevent path traversal
+            var sanitizedFileName = SanitizeFileName(customFileName ?? file.FileName);
+            if (string.IsNullOrEmpty(sanitizedFileName))
+            {
+                return BadRequest(new { error = "Invalid file name" });
+            }
+            
+            _logger.LogInformation("Admin uploading firmware: {FileName} ({Size} bytes)", sanitizedFileName, file.Length);
             
             // Save to temp file
             var tempPath = Path.GetTempFileName();
@@ -103,11 +129,17 @@ public class FirmwareController : ControllerBase
                     await file.CopyToAsync(stream, cancellationToken);
                 }
                 
+                // SECURITY: Validate file content (magic bytes) for APJ files
+                if (extension == ".apj" && !await ValidateFileContentAsync(tempPath, extension))
+                {
+                    _logger.LogWarning("Rejected firmware upload - invalid file content for extension: {Extension}", extension);
+                    return BadRequest(new { error = "File content does not match expected format" });
+                }
+                
                 // Upload to S3 with metadata
-                var fileName = string.IsNullOrWhiteSpace(customFileName) ? file.FileName : customFileName;
                 var s3Info = await _s3Service.UploadFirmwareAsync(
                     tempPath, 
-                    fileName,
+                    sanitizedFileName,
                     firmwareName,
                     firmwareVersion,
                     firmwareDescription,
@@ -141,7 +173,7 @@ public class FirmwareController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to upload firmware");
-            return StatusCode(500, new { error = $"Upload failed: {ex.Message}" });
+            return StatusCode(500, new { error = "Upload failed. Please try again." });
         }
     }
     
@@ -150,10 +182,32 @@ public class FirmwareController : ControllerBase
     /// Delete firmware file from S3 (Admin only)
     /// </summary>
     [HttpDelete("admin/{**key}")]
+    [Authorize(Roles = "Admin")] // SECURITY: Require Admin role
+    [EnableRateLimiting("admin")]
     public async Task<ActionResult> DeleteFirmware(string key, CancellationToken cancellationToken)
     {
         try
         {
+            // SECURITY: Validate and sanitize the S3 key
+            if (string.IsNullOrWhiteSpace(key))
+            {
+                return BadRequest(new { error = "Invalid key" });
+            }
+            
+            // SECURITY: Ensure key is within the firmware folder
+            if (!key.StartsWith("firmwares/", StringComparison.OrdinalIgnoreCase))
+            {
+                _logger.LogWarning("Rejected firmware delete request - invalid key path: {Key}", key);
+                return BadRequest(new { error = "Invalid firmware key" });
+            }
+            
+            // SECURITY: Prevent path traversal
+            if (key.Contains("..") || key.Contains("//"))
+            {
+                _logger.LogWarning("Rejected firmware delete request - path traversal attempt: {Key}", key);
+                return BadRequest(new { error = "Invalid key format" });
+            }
+            
             _logger.LogInformation("Admin deleting firmware: {Key}", key);
             
             var success = await _s3Service.DeleteFirmwareAsync(key, cancellationToken);
@@ -170,7 +224,7 @@ public class FirmwareController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to delete firmware: {Key}", key);
-            return StatusCode(500, new { error = $"Delete failed: {ex.Message}" });
+            return StatusCode(500, new { error = "Delete failed. Please try again." });
         }
     }
     
@@ -179,10 +233,23 @@ public class FirmwareController : ControllerBase
     /// Download firmware file (generates presigned URL for direct S3 download)
     /// </summary>
     [HttpGet("download/{**key}")]
+    [Authorize] // SECURITY: Require authentication
+    [EnableRateLimiting("fixed")]
     public ActionResult DownloadFirmware(string key)
     {
         try
         {
+            // SECURITY: Validate key
+            if (string.IsNullOrWhiteSpace(key) || !key.StartsWith("firmwares/", StringComparison.OrdinalIgnoreCase))
+            {
+                return BadRequest(new { error = "Invalid firmware key" });
+            }
+            
+            if (key.Contains("..") || key.Contains("//"))
+            {
+                return BadRequest(new { error = "Invalid key format" });
+            }
+            
             _logger.LogInformation("Generating download URL for firmware: {Key}", key);
             
             // Generate presigned URL valid for 1 hour
@@ -193,7 +260,7 @@ public class FirmwareController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to generate download URL: {Key}", key);
-            return StatusCode(500, new { error = $"Download failed: {ex.Message}" });
+            return StatusCode(500, new { error = "Download failed. Please try again." });
         }
     }
     
@@ -202,6 +269,7 @@ public class FirmwareController : ControllerBase
     /// Check S3 connectivity (health check)
     /// </summary>
     [HttpGet("health")]
+    [AllowAnonymous] // Health check can be public
     public async Task<ActionResult> HealthCheck(CancellationToken cancellationToken)
     {
         try
@@ -220,7 +288,7 @@ public class FirmwareController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Health check failed");
-            return StatusCode(503, new { status = "unhealthy", error = ex.Message });
+            return StatusCode(503, new { status = "unhealthy", error = "Service unavailable" });
         }
     }
     
@@ -229,6 +297,8 @@ public class FirmwareController : ControllerBase
     /// Get storage statistics for firmwares
     /// </summary>
     [HttpGet("storage-stats")]
+    [Authorize(Roles = "Admin")] // SECURITY: Admin only
+    [EnableRateLimiting("admin")]
     public async Task<ActionResult> GetStorageStats(CancellationToken cancellationToken)
     {
         try
@@ -248,6 +318,8 @@ public class FirmwareController : ControllerBase
     /// Upload parameter change log to S3 (param-logs folder)
     /// </summary>
     [HttpPost("param-logs")]
+    [Authorize] // SECURITY: Require authentication
+    [EnableRateLimiting("fixed")]
     public async Task<ActionResult> UploadParameterLog(
         [FromBody] ParameterLogRequest request,
         CancellationToken cancellationToken)
@@ -262,6 +334,13 @@ public class FirmwareController : ControllerBase
             if (string.IsNullOrWhiteSpace(request.UserId))
             {
                 return BadRequest(new { error = "UserId is required" });
+            }
+            
+            // SECURITY: Limit the number of changes per request
+            const int maxChanges = 1000;
+            if (request.Changes.Count > maxChanges)
+            {
+                return BadRequest(new { error = $"Too many changes. Maximum {maxChanges} allowed per request." });
             }
             
             _logger.LogInformation(
@@ -299,7 +378,68 @@ public class FirmwareController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to upload parameter log");
-            return StatusCode(500, new { error = $"Upload failed: {ex.Message}" });
+            return StatusCode(500, new { error = "Upload failed. Please try again." });
+        }
+    }
+    
+    /// <summary>
+    /// Sanitizes file name to prevent path traversal attacks.
+    /// </summary>
+    private static string? SanitizeFileName(string fileName)
+    {
+        if (string.IsNullOrWhiteSpace(fileName))
+            return null;
+        
+        // Remove path components
+        fileName = Path.GetFileName(fileName);
+        
+        // Remove dangerous characters
+        var invalidChars = Path.GetInvalidFileNameChars().Concat(new[] { '/', '\\', ':', '*', '?', '"', '<', '>', '|' }).ToArray();
+        foreach (var c in invalidChars)
+        {
+            fileName = fileName.Replace(c, '_');
+        }
+        
+        // Prevent hidden files
+        if (fileName.StartsWith('.'))
+        {
+            fileName = "_" + fileName[1..];
+        }
+        
+        // Limit length
+        if (fileName.Length > 255)
+        {
+            var extension = Path.GetExtension(fileName);
+            fileName = fileName[..(255 - extension.Length)] + extension;
+        }
+        
+        return string.IsNullOrWhiteSpace(fileName) ? null : fileName;
+    }
+    
+    /// <summary>
+    /// Validates file content by checking magic bytes.
+    /// </summary>
+    private static async Task<bool> ValidateFileContentAsync(string filePath, string extension)
+    {
+        if (!FileMagicBytes.TryGetValue(extension, out var expectedBytes) || expectedBytes.Length == 0)
+        {
+            return true; // No validation for this extension
+        }
+        
+        try
+        {
+            var buffer = new byte[expectedBytes.Length];
+            await using var stream = System.IO.File.OpenRead(filePath);
+            var bytesRead = await stream.ReadAsync(buffer);
+            
+            if (bytesRead < expectedBytes.Length)
+                return false;
+            
+            return buffer.SequenceEqual(expectedBytes);
+        }
+        catch
+        {
+            return false;
         }
     }
 }
