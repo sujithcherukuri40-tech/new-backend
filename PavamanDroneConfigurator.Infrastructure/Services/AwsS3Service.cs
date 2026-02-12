@@ -561,6 +561,98 @@ public class AwsS3Service : IDisposable
     }
     
     /// <summary>
+    /// Get total storage usage for firmwares
+    /// </summary>
+    public async Task<StorageStats> GetFirmwareStorageStatsAsync(CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var client = GetS3Client();
+            var request = new ListObjectsV2Request
+            {
+                BucketName = BucketName,
+                Prefix = FirmwarePrefix
+            };
+            
+            long totalBytes = 0;
+            int fileCount = 0;
+            
+            ListObjectsV2Response response;
+            do
+            {
+                response = await client.ListObjectsV2Async(request, cancellationToken);
+                
+                foreach (var obj in response.S3Objects)
+                {
+                    totalBytes += obj.Size ?? 0;
+                    fileCount++;
+                }
+                
+                request.ContinuationToken = response.NextContinuationToken;
+            }
+            while (response.IsTruncated == true);
+            
+            return new StorageStats
+            {
+                TotalBytes = totalBytes,
+                TotalSizeFormatted = FormatBytes(totalBytes),
+                FileCount = fileCount
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to get firmware storage stats");
+            return new StorageStats();
+        }
+    }
+    
+    /// <summary>
+    /// Get total storage usage for parameter logs
+    /// </summary>
+    public async Task<StorageStats> GetParamLogsStorageStatsAsync(CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var client = GetS3Client();
+            var request = new ListObjectsV2Request
+            {
+                BucketName = BucketName,
+                Prefix = ParamsLogsPrefix
+            };
+            
+            long totalBytes = 0;
+            int fileCount = 0;
+            
+            ListObjectsV2Response response;
+            do
+            {
+                response = await client.ListObjectsV2Async(request, cancellationToken);
+                
+                foreach (var obj in response.S3Objects.Where(o => o.Key.EndsWith(".csv")))
+                {
+                    totalBytes += obj.Size ?? 0;
+                    fileCount++;
+                }
+                
+                request.ContinuationToken = response.NextContinuationToken;
+            }
+            while (response.IsTruncated == true);
+            
+            return new StorageStats
+            {
+                TotalBytes = totalBytes,
+                TotalSizeFormatted = FormatBytes(totalBytes),
+                FileCount = fileCount
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to get param logs storage stats");
+            return new StorageStats();
+        }
+    }
+    
+    /// <summary>
     /// Check if S3 bucket is accessible (health check)
     /// </summary>
     public async Task<bool> IsS3AccessibleAsync(CancellationToken cancellationToken = default)
@@ -651,4 +743,14 @@ public class ParamLogEntry
     public DateTime Timestamp { get; set; }
     public long Size { get; set; }
     public string SizeDisplay { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// Storage statistics for S3 folders
+/// </summary>
+public class StorageStats
+{
+    public long TotalBytes { get; set; }
+    public string TotalSizeFormatted { get; set; } = "0 B";
+    public int FileCount { get; set; }
 }

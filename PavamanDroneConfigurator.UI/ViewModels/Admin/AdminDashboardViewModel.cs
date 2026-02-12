@@ -46,6 +46,7 @@ public sealed partial class AdminDashboardViewModel : ViewModelBase
     private string _statusMessage = "Ready";
 
     // S3 Storage Analytics
+    
     private string _s3TotalStorageValue = "5 GB";
     public string S3TotalStorage
     {
@@ -141,17 +142,50 @@ public sealed partial class AdminDashboardViewModel : ViewModelBase
             // Load real param logs data from API
             if (_firmwareApiService != null)
             {
+                // Load storage stats in parallel
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        var firmwareStatsTask = _firmwareApiService.GetStorageStatsAsync("firmware");
+                        var paramLogsStatsTask = _firmwareApiService.GetStorageStatsAsync("param-logs");
+                        
+                        await Task.WhenAll(firmwareStatsTask, paramLogsStatsTask);
+                        
+                        var firmwareStats = await firmwareStatsTask;
+                        var paramLogsStats = await paramLogsStatsTask;
+                        
+                        await Dispatcher.UIThread.InvokeAsync(() =>
+                        {
+                            if (firmwareStats != null)
+                            {
+                                TotalFirmwareFiles = firmwareStats.FileCount;
+                            }
+                            
+                            if (paramLogsStats != null)
+                            {
+                                TotalParamLogs = paramLogsStats.FileCount;
+                            }
+                            
+                            // Calculate total usage
+                            var totalBytes = (firmwareStats?.TotalBytes ?? 0) + (paramLogsStats?.TotalBytes ?? 0);
+                            S3UsedStorage = FormatFileSize(totalBytes);
+                            S3UsagePercent = Math.Min((totalBytes / (5.0 * 1024 * 1024 * 1024)) * 100, 100);
+                        });
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Failed to load storage analytics");
+                    }
+                });
+                
+                // Load param logs count
                 try
                 {
                     var paramLogsResponse = await _firmwareApiService.GetParamLogsAsync("page=1&pageSize=1");
                     if (paramLogsResponse != null)
                     {
                         TotalParamLogs = paramLogsResponse.TotalCount;
-                        
-                        // Estimate storage used (average ~2KB per log)
-                        var estimatedBytes = paramLogsResponse.TotalCount * 2048L;
-                        S3UsedStorage = FormatFileSize(estimatedBytes);
-                        S3UsagePercent = Math.Min((estimatedBytes / (5.0 * 1024 * 1024 * 1024)) * 100, 100);
                     }
                 }
                 catch (Exception ex)

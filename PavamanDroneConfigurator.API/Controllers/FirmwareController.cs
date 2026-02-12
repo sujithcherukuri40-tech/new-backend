@@ -225,6 +225,25 @@ public class FirmwareController : ControllerBase
     }
     
     /// <summary>
+    /// GET /api/firmware/storage-stats
+    /// Get storage statistics for firmwares
+    /// </summary>
+    [HttpGet("storage-stats")]
+    public async Task<ActionResult> GetStorageStats(CancellationToken cancellationToken)
+    {
+        try
+        {
+            var stats = await _s3Service.GetFirmwareStorageStatsAsync(cancellationToken);
+            return Ok(stats);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to get storage stats");
+            return StatusCode(500, new { error = "Failed to get storage statistics" });
+        }
+    }
+    
+    /// <summary>
     /// POST /api/firmware/param-logs
     /// Upload parameter change log to S3 (param-logs folder)
     /// </summary>

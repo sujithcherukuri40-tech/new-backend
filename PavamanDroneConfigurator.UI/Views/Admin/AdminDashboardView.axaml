@@ -32,7 +32,7 @@ Background="#F9FAFB">
             </Grid>
 
             <!-- Stats Cards -->
-            <Grid ColumnDefinitions="*,*,*,*,*" ColumnSpacing="16">
+            <Grid ColumnDefinitions="*,*,*,*,*,*" ColumnSpacing="16">
                 <!-- Total Users -->
                 <Border Background="White" CornerRadius="12" Padding="20" BoxShadow="0 2 8 0 #10000000">
                     <StackPanel>
@@ -61,11 +61,20 @@ Background="#F9FAFB">
                         <TextBlock Text="{Binding AdminCount}" FontSize="36" FontWeight="Bold" Foreground="#6366F1" Margin="0,8,0,0"/>
                     </StackPanel>
                 </Border>
-                <!-- Regular Users -->
-                <Border Grid.Column="4" Background="#F0F9FF" CornerRadius="12" Padding="20" BoxShadow="0 2 8 0 #10000000">
+                <!-- Firmware Storage -->
+                <Border Grid.Column="4" Background="#FEF3C7" CornerRadius="12" Padding="20" BoxShadow="0 2 8 0 #10000000">
                     <StackPanel>
-                        <TextBlock Text="Users" FontSize="13" Foreground="#0369A1"/>
-                        <TextBlock Text="{Binding UserCount}" FontSize="36" FontWeight="Bold" Foreground="#0EA5E9" Margin="0,8,0,0"/>
+                        <TextBlock Text="Firmware Storage" FontSize="13" Foreground="#92400E"/>
+                        <TextBlock Text="{Binding FirmwareStorage}" FontSize="28" FontWeight="Bold" Foreground="#F59E0B" Margin="0,8,0,0"/>
+                        <TextBlock Text="{Binding TotalFirmwareFiles, StringFormat='{}{0} files'}" FontSize="11" Foreground="#92400E" Margin="0,4,0,0"/>
+                    </StackPanel>
+                </Border>
+                <!-- Logs Storage -->
+                <Border Grid.Column="5" Background="#EDE9FE" CornerRadius="12" Padding="20" BoxShadow="0 2 8 0 #10000000">
+                    <StackPanel>
+                        <TextBlock Text="Logs Storage" FontSize="13" Foreground="#5B21B6"/>
+                        <TextBlock Text="{Binding ParamLogsStorage}" FontSize="28" FontWeight="Bold" Foreground="#8B5CF6" Margin="0,8,0,0"/>
+                        <TextBlock Text="{Binding TotalParamLogs, StringFormat='{}{0} logs'}" FontSize="11" Foreground="#5B21B6" Margin="0,4,0,0"/>
                     </StackPanel>
                 </Border>
             </Grid>

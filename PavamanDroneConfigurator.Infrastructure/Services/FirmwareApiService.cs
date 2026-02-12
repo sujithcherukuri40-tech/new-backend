@@ -351,6 +351,26 @@ public class FirmwareApiService
         }
     }
     
+    /// <summary>
+    /// Get storage statistics (firmware or param-logs)
+    /// </summary>
+    public async Task<StorageStatsResponse?> GetStorageStatsAsync(string type, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var endpoint = type == "firmware" ? "/api/firmware/storage-stats" : "/api/param-logs/storage-stats";
+            var response = await _httpClient.GetAsync(endpoint, cancellationToken);
+            response.EnsureSuccessStatusCode();
+            
+            return await response.Content.ReadFromJsonAsync<StorageStatsResponse>(cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to get storage stats for {Type}", type);
+            return null;
+        }
+    }
+    
     private class DownloadUrlResponse
     {
         public string DownloadUrl { get; set; } = string.Empty;
@@ -451,4 +471,14 @@ public class ParamChangeDetailDto
     public string OldValue { get; set; } = string.Empty;
     public string NewValue { get; set; } = string.Empty;
     public string ChangedAt { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// Storage statistics response
+/// </summary>
+public class StorageStatsResponse
+{
+    public long TotalBytes { get; set; }
+    public string TotalSizeFormatted { get; set; } = "0 B";
+    public int FileCount { get; set; }
 }

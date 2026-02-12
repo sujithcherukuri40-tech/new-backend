@@ -49,6 +49,25 @@ public class ParamLogsController : ControllerBase
     }
     
     /// <summary>
+    /// GET /api/param-logs/storage-stats
+    /// Get storage statistics for parameter logs
+    /// </summary>
+    [HttpGet("storage-stats")]
+    public async Task<ActionResult> GetStorageStats(CancellationToken cancellationToken)
+    {
+        try
+        {
+            var stats = await _s3Service.GetParamLogsStorageStatsAsync(cancellationToken);
+            return Ok(stats);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to get param logs storage stats");
+            return StatusCode(500, new { error = "Failed to get storage statistics" });
+        }
+    }
+    
+    /// <summary>
     /// GET /api/param-logs
     /// List all parameter log files from S3 with optional filters
     /// </summary>
