@@ -84,15 +84,25 @@ public sealed class AdminApiService : IAdminService
             var accessToken = await _tokenStorage.GetAccessTokenAsync(cancellationToken);
             if (string.IsNullOrEmpty(accessToken))
             {
+                _logger.LogError("Cannot approve user - no access token available");
                 throw new InvalidOperationException("No access token available");
             }
 
+            _logger.LogInformation("Approving user {UserId} with approval={Approve}", userId, approve);
+            
             using var request = new HttpRequestMessage(HttpMethod.Post, $"/admin/users/{userId}/approve");
             request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
             request.Content = JsonContent.Create(new { approve }, options: JsonOptions);
 
             var response = await _httpClient.SendAsync(request, cancellationToken);
-            response.EnsureSuccessStatusCode();
+            
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorContent = await response.Content.ReadAsStringAsync(cancellationToken);
+                _logger.LogError("Failed to approve user {UserId}: {StatusCode} - {Error}", 
+                    userId, response.StatusCode, errorContent);
+                throw new HttpRequestException($"API returned {response.StatusCode}: {errorContent}");
+            }
 
             _logger.LogInformation("User {UserId} approval set to {Approve}", userId, approve);
             return true;
@@ -100,7 +110,7 @@ public sealed class AdminApiService : IAdminService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to approve user {UserId}", userId);
-            return false;
+            throw;
         }
     }
 
@@ -111,15 +121,25 @@ public sealed class AdminApiService : IAdminService
             var accessToken = await _tokenStorage.GetAccessTokenAsync(cancellationToken);
             if (string.IsNullOrEmpty(accessToken))
             {
+                _logger.LogError("Cannot change role - no access token available");
                 throw new InvalidOperationException("No access token available");
             }
 
+            _logger.LogInformation("Changing user {UserId} role to {Role}", userId, newRole);
+            
             using var request = new HttpRequestMessage(HttpMethod.Post, $"/admin/users/{userId}/role");
             request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
             request.Content = JsonContent.Create(new { role = newRole }, options: JsonOptions);
 
             var response = await _httpClient.SendAsync(request, cancellationToken);
-            response.EnsureSuccessStatusCode();
+            
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorContent = await response.Content.ReadAsStringAsync(cancellationToken);
+                _logger.LogError("Failed to change role for user {UserId}: {StatusCode} - {Error}", 
+                    userId, response.StatusCode, errorContent);
+                throw new HttpRequestException($"API returned {response.StatusCode}: {errorContent}");
+            }
 
             _logger.LogInformation("User {UserId} role changed to {Role}", userId, newRole);
             return true;
@@ -127,7 +147,7 @@ public sealed class AdminApiService : IAdminService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to change role for user {UserId}", userId);
-            return false;
+            throw;
         }
     }
 

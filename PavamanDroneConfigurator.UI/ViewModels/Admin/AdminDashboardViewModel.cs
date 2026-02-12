@@ -47,7 +47,7 @@ public sealed partial class AdminDashboardViewModel : ViewModelBase
 
     // S3 Storage Analytics
     
-    private string _s3TotalStorageValue = "5 GB";
+    private string _s3TotalStorageValue = "Unlimited";
     public string S3TotalStorage
     {
         get => _s3TotalStorageValue;
@@ -167,10 +167,10 @@ public sealed partial class AdminDashboardViewModel : ViewModelBase
                                 TotalParamLogs = paramLogsStats.FileCount;
                             }
                             
-                            // Calculate total usage
+                            // Calculate total usage (no limit for S3)
                             var totalBytes = (firmwareStats?.TotalBytes ?? 0) + (paramLogsStats?.TotalBytes ?? 0);
                             S3UsedStorage = FormatFileSize(totalBytes);
-                            S3UsagePercent = Math.Min((totalBytes / (5.0 * 1024 * 1024 * 1024)) * 100, 100);
+                            S3UsagePercent = 0; // S3 has no limit
                         });
                     }
                     catch (Exception ex)
@@ -352,6 +352,9 @@ public sealed partial class AdminDashboardViewModel : ViewModelBase
                 NotifyStatsChanged();
             });
 
+            // Reload storage stats
+            await LoadAnalyticsAsync();
+
             StatusMessage = $"\u2714 Loaded {Users.Count} users";
             _logger.LogInformation("Loaded {Count} users ({Pending} pending)", Users.Count, PendingCount);
         }
@@ -377,40 +380,41 @@ public sealed partial class AdminDashboardViewModel : ViewModelBase
 
         try
         {
+            // If approving and role changed, update role first
             if (newState && user.SelectedRole != user.Role)
             {
-                var roleSuccess = await _adminService.ChangeUserRoleAsync(user.Id, user.SelectedRole);
-                if (!roleSuccess)
-                {
-                    StatusMessage = "\u274C Failed to update role";
-                    return;
-                }
+                await _adminService.ChangeUserRoleAsync(user.Id, user.SelectedRole);
             }
 
-            var success = await _adminService.ApproveUserAsync(user.Id, newState);
+            // Then approve/revoke
+            await _adminService.ApproveUserAsync(user.Id, newState);
 
-            if (success)
+            // Success - update UI
+            await Dispatcher.UIThread.InvokeAsync(() =>
             {
-                await Dispatcher.UIThread.InvokeAsync(() =>
-                {
-                    user.IsApproved = newState;
-                    if (newState) user.Role = user.SelectedRole;
-                    NotifyStatsChanged();
-                });
+                user.IsApproved = newState;
+                if (newState) user.Role = user.SelectedRole;
+                NotifyStatsChanged();
+            });
 
-                StatusMessage = newState 
-                    ? $"\u2714 {user.FullName} approved as {user.SelectedRole}" 
-                    : $"\u26D4 {user.FullName}'s access revoked";
-            }
-            else
-            {
-                StatusMessage = "\u274C Operation failed";
-            }
+            StatusMessage = newState 
+                ? $"\u2714 {user.FullName} approved as {user.SelectedRole}" 
+                : $"\u26D4 {user.FullName}'s access revoked";
+        }
+        catch (HttpRequestException httpEx)
+        {
+            _logger.LogError(httpEx, "HTTP error updating user {UserId}", user.Id);
+            StatusMessage = $"\u274C Connection error: {httpEx.Message}";
+        }
+        catch (InvalidOperationException invEx)
+        {
+            _logger.LogError(invEx, "Not authenticated");
+            StatusMessage = "\u274C Not authenticated - please login again";
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to update user");
-            StatusMessage = $"\u274C Failed to update {user.FullName}";
+            _logger.LogError(ex, "Failed to update user {UserId}", user.Id);
+            StatusMessage = $"\u274C Error: {ex.Message}";
         }
         finally
         {
@@ -457,7 +461,7 @@ public sealed partial class AdminDashboardViewModel : ViewModelBase
     [RelayCommand]
     private void NavigateToFirmwareManagement()
     {
-        NavigateToPage?.Invoke("FirmwareManagement");
+        NavigateToPage?.Invoke("FirmwareManagementPage");
     }
 
     [RelayCommand]
