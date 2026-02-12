@@ -20,6 +20,7 @@ using PavamanDroneConfigurator.UI.Views.Auth;
 using System;
 using System.IO;
 using System.Linq;
+using System.Collections.Generic;
 using DotNetEnv;
 
 namespace PavamanDroneConfigurator.UI;
@@ -29,6 +30,9 @@ public partial class App : Application
     public static ServiceProvider? Services { get; private set; }
     public static IConfiguration? Configuration { get; private set; }
     private static bool _isShuttingDown;
+
+    // EMBEDDED API URL - No external config file needed
+    private const string EMBEDDED_API_URL = "http://43.205.128.248:5000";
 
     public override void Initialize()
     {
@@ -46,9 +50,27 @@ public partial class App : Application
 
     private void BuildConfiguration()
     {
+        // Build configuration with embedded defaults - no external file required
+        var configData = new Dictionary<string, string?>
+        {
+            ["Api:BaseUrl"] = EMBEDDED_API_URL,
+            ["Auth:ApiUrl"] = EMBEDDED_API_URL,
+            ["Auth:AwsApiUrl"] = EMBEDDED_API_URL,
+            ["Auth:UseAwsApi"] = "true",
+            ["Auth:TokenExpiryBufferSeconds"] = "30",
+            ["Logging:LogLevel:Default"] = "Warning",
+            ["Logging:LogLevel:Microsoft"] = "Warning"
+        };
+
         var builder = new ConfigurationBuilder()
-            .SetBasePath(AppContext.BaseDirectory)
-            .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true);
+            .AddInMemoryCollection(configData);
+
+        // Optionally load external config if exists (for development/override)
+        var configPath = Path.Combine(AppContext.BaseDirectory, "appsettings.json");
+        if (File.Exists(configPath))
+        {
+            builder.AddJsonFile(configPath, optional: true, reloadOnChange: false);
+        }
 
         Configuration = builder.Build();
     }
@@ -65,59 +87,34 @@ public partial class App : Application
         services.AddLogging(builder =>
         {
             builder.AddConsole();
-            builder.SetMinimumLevel(LogLevel.Information); // Show important auth logs
+            builder.SetMinimumLevel(LogLevel.Warning);
         });
 
         services.AddSingleton<ITokenStorage, SecureTokenStorage>();
 
+        // Get API URL - embedded default, can be overridden by env var
+        var apiUrl = Environment.GetEnvironmentVariable("API_BASE_URL") ?? EMBEDDED_API_URL;
+
         services.AddHttpClient<IAuthService, AuthApiService>(client =>
         {
-            var useAwsApi = Configuration?.GetValue<bool>("Auth:UseAwsApi") ?? false;
-            var authApiUrl = useAwsApi
-                ? (Environment.GetEnvironmentVariable("AWS_API_URL")
-                   ?? Configuration?.GetValue<string>("Auth:AwsApiUrl")
-                   ?? "http://localhost:5000")
-                : (Environment.GetEnvironmentVariable("AUTH_API_URL")
-                   ?? Configuration?.GetValue<string>("Auth:ApiUrl")
-                   ?? "http://localhost:5000");
-
-            client.BaseAddress = new Uri(authApiUrl);
+            client.BaseAddress = new Uri(apiUrl);
             client.DefaultRequestHeaders.Add("Accept", "application/json");
-            client.Timeout = TimeSpan.FromSeconds(10); // Reasonable timeout for auth calls
+            client.Timeout = TimeSpan.FromSeconds(10);
         });
 
         services.AddHttpClient<Core.Interfaces.IAdminService, AdminApiService>(client =>
         {
-            var useAwsApi = Configuration?.GetValue<bool>("Auth:UseAwsApi") ?? false;
-            var authApiUrl = useAwsApi
-                ? (Environment.GetEnvironmentVariable("AWS_API_URL")
-                   ?? Configuration?.GetValue<string>("Auth:AwsApiUrl")
-                   ?? "http://localhost:5000")
-                : (Environment.GetEnvironmentVariable("AUTH_API_URL")
-                   ?? Configuration?.GetValue<string>("Auth:ApiUrl")
-                   ?? "http://localhost:5000");
-
-            client.BaseAddress = new Uri(authApiUrl);
+            client.BaseAddress = new Uri(apiUrl);
             client.DefaultRequestHeaders.Add("Accept", "application/json");
             client.Timeout = TimeSpan.FromSeconds(30);
         });
 
-        // Firmware API HTTP Client for S3 integration
-        // PRODUCTION: Desktop app should NOT access AWS directly - use API only
         services.AddHttpClient<FirmwareApiService>(client =>
         {
-            var apiUrl = Environment.GetEnvironmentVariable("API_BASE_URL")
-                ?? Configuration?.GetValue<string>("Api:BaseUrl")
-                ?? "http://localhost:5000";
-            
             client.BaseAddress = new Uri(apiUrl);
             client.DefaultRequestHeaders.Add("Accept", "application/json");
-            client.Timeout = TimeSpan.FromMinutes(5); // Longer timeout for firmware downloads
+            client.Timeout = TimeSpan.FromMinutes(5);
         });
-        
-        // ? REMOVED: Direct AWS S3 access from desktop app (security risk)
-        // Desktop app should only call backend API, not AWS directly
-        // services.AddSingleton<AwsS3Service>(); // REMOVED FOR PRODUCTION
 
         services.AddSingleton<AuthSessionViewModel>();
 
@@ -126,21 +123,19 @@ public partial class App : Application
         services.AddTransient<PendingApprovalViewModel>();
         services.AddTransient<AuthShellViewModel>();
         services.AddTransient<ConnectionShellViewModel>();
-        services.AddTransient<EntryPageViewModel>(); // NEW: Entry Page ViewModel
+        services.AddTransient<EntryPageViewModel>();
 
         services.AddTransient<UI.ViewModels.Admin.AdminPanelViewModel>();
         services.AddTransient<UI.ViewModels.Admin.AdminDashboardViewModel>();
         services.AddTransient<UI.ViewModels.Admin.FirmwareManagementViewModel>();
 
-        if (Configuration != null)
+        // Local database is optional - only if connection string exists
+        var connectionString = Configuration?.GetConnectionString("PostgresDb");
+        if (!string.IsNullOrEmpty(connectionString))
         {
-            var connectionString = Configuration.GetConnectionString("PostgresDb");
-            if (!string.IsNullOrEmpty(connectionString))
-            {
-                services.AddDbContext<DroneDbContext>(options =>
-                    options.UseNpgsql(connectionString)
-                );
-            }
+            services.AddDbContext<DroneDbContext>(options =>
+                options.UseNpgsql(connectionString)
+            );
         }
 
         services.AddSingleton<DatabaseTestService>();
@@ -152,7 +147,6 @@ public partial class App : Application
         services.AddSingleton<CalibrationPreConditionChecker>();
         services.AddSingleton<CalibrationAbortMonitor>();
         services.AddSingleton<CalibrationValidationHelper>();
-        // Note: AccelerometerCalibrationService functionality is now integrated into CalibrationService
         services.AddSingleton<Stm32Bootloader>();
         services.AddSingleton<FirmwareDownloader>();
         services.AddSingleton<IFirmwareService, FirmwareService>();
@@ -202,8 +196,6 @@ public partial class App : Application
         services.AddTransient<CameraConfigPageViewModel>();
         services.AddTransient<AdvancedSettingsPageViewModel>();
         services.AddTransient<FirmwarePageViewModel>();
-        
-        // Admin ViewModels
         services.AddTransient<ViewModels.Admin.ParamLogsViewModel>();
 
         Services = services.BuildServiceProvider();
@@ -237,7 +229,6 @@ public partial class App : Application
                     try
                     {
                         var oldWindow = desktop.MainWindow;
-                        // CHANGED: Navigate to Entry Page instead of Connection Shell
                         ShowEntryPage(desktop);
                         oldWindow?.Close();
                     }
@@ -258,7 +249,6 @@ public partial class App : Application
             desktop.MainWindow = authShell;
             authShell.Show();
 
-            // IMMEDIATELY initialize - don't wait for Opened event
             _ = Task.Run(async () =>
             {
                 try
@@ -277,37 +267,23 @@ public partial class App : Application
         }
     }
 
-    /// <summary>
-    /// Shows the Entry Page - the gateway after authentication.
-    /// User can choose to Flash Firmware or Connect to Drone.
-    /// </summary>
     private void ShowEntryPage(IClassicDesktopStyleApplicationLifetime desktop)
     {
         if (_isShuttingDown || Services == null) return;
 
         try
         {
-            Console.WriteLine("[App] ShowEntryPage called");
             var entryPageViewModel = Services.GetRequiredService<EntryPageViewModel>();
 
-            // Handle Firmware button - opens standalone firmware window
             entryPageViewModel.FirmwareRequested += (_, _) =>
             {
-                Console.WriteLine("[App] FirmwareRequested event received");
                 if (_isShuttingDown) return;
-
-                Dispatcher.UIThread.Post(() =>
-                {
-                    ShowFirmwareWindow(desktop);
-                });
+                Dispatcher.UIThread.Post(() => ShowFirmwareWindow(desktop));
             };
 
-            // Handle Connect button - navigates to Connection Shell
             entryPageViewModel.ConnectRequested += (_, _) =>
             {
-                Console.WriteLine("[App] ConnectRequested event received");
                 if (_isShuttingDown) return;
-
                 Dispatcher.UIThread.Post(() =>
                 {
                     try
@@ -323,10 +299,8 @@ public partial class App : Application
                 });
             };
 
-            // Handle Exit button - shuts down the application
             entryPageViewModel.ExitRequested += (_, _) =>
             {
-                Console.WriteLine("[App] ExitRequested event received");
                 _isShuttingDown = true;
                 Dispatcher.UIThread.Post(() => desktop.Shutdown());
             };
@@ -334,73 +308,49 @@ public partial class App : Application
             var entryPage = new EntryPage { DataContext = entryPageViewModel };
             desktop.MainWindow = entryPage;
             entryPage.Show();
-            Console.WriteLine("[App] EntryPage shown");
         }
         catch (Exception ex)
         {
             Console.WriteLine($"Failed to show entry page: {ex.Message}");
-            // Fallback to connection shell if entry page fails
             ShowConnectionShell(desktop);
         }
     }
 
-    /// <summary>
-    /// Shows the standalone Firmware Window.
-    /// Replaces the main window - closing firmware window returns to Entry Page.
-    /// </summary>
     private void ShowFirmwareWindow(IClassicDesktopStyleApplicationLifetime desktop)
     {
         if (_isShuttingDown || Services == null) return;
 
         try
         {
-            Console.WriteLine("[App] ShowFirmwareWindow called");
             var firmwareViewModel = Services.GetRequiredService<FirmwarePageViewModel>();
-            
             var firmwareWindow = new FirmwareWindow { DataContext = firmwareViewModel };
-            
-            // Track if back was requested to avoid double navigation
             bool backRequested = false;
-            
-            // When back button is clicked, return to Entry Page
+
             firmwareWindow.BackRequested += (_, _) =>
             {
-                Console.WriteLine("[App] FirmwareWindow BackRequested event received");
                 if (_isShuttingDown) return;
-                
                 backRequested = true;
-                
-                // Show entry page first, then close firmware window
                 var oldWindow = desktop.MainWindow;
                 ShowEntryPage(desktop);
                 oldWindow?.Close();
-                
-                Console.WriteLine("[App] Navigated back to Entry Page from Firmware Window");
             };
-            
-            // Handle window closing via X button (only if back wasn't already requested)
+
             firmwareWindow.Closed += (_, _) =>
             {
-                Console.WriteLine("[App] FirmwareWindow Closed event received");
                 if (_isShuttingDown || backRequested) return;
-
                 Dispatcher.UIThread.Post(() =>
                 {
-                    // Only show entry page if no main window exists (X button was clicked)
                     if (desktop.MainWindow == null || !desktop.MainWindow.IsVisible)
                     {
                         ShowEntryPage(desktop);
                     }
                 });
             };
-            
-            // Close the entry page and show firmware window as main window
+
             var oldWindow = desktop.MainWindow;
             desktop.MainWindow = firmwareWindow;
             firmwareWindow.Show();
             oldWindow?.Close();
-            
-            Console.WriteLine("[App] FirmwareWindow shown, Entry Page closed");
         }
         catch (Exception ex)
         {
@@ -414,27 +364,22 @@ public partial class App : Application
 
         try
         {
-            Console.WriteLine("[App] ShowConnectionShell called");
             var connectionShellViewModel = Services.GetRequiredService<ConnectionShellViewModel>();
 
             connectionShellViewModel.ConnectionCompleted += (_, _) =>
             {
-                Console.WriteLine("[App] ConnectionCompleted event received!");
                 if (_isShuttingDown) return;
-
                 Dispatcher.UIThread.Post(() =>
                 {
                     try
                     {
-                        Console.WriteLine("[App] Navigating to MainWindow...");
                         var oldWindow = desktop.MainWindow;
                         ShowMainWindow(desktop);
                         oldWindow?.Close();
-                        Console.WriteLine("[App] MainWindow shown, old window closed");
                     }
                     catch (Exception ex)
                     {
-                        Console.WriteLine($"[App] Error during navigation: {ex.Message}");
+                        Console.WriteLine($"Error during navigation: {ex.Message}");
                         ShowMainWindow(desktop);
                     }
                 });
@@ -442,13 +387,11 @@ public partial class App : Application
 
             connectionShellViewModel.ConnectionCancelled += (_, _) =>
             {
-                Console.WriteLine("[App] ConnectionCancelled event received");
                 Dispatcher.UIThread.Post(() =>
                 {
                     try
                     {
                         var oldWindow = desktop.MainWindow;
-                        // CHANGED: Return to Entry Page instead of Auth Shell
                         ShowEntryPage(desktop);
                         oldWindow?.Close();
                     }
@@ -462,7 +405,6 @@ public partial class App : Application
             var connectionShell = new ConnectionShell { DataContext = connectionShellViewModel };
             desktop.MainWindow = connectionShell;
             connectionShell.Show();
-            Console.WriteLine("[App] ConnectionShell shown");
         }
         catch (Exception ex)
         {
