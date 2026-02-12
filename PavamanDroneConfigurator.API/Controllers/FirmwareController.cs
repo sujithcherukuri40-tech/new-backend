@@ -258,10 +258,11 @@ public class FirmwareController : ControllerBase
                 ChangedAt = c.ChangedAt ?? DateTime.UtcNow
             }).ToList();
             
+            // Upload to S3 using DroneId (not FcId) for folder organization
             await _s3Service.AppendParameterChangesAsync(
                 request.UserId,
                 request.UserName,
-                request.FcId ?? "unknown",
+                request.DroneId ?? "unknown",  // Use Drone ID for folder structure
                 changes,
                 cancellationToken);
             

@@ -54,6 +54,7 @@ public class ParamLogsController : ControllerBase
     /// </summary>
     [HttpGet]
     public async Task<ActionResult<ParamLogListResponse>> ListParamLogs(
+        [FromQuery] string? search = null,
         [FromQuery] string? userId = null,
         [FromQuery] string? droneId = null,
         [FromQuery] DateTime? fromDate = null,
@@ -65,17 +66,30 @@ public class ParamLogsController : ControllerBase
         try
         {
             _logger.LogInformation(
-                "Listing param logs: userId={UserId}, droneId={DroneId}, from={From}, to={To}",
-                userId, droneId, fromDate, toDate);
+                "Listing param logs: search={Search}, userId={UserId}, droneId={DroneId}, from={From}, to={To}",
+                search, userId, droneId, fromDate, toDate);
             
             var logs = await _s3Service.ListParameterLogsAsync(cancellationToken);
             
             // Apply filters
             var filtered = logs.AsEnumerable();
             
+            // Search filter (matches userId, droneId, or userName)
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                var searchLower = search.ToLower();
+                filtered = filtered.Where(l => 
+                    l.UserId.Contains(searchLower, StringComparison.OrdinalIgnoreCase) ||
+                    l.DroneId.Contains(searchLower, StringComparison.OrdinalIgnoreCase) ||
+                    (l.UserName != null && l.UserName.Contains(searchLower, StringComparison.OrdinalIgnoreCase)));
+            }
+            
             if (!string.IsNullOrWhiteSpace(userId))
             {
-                filtered = filtered.Where(l => l.UserId.Contains(userId, StringComparison.OrdinalIgnoreCase));
+                // Match by UserId OR UserName
+                filtered = filtered.Where(l => 
+                    l.UserId.Contains(userId, StringComparison.OrdinalIgnoreCase) ||
+                    (l.UserName != null && l.UserName.Contains(userId, StringComparison.OrdinalIgnoreCase)));
             }
             
             if (!string.IsNullOrWhiteSpace(droneId))
@@ -104,7 +118,12 @@ public class ParamLogsController : ControllerBase
                 .ToList();
             
             // Get unique users and drones for filter dropdowns
-            var allUsers = logs.Select(l => l.UserId).Distinct().OrderBy(x => x).ToList();
+            // Use UserName for display (fallback to UserId if no name)
+            var allUsers = logs
+                .Select(l => !string.IsNullOrWhiteSpace(l.UserName) ? l.UserName : l.UserId)
+                .Distinct()
+                .OrderBy(x => x)
+                .ToList();
             var allDrones = logs.Select(l => l.DroneId).Distinct().OrderBy(x => x).ToList();
             
             return Ok(new ParamLogListResponse

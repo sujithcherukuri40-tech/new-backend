@@ -23,6 +23,7 @@ public partial class ParamLogsViewModel : ViewModelBase
     #region Backing Fields
     private string? _selectedUserId;
     private string? _selectedDroneId;
+    private string? _searchText;
     private DateTime? _fromDate;
     private DateTime? _toDate;
     private ParamLogItem? _selectedLog;
@@ -48,6 +49,20 @@ public partial class ParamLogsViewModel : ViewModelBase
     {
         get => _selectedDroneId;
         set => SetProperty(ref _selectedDroneId, value);
+    }
+
+    public string? SearchText
+    {
+        get => _searchText;
+        set
+        {
+            if (SetProperty(ref _searchText, value))
+            {
+                // Trigger search immediately when text changes
+                CurrentPage = 1;
+                _ = LoadParamLogsAsync();
+            }
+        }
     }
 
     public DateTime? FromDate
@@ -223,6 +238,13 @@ public partial class ParamLogsViewModel : ViewModelBase
                 $"pageSize={PageSize}"
             };
             
+            // Add search text filter
+            if (!string.IsNullOrWhiteSpace(SearchText))
+            {
+                // Search can match userId, droneId, or userName
+                queryParams.Add($"search={Uri.EscapeDataString(SearchText)}");
+            }
+            
             // Only add filters if not "All Users" or "All Drones"
             if (!string.IsNullOrWhiteSpace(SelectedUserId) && SelectedUserId != "All Users")
                 queryParams.Add($"userId={Uri.EscapeDataString(SelectedUserId)}");
@@ -316,6 +338,7 @@ public partial class ParamLogsViewModel : ViewModelBase
     [RelayCommand]
     private async Task ClearFiltersAsync()
     {
+        SearchText = null;
         SelectedUserId = null;
         SelectedDroneId = null;
         FromDate = DateTime.Today.AddDays(-30);

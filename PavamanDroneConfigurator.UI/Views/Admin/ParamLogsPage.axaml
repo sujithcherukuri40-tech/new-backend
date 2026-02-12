@@ -173,6 +173,7 @@
                 <Border Classes="glass-card" Padding="0">
                     <Grid>
                         <TextBox Classes="search-box"
+                                 Text="{Binding SearchText, Mode=TwoWay}"
                                  Watermark="Search logs by user, drone ID, or date..."
                                  FontSize="14"/>
                         <!-- Search Icon -->

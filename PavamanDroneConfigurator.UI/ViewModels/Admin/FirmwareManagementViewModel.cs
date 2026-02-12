@@ -243,6 +243,46 @@ public partial class FirmwareManagementViewModel : ViewModelBase
         
         try
         {
+            // Show save file dialog
+            var saveDialog = new Avalonia.Platform.Storage.FilePickerSaveOptions
+            {
+                Title = "Save Firmware File",
+                SuggestedFileName = firmware.FileName,
+                DefaultExtension = ".apj",
+                FileTypeChoices = new[]
+                {
+                    new Avalonia.Platform.Storage.FilePickerFileType("Firmware Files")
+                    {
+                        Patterns = new[] { "*.apj", "*.px4", "*.bin" }
+                    },
+                    new Avalonia.Platform.Storage.FilePickerFileType("All Files")
+                    {
+                        Patterns = new[] { "*.*" }
+                    }
+                },
+                ShowOverwritePrompt = true
+            };
+            
+            // Get the main window to show dialog
+            var topLevel = Avalonia.Application.Current?.ApplicationLifetime is
+                Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop
+                ? desktop.MainWindow
+                : null;
+            
+            if (topLevel == null)
+            {
+                StatusMessage = "? Cannot show save dialog";
+                return;
+            }
+            
+            var file = await topLevel.StorageProvider.SaveFilePickerAsync(saveDialog);
+            
+            if (file == null)
+            {
+                // User cancelled
+                return;
+            }
+            
             StatusMessage = $"Downloading {firmware.FileName}...";
             _logger?.LogInformation("Downloading firmware: {FileName}", firmware.FileName);
             
@@ -252,20 +292,31 @@ public partial class FirmwareManagementViewModel : ViewModelBase
                 StatusMessage = $"Downloading {firmware.FileName}... {percent}%";
             });
             
-            var localPath = await _firmwareApi.DownloadFirmwareAsync(
+            // Download to temporary location first
+            var tempPath = await _firmwareApi.DownloadFirmwareAsync(
                 firmware.DownloadUrl,
                 firmware.FileName,
                 progress
             );
             
-            firmware.DownloadCount++;
-            StatusMessage = $"? Downloaded to: {localPath}";
-            
-            _logger?.LogInformation("Firmware downloaded to: {Path}", localPath);
-            
-            // TODO: Open file location
-            await Task.Delay(3000);
-            StatusMessage = string.Empty;
+            // Copy to user-selected location
+            if (File.Exists(tempPath))
+            {
+                using var sourceStream = File.OpenRead(tempPath);
+                using var destStream = await file.OpenWriteAsync();
+                await sourceStream.CopyToAsync(destStream);
+                
+                // Clean up temp file
+                File.Delete(tempPath);
+                
+                firmware.DownloadCount++;
+                StatusMessage = $"? Downloaded successfully!";
+                
+                _logger?.LogInformation("Firmware saved to: {Path}", file.Path);
+                
+                await Task.Delay(3000);
+                StatusMessage = string.Empty;
+            }
         }
         catch (Exception ex)
         {
