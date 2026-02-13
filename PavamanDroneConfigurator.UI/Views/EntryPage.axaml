@@ -3,231 +3,516 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:vm="using:PavamanDroneConfigurator.UI.ViewModels"
-        mc:Ignorable="d" d:DesignWidth="720" d:DesignHeight="500"
+        mc:Ignorable="d" d:DesignWidth="900" d:DesignHeight="640"
         x:Class="PavamanDroneConfigurator.UI.Views.EntryPage"
         x:DataType="vm:EntryPageViewModel"
         Title="Pavaman Drone Configurator"
-        Width="720"
-        Height="500"
-        MinWidth="680"
-        MinHeight="480"
+        Width="900"
+        Height="640"
+        MinWidth="800"
+        MinHeight="580"
         CanResize="False"
         WindowStartupLocation="CenterScreen"
         Icon="avares://PavamanDroneConfigurator.UI/Assets/Images/logo.ico"
-        Background="#F8FAFC">
+        Background="Transparent"
+        TransparencyLevelHint="None"
+        ExtendClientAreaToDecorationsHint="False">
 
     <Window.Styles>
+        <!-- Global Font -->
         <Style Selector="Window">
-            <Setter Property="FontFamily" Value="Inter, Segoe UI, San Francisco, Helvetica Neue, Arial"/>
+            <Setter Property="FontFamily" Value="Inter, Segoe UI Variable, Segoe UI, San Francisco, Helvetica Neue, Arial"/>
         </Style>
 
-        <!-- Primary Action Button (Cyan) -->
-        <Style Selector="Button.btn-primary">
-            <Setter Property="Background" Value="#38BDF8"/>
-            <Setter Property="Foreground" Value="White"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="FontSize" Value="14"/>
-            <Setter Property="Padding" Value="24,12"/>
-            <Setter Property="CornerRadius" Value="10"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="HorizontalAlignment" Value="Stretch"/>
-            <Setter Property="HorizontalContentAlignment" Value="Center"/>
-        </Style>
-        <Style Selector="Button.btn-primary:pointerover">
-            <Setter Property="Background" Value="#0EA5E9"/>
-        </Style>
-        <Style Selector="Button.btn-primary:pressed">
-            <Setter Property="Background" Value="#0284C7"/>
-        </Style>
-
-        <!-- Secondary Action Button (Amber/Orange) -->
-        <Style Selector="Button.btn-secondary">
-            <Setter Property="Background" Value="#F59E0B"/>
-            <Setter Property="Foreground" Value="White"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="FontSize" Value="14"/>
-            <Setter Property="Padding" Value="24,12"/>
-            <Setter Property="CornerRadius" Value="10"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="HorizontalAlignment" Value="Stretch"/>
-            <Setter Property="HorizontalContentAlignment" Value="Center"/>
-        </Style>
-        <Style Selector="Button.btn-secondary:pointerover">
-            <Setter Property="Background" Value="#D97706"/>
-        </Style>
-        <Style Selector="Button.btn-secondary:pressed">
-            <Setter Property="Background" Value="#B45309"/>
-        </Style>
-
-        <!-- Admin Dashboard Icon Button (Blue Circle) -->
-        <Style Selector="Button.btn-admin-icon">
-            <Setter Property="Background" Value="#3B82F6"/>
-            <Setter Property="Width" Value="40"/>
-            <Setter Property="Height" Value="40"/>
-            <Setter Property="Padding" Value="0"/>
-            <Setter Property="CornerRadius" Value="20"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Cursor" Value="Hand"/>
-        </Style>
-        <Style Selector="Button.btn-admin-icon:pointerover">
-            <Setter Property="Background" Value="#2563EB"/>
-        </Style>
-        <Style Selector="Button.btn-admin-icon:pressed">
-            <Setter Property="Background" Value="#1D4ED8"/>
-        </Style>
-
-        <!-- Action Card Style -->
-        <Style Selector="Border.action-card">
-            <Setter Property="Background" Value="#FFFFFF"/>
-            <Setter Property="BorderBrush" Value="#E2E8F0"/>
+        <!-- ???????????????????????????????????????????????????????????????
+             GLASSMORPHISM ACTION CARD STYLES
+             ??????????????????????????????????????????????????????????????? -->
+        
+        <!-- Base Glass Card -->
+        <Style Selector="Border.glass-card">
+            <Setter Property="Background">
+                <Setter.Value>
+                    <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
+                        <GradientStop Color="#25FFFFFF" Offset="0"/>
+                        <GradientStop Color="#15FFFFFF" Offset="1"/>
+                    </LinearGradientBrush>
+                </Setter.Value>
+            </Setter>
+            <Setter Property="BorderBrush">
+                <Setter.Value>
+                    <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
+                        <GradientStop Color="#40FFFFFF" Offset="0"/>
+                        <GradientStop Color="#15FFFFFF" Offset="1"/>
+                    </LinearGradientBrush>
+                </Setter.Value>
+            </Setter>
             <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="CornerRadius" Value="16"/>
-            <Setter Property="Padding" Value="32,32"/>
-            <Setter Property="Width" Value="260"/>
+            <Setter Property="CornerRadius" Value="20"/>
+            <Setter Property="Padding" Value="32"/>
+            <Setter Property="Width" Value="300"/>
+            <Setter Property="BoxShadow" Value="0 8 32 0 #40000000"/>
+            <Setter Property="Transitions">
+                <Transitions>
+                    <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.2" Easing="CubicEaseOut"/>
+                    <BoxShadowsTransition Property="BoxShadow" Duration="0:0:0.2"/>
+                </Transitions>
+            </Setter>
+            <Setter Property="RenderTransform" Value="translateY(0px)"/>
         </Style>
         
-        <Style Selector="Border.action-card:pointerover">
-            <Setter Property="BorderBrush" Value="#CBD5E1"/>
+        <Style Selector="Border.glass-card:pointerover">
+            <Setter Property="RenderTransform" Value="translateY(-8px)"/>
+            <Setter Property="BoxShadow" Value="0 20 48 0 #50000000, 0 0 60 0 #201E90FF"/>
+            <Setter Property="Background">
+                <Setter.Value>
+                    <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
+                        <GradientStop Color="#30FFFFFF" Offset="0"/>
+                        <GradientStop Color="#20FFFFFF" Offset="1"/>
+                    </LinearGradientBrush>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ???????????????????????????????????????????????????????????????
+             PRIMARY BUTTON - CYAN/ELECTRIC BLUE
+             ??????????????????????????????????????????????????????????????? -->
+        <Style Selector="Button.btn-primary-glow">
+            <Setter Property="Background">
+                <Setter.Value>
+                    <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
+                        <GradientStop Color="#06B6D4" Offset="0"/>
+                        <GradientStop Color="#0EA5E9" Offset="1"/>
+                    </LinearGradientBrush>
+                </Setter.Value>
+            </Setter>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="Padding" Value="28,14"/>
+            <Setter Property="CornerRadius" Value="12"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="HorizontalAlignment" Value="Stretch"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+            <Setter Property="Transitions">
+                <Transitions>
+                    <BrushTransition Property="Background" Duration="0:0:0.2"/>
+                    <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.2"/>
+                </Transitions>
+            </Setter>
+        </Style>
+        <Style Selector="Button.btn-primary-glow:pointerover">
+            <Setter Property="Background">
+                <Setter.Value>
+                    <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
+                        <GradientStop Color="#22D3EE" Offset="0"/>
+                        <GradientStop Color="#38BDF8" Offset="1"/>
+                    </LinearGradientBrush>
+                </Setter.Value>
+            </Setter>
+            <Setter Property="RenderTransform" Value="scale(1.02)"/>
+        </Style>
+        <Style Selector="Button.btn-primary-glow:pressed">
+            <Setter Property="RenderTransform" Value="scale(0.98)"/>
+        </Style>
+
+        <!-- ???????????????????????????????????????????????????????????????
+             SECONDARY BUTTON - AMBER/ORANGE
+             ??????????????????????????????????????????????????????????????? -->
+        <Style Selector="Button.btn-secondary-glow">
+            <Setter Property="Background">
+                <Setter.Value>
+                    <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
+                        <GradientStop Color="#F59E0B" Offset="0"/>
+                        <GradientStop Color="#EAB308" Offset="1"/>
+                    </LinearGradientBrush>
+                </Setter.Value>
+            </Setter>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="Padding" Value="28,14"/>
+            <Setter Property="CornerRadius" Value="12"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="HorizontalAlignment" Value="Stretch"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+            <Setter Property="Transitions">
+                <Transitions>
+                    <BrushTransition Property="Background" Duration="0:0:0.2"/>
+                    <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.2"/>
+                </Transitions>
+            </Setter>
+        </Style>
+        <Style Selector="Button.btn-secondary-glow:pointerover">
+            <Setter Property="Background">
+                <Setter.Value>
+                    <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
+                        <GradientStop Color="#FBBF24" Offset="0"/>
+                        <GradientStop Color="#FCD34D" Offset="1"/>
+                    </LinearGradientBrush>
+                </Setter.Value>
+            </Setter>
+            <Setter Property="RenderTransform" Value="scale(1.02)"/>
+        </Style>
+        <Style Selector="Button.btn-secondary-glow:pressed">
+            <Setter Property="RenderTransform" Value="scale(0.98)"/>
+        </Style>
+
+        <!-- ???????????????????????????????????????????????????????????????
+             ADMIN ICON BUTTON - BLUE GLASS
+             ??????????????????????????????????????????????????????????????? -->
+        <Style Selector="Button.btn-admin-glass">
+            <Setter Property="Background">
+                <Setter.Value>
+                    <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
+                        <GradientStop Color="#303B82F6" Offset="0"/>
+                        <GradientStop Color="#203B82F6" Offset="1"/>
+                    </LinearGradientBrush>
+                </Setter.Value>
+            </Setter>
+            <Setter Property="BorderBrush" Value="#503B82F6"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Width" Value="44"/>
+            <Setter Property="Height" Value="44"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="CornerRadius" Value="12"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Transitions">
+                <Transitions>
+                    <BrushTransition Property="Background" Duration="0:0:0.2"/>
+                    <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.2"/>
+                </Transitions>
+            </Setter>
+        </Style>
+        <Style Selector="Button.btn-admin-glass:pointerover">
+            <Setter Property="Background">
+                <Setter.Value>
+                    <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
+                        <GradientStop Color="#503B82F6" Offset="0"/>
+                        <GradientStop Color="#403B82F6" Offset="1"/>
+                    </LinearGradientBrush>
+                </Setter.Value>
+            </Setter>
+            <Setter Property="RenderTransform" Value="scale(1.08)"/>
+        </Style>
+        <Style Selector="Button.btn-admin-glass:pressed">
+            <Setter Property="RenderTransform" Value="scale(0.95)"/>
+        </Style>
+
+        <!-- ???????????????????????????????????????????????????????????????
+             ICON CONTAINER STYLES
+             ??????????????????????????????????????????????????????????????? -->
+        <Style Selector="Border.icon-container-cyan">
+            <Setter Property="Width" Value="72"/>
+            <Setter Property="Height" Value="72"/>
+            <Setter Property="CornerRadius" Value="18"/>
+            <Setter Property="Background">
+                <Setter.Value>
+                    <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
+                        <GradientStop Color="#2006B6D4" Offset="0"/>
+                        <GradientStop Color="#1006B6D4" Offset="1"/>
+                    </LinearGradientBrush>
+                </Setter.Value>
+            </Setter>
+            <Setter Property="BorderBrush" Value="#3006B6D4"/>
+            <Setter Property="BorderThickness" Value="1"/>
+        </Style>
+
+        <Style Selector="Border.icon-container-amber">
+            <Setter Property="Width" Value="72"/>
+            <Setter Property="Height" Value="72"/>
+            <Setter Property="CornerRadius" Value="18"/>
+            <Setter Property="Background">
+                <Setter.Value>
+                    <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
+                        <GradientStop Color="#20F59E0B" Offset="0"/>
+                        <GradientStop Color="#10F59E0B" Offset="1"/>
+                    </LinearGradientBrush>
+                </Setter.Value>
+            </Setter>
+            <Setter Property="BorderBrush" Value="#30F59E0B"/>
+            <Setter Property="BorderThickness" Value="1"/>
+        </Style>
+
+        <!-- Logo Container -->
+        <Style Selector="Border.logo-container">
+            <Setter Property="Width" Value="80"/>
+            <Setter Property="Height" Value="80"/>
+            <Setter Property="CornerRadius" Value="20"/>
+            <Setter Property="Background">
+                <Setter.Value>
+                    <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
+                        <GradientStop Color="#30FFFFFF" Offset="0"/>
+                        <GradientStop Color="#15FFFFFF" Offset="1"/>
+                    </LinearGradientBrush>
+                </Setter.Value>
+            </Setter>
+            <Setter Property="BorderBrush" Value="#40FFFFFF"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="BoxShadow" Value="0 8 32 0 #20000000"/>
+        </Style>
+
+        <!-- Button Glow Container (wrapper for button shadow effects) -->
+        <Style Selector="Border.btn-glow-cyan">
+            <Setter Property="CornerRadius" Value="14"/>
+            <Setter Property="BoxShadow" Value="0 4 20 0 #4006B6D4"/>
+            <Setter Property="Transitions">
+                <Transitions>
+                    <BoxShadowsTransition Property="BoxShadow" Duration="0:0:0.2"/>
+                </Transitions>
+            </Setter>
+        </Style>
+        <Style Selector="Border.btn-glow-cyan:pointerover">
+            <Setter Property="BoxShadow" Value="0 8 32 0 #6006B6D4"/>
+        </Style>
+
+        <Style Selector="Border.btn-glow-amber">
+            <Setter Property="CornerRadius" Value="14"/>
+            <Setter Property="BoxShadow" Value="0 4 20 0 #40F59E0B"/>
+            <Setter Property="Transitions">
+                <Transitions>
+                    <BoxShadowsTransition Property="BoxShadow" Duration="0:0:0.2"/>
+                </Transitions>
+            </Setter>
+        </Style>
+        <Style Selector="Border.btn-glow-amber:pointerover">
+            <Setter Property="BoxShadow" Value="0 8 32 0 #60F59E0B"/>
         </Style>
     </Window.Styles>
 
-    <!-- Main Grid Layout - No ScrollViewer -->
-    <Grid RowDefinitions="Auto,*,Auto" Margin="40,32,40,28">
-        
-        <!-- Header Section with Admin Button -->
-        <Grid Grid.Row="0">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="Auto"/>
-                <ColumnDefinition Width="*"/>
-            </Grid.ColumnDefinitions>
-            
-            <!-- Center Content: Logo and Title -->
-            <StackPanel Grid.Column="1" HorizontalAlignment="Center" Spacing="6">
-                
-                <!-- Logo -->
-                <Border Width="64"
-                        Height="64"
-                        CornerRadius="16"
-                        Background="#E0F2FE"
-                        HorizontalAlignment="Center"
-                        Margin="0,0,0,12">
-                    <Image Source="avares://PavamanDroneConfigurator.UI/Assets/Images/logo.ico"
-                           Stretch="Uniform"
-                           Margin="10"/>
-                </Border>
-                
-                <!-- Title -->
-                <TextBlock Text="Pavaman Drone Configurator"
-                           FontSize="22"
-                           FontWeight="SemiBold"
-                           Foreground="#0F172A"
-                           HorizontalAlignment="Center"/>
-                
-                <!-- Subtitle -->
-                <TextBlock Text="Choose an option to get started"
-                           FontSize="14"
-                           Foreground="#64748B"
-                           HorizontalAlignment="Center"/>
-            </StackPanel>
-            
-            <!-- Admin Dashboard Icon Button (Top Right) - Only visible for admins -->
-            <Button Grid.Column="2"
-                    Classes="btn-admin-icon"
-                    Command="{Binding OpenAdminDashboardCommand}"
-                    IsVisible="{Binding IsAdmin}"
-                    HorizontalAlignment="Right"
+    <!-- ???????????????????????????????????????????????????????????????????????
+         MAIN CONTAINER WITH DARK GRADIENT BACKGROUND
+         ??????????????????????????????????????????????????????????????????????? -->
+    <Border>
+        <Border.Background>
+            <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
+                <GradientStop Color="#0A1628" Offset="0"/>
+                <GradientStop Color="#0F172A" Offset="0.3"/>
+                <GradientStop Color="#1E1B4B" Offset="0.7"/>
+                <GradientStop Color="#312E81" Offset="1"/>
+            </LinearGradientBrush>
+        </Border.Background>
+
+        <!-- Decorative Background Elements -->
+        <Panel>
+            <!-- Subtle gradient orb top-left -->
+            <Border Width="400" Height="400"
+                    CornerRadius="200"
+                    Opacity="0.15"
+                    HorizontalAlignment="Left"
                     VerticalAlignment="Top"
-                    ToolTip.Tip="Admin Dashboard">
-                <!-- Dashboard/Grid Icon -->
-                <PathIcon Data="M3 3h8v8H3V3zm0 10h8v8H3v-8zm10-10h8v8h-8V3zm0 10h8v8h-8v-8z"
-                          Width="18" Height="18"
-                          Foreground="White"/>
-            </Button>
-        </Grid>
+                    Margin="-150,-100,0,0">
+                <Border.Background>
+                    <RadialGradientBrush>
+                        <GradientStop Color="#3B82F6" Offset="0"/>
+                        <GradientStop Color="Transparent" Offset="1"/>
+                    </RadialGradientBrush>
+                </Border.Background>
+            </Border>
 
-        <!-- Main Content - Side by Side Cards -->
-        <StackPanel Grid.Row="1" 
-                    Orientation="Horizontal"
-                    Spacing="24"
-                    HorizontalAlignment="Center"
-                    VerticalAlignment="Center">
-            
-            <!-- Flash Firmware Card (Left) -->
-            <Border Classes="action-card">
-                <StackPanel Spacing="20">
+            <!-- Subtle gradient orb bottom-right -->
+            <Border Width="500" Height="500"
+                    CornerRadius="250"
+                    Opacity="0.12"
+                    HorizontalAlignment="Right"
+                    VerticalAlignment="Bottom"
+                    Margin="0,0,-200,-150">
+                <Border.Background>
+                    <RadialGradientBrush>
+                        <GradientStop Color="#6366F1" Offset="0"/>
+                        <GradientStop Color="Transparent" Offset="1"/>
+                    </RadialGradientBrush>
+                </Border.Background>
+            </Border>
+
+            <!-- Main Content Grid -->
+            <Grid RowDefinitions="Auto,*,Auto" Margin="48,40,48,32">
+                
+                <!-- ???????????????????????????????????????????????????????????
+                     HEADER SECTION
+                     ??????????????????????????????????????????????????????????? -->
+                <Grid Grid.Row="0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
                     
-                    <!-- Icon -->
-                    <Border Width="60"
-                            Height="60"
-                            CornerRadius="14"
-                            Background="#FEF3C7"
-                            HorizontalAlignment="Center">
-                        <PathIcon Data="M9 16h6v-6h4l-7-7-7 7h4zm-4 2h14v2H5z"
-                                  Width="28" Height="28"
-                                  Foreground="#F59E0B"
-                                  HorizontalAlignment="Center"
-                                  VerticalAlignment="Center"/>
+                    <!-- Center Content: Logo, Title, Tagline -->
+                    <StackPanel Grid.Column="1" HorizontalAlignment="Center" Spacing="12">
+                        
+                        <!-- Logo Container with Glow -->
+                        <Border Classes="logo-container"
+                                HorizontalAlignment="Center"
+                                Margin="0,0,0,8">
+                            <Image Source="avares://PavamanDroneConfigurator.UI/Assets/Images/logo.ico"
+                                   Stretch="Uniform"
+                                   Margin="14"/>
+                        </Border>
+                        
+                        <!-- App Title -->
+                        <TextBlock Text="Pavaman Drone Configurator"
+                                   FontSize="28"
+                                   FontWeight="SemiBold"
+                                   Foreground="White"
+                                   HorizontalAlignment="Center"
+                                   LetterSpacing="0.5"/>
+                        
+                        <!-- Tagline -->
+                        <TextBlock Text="Professional Flight Controller Configuration Suite"
+                                   FontSize="14"
+                                   Foreground="#94A3B8"
+                                   HorizontalAlignment="Center"
+                                   FontWeight="Normal"
+                                   Opacity="0.9"/>
+                    </StackPanel>
+                    
+                    <!-- Admin Dashboard Icon Button (Top Right) -->
+                    <Button Grid.Column="2"
+                            Classes="btn-admin-glass"
+                            Command="{Binding OpenAdminDashboardCommand}"
+                            IsVisible="{Binding IsAdmin}"
+                            HorizontalAlignment="Right"
+                            VerticalAlignment="Top"
+                            ToolTip.Tip="Admin Dashboard">
+                        <PathIcon Data="M3 3h8v8H3V3zm0 10h8v8H3v-8zm10-10h8v8h-8V3zm0 10h8v8h-8v-8z"
+                                  Width="18" Height="18"
+                                  Foreground="#60A5FA"/>
+                    </Button>
+                </Grid>
+
+                <!-- ???????????????????????????????????????????????????????????
+                     MAIN CONTENT - ACTION CARDS
+                     ??????????????????????????????????????????????????????????? -->
+                <StackPanel Grid.Row="1" 
+                            Orientation="Horizontal"
+                            Spacing="40"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center">
+                    
+                    <!-- ?????????????????????????????????????????????????????
+                         FLASH FIRMWARE CARD
+                         ????????????????????????????????????????????????????? -->
+                    <Border Classes="glass-card">
+                        <StackPanel Spacing="24">
+                            
+                            <!-- Icon -->
+                            <Border Classes="icon-container-amber" HorizontalAlignment="Center">
+                                <!-- Upload/Flash Icon -->
+                                <PathIcon Data="M9 16h6v-6h4l-7-7-7 7h4v6zm-4 2h14v2H5v-2z"
+                                          Width="32" Height="32"
+                                          Foreground="#FBBF24"
+                                          HorizontalAlignment="Center"
+                                          VerticalAlignment="Center"/>
+                            </Border>
+                            
+                            <!-- Text Content -->
+                            <StackPanel Spacing="8" HorizontalAlignment="Center">
+                                <TextBlock Text="Flash Firmware"
+                                           FontSize="20"
+                                           FontWeight="SemiBold"
+                                           Foreground="White"
+                                           HorizontalAlignment="Center"/>
+                                <TextBlock Text="Update your flight controller firmware&#x0a;via USB bootloader"
+                                           FontSize="13"
+                                           Foreground="#94A3B8"
+                                           HorizontalAlignment="Center"
+                                           TextAlignment="Center"
+                                           LineHeight="20"/>
+                            </StackPanel>
+                            
+                            <!-- Action Button with Glow Container -->
+                            <Border Classes="btn-glow-amber" Margin="0,8,0,0">
+                                <Button Classes="btn-secondary-glow"
+                                        Content="Flash Firmware"
+                                        Command="{Binding FlashFirmwareCommand}"/>
+                            </Border>
+                        </StackPanel>
                     </Border>
                     
-                    <!-- Title -->
-                    <TextBlock Text="Flash Firmware"
-                               FontSize="18"
-                               FontWeight="SemiBold"
-                               Foreground="#0F172A"
-                               HorizontalAlignment="Center"/>
-                    
-                    <!-- Action Button - Inside Card -->
-                    <Button Classes="btn-secondary"
-                            Content="Flash Firmware"
-                            Command="{Binding FlashFirmwareCommand}"
-                            HorizontalAlignment="Stretch"/>
+                    <!-- ?????????????????????????????????????????????????????
+                         CONNECT TO DRONE CARD
+                         ????????????????????????????????????????????????????? -->
+                    <Border Classes="glass-card">
+                        <StackPanel Spacing="24">
+                            
+                            <!-- Icon -->
+                            <Border Classes="icon-container-cyan" HorizontalAlignment="Center">
+                                <!-- Drone/Connection Icon -->
+                                <PathIcon Data="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"
+                                          Width="32" Height="32"
+                                          Foreground="#22D3EE"
+                                          HorizontalAlignment="Center"
+                                          VerticalAlignment="Center"/>
+                            </Border>
+                            
+                            <!-- Text Content -->
+                            <StackPanel Spacing="8" HorizontalAlignment="Center">
+                                <TextBlock Text="Connect to Drone"
+                                           FontSize="20"
+                                           FontWeight="SemiBold"
+                                           Foreground="White"
+                                           HorizontalAlignment="Center"/>
+                                <TextBlock Text="Configure parameters, calibrate&#x0a;sensors, and tune your aircraft"
+                                           FontSize="13"
+                                           Foreground="#94A3B8"
+                                           HorizontalAlignment="Center"
+                                           TextAlignment="Center"
+                                           LineHeight="20"/>
+                            </StackPanel>
+                            
+                            <!-- Action Button with Glow Container -->
+                            <Border Classes="btn-glow-cyan" Margin="0,8,0,0">
+                                <Button Classes="btn-primary-glow"
+                                        Content="Connect to Drone"
+                                        Command="{Binding ConnectToDroneCommand}"/>
+                            </Border>
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
-            </Border>
-            
-            <!-- Connect to Drone Card (Right) -->
-            <Border Classes="action-card">
-                <StackPanel Spacing="20">
+
+                <!-- ???????????????????????????????????????????????????????????
+                     FOOTER SECTION
+                     ??????????????????????????????????????????????????????????? -->
+                <StackPanel Grid.Row="2" 
+                            HorizontalAlignment="Center" 
+                            Spacing="6"
+                            Margin="0,20,0,0">
                     
-                    <!-- Icon -->
-                    <Border Width="60"
-                            Height="60"
-                            CornerRadius="14"
-                            Background="#E0F2FE"
-                            HorizontalAlignment="Center">
-                        <PathIcon Data="M21 14h-1V7a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7H3a1 1 0 0 0-1 1v2a2 2 0 0 0 2 2h2v-2H4v-1h16v1h-2v2h2a2 2 0 0 0 2-2v-2a1 1 0 0 0-1-1zM6 7h12v7H6V7zm6 12a1 1 0 1 0 0-2 1 1 0 0 0 0 2z"
-                                  Width="28" Height="28"
-                                  Foreground="#38BDF8"
-                                  HorizontalAlignment="Center"
-                                  VerticalAlignment="Center"/>
+                    <!-- Decorative Line -->
+                    <Border Width="120" 
+                            Height="1" 
+                            CornerRadius="1"
+                            Opacity="0.3"
+                            Margin="0,0,0,12">
+                        <Border.Background>
+                            <LinearGradientBrush StartPoint="0%,50%" EndPoint="100%,50%">
+                                <GradientStop Color="Transparent" Offset="0"/>
+                                <GradientStop Color="#64748B" Offset="0.5"/>
+                                <GradientStop Color="Transparent" Offset="1"/>
+                            </LinearGradientBrush>
+                        </Border.Background>
                     </Border>
                     
-                    <!-- Title -->
-                    <TextBlock Text="Connect to Drone"
-                               FontSize="18"
-                               FontWeight="SemiBold"
-                               Foreground="#0F172A"
-                               HorizontalAlignment="Center"/>
+                    <!-- Version and Company -->
+                    <TextBlock FontSize="12"
+                               Foreground="#64748B"
+                               HorizontalAlignment="Center"
+                               Opacity="0.8">
+                        <Run Text="v1.0.0"/>
+                        <Run Text="  •  " Foreground="#475569"/>
+                        <Run Text="Pavaman Technologies"/>
+                    </TextBlock>
                     
-                    <!-- Action Button - Inside Card -->
-                    <Button Classes="btn-primary"
-                            Content="Connect to Drone"
-                            Command="{Binding ConnectToDroneCommand}"
-                            HorizontalAlignment="Stretch"/>
+                    <!-- Copyright -->
+                    <TextBlock Text="Professional Drone Configuration Solutions"
+                               FontSize="11"
+                               Foreground="#475569"
+                               HorizontalAlignment="Center"
+                               Opacity="0.6"/>
                 </StackPanel>
-            </Border>
-        </StackPanel>
-
-        <!-- Footer Section -->
-        <StackPanel Grid.Row="2" HorizontalAlignment="Center" Spacing="10">
-            
-            <!-- Version Info -->
-            <TextBlock Text="v1.0.0 • Pavaman Technologies"
-                       FontSize="11"
-                       Foreground="#94A3B8"
-                       HorizontalAlignment="Center"/>
-        </StackPanel>
-    </Grid>
+            </Grid>
+        </Panel>
+    </Border>
 </Window>
