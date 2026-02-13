@@ -17,6 +17,7 @@ using PavamanDroneConfigurator.UI.ViewModels;
 using PavamanDroneConfigurator.UI.ViewModels.Auth;
 using PavamanDroneConfigurator.UI.Views;
 using PavamanDroneConfigurator.UI.Views.Auth;
+using PavamanDroneConfigurator.UI.Views.Admin;
 using System;
 using System.IO;
 using System.Linq;
@@ -299,6 +300,12 @@ public partial class App : Application
                 });
             };
 
+            entryPageViewModel.AdminDashboardRequested += (_, _) =>
+            {
+                if (_isShuttingDown) return;
+                Dispatcher.UIThread.Post(() => ShowAdminDashboardWindow(desktop));
+            };
+
             entryPageViewModel.ExitRequested += (_, _) =>
             {
                 _isShuttingDown = true;
@@ -313,6 +320,61 @@ public partial class App : Application
         {
             Console.WriteLine($"Failed to show entry page: {ex.Message}");
             ShowConnectionShell(desktop);
+        }
+    }
+
+    private void ShowAdminDashboardWindow(IClassicDesktopStyleApplicationLifetime desktop)
+    {
+        if (_isShuttingDown || Services == null) return;
+
+        try
+        {
+            var adminDashboardViewModel = Services.GetRequiredService<ViewModels.Admin.AdminDashboardViewModel>();
+            var adminDashboardWindow = new AdminDashboardWindow { DataContext = adminDashboardViewModel };
+            bool backRequested = false;
+
+            adminDashboardWindow.BackRequested += (_, _) =>
+            {
+                if (_isShuttingDown) return;
+                backRequested = true;
+                var oldWindow = desktop.MainWindow;
+                ShowEntryPage(desktop);
+                oldWindow?.Close();
+            };
+
+            adminDashboardWindow.Closed += (_, _) =>
+            {
+                if (_isShuttingDown || backRequested) return;
+                Dispatcher.UIThread.Post(() =>
+                {
+                    if (desktop.MainWindow == null || !desktop.MainWindow.IsVisible)
+                    {
+                        ShowEntryPage(desktop);
+                    }
+                });
+            };
+
+            var oldWindow = desktop.MainWindow;
+            desktop.MainWindow = adminDashboardWindow;
+            adminDashboardWindow.Show();
+            oldWindow?.Close();
+
+            // Initialize the dashboard data
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await adminDashboardViewModel.InitializeAsync();
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Admin dashboard initialization error: {ex.Message}");
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Failed to show admin dashboard window: {ex.Message}");
         }
     }
 

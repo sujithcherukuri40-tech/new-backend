@@ -1,0 +1,76 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="using:PavamanDroneConfigurator.UI.ViewModels.Admin"
+        xmlns:views="using:PavamanDroneConfigurator.UI.Views.Admin"
+        mc:Ignorable="d" d:DesignWidth="1200" d:DesignHeight="800"
+        x:Class="PavamanDroneConfigurator.UI.Views.Admin.AdminDashboardWindow"
+        x:DataType="vm:AdminDashboardViewModel"
+        Title="Admin Dashboard - Pavaman Drone Configurator"
+        Width="1200"
+        Height="800"
+        MinWidth="900"
+        MinHeight="600"
+        WindowStartupLocation="CenterScreen"
+        Icon="avares://PavamanDroneConfigurator.UI/Assets/Images/logo.ico"
+        Background="#F9FAFB">
+
+    <Window.Styles>
+        <Style Selector="Window">
+            <Setter Property="FontFamily" Value="Inter, Segoe UI, San Francisco, Helvetica Neue, Arial"/>
+        </Style>
+        
+        <!-- Back Button Style -->
+        <Style Selector="Button.btn-back">
+            <Setter Property="Background" Value="#64748B"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Padding" Value="16,10"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+        </Style>
+        <Style Selector="Button.btn-back:pointerover">
+            <Setter Property="Background" Value="#475569"/>
+        </Style>
+        <Style Selector="Button.btn-back:pressed">
+            <Setter Property="Background" Value="#334155"/>
+        </Style>
+    </Window.Styles>
+
+    <Grid RowDefinitions="Auto,*">
+        
+        <!-- Top Bar with Back Button -->
+        <Border Grid.Row="0" 
+                Background="#F1F5F9" 
+                Padding="16,12"
+                BorderBrush="#E2E8F0"
+                BorderThickness="0,0,0,1">
+            <Grid ColumnDefinitions="Auto,*">
+                <Button Classes="btn-back"
+                        Click="BackButton_Click"
+                        ToolTip.Tip="Return to Entry Page">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <PathIcon Data="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"
+                                  Width="16" Height="16"
+                                  Foreground="White"/>
+                        <TextBlock Text="Back"/>
+                    </StackPanel>
+                </Button>
+                
+                <TextBlock Grid.Column="1"
+                           Text="User Management &amp; System Overview"
+                           FontSize="14"
+                           Foreground="#64748B"
+                           VerticalAlignment="Center"
+                           HorizontalAlignment="Right"
+                           Margin="0,0,16,0"/>
+            </Grid>
+        </Border>
+        
+        <!-- Admin Dashboard Content -->
+        <views:AdminDashboardView Grid.Row="1" DataContext="{Binding}"/>
+    </Grid>
+</Window>
