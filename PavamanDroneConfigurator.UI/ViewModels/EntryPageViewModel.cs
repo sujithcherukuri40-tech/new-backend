@@ -40,14 +40,37 @@ public partial class EntryPageViewModel : ViewModelBase
     [ObservableProperty]
     private string _subtitleMessage = "Choose an option to get started";
 
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasPendingApprovals))]
+    [NotifyPropertyChangedFor(nameof(PendingApprovalsDisplay))]
+    private int _pendingApprovalsCount;
+
     /// <summary>
     /// Indicates if the current user is an admin (shows admin dashboard button).
     /// </summary>
     public bool IsAdmin => _authSession.CurrentState.User?.IsAdmin ?? false;
 
+    /// <summary>
+    /// Indicates if there are pending approvals to review.
+    /// </summary>
+    public bool HasPendingApprovals => PendingApprovalsCount > 0;
+
+    /// <summary>
+    /// Display text for pending approvals badge (shows "9+" for counts over 9).
+    /// </summary>
+    public string PendingApprovalsDisplay => PendingApprovalsCount > 9 ? "9+" : PendingApprovalsCount.ToString();
+
     public EntryPageViewModel(AuthSessionViewModel authSession)
     {
         _authSession = authSession;
+    }
+
+    /// <summary>
+    /// Updates the pending approvals count (called from external source).
+    /// </summary>
+    public void UpdatePendingApprovalsCount(int count)
+    {
+        PendingApprovalsCount = count;
     }
 
     /// <summary>
