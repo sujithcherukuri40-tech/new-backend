@@ -2160,6 +2160,7 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
         }
         
         // Build dictionary for O(1) lookup performance
+        // Note: This dictionary is populated before event handlers are attached and is read-only after initialization
         var fieldLookup = new Dictionary<string, LogFieldInfo>();
         
         foreach (var field in fields)
@@ -2198,7 +2199,8 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
                 };
                 
                 // Wire up property changed event to sync with AvailableFields
-                // Use dictionary lookup for O(1) performance instead of FirstOrDefault
+                // Dictionary lookup provides O(1) performance
+                // Event handlers execute on UI thread via OnFieldSelectionChanged which uses Dispatcher
                 fieldNode.PropertyChanged += (s, e) =>
                 {
                     if (e.PropertyName == nameof(LogFieldNode.IsSelected) && s is LogFieldNode node)
@@ -2349,11 +2351,13 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
     [RelayCommand]
     private void ClearAllFields()
     {
-        // Clear collection first to avoid triggering updates for each field
+        // Clear the selected fields collection first, then update individual field properties
+        // This ensures the graph update (triggered by UpdateGraph) happens only once
+        // Note: Setting IsSelected still triggers individual property notifications, but graph updates are batched
         var fieldsToDeselect = SelectedGraphFields.ToList();
         SelectedGraphFields.Clear();
         
-        // Then update IsSelected property on each field
+        // Update IsSelected property on each field
         foreach (var field in fieldsToDeselect)
         {
             field.IsSelected = false;
