@@ -81,8 +81,9 @@ public class AwsS3Service : IDisposable
     }
     
     /// <summary>
-    /// List all firmware files (.apj) from S3 - FOR USERS (In-App source)
+    /// List all firmware files from S3 - FOR USERS (In-App source)
     /// NOW RETRIEVES METADATA: name, version, description
+    /// Supports all firmware file types: .apj, .px4, .bin, .hex
     /// </summary>
     public async Task<List<S3FirmwareInfo>> ListFirmwareFilesAsync(CancellationToken cancellationToken = default)
     {
@@ -101,7 +102,11 @@ public class AwsS3Service : IDisposable
             
             var firmwares = new List<S3FirmwareInfo>();
             
-            foreach (var obj in response.S3Objects.Where(o => o.Key.EndsWith(".apj", StringComparison.OrdinalIgnoreCase)))
+            // Define supported firmware file extensions
+            var supportedExtensions = new[] { ".apj", ".px4", ".bin", ".hex" };
+            
+            foreach (var obj in response.S3Objects.Where(o => 
+                supportedExtensions.Any(ext => o.Key.EndsWith(ext, StringComparison.OrdinalIgnoreCase))))
             {
                 // Get object metadata to retrieve custom metadata
                 try
@@ -331,7 +336,7 @@ public class AwsS3Service : IDisposable
                 ? "unknown"
                 : System.Text.RegularExpressions.Regex.Replace(fcId, @"[^a-zA-Z0-9_\-]", "_");
             
-            // S3 key: params-logs/user_{userId}_{userName}/drone_{droneId}/params_{timestamp}.csv
+            // S3 key: params-logs/user_{userId}_{safeUserName}/drone_{safeDroneId}/params_{timestamp}.csv
             var s3Key = $"{ParamsLogsPrefix}user_{userId}_{safeUserName}/drone_{safeDroneId}/params_{timestamp}.csv";
             
             using var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(csvContent));

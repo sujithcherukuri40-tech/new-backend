@@ -248,12 +248,28 @@ public partial class FirmwareManagementViewModel : ViewModelBase
             {
                 Title = "Save Firmware File",
                 SuggestedFileName = firmware.FileName,
-                DefaultExtension = ".apj",
+                DefaultExtension = Path.GetExtension(firmware.FileName),
                 FileTypeChoices = new[]
                 {
-                    new Avalonia.Platform.Storage.FilePickerFileType("Firmware Files")
+                    new Avalonia.Platform.Storage.FilePickerFileType("All Firmware Files")
                     {
-                        Patterns = new[] { "*.apj", "*.px4", "*.bin" }
+                        Patterns = new[] { "*.hex", "*.bin", "*.apj", "*.px4" }
+                    },
+                    new Avalonia.Platform.Storage.FilePickerFileType("Intel HEX Files (*.hex)")
+                    {
+                        Patterns = new[] { "*.hex" }
+                    },
+                    new Avalonia.Platform.Storage.FilePickerFileType("Binary Files (*.bin)")
+                    {
+                        Patterns = new[] { "*.bin" }
+                    },
+                    new Avalonia.Platform.Storage.FilePickerFileType("ArduPilot JSON (*.apj)")
+                    {
+                        Patterns = new[] { "*.apj" }
+                    },
+                    new Avalonia.Platform.Storage.FilePickerFileType("PX4 Firmware (*.px4)")
+                    {
+                        Patterns = new[] { "*.px4" }
                     },
                     new Avalonia.Platform.Storage.FilePickerFileType("All Files")
                     {

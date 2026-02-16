@@ -17,14 +17,15 @@ public class FirmwareController : ControllerBase
     private readonly ILogger<FirmwareController> _logger;
     
     // Allowed firmware file extensions
-    private static readonly string[] AllowedExtensions = { ".apj", ".px4", ".bin" };
+    private static readonly string[] AllowedExtensions = { ".apj", ".px4", ".bin", ".hex" };
     
     // Firmware file magic bytes for validation
     private static readonly Dictionary<string, byte[]> FileMagicBytes = new()
     {
         { ".apj", new byte[] { 0x7B } }, // JSON format starts with {
         { ".bin", Array.Empty<byte>() }, // Binary files don't have specific magic
-        { ".px4", Array.Empty<byte>() }
+        { ".px4", Array.Empty<byte>() },
+        { ".hex", new byte[] { 0x3A } }  // Intel HEX format starts with :
     };
     
     public FirmwareController(AwsS3Service s3Service, ILogger<FirmwareController> logger)

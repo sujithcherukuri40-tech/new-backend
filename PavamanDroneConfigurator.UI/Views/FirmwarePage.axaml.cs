@@ -24,7 +24,7 @@ public partial class FirmwarePage : UserControl
     
     /// <summary>
     /// Opens a file picker dialog and sets the selected firmware file.
-    /// Defaults to APJ files only as per user requirement.
+    /// Accepts all firmware file types: .hex, .bin, .apj, .px4
     /// </summary>
     public async void BrowseFirmwareFile_Click(object? sender, RoutedEventArgs e)
     {
@@ -39,20 +39,35 @@ public partial class FirmwarePage : UserControl
             
             var files = await topLevel.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
             {
-                Title = "Select ArduPilot Firmware File",
+                Title = "Select Firmware File",
                 AllowMultiple = false,
                 FileTypeFilter = new[]
                 {
-                    // APJ files first and as default filter
-                    new FilePickerFileType("ArduPilot Firmware (*.apj)")
+                    // All firmware files first (default filter)
+                    new FilePickerFileType("All Firmware Files")
+                    {
+                        Patterns = new[] { "*.hex", "*.bin", "*.apj", "*.px4" },
+                        MimeTypes = new[] { "application/octet-stream" }
+                    },
+                    // Individual types for granular selection
+                    new FilePickerFileType("Intel HEX Files (*.hex)")
+                    {
+                        Patterns = new[] { "*.hex" },
+                        MimeTypes = new[] { "application/octet-stream" }
+                    },
+                    new FilePickerFileType("Binary Files (*.bin)")
+                    {
+                        Patterns = new[] { "*.bin" },
+                        MimeTypes = new[] { "application/octet-stream" }
+                    },
+                    new FilePickerFileType("ArduPilot JSON (*.apj)")
                     {
                         Patterns = new[] { "*.apj" },
                         MimeTypes = new[] { "application/octet-stream" }
                     },
-                    // Other firmware formats as secondary option
-                    new FilePickerFileType("Other Firmware (*.px4, *.bin, *.hex)")
+                    new FilePickerFileType("PX4 Firmware (*.px4)")
                     {
-                        Patterns = new[] { "*.px4", "*.bin", "*.hex" },
+                        Patterns = new[] { "*.px4" },
                         MimeTypes = new[] { "application/octet-stream" }
                     },
                     new FilePickerFileType("All Files")

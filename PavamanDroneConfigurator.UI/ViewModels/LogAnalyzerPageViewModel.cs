@@ -529,10 +529,10 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
                         IsAnalyzing = true;
                         LoadedLogInfo = $"{result.FileName} - {result.MessageCount:N0} messages, {result.DurationDisplay}";
                         StatusMessage = "Analyzing log data...";
-                        
+
                         // Update overview
                         UpdateOverview(result);
-                        
+
                         // Load message types
                         MessageTypes.Clear();
                         foreach (var type in result.MessageTypes)
@@ -541,49 +541,50 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
                         }
                     });
 
-                // Load available graph fields
-                LoadAvailableFields();
-                
-                // Auto-select common fields for initial graph display
-                AutoSelectDefaultGraphFields();
-                
-                // Load GPS track for map FIRST (so map shows immediately)
-                LoadGpsTrack();
-                
-                // Detect events in background
-                if (_eventDetector != null)
-                {
-                    await DetectEventsAsync();
-                }
-                else
-                {
-                    await Dispatcher.UIThread.InvokeAsync(() =>
-                    {
-                        IsLogLoaded = false;
-                        IsAnalyzing = false;
-                        StatusMessage = $"Failed to load log: {result.ErrorMessage}";
-                    });
-                }
-                
-                // Ensure events are filtered and displayed automatically
-                FilterEvents();
-                UpdateEventDisplaySummary();
-                
-                // Load parameter changes if available
-                LoadParameterChanges();
-                
-                // Load log parameters with metadata
-                await LoadLogParametersAsync();
-                
-                // Load raw log messages for display
-                LoadRawLogMessages();
+                    // Load available graph fields
+                    LoadAvailableFields();
 
-                StatusMessage = $"Log loaded: {result.MessageCount:N0} messages - {DetectedEvents.Count} events detected";
-                
-                // Notify all properties changed to ensure UI updates
-                OnPropertyChanged(nameof(HasGpsData));
-                OnPropertyChanged(nameof(HasFilteredEvents));
-                OnPropertyChanged(nameof(ShowNoEventsMessage));
+                    // Auto-select common fields for initial graph display
+                    AutoSelectDefaultGraphFields();
+
+                    // Load GPS track for map FIRST (so map shows immediately)
+                    LoadGpsTrack();
+
+                    // Detect events in background
+                    if (_eventDetector != null)
+                    {
+                        await DetectEventsAsync();
+                    }
+                    else
+                    {
+                        await Dispatcher.UIThread.InvokeAsync(() =>
+                        {
+                            IsLogLoaded = false;
+                            IsAnalyzing = false;
+                            StatusMessage = $"Failed to load log: {result.ErrorMessage}";
+                        });
+                    }
+
+                    // Ensure events are filtered and displayed automatically
+                    FilterEvents();
+                    UpdateEventDisplaySummary();
+
+                    // Load parameter changes if available
+                    LoadParameterChanges();
+
+                    // Load log parameters with metadata
+                    await LoadLogParametersAsync();
+
+                    // Load raw log messages for display
+                    LoadRawLogMessages();
+
+                    StatusMessage = $"Log loaded: {result.MessageCount:N0} messages - {DetectedEvents.Count} events detected";
+
+                    // Notify all properties changed to ensure UI updates
+                    OnPropertyChanged(nameof(HasGpsData));
+                    OnPropertyChanged(nameof(HasFilteredEvents));
+                    OnPropertyChanged(nameof(ShowNoEventsMessage));
+                }
             }
             catch (Exception ex)
             {

@@ -34,7 +34,8 @@ public partial class FirmwareManagementPage : UserControl
     }
     
     /// <summary>
-    /// Opens file picker to select firmware file
+    /// Opens file picker to select firmware file for upload.
+    /// Supports all firmware file types: .hex, .bin, .apj, .px4
     /// </summary>
     public async void BrowseFirmware_Click(object? sender, RoutedEventArgs e)
     {
@@ -49,9 +50,29 @@ public partial class FirmwareManagementPage : UserControl
                 AllowMultiple = false,
                 FileTypeFilter = new[]
                 {
-                    new FilePickerFileType("Firmware Files")
+                    new FilePickerFileType("All Firmware Files")
                     {
-                        Patterns = new[] { "*.apj", "*.px4", "*.bin", "*.hex" },
+                        Patterns = new[] { "*.hex", "*.bin", "*.apj", "*.px4" },
+                        MimeTypes = new[] { "application/octet-stream" }
+                    },
+                    new FilePickerFileType("Intel HEX Files (*.hex)")
+                    {
+                        Patterns = new[] { "*.hex" },
+                        MimeTypes = new[] { "application/octet-stream" }
+                    },
+                    new FilePickerFileType("Binary Files (*.bin)")
+                    {
+                        Patterns = new[] { "*.bin" },
+                        MimeTypes = new[] { "application/octet-stream" }
+                    },
+                    new FilePickerFileType("ArduPilot JSON (*.apj)")
+                    {
+                        Patterns = new[] { "*.apj" },
+                        MimeTypes = new[] { "application/octet-stream" }
+                    },
+                    new FilePickerFileType("PX4 Firmware (*.px4)")
+                    {
+                        Patterns = new[] { "*.px4" },
                         MimeTypes = new[] { "application/octet-stream" }
                     },
                     new FilePickerFileType("All Files")
