@@ -37,9 +37,10 @@ public class FirmwareController : ControllerBase
     /// <summary>
     /// GET /api/firmware/inapp
     /// Lists all firmware files available in S3 with presigned download URLs (FOR USERS)
+    /// NOTE: AllowAnonymous for desktop app to load firmware list without login
     /// </summary>
     [HttpGet("inapp")]
-    [Authorize] // SECURITY: Require authentication to list firmware
+    [AllowAnonymous] // Allow desktop app to list firmwares without authentication
     [EnableRateLimiting("fixed")]
     public async Task<ActionResult<List<FirmwareMetadata>>> GetInAppFirmwares(CancellationToken cancellationToken)
     {
@@ -67,6 +68,16 @@ public class FirmwareController : ControllerBase
             _logger.LogInformation("Returning {Count} firmware files", metadata.Count);
             return Ok(metadata);
         }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("S3"))
+        {
+            _logger.LogError(ex, "S3 service not available");
+            return StatusCode(503, new { error = "Cloud storage service unavailable", details = ex.Message });
+        }
+        catch (Amazon.S3.AmazonS3Exception ex)
+        {
+            _logger.LogError(ex, "AWS S3 error: {ErrorCode}", ex.ErrorCode);
+            return StatusCode(503, new { error = "Cloud storage error", code = ex.ErrorCode });
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to fetch in-app firmwares");
@@ -75,12 +86,25 @@ public class FirmwareController : ControllerBase
     }
     
     /// <summary>
+    /// GET /api/firmware/list
+    /// Public endpoint to list firmware files (no auth required for basic listing)
+    /// </summary>
+    [HttpGet("list")]
+    [AllowAnonymous]
+    [EnableRateLimiting("fixed")]
+    public async Task<ActionResult<List<FirmwareMetadata>>> ListFirmwares(CancellationToken cancellationToken)
+    {
+        return await GetInAppFirmwares(cancellationToken);
+    }
+    
+    /// <summary>
     /// ADMIN: POST /api/firmware/admin/upload
     /// Upload firmware file to S3 (Admin only)
     /// </summary>
     [HttpPost("admin/upload")]
-    [Authorize(Roles = "Admin")] // SECURITY: Require Admin role
+    [Authorize(Roles = "Admin")]
     [EnableRateLimiting("admin")]
+    [RequestSizeLimit(52_428_800)] // 50MB limit
     public async Task<ActionResult<FirmwareMetadata>> UploadFirmware(
         [FromForm] IFormFile file, 
         [FromForm] string? customFileName,
@@ -171,6 +195,11 @@ public class FirmwareController : ControllerBase
                 try { System.IO.File.Delete(tempPath); } catch { }
             }
         }
+        catch (Amazon.S3.AmazonS3Exception ex)
+        {
+            _logger.LogError(ex, "AWS S3 error during upload: {ErrorCode}", ex.ErrorCode);
+            return StatusCode(503, new { error = "Cloud storage error", code = ex.ErrorCode });
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to upload firmware");
@@ -183,7 +212,7 @@ public class FirmwareController : ControllerBase
     /// Delete firmware file from S3 (Admin only)
     /// </summary>
     [HttpDelete("admin/{**key}")]
-    [Authorize(Roles = "Admin")] // SECURITY: Require Admin role
+    [Authorize(Roles = "Admin")]
     [EnableRateLimiting("admin")]
     public async Task<ActionResult> DeleteFirmware(string key, CancellationToken cancellationToken)
     {
@@ -222,6 +251,11 @@ public class FirmwareController : ControllerBase
                 return StatusCode(500, new { error = "Failed to delete firmware" });
             }
         }
+        catch (Amazon.S3.AmazonS3Exception ex)
+        {
+            _logger.LogError(ex, "AWS S3 error during delete: {ErrorCode}", ex.ErrorCode);
+            return StatusCode(503, new { error = "Cloud storage error", code = ex.ErrorCode });
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to delete firmware: {Key}", key);
@@ -232,9 +266,10 @@ public class FirmwareController : ControllerBase
     /// <summary>
     /// GET /api/firmware/download/{key}
     /// Download firmware file (generates presigned URL for direct S3 download)
+    /// NOTE: AllowAnonymous for desktop app downloads
     /// </summary>
     [HttpGet("download/{**key}")]
-    [Authorize] // SECURITY: Require authentication
+    [AllowAnonymous] // Allow desktop app to download without authentication
     [EnableRateLimiting("fixed")]
     public ActionResult DownloadFirmware(string key)
     {
@@ -270,7 +305,7 @@ public class FirmwareController : ControllerBase
     /// Check S3 connectivity (health check)
     /// </summary>
     [HttpGet("health")]
-    [AllowAnonymous] // Health check can be public
+    [AllowAnonymous]
     public async Task<ActionResult> HealthCheck(CancellationToken cancellationToken)
     {
         try
@@ -289,16 +324,16 @@ public class FirmwareController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Health check failed");
-            return StatusCode(503, new { status = "unhealthy", error = "Service unavailable" });
+            return StatusCode(503, new { status = "unhealthy", error = ex.Message });
         }
     }
     
     /// <summary>
     /// GET /api/firmware/storage-stats
-    /// Get storage statistics for firmwares
+    /// Get storage statistics for firmwares (Admin only)
     /// </summary>
     [HttpGet("storage-stats")]
-    [Authorize(Roles = "Admin")] // SECURITY: Admin only
+    [Authorize(Roles = "Admin")]
     [EnableRateLimiting("admin")]
     public async Task<ActionResult> GetStorageStats(CancellationToken cancellationToken)
     {
@@ -319,7 +354,7 @@ public class FirmwareController : ControllerBase
     /// Upload parameter change log to S3 (param-logs folder)
     /// </summary>
     [HttpPost("param-logs")]
-    [Authorize] // SECURITY: Require authentication
+    [Authorize]
     [EnableRateLimiting("fixed")]
     public async Task<ActionResult> UploadParameterLog(
         [FromBody] ParameterLogRequest request,
@@ -361,7 +396,7 @@ public class FirmwareController : ControllerBase
             await _s3Service.AppendParameterChangesAsync(
                 request.UserId,
                 request.UserName,
-                request.DroneId ?? "unknown",  // Use Drone ID for folder structure
+                request.DroneId ?? "unknown",
                 changes,
                 cancellationToken);
             
@@ -375,6 +410,11 @@ public class FirmwareController : ControllerBase
                 droneId = request.DroneId,
                 fcId = request.FcId
             });
+        }
+        catch (Amazon.S3.AmazonS3Exception ex)
+        {
+            _logger.LogError(ex, "AWS S3 error during param log upload: {ErrorCode}", ex.ErrorCode);
+            return StatusCode(503, new { error = "Cloud storage error", code = ex.ErrorCode });
         }
         catch (Exception ex)
         {
