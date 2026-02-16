@@ -518,81 +518,94 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
         // Process log data on background thread to avoid blocking UI
         _ = Task.Run(async () =>
         {
-            if (result.IsSuccess)
+            try
             {
-                // Update UI properties on UI thread
-                await Dispatcher.UIThread.InvokeAsync(() =>
+                if (result.IsSuccess)
                 {
-                    IsLogLoaded = true;
-                    IsAnalyzing = true;
-                    LoadedLogInfo = $"{result.FileName} - {result.MessageCount:N0} messages, {result.DurationDisplay}";
-                    StatusMessage = "Analyzing log data...";
-                    
-                    // Update overview
-                    UpdateOverview(result);
-                    
-                    // Load message types
-                    MessageTypes.Clear();
-                    foreach (var type in result.MessageTypes)
+                    // Update UI properties on UI thread
+                    await Dispatcher.UIThread.InvokeAsync(() =>
                     {
-                        MessageTypes.Add(type);
+                        IsLogLoaded = true;
+                        IsAnalyzing = true;
+                        LoadedLogInfo = $"{result.FileName} - {result.MessageCount:N0} messages, {result.DurationDisplay}";
+                        StatusMessage = "Analyzing log data...";
+                        
+                        // Update overview
+                        UpdateOverview(result);
+                        
+                        // Load message types
+                        MessageTypes.Clear();
+                        foreach (var type in result.MessageTypes)
+                        {
+                            MessageTypes.Add(type);
+                        }
+                    });
+
+                    // Heavy processing on background thread
+                    LoadAvailableFields();
+                    
+                    // Update UI for field selection
+                    await Dispatcher.UIThread.InvokeAsync(() =>
+                    {
+                        AutoSelectDefaultGraphFields();
+                    });
+                    
+                    // Detect events in background
+                    if (_eventDetector != null)
+                    {
+                        await DetectEventsAsync();
                     }
-                });
+                    
+                    // If no events were detected, extract basic events from MSG messages
+                    if (DetectedEvents.Count == 0)
+                    {
+                        ExtractBasicEventsFromLog();
+                    }
+                    
+                    // Filter and update events on UI thread
+                    await Dispatcher.UIThread.InvokeAsync(() =>
+                    {
+                        FilterEvents();
+                        UpdateEventDisplaySummary();
+                    });
+                    
+                    // Load GPS track (heavy processing)
+                    LoadGpsTrack();
+                    
+                    // Load parameter changes
+                    LoadParameterChanges();
+                    
+                    // Load log parameters with metadata
+                    await LoadLogParametersAsync();
+                    
+                    // Load raw log messages
+                    LoadRawLogMessages();
 
-                // Heavy processing on background thread
-                LoadAvailableFields();
-                
-                // Update UI for field selection
-                await Dispatcher.UIThread.InvokeAsync(() =>
-                {
-                    AutoSelectDefaultGraphFields();
-                });
-                
-                // Detect events in background
-                if (_eventDetector != null)
-                {
-                    await DetectEventsAsync();
+                    // Final UI update
+                    await Dispatcher.UIThread.InvokeAsync(() =>
+                    {
+                        IsAnalyzing = false;
+                        StatusMessage = $"Log loaded: {result.MessageCount:N0} messages - {DetectedEvents.Count} events detected";
+                    });
                 }
-                
-                // If no events were detected, extract basic events from MSG messages
-                if (DetectedEvents.Count == 0)
+                else
                 {
-                    ExtractBasicEventsFromLog();
+                    await Dispatcher.UIThread.InvokeAsync(() =>
+                    {
+                        IsLogLoaded = false;
+                        IsAnalyzing = false;
+                        StatusMessage = $"Failed to load log: {result.ErrorMessage}";
+                    });
                 }
-                
-                // Filter and update events on UI thread
-                await Dispatcher.UIThread.InvokeAsync(() =>
-                {
-                    FilterEvents();
-                    UpdateEventDisplaySummary();
-                });
-                
-                // Load GPS track (heavy processing)
-                LoadGpsTrack();
-                
-                // Load parameter changes
-                LoadParameterChanges();
-                
-                // Load log parameters with metadata
-                await LoadLogParametersAsync();
-                
-                // Load raw log messages
-                LoadRawLogMessages();
-
-                // Final UI update
-                await Dispatcher.UIThread.InvokeAsync(() =>
-                {
-                    IsAnalyzing = false;
-                    StatusMessage = $"Log loaded: {result.MessageCount:N0} messages - {DetectedEvents.Count} events detected";
-                });
             }
-            else
+            catch (Exception ex)
             {
+                _logger.LogError(ex, "Error processing log file");
                 await Dispatcher.UIThread.InvokeAsync(() =>
                 {
                     IsLogLoaded = false;
                     IsAnalyzing = false;
-                    StatusMessage = $"Failed to load log: {result.ErrorMessage}";
+                    StatusMessage = $"Error processing log: {ex.Message}";
                 });
             }
         });
@@ -2146,6 +2159,9 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
             return;
         }
         
+        // Build dictionary for O(1) lookup performance
+        var fieldLookup = new Dictionary<string, LogFieldInfo>();
+        
         foreach (var field in fields)
         {
             var stats = _logAnalyzerService.GetFieldStatistics(field.DisplayName);
@@ -2155,6 +2171,7 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
             
             AvailableFields.Add(field);
             FilteredFields.Add(field);
+            fieldLookup[field.DisplayName] = field;
         }
 
         var groupedByType = fields.GroupBy(f => f.MessageType).OrderBy(g => g.Key);
@@ -2181,12 +2198,12 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
                 };
                 
                 // Wire up property changed event to sync with AvailableFields
+                // Use dictionary lookup for O(1) performance instead of FirstOrDefault
                 fieldNode.PropertyChanged += (s, e) =>
                 {
                     if (e.PropertyName == nameof(LogFieldNode.IsSelected) && s is LogFieldNode node)
                     {
-                        var matchingField = AvailableFields.FirstOrDefault(f => f.DisplayName == node.FullKey);
-                        if (matchingField != null)
+                        if (fieldLookup.TryGetValue(node.FullKey, out var matchingField))
                         {
                             matchingField.IsSelected = node.IsSelected;
                             OnFieldSelectionChanged(matchingField);
@@ -2332,11 +2349,16 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
     [RelayCommand]
     private void ClearAllFields()
     {
-        foreach (var field in SelectedGraphFields.ToList())
+        // Clear collection first to avoid triggering updates for each field
+        var fieldsToDeselect = SelectedGraphFields.ToList();
+        SelectedGraphFields.Clear();
+        
+        // Then update IsSelected property on each field
+        foreach (var field in fieldsToDeselect)
         {
             field.IsSelected = false;
         }
-        SelectedGraphFields.Clear();
+        
         UpdateGraph();
         _logger.LogInformation("Cleared all selected graph fields");
     }
