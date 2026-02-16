@@ -10,382 +10,302 @@ using PavamanDroneConfigurator.API.Middleware;
 using PavamanDroneConfigurator.API.Services;
 using DotNetEnv;
 
+// Load .env file if exists (for local development)
 var envPath = Path.Combine(Directory.GetCurrentDirectory(), ".env");
 if (File.Exists(envPath))
 {
     Env.Load(envPath);
-    Console.WriteLine("? Loaded environment variables from .env file");
-}
-else
-{
-    Console.WriteLine("??  No .env file found, using system environment variables or AWS Secrets Manager");
+    Console.WriteLine("[OK] Loaded .env file");
 }
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Configuration sources
 builder.Configuration
     .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
-    .AddJsonFile($"appsettings.{builder.Environment.EnvironmentName}.json", optional: true, reloadOnChange: true)
+    .AddJsonFile($"appsettings.{builder.Environment.EnvironmentName}.json", optional: true)
     .AddEnvironmentVariables();
 
-// Register AWS Secrets Manager Service
+// Register services
 builder.Services.AddSingleton<AwsSecretsManagerService>();
 
-// Build connection string with AWS Secrets Manager fallback
-var connectionString = await BuildConnectionStringAsync(builder.Configuration, builder.Services.BuildServiceProvider());
+// Get configuration values
+var connectionString = GetConnectionString(builder);
+var secretKey = GetJwtSecret(builder);
 
+// Validate required configuration
 if (string.IsNullOrEmpty(connectionString))
 {
-    throw new InvalidOperationException(
-        "Database connection string not configured. " +
-        "Set DB_HOST, DB_NAME, DB_USER, and DB_PASSWORD environment variables, " +
-        "configure ConnectionStrings__PostgresDb, or use AWS Secrets Manager secret: drone-configurator/postgres");
+    Console.WriteLine("================================================================");
+    Console.WriteLine("[ERROR] DATABASE NOT CONFIGURED");
+    Console.WriteLine("================================================================");
+    Console.WriteLine("Set environment variables:");
+    Console.WriteLine("  DB_HOST=your-rds-endpoint");
+    Console.WriteLine("  DB_NAME=drone_configurator");
+    Console.WriteLine("  DB_USER=postgres");
+    Console.WriteLine("  DB_PASSWORD=your-password");
+    Console.WriteLine("Or: ConnectionStrings__PostgresDb=Host=...;Database=...;...");
+    Console.WriteLine("================================================================");
+    throw new InvalidOperationException("Database connection not configured");
 }
 
+if (string.IsNullOrEmpty(secretKey) || secretKey.Length < 32)
+{
+    Console.WriteLine("================================================================");
+    Console.WriteLine("[ERROR] JWT SECRET NOT CONFIGURED");
+    Console.WriteLine("================================================================");
+    Console.WriteLine("Set environment variable:");
+    Console.WriteLine("  JWT_SECRET_KEY=<random-string-at-least-32-characters>");
+    Console.WriteLine("Generate with: openssl rand -base64 48");
+    Console.WriteLine("================================================================");
+    throw new InvalidOperationException("JWT secret not configured (minimum 32 characters)");
+}
+
+// Database
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(connectionString)
-        // Only enable sensitive data logging in development AND when explicitly enabled
         .EnableSensitiveDataLogging(builder.Environment.IsDevelopment() && 
-            Environment.GetEnvironmentVariable("ENABLE_SENSITIVE_LOGGING") == "true")
-);
+            Environment.GetEnvironmentVariable("ENABLE_SENSITIVE_LOGGING") == "true"));
 
+// JWT Authentication
 var jwtSettings = builder.Configuration.GetSection("Jwt");
+var issuer = Environment.GetEnvironmentVariable("JWT_ISSUER") ?? jwtSettings["Issuer"] ?? "DroneConfigurator";
+var audience = Environment.GetEnvironmentVariable("JWT_AUDIENCE") ?? jwtSettings["Audience"] ?? "DroneConfiguratorClient";
 
-// Get JWT secret with AWS Secrets Manager fallback
-var secretKey = await GetJwtSecretKeyAsync(builder.Configuration, builder.Services.BuildServiceProvider());
-
-if (string.IsNullOrEmpty(secretKey) || secretKey.Contains("DEVELOPMENT_ONLY") || secretKey.Contains("REPLACE") || secretKey.Length < 32)
-{
-    throw new InvalidOperationException(
-        "JWT secret key not configured or is insecure. " +
-        "Set JWT_SECRET_KEY environment variable with a secure random key (minimum 32 characters), " +
-        "or use AWS Secrets Manager secret: drone-configurator/jwt-secret");
-}
-
-var issuer = Environment.GetEnvironmentVariable("JWT_ISSUER") 
-    ?? jwtSettings["Issuer"] 
-    ?? "DroneConfigurator";
-
-var audience = Environment.GetEnvironmentVariable("JWT_AUDIENCE") 
-    ?? jwtSettings["Audience"] 
-    ?? "DroneConfiguratorClient";
-
-builder.Services.AddAuthentication(options =>
-{
-    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
-})
-.AddJwtBearer(options =>
-{
-    // SECURITY: Require HTTPS in production
-    options.RequireHttpsMetadata = !builder.Environment.IsDevelopment();
-    options.SaveToken = true;
-    options.TokenValidationParameters = new TokenValidationParameters
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
     {
-        ValidateIssuer = true,
-        ValidateAudience = true,
-        ValidateLifetime = true,
-        ValidateIssuerSigningKey = true,
-        ValidIssuer = issuer,
-        ValidAudience = audience,
-        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey)),
-        ClockSkew = TimeSpan.Zero
-    };
-
-    options.Events = new JwtBearerEvents
-    {
-        OnAuthenticationFailed = context =>
+        options.RequireHttpsMetadata = !builder.Environment.IsDevelopment();
+        options.SaveToken = true;
+        options.TokenValidationParameters = new TokenValidationParameters
         {
-            if (context.Exception is SecurityTokenExpiredException)
+            ValidateIssuer = true,
+            ValidateAudience = true,
+            ValidateLifetime = true,
+            ValidateIssuerSigningKey = true,
+            ValidIssuer = issuer,
+            ValidAudience = audience,
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey)),
+            ClockSkew = TimeSpan.Zero
+        };
+        options.Events = new JwtBearerEvents
+        {
+            OnAuthenticationFailed = context =>
             {
-                context.Response.Headers.Append("Token-Expired", "true");
+                if (context.Exception is SecurityTokenExpiredException)
+                    context.Response.Headers.Append("Token-Expired", "true");
+                return Task.CompletedTask;
             }
-            return Task.CompletedTask;
-        }
-    };
-});
+        };
+    });
 
 builder.Services.AddAuthorization();
 
-// SECURITY: Add Rate Limiting
-var rateLimitConfig = builder.Configuration.GetSection("Security:RateLimiting");
+// Rate Limiting
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
     
-    // Global rate limit
-    options.AddFixedWindowLimiter("fixed", limiterOptions =>
+    options.AddFixedWindowLimiter("fixed", limiter =>
     {
-        limiterOptions.PermitLimit = int.Parse(rateLimitConfig["PermitLimit"] ?? "100");
-        limiterOptions.Window = TimeSpan.FromSeconds(int.Parse(rateLimitConfig["WindowSeconds"] ?? "60"));
-        limiterOptions.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
-        limiterOptions.QueueLimit = int.Parse(rateLimitConfig["QueueLimit"] ?? "10");
+        limiter.PermitLimit = 100;
+        limiter.Window = TimeSpan.FromSeconds(60);
+        limiter.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+        limiter.QueueLimit = 10;
     });
     
-    // Stricter rate limit for authentication endpoints
-    options.AddFixedWindowLimiter("auth", limiterOptions =>
+    options.AddFixedWindowLimiter("auth", limiter =>
     {
-        limiterOptions.PermitLimit = 10; // 10 attempts per window
-        limiterOptions.Window = TimeSpan.FromMinutes(1);
-        limiterOptions.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
-        limiterOptions.QueueLimit = 2;
+        limiter.PermitLimit = 10;
+        limiter.Window = TimeSpan.FromMinutes(1);
+        limiter.QueueLimit = 2;
     });
     
-    // Very strict rate limit for sensitive admin operations
-    options.AddFixedWindowLimiter("admin", limiterOptions =>
+    options.AddFixedWindowLimiter("admin", limiter =>
     {
-        limiterOptions.PermitLimit = 30;
-        limiterOptions.Window = TimeSpan.FromMinutes(1);
-        limiterOptions.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
-        limiterOptions.QueueLimit = 5;
+        limiter.PermitLimit = 30;
+        limiter.Window = TimeSpan.FromMinutes(1);
+        limiter.QueueLimit = 5;
     });
 });
 
+// Application Services
 builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IAdminService, AdminService>();
-
-// AWS S3 Service for firmware and parameter logs
 builder.Services.AddSingleton<PavamanDroneConfigurator.Infrastructure.Services.AwsS3Service>();
 
+// Controllers & Swagger
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
-
 builder.Services.AddSwaggerGen(options =>
 {
     options.SwaggerDoc("v1", new OpenApiInfo
     {
-        Title = "Drone Configurator Auth API",
+        Title = "Drone Configurator API",
         Version = "v1",
         Description = "Authentication API for Pavaman Drone Configurator"
     });
-
     options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
-        Description = "JWT Authorization header using the Bearer scheme. Enter 'Bearer' [space] and then your token.",
+        Description = "JWT Authorization header. Enter 'Bearer' [space] and your token.",
         Name = "Authorization",
         In = ParameterLocation.Header,
         Type = SecuritySchemeType.ApiKey,
         Scheme = "Bearer"
     });
-
     options.AddSecurityRequirement(new OpenApiSecurityRequirement
     {
         {
             new OpenApiSecurityScheme
             {
-                Reference = new OpenApiReference
-                {
-                    Type = ReferenceType.SecurityScheme,
-                    Id = "Bearer"
-                }
+                Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "Bearer" }
             },
             Array.Empty<string>()
         }
     });
 });
 
-// SECURITY: Restrict CORS - only allow specific origins in production
+// CORS
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowDesktopApp", policy =>
     {
         if (builder.Environment.IsDevelopment())
         {
-            // More permissive in development
-            policy.AllowAnyOrigin()
-                  .AllowAnyMethod()
-                  .AllowAnyHeader();
+            policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader();
         }
         else
         {
-            // Restrictive in production - specify allowed origins
-            var allowedOrigins = Environment.GetEnvironmentVariable("ALLOWED_ORIGINS")?.Split(',') 
+            var origins = Environment.GetEnvironmentVariable("ALLOWED_ORIGINS")?.Split(',')
                 ?? new[] { "http://localhost:5000", "https://localhost:5001" };
-            
-            policy.WithOrigins(allowedOrigins)
-                  .AllowAnyMethod()
-                  .AllowAnyHeader()
-                  .AllowCredentials();
+            policy.WithOrigins(origins).AllowAnyMethod().AllowAnyHeader().AllowCredentials();
         }
     });
 });
 
+// Logging
 builder.Logging.AddConsole();
-builder.Logging.SetMinimumLevel(
-    builder.Environment.IsDevelopment() ? LogLevel.Debug : LogLevel.Information);
+builder.Logging.SetMinimumLevel(builder.Environment.IsDevelopment() ? LogLevel.Debug : LogLevel.Information);
 
 var app = builder.Build();
 
+// Middleware pipeline
 app.UseExceptionMiddleware();
-
-// SECURITY: Use rate limiting
 app.UseRateLimiter();
 
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
-    app.UseSwaggerUI(options =>
-    {
-        options.SwaggerEndpoint("/swagger/v1/swagger.json", "Auth API v1");
-        options.RoutePrefix = "swagger";
-    });
+    app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "API v1"));
 }
 
-// SECURITY: Add security headers
+// Security headers
 app.Use(async (context, next) =>
 {
     context.Response.Headers.Append("X-Content-Type-Options", "nosniff");
     context.Response.Headers.Append("X-Frame-Options", "DENY");
     context.Response.Headers.Append("X-XSS-Protection", "1; mode=block");
     context.Response.Headers.Append("Referrer-Policy", "strict-origin-when-cross-origin");
-    
     if (!app.Environment.IsDevelopment())
-    {
         context.Response.Headers.Append("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
-    }
-    
     await next();
 });
 
 app.UseCors("AllowDesktopApp");
-
 app.UseAuthentication();
 app.UseAuthorization();
-
 app.MapControllers();
 
+// Health check endpoint
 app.MapGet("/health", () => Results.Ok(new { status = "healthy", timestamp = DateTime.UtcNow }))
-   .WithName("HealthCheck")
-   .WithTags("Health");
+    .WithName("HealthCheck").WithTags("Health");
 
+// Database migration and seeding
 using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    
     try
     {
         await dbContext.Database.MigrateAsync();
-        app.Logger.LogInformation("Database migrations applied successfully");
-        
-        // Seed default admin user
+        app.Logger.LogInformation("[OK] Database migrations applied");
         await DatabaseSeeder.SeedAsync(dbContext, app.Logger);
     }
     catch (Exception ex)
     {
-        app.Logger.LogError(ex, "Error applying database migrations");
+        app.Logger.LogError(ex, "[ERROR] Database migration failed");
         throw;
     }
 }
 
-app.Logger.LogInformation("Drone Configurator Auth API starting...");
-app.Logger.LogInformation("Database: {Host}", GetDatabaseHost(connectionString));
-app.Logger.LogInformation("JWT Issuer: {Issuer}", issuer);
-app.Logger.LogInformation("Environment: {Environment}", app.Environment.EnvironmentName);
+// Startup info
+app.Logger.LogInformation("================================================================");
+app.Logger.LogInformation("[OK] Drone Configurator API Starting");
+app.Logger.LogInformation("     Database: {Host}", GetDatabaseHost(connectionString));
+app.Logger.LogInformation("     JWT Issuer: {Issuer}", issuer);
+app.Logger.LogInformation("     Environment: {Env}", app.Environment.EnvironmentName);
+app.Logger.LogInformation("================================================================");
 
 app.Run();
 
-static async Task<string?> BuildConnectionStringAsync(IConfiguration configuration, IServiceProvider services)
+// ============================================================================
+// Helper Methods
+// ============================================================================
+
+static string? GetConnectionString(WebApplicationBuilder builder)
 {
-    // Priority 1: Full connection string from environment variable
+    // Priority 1: Full connection string from environment
     var connStr = Environment.GetEnvironmentVariable("ConnectionStrings__PostgresDb");
     if (!string.IsNullOrEmpty(connStr))
     {
-        Console.WriteLine("? Using database connection string from environment variable");
+        Console.WriteLine("[OK] Using ConnectionStrings__PostgresDb");
         return connStr;
     }
-    
+
     // Priority 2: Individual environment variables
-    var dbHost = Environment.GetEnvironmentVariable("DB_HOST");
-    var dbPort = Environment.GetEnvironmentVariable("DB_PORT") ?? "5432";
-    var dbName = Environment.GetEnvironmentVariable("DB_NAME");
-    var dbUser = Environment.GetEnvironmentVariable("DB_USER");
-    var dbPassword = Environment.GetEnvironmentVariable("DB_PASSWORD");
-    var dbSslMode = Environment.GetEnvironmentVariable("DB_SSL_MODE") ?? "Prefer";
-    
-    if (!string.IsNullOrEmpty(dbHost) && !string.IsNullOrEmpty(dbName) 
-        && !string.IsNullOrEmpty(dbUser) && !string.IsNullOrEmpty(dbPassword))
+    var host = Environment.GetEnvironmentVariable("DB_HOST");
+    var name = Environment.GetEnvironmentVariable("DB_NAME");
+    var user = Environment.GetEnvironmentVariable("DB_USER");
+    var pass = Environment.GetEnvironmentVariable("DB_PASSWORD");
+    var port = Environment.GetEnvironmentVariable("DB_PORT") ?? "5432";
+    var ssl = Environment.GetEnvironmentVariable("DB_SSL_MODE") ?? "Prefer";
+
+    if (!string.IsNullOrEmpty(host) && !string.IsNullOrEmpty(name) &&
+        !string.IsNullOrEmpty(user) && !string.IsNullOrEmpty(pass))
     {
-        Console.WriteLine("? Using database connection from individual environment variables");
-        return $"Host={dbHost};Port={dbPort};Database={dbName};Username={dbUser};Password={dbPassword};Ssl Mode={dbSslMode}";
+        Console.WriteLine("[OK] Using DB_HOST/DB_NAME/DB_USER/DB_PASSWORD");
+        return $"Host={host};Port={port};Database={name};Username={user};Password={pass};Ssl Mode={ssl}";
     }
-    
-    // Priority 3: AWS Secrets Manager
-    var awsSecretName = Environment.GetEnvironmentVariable("AWS_SECRETS_MANAGER_DB_SECRET") 
-        ?? configuration["AWS:Secrets:DatabaseSecret"]
-        ?? "drone-configurator/postgres";
-    
-    try
+
+    // Priority 3: appsettings.json (not recommended for production)
+    var appSettings = builder.Configuration.GetConnectionString("PostgresDb");
+    if (!string.IsNullOrEmpty(appSettings))
     {
-        var secretsManager = services.GetService<AwsSecretsManagerService>();
-        if (secretsManager != null)
-        {
-            var awsConnectionString = await secretsManager.GetDatabaseConnectionStringAsync(awsSecretName);
-            if (!string.IsNullOrEmpty(awsConnectionString))
-            {
-                Console.WriteLine($"? Using database connection from AWS Secrets Manager: {awsSecretName}");
-                return awsConnectionString;
-            }
-        }
+        Console.WriteLine("[WARN] Using appsettings.json (not recommended for production)");
+        return appSettings;
     }
-    catch (Exception ex)
-    {
-        Console.WriteLine($"??  Failed to retrieve database secret from AWS Secrets Manager: {ex.Message}");
-    }
-    
-    // Priority 4: appsettings.json (fallback - SHOULD BE EMPTY in production)
-    var appSettingsConnStr = configuration.GetConnectionString("PostgresDb");
-    if (!string.IsNullOrEmpty(appSettingsConnStr))
-    {
-        Console.WriteLine("??  Using database connection from appsettings.json (not recommended for production)");
-        return appSettingsConnStr;
-    }
-    
+
     return null;
 }
 
-static async Task<string?> GetJwtSecretKeyAsync(IConfiguration configuration, IServiceProvider services)
+static string? GetJwtSecret(WebApplicationBuilder builder)
 {
     // Priority 1: Environment variable
-    var secretKey = Environment.GetEnvironmentVariable("JWT_SECRET_KEY");
-    if (!string.IsNullOrEmpty(secretKey) && !secretKey.Contains("REPLACE"))
+    var key = Environment.GetEnvironmentVariable("JWT_SECRET_KEY");
+    if (!string.IsNullOrEmpty(key) && key.Length >= 32 && !key.Contains("REPLACE"))
     {
-        Console.WriteLine("? Using JWT secret from environment variable");
-        return secretKey;
+        Console.WriteLine("[OK] Using JWT_SECRET_KEY from environment");
+        return key;
     }
-    
-    // Priority 2: AWS Secrets Manager
-    var awsSecretName = Environment.GetEnvironmentVariable("AWS_SECRETS_MANAGER_JWT_SECRET") 
-        ?? configuration["AWS:Secrets:JwtSecret"]
-        ?? "drone-configurator/jwt-secret";
-    
-    try
+
+    // Priority 2: appsettings.json (not recommended for production)
+    var appKey = builder.Configuration.GetSection("Jwt")["SecretKey"];
+    if (!string.IsNullOrEmpty(appKey) && appKey.Length >= 32 && !appKey.Contains("REPLACE"))
     {
-        var secretsManager = services.GetService<AwsSecretsManagerService>();
-        if (secretsManager != null)
-        {
-            var awsSecret = await secretsManager.GetSecretAsync(awsSecretName);
-            if (!string.IsNullOrEmpty(awsSecret))
-            {
-                Console.WriteLine($"? Using JWT secret from AWS Secrets Manager: {awsSecretName}");
-                return awsSecret;
-            }
-        }
+        Console.WriteLine("[WARN] Using JWT from appsettings.json (not recommended for production)");
+        return appKey;
     }
-    catch (Exception ex)
-    {
-        Console.WriteLine($"??  Failed to retrieve JWT secret from AWS Secrets Manager: {ex.Message}");
-    }
-    
-    // Priority 3: appsettings.json (fallback - SHOULD BE EMPTY in production)
-    var jwtSettings = configuration.GetSection("Jwt");
-    var appSettingsSecret = jwtSettings["SecretKey"];
-    if (!string.IsNullOrEmpty(appSettingsSecret) && !appSettingsSecret.Contains("REPLACE"))
-    {
-        Console.WriteLine("??  Using JWT secret from appsettings.json (not recommended for production)");
-        return appSettingsSecret;
-    }
-    
+
     return null;
 }
 
@@ -393,7 +313,8 @@ static string GetDatabaseHost(string connectionString)
 {
     try
     {
-        var hostPart = connectionString.Split(';').FirstOrDefault(x => x.Trim().StartsWith("Host=", StringComparison.OrdinalIgnoreCase));
+        var hostPart = connectionString.Split(';')
+            .FirstOrDefault(x => x.Trim().StartsWith("Host=", StringComparison.OrdinalIgnoreCase));
         return hostPart?.Split('=')[1].Trim() ?? "unknown";
     }
     catch

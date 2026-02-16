@@ -1,4 +1,5 @@
 using Amazon;
+using Amazon.Runtime;
 using Amazon.SecretsManager;
 using Amazon.SecretsManager.Model;
 using System.Text.Json;
@@ -7,6 +8,7 @@ namespace PavamanDroneConfigurator.API.Services;
 
 /// <summary>
 /// Service for retrieving secrets from AWS Secrets Manager.
+/// Returns null on failure instead of throwing - allows fallback to environment variables.
 /// </summary>
 public class AwsSecretsManagerService
 {
@@ -21,14 +23,15 @@ public class AwsSecretsManagerService
 
     /// <summary>
     /// Retrieves a secret from AWS Secrets Manager.
+    /// Returns null if secret cannot be retrieved (no exception thrown).
     /// </summary>
-    /// <param name="secretName">Name or ARN of the secret.</param>
-    /// <returns>Secret value as string, or null if not found.</returns>
     public async Task<string?> GetSecretAsync(string secretName)
     {
         try
         {
-            var client = new AmazonSecretsManagerClient(RegionEndpoint.GetBySystemName(_region));
+            _logger.LogInformation("Attempting to retrieve secret: {SecretName} from region: {Region}", secretName, _region);
+            
+            using var client = new AmazonSecretsManagerClient(RegionEndpoint.GetBySystemName(_region));
 
             var request = new GetSecretValueRequest
             {
@@ -39,7 +42,7 @@ public class AwsSecretsManagerService
 
             if (response.SecretString != null)
             {
-                _logger.LogInformation("Successfully retrieved secret: {SecretName}", secretName);
+                _logger.LogInformation("? Successfully retrieved secret: {SecretName}", secretName);
                 return response.SecretString;
             }
 
@@ -51,9 +54,19 @@ public class AwsSecretsManagerService
             _logger.LogWarning("Secret {SecretName} not found in AWS Secrets Manager", secretName);
             return null;
         }
+        catch (AmazonSecretsManagerException ex)
+        {
+            _logger.LogWarning("AWS Secrets Manager error for {SecretName}: {Message}", secretName, ex.Message);
+            return null;
+        }
+        catch (AmazonServiceException ex)
+        {
+            _logger.LogWarning("AWS Service error for {SecretName}: {Message}", secretName, ex.Message);
+            return null;
+        }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error retrieving secret {SecretName} from AWS Secrets Manager", secretName);
+            _logger.LogWarning("Failed to retrieve secret {SecretName}: {Message}", secretName, ex.Message);
             return null;
         }
     }
@@ -75,21 +88,13 @@ public class AwsSecretsManagerService
         }
         catch (JsonException ex)
         {
-            _logger.LogError(ex, "Failed to deserialize secret {SecretName} as JSON", secretName);
+            _logger.LogWarning("Failed to deserialize secret {SecretName} as JSON: {Message}", secretName, ex.Message);
             return null;
         }
     }
 
     /// <summary>
     /// Retrieves database connection details from AWS Secrets Manager.
-    /// Expected JSON format in secret:
-    /// {
-    ///   "host": "your-db-host",
-    ///   "port": "5432",
-    ///   "database": "your-db-name",
-    ///   "username": "your-username",
-    ///   "password": "your-password"
-    /// }
     /// </summary>
     public async Task<string?> GetDatabaseConnectionStringAsync(string secretName)
     {
