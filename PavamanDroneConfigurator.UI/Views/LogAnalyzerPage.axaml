@@ -221,7 +221,8 @@
                 
                 <StackPanel Grid.Column="2" Orientation="Horizontal">
                     <TextBlock Text="{Binding StatusMessage}" Foreground="#888888" FontSize="11" 
-                               VerticalAlignment="Center" Margin="0,0,16,0"/>
+                               VerticalAlignment="Center" Margin="0,0,16,0"
+                               IsVisible="{Binding !IsBusy}"/>
                 </StackPanel>
             </Grid>
         </Border>
@@ -1100,29 +1101,22 @@
             </Border>
         </Border>
         
-        <!-- BUSY OVERLAY -->
-        <Border Grid.RowSpan="3" Background="#80FFFFFF" IsVisible="{Binding IsBusy}">
-            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
-                <ProgressBar IsIndeterminate="True" Width="250" Height="6" />
-                <TextBlock Text="{Binding StatusMessage}" Foreground="#333333" HorizontalAlignment="Center" Margin="0,12,0,0" FontSize="13"/>
-            </StackPanel>
-        </Border>
-
-        <!-- Loading Overlay (visible during log operations) -->
-        <Border Grid.Row="0"
-                Background="#CCF9FAFB"
+        <!-- SINGLE LOADING OVERLAY (replaces both previous overlays) -->
+        <Border Grid.RowSpan="3" 
+                Background="#E6F8FAFC" 
                 IsVisible="{Binding IsBusy}"
-                ZIndex="10">
+                ZIndex="100">
             <StackPanel VerticalAlignment="Center" 
                         HorizontalAlignment="Center"
-                        Spacing="20">
+                        Spacing="16">
                 <!-- Modern Spinner -->
                 <controls:LoadingSpinner/>
                 <TextBlock Text="{Binding StatusMessage}"
                            FontSize="14"
                            Foreground="#475569"
                            HorizontalAlignment="Center"
-                           TextAlignment="Center"/>
+                           TextAlignment="Center"
+                           MaxWidth="300"/>
             </StackPanel>
         </Border>
     </Grid>

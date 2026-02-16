@@ -538,6 +538,9 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
                 // Auto-select common fields for initial graph display
                 AutoSelectDefaultGraphFields();
                 
+                // Load GPS track for map FIRST (so map shows immediately)
+                LoadGpsTrack();
+                
                 // Detect events in background
                 if (_eventDetector != null)
                 {
@@ -554,9 +557,6 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
                 FilterEvents();
                 UpdateEventDisplaySummary();
                 
-                // Load GPS track for map
-                LoadGpsTrack();
-                
                 // Load parameter changes if available
                 LoadParameterChanges();
                 
@@ -567,6 +567,11 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
                 LoadRawLogMessages();
 
                 StatusMessage = $"Log loaded: {result.MessageCount:N0} messages - {DetectedEvents.Count} events detected";
+                
+                // Notify all properties changed to ensure UI updates
+                OnPropertyChanged(nameof(HasGpsData));
+                OnPropertyChanged(nameof(HasFilteredEvents));
+                OnPropertyChanged(nameof(ShowNoEventsMessage));
             }
             else
             {
@@ -1490,12 +1495,16 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
             CriticalMapEvents.Clear();
 
             if (!IsLogLoaded)
+            {
+                OnPropertyChanged(nameof(HasGpsData));
                 return;
+            }
 
             var gpsData = _logAnalyzerService.GetFieldData("GPS", "Lat");
             if (gpsData == null || gpsData.Count == 0)
             {
                 _logger.LogInformation("No GPS data found in log");
+                OnPropertyChanged(nameof(HasGpsData));
                 return;
             }
 
@@ -1505,6 +1514,7 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
             if (lngData == null)
             {
                 _logger.LogWarning("Longitude data missing");
+                OnPropertyChanged(nameof(HasGpsData));
                 return;
             }
 
@@ -1537,22 +1547,9 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
                 });
             }
 
-            // Populate critical events for map display
-            // Filter events that are critical/error severity and have valid location data
-            if (DetectedEvents != null && DetectedEvents.Count > 0)
-            {
-                var criticalEvents = DetectedEvents
-                    .Where(e => e.Severity >= LogEventSeverity.Warning && e.HasLocation)
-                    .OrderBy(e => e.Timestamp)
-                    .ToList();
-
-                foreach (var evt in criticalEvents)
-                {
-                    CriticalMapEvents.Add(evt);
-                }
-
-                _logger.LogInformation("Loaded {Count} critical events for map display", CriticalMapEvents.Count);
-            }
+            // Populate critical events for map display after events are detected
+            // This will be called again after event detection completes
+            PopulateCriticalMapEvents();
 
             if (GpsTrack.Count > 0)
             {
@@ -1561,14 +1558,41 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
                 MapCenterLng = firstPoint.Longitude;
                 MapZoom = 15;
 
-                _logger.LogInformation("GPS track loaded with {Count} points and {EventCount} critical events", 
-                    GpsTrack.Count, CriticalMapEvents.Count);
+                _logger.LogInformation("GPS track loaded with {Count} points", GpsTrack.Count);
             }
+            
+            // Notify HasGpsData property changed to update UI bindings
+            OnPropertyChanged(nameof(HasGpsData));
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error loading GPS track");
+            OnPropertyChanged(nameof(HasGpsData));
         }
+    }
+    
+    /// <summary>
+    /// Populates critical events for map display.
+    /// Should be called after both GPS track and events are loaded.
+    /// </summary>
+    private void PopulateCriticalMapEvents()
+    {
+        CriticalMapEvents.Clear();
+        
+        if (DetectedEvents == null || DetectedEvents.Count == 0)
+            return;
+            
+        var criticalEvents = DetectedEvents
+            .Where(e => e.Severity >= LogEventSeverity.Warning && e.HasLocation)
+            .OrderBy(e => e.Timestamp)
+            .ToList();
+
+        foreach (var evt in criticalEvents)
+        {
+            CriticalMapEvents.Add(evt);
+        }
+
+        _logger.LogInformation("Loaded {Count} critical events for map display", CriticalMapEvents.Count);
     }
     
     #endregion
