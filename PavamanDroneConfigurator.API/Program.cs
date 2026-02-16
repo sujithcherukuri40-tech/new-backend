@@ -64,7 +64,7 @@ if (string.IsNullOrEmpty(secretKey) || secretKey.Length < 32)
 // Database
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(connectionString)
-        .EnableSensitiveDataLogging(builder.Environment.IsDevelopment() && 
+        .EnableSensitiveDataLogging(builder.Environment.IsDevelopment() &&
             Environment.GetEnvironmentVariable("ENABLE_SENSITIVE_LOGGING") == "true"));
 
 // JWT Authentication
@@ -105,7 +105,7 @@ builder.Services.AddAuthorization();
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
-    
+
     options.AddFixedWindowLimiter("fixed", limiter =>
     {
         limiter.PermitLimit = 100;
@@ -113,14 +113,14 @@ builder.Services.AddRateLimiter(options =>
         limiter.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
         limiter.QueueLimit = 10;
     });
-    
+
     options.AddFixedWindowLimiter("auth", limiter =>
     {
         limiter.PermitLimit = 10;
         limiter.Window = TimeSpan.FromMinutes(1);
         limiter.QueueLimit = 2;
     });
-    
+
     options.AddFixedWindowLimiter("admin", limiter =>
     {
         limiter.PermitLimit = 30;
@@ -277,11 +277,11 @@ static string? GetConnectionString(WebApplicationBuilder builder)
         return $"Host={host};Port={port};Database={name};Username={user};Password={pass};Ssl Mode={ssl}";
     }
 
-    // Priority 3: appsettings.json (not recommended for production)
+    // Priority 3: appsettings.json
     var appSettings = builder.Configuration.GetConnectionString("PostgresDb");
     if (!string.IsNullOrEmpty(appSettings))
     {
-        Console.WriteLine("[WARN] Using appsettings.json (not recommended for production)");
+        Console.WriteLine("[OK] Using appsettings.json connection string");
         return appSettings;
     }
 
@@ -298,11 +298,11 @@ static string? GetJwtSecret(WebApplicationBuilder builder)
         return key;
     }
 
-    // Priority 2: appsettings.json (not recommended for production)
+    // Priority 2: appsettings.json
     var appKey = builder.Configuration.GetSection("Jwt")["SecretKey"];
     if (!string.IsNullOrEmpty(appKey) && appKey.Length >= 32 && !appKey.Contains("REPLACE"))
     {
-        Console.WriteLine("[WARN] Using JWT from appsettings.json (not recommended for production)");
+        Console.WriteLine("[OK] Using JWT from appsettings.json");
         return appKey;
     }
 
