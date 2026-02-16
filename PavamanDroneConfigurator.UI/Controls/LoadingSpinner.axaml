@@ -2,15 +2,48 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="PavamanDroneConfigurator.UI.Controls.LoadingSpinner">
     
-    <Grid Width="50" Height="50">
-        <!-- Indeterminate ProgressBar styled as a circle would be complex,
-             so using a simple indeterminate progress bar -->
-        <ProgressBar IsIndeterminate="True"
-                     Width="50"
-                     Height="4"
-                     Foreground="#3B82F6"
-                     Background="#E5E7EB"
-                     VerticalAlignment="Center"/>
+    <UserControl.Styles>
+        <!-- Rotating animation for spinner -->
+        <Style Selector="Border.spinner">
+            <Style.Animations>
+                <Animation Duration="0:0:0.8" IterationCount="INFINITE">
+                    <KeyFrame Cue="0%">
+                        <Setter Property="RotateTransform.Angle" Value="0"/>
+                    </KeyFrame>
+                    <KeyFrame Cue="100%">
+                        <Setter Property="RotateTransform.Angle" Value="360"/>
+                    </KeyFrame>
+                </Animation>
+            </Style.Animations>
+        </Style>
+    </UserControl.Styles>
+    
+    <Grid Width="40" Height="40">
+        <!-- Circular spinner using Arc -->
+        <Border Classes="spinner"
+                Width="40" Height="40"
+                CornerRadius="20"
+                BorderThickness="3"
+                RenderTransformOrigin="0.5,0.5">
+            <Border.BorderBrush>
+                <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
+                    <GradientStop Color="#3B82F6" Offset="0"/>
+                    <GradientStop Color="#06B6D4" Offset="0.5"/>
+                    <GradientStop Color="Transparent" Offset="0.5"/>
+                    <GradientStop Color="Transparent" Offset="1"/>
+                </LinearGradientBrush>
+            </Border.BorderBrush>
+            <Border.RenderTransform>
+                <RotateTransform Angle="0"/>
+            </Border.RenderTransform>
+        </Border>
+        
+        <!-- Inner circle -->
+        <Border Width="32" Height="32"
+                CornerRadius="16"
+                Background="#F1F5F9"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"/>
     </Grid>
     
 </UserControl>
