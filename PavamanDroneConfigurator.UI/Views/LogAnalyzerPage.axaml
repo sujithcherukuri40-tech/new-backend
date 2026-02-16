@@ -209,11 +209,6 @@
                     <Button Classes="ToolbarButton" Content="📂 Load Log" Command="{Binding BrowseLocalFileCommand}"/>
                     <Button Classes="ToolbarButton" Content="📡 From FC" Command="{Binding OpenDownloadDialogCommand}" 
                             IsEnabled="{Binding IsConnected}"/>
-                    <Separator Width="2" Background="#E1E1E1" Margin="12,4"/>
-                    <Button Classes="ToolbarButton" Content="📄 Export CSV" Command="{Binding ExportToCsvCommand}"
-                            IsEnabled="{Binding IsLogLoaded}"/>
-                    <Button Classes="ToolbarButton" Content="🗺 Export KML" Command="{Binding ExportToKmlCommand}"
-                            IsEnabled="{Binding HasGpsData}"/>
                 </StackPanel>
                 
                 <TextBlock Grid.Column="1" Text="{Binding LoadedLogInfo}" Foreground="#666666" 
@@ -324,10 +319,10 @@
             
             <!-- PLOT TAB -->
             <TabItem Header="Plot">
-                <Grid RowDefinitions="*,Auto,300">
+                <Grid ColumnDefinitions="*,Auto,280" RowDefinitions="*,Auto,300">
                     
-                    <!-- Graph Area (Top) -->
-                    <Grid Grid.Row="0">
+                    <!-- Graph Area (Top Left) -->
+                    <Grid Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="3">
                         <controls:LogGraphControl x:Name="GraphControl"
                                                    GraphData="{Binding CurrentGraph}"
                                                    IsVisible="{Binding HasGraphData}"/>
@@ -340,7 +335,7 @@
                                        Foreground="#999999"
                                        FontSize="16"
                                        HorizontalAlignment="Center"/>
-                            <TextBlock Text="Use the field tree on the right to add data series"
+                            <TextBlock Text="Use the field selection panel on the right to add data series"
                                        Foreground="#BBBBBB"
                                        FontSize="12"
                                        HorizontalAlignment="Center"
@@ -348,14 +343,87 @@
                         </StackPanel>
                     </Grid>
                     
+                    <!-- Vertical Splitter -->
+                    <GridSplitter Grid.Row="0" Grid.Column="1"
+                                  Background="#E1E1E1"
+                                  Width="4"
+                                  VerticalAlignment="Stretch"/>
+                    
+                    <!-- Field Selection Panel (Right) -->
+                    <Border Grid.Row="0" Grid.Column="2"
+                            Background="White"
+                            BorderBrush="#E1E1E1"
+                            BorderThickness="1,0,0,0">
+                        <Grid RowDefinitions="Auto,*,Auto">
+                            <!-- Header -->
+                            <Border Grid.Row="0"
+                                    Background="#F5F5F5"
+                                    Padding="12,8"
+                                    BorderBrush="#E1E1E1"
+                                    BorderThickness="0,0,0,1">
+                                <TextBlock Text="Field Selection"
+                                           FontWeight="SemiBold"
+                                           FontSize="13"
+                                           Foreground="#333333"/>
+                            </Border>
+                            
+                            <!-- Field List -->
+                            <ScrollViewer Grid.Row="1"
+                                          VerticalScrollBarVisibility="Auto">
+                                <ItemsControl ItemsSource="{Binding MessageTypesTree}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Expander Header="{Binding Name}"
+                                                      IsExpanded="True"
+                                                      Margin="4,2">
+                                                <ItemsControl ItemsSource="{Binding Fields}"
+                                                              Margin="12,4,4,4">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <CheckBox Content="{Binding Name}"
+                                                                      IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                                                      Margin="0,2"
+                                                                      FontSize="12"/>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                            </Expander>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
+                            
+                            <!-- Action Buttons -->
+                            <Border Grid.Row="2"
+                                    Background="#FAFAFA"
+                                    BorderBrush="#E1E1E1"
+                                    BorderThickness="0,1,0,0"
+                                    Padding="8">
+                                <StackPanel Orientation="Vertical"
+                                            Spacing="4">
+                                    <Button Content="Select Common Fields"
+                                            Command="{Binding SelectDefaultFieldsCommand}"
+                                            HorizontalAlignment="Stretch"
+                                            Padding="8,6"
+                                            FontSize="12"/>
+                                    <Button Content="Clear All"
+                                            Command="{Binding ClearAllFieldsCommand}"
+                                            HorizontalAlignment="Stretch"
+                                            Padding="8,6"
+                                            FontSize="12"/>
+                                </StackPanel>
+                            </Border>
+                        </Grid>
+                    </Border>
+                    
                     <!-- Splitter -->
-                    <GridSplitter Grid.Row="1"
+                    <GridSplitter Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="3"
                                   Background="#E1E1E1"
                                   Height="4"
                                   HorizontalAlignment="Stretch"/>
                     
                     <!-- Map Area (Bottom) -->
-                    <Grid Grid.Row="2">
+                    <Grid Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="3">
                         <!-- Map Header with Controls -->
                         <Border Background="White"
                                 BorderBrush="#E1E1E1"

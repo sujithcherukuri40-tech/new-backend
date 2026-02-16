@@ -515,28 +515,38 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
 
     private void OnLogParsed(object? sender, LogParseResult result)
     {
-        _ = Dispatcher.UIThread.InvokeAsync(async () =>
+        // Process log data on background thread to avoid blocking UI
+        _ = Task.Run(async () =>
         {
             if (result.IsSuccess)
             {
-                IsLogLoaded = true;
-                LoadedLogInfo = $"{result.FileName} - {result.MessageCount:N0} messages, {result.DurationDisplay}";
-                
-                // Update overview
-                UpdateOverview(result);
-                
-                // Load message types
-                MessageTypes.Clear();
-                foreach (var type in result.MessageTypes)
+                // Update UI properties on UI thread
+                await Dispatcher.UIThread.InvokeAsync(() =>
                 {
-                    MessageTypes.Add(type);
-                }
+                    IsLogLoaded = true;
+                    IsAnalyzing = true;
+                    LoadedLogInfo = $"{result.FileName} - {result.MessageCount:N0} messages, {result.DurationDisplay}";
+                    StatusMessage = "Analyzing log data...";
+                    
+                    // Update overview
+                    UpdateOverview(result);
+                    
+                    // Load message types
+                    MessageTypes.Clear();
+                    foreach (var type in result.MessageTypes)
+                    {
+                        MessageTypes.Add(type);
+                    }
+                });
 
-                // Load available graph fields
+                // Heavy processing on background thread
                 LoadAvailableFields();
                 
-                // Auto-select common fields for initial graph display
-                AutoSelectDefaultGraphFields();
+                // Update UI for field selection
+                await Dispatcher.UIThread.InvokeAsync(() =>
+                {
+                    AutoSelectDefaultGraphFields();
+                });
                 
                 // Detect events in background
                 if (_eventDetector != null)
@@ -550,28 +560,40 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
                     ExtractBasicEventsFromLog();
                 }
                 
-                // Ensure events are filtered and displayed automatically
-                FilterEvents();
-                UpdateEventDisplaySummary();
+                // Filter and update events on UI thread
+                await Dispatcher.UIThread.InvokeAsync(() =>
+                {
+                    FilterEvents();
+                    UpdateEventDisplaySummary();
+                });
                 
-                // Load GPS track for map
+                // Load GPS track (heavy processing)
                 LoadGpsTrack();
                 
-                // Load parameter changes if available
+                // Load parameter changes
                 LoadParameterChanges();
                 
                 // Load log parameters with metadata
                 await LoadLogParametersAsync();
                 
-                // Load raw log messages for display
+                // Load raw log messages
                 LoadRawLogMessages();
 
-                StatusMessage = $"Log loaded: {result.MessageCount:N0} messages - {DetectedEvents.Count} events detected";
+                // Final UI update
+                await Dispatcher.UIThread.InvokeAsync(() =>
+                {
+                    IsAnalyzing = false;
+                    StatusMessage = $"Log loaded: {result.MessageCount:N0} messages - {DetectedEvents.Count} events detected";
+                });
             }
             else
             {
-                IsLogLoaded = false;
-                StatusMessage = $"Failed to load log: {result.ErrorMessage}";
+                await Dispatcher.UIThread.InvokeAsync(() =>
+                {
+                    IsLogLoaded = false;
+                    IsAnalyzing = false;
+                    StatusMessage = $"Failed to load log: {result.ErrorMessage}";
+                });
             }
         });
     }
@@ -2157,6 +2179,21 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
                     MaxValue = field.MaxValue,
                     MeanValue = field.MeanValue
                 };
+                
+                // Wire up property changed event to sync with AvailableFields
+                fieldNode.PropertyChanged += (s, e) =>
+                {
+                    if (e.PropertyName == nameof(LogFieldNode.IsSelected) && s is LogFieldNode node)
+                    {
+                        var matchingField = AvailableFields.FirstOrDefault(f => f.DisplayName == node.FullKey);
+                        if (matchingField != null)
+                        {
+                            matchingField.IsSelected = node.IsSelected;
+                            OnFieldSelectionChanged(matchingField);
+                        }
+                    }
+                };
+                
                 typeNode.Fields.Add(fieldNode);
             }
 
@@ -2284,6 +2321,24 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
         {
             _logger.LogWarning("No fields could be auto-selected");
         }
+    }
+
+    [RelayCommand]
+    private void SelectDefaultFields()
+    {
+        AutoSelectDefaultGraphFields();
+    }
+
+    [RelayCommand]
+    private void ClearAllFields()
+    {
+        foreach (var field in SelectedGraphFields.ToList())
+        {
+            field.IsSelected = false;
+        }
+        SelectedGraphFields.Clear();
+        UpdateGraph();
+        _logger.LogInformation("Cleared all selected graph fields");
     }
 
 
