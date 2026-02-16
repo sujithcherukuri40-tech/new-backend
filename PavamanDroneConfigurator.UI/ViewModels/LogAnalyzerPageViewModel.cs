@@ -515,22 +515,31 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
 
     private void OnLogParsed(object? sender, LogParseResult result)
     {
-        _ = Dispatcher.UIThread.InvokeAsync(async () =>
+        // Process log data on background thread to avoid blocking UI
+        _ = Task.Run(async () =>
         {
-            if (result.IsSuccess)
+            try
             {
-                IsLogLoaded = true;
-                LoadedLogInfo = $"{result.FileName} - {result.MessageCount:N0} messages, {result.DurationDisplay}";
-                
-                // Update overview
-                UpdateOverview(result);
-                
-                // Load message types
-                MessageTypes.Clear();
-                foreach (var type in result.MessageTypes)
+                if (result.IsSuccess)
                 {
-                    MessageTypes.Add(type);
-                }
+                    // Update UI properties on UI thread
+                    await Dispatcher.UIThread.InvokeAsync(() =>
+                    {
+                        IsLogLoaded = true;
+                        IsAnalyzing = true;
+                        LoadedLogInfo = $"{result.FileName} - {result.MessageCount:N0} messages, {result.DurationDisplay}";
+                        StatusMessage = "Analyzing log data...";
+                        
+                        // Update overview
+                        UpdateOverview(result);
+                        
+                        // Load message types
+                        MessageTypes.Clear();
+                        foreach (var type in result.MessageTypes)
+                        {
+                            MessageTypes.Add(type);
+                        }
+                    });
 
                 // Load available graph fields
                 LoadAvailableFields();
@@ -546,11 +555,14 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
                 {
                     await DetectEventsAsync();
                 }
-                
-                // If no events were detected, extract basic events from MSG messages
-                if (DetectedEvents.Count == 0)
+                else
                 {
-                    ExtractBasicEventsFromLog();
+                    await Dispatcher.UIThread.InvokeAsync(() =>
+                    {
+                        IsLogLoaded = false;
+                        IsAnalyzing = false;
+                        StatusMessage = $"Failed to load log: {result.ErrorMessage}";
+                    });
                 }
                 
                 // Ensure events are filtered and displayed automatically
@@ -573,10 +585,15 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
                 OnPropertyChanged(nameof(HasFilteredEvents));
                 OnPropertyChanged(nameof(ShowNoEventsMessage));
             }
-            else
+            catch (Exception ex)
             {
-                IsLogLoaded = false;
-                StatusMessage = $"Failed to load log: {result.ErrorMessage}";
+                _logger.LogError(ex, "Error processing log file");
+                await Dispatcher.UIThread.InvokeAsync(() =>
+                {
+                    IsLogLoaded = false;
+                    IsAnalyzing = false;
+                    StatusMessage = $"Error processing log: {ex.Message}";
+                });
             }
         });
     }
@@ -2148,6 +2165,10 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
             return;
         }
         
+        // Build dictionary for O(1) lookup performance
+        // Note: This dictionary is populated before event handlers are attached and is read-only after initialization
+        var fieldLookup = new Dictionary<string, LogFieldInfo>();
+        
         foreach (var field in fields)
         {
             var stats = _logAnalyzerService.GetFieldStatistics(field.DisplayName);
@@ -2157,6 +2178,7 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
             
             AvailableFields.Add(field);
             FilteredFields.Add(field);
+            fieldLookup[field.DisplayName] = field;
         }
 
         var groupedByType = fields.GroupBy(f => f.MessageType).OrderBy(g => g.Key);
@@ -2181,6 +2203,22 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
                     MaxValue = field.MaxValue,
                     MeanValue = field.MeanValue
                 };
+                
+                // Wire up property changed event to sync with AvailableFields
+                // Dictionary lookup provides O(1) performance
+                // Event handlers execute on UI thread via OnFieldSelectionChanged which uses Dispatcher
+                fieldNode.PropertyChanged += (s, e) =>
+                {
+                    if (e.PropertyName == nameof(LogFieldNode.IsSelected) && s is LogFieldNode node)
+                    {
+                        if (fieldLookup.TryGetValue(node.FullKey, out var matchingField))
+                        {
+                            matchingField.IsSelected = node.IsSelected;
+                            OnFieldSelectionChanged(matchingField);
+                        }
+                    }
+                };
+                
                 typeNode.Fields.Add(fieldNode);
             }
 
@@ -2308,6 +2346,31 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
         {
             _logger.LogWarning("No fields could be auto-selected");
         }
+    }
+
+    [RelayCommand]
+    private void SelectDefaultFields()
+    {
+        AutoSelectDefaultGraphFields();
+    }
+
+    [RelayCommand]
+    private void ClearAllFields()
+    {
+        // Clear the selected fields collection first, then update individual field properties
+        // This ensures the graph update (triggered by UpdateGraph) happens only once
+        // Note: Setting IsSelected still triggers individual property notifications, but graph updates are batched
+        var fieldsToDeselect = SelectedGraphFields.ToList();
+        SelectedGraphFields.Clear();
+        
+        // Update IsSelected property on each field
+        foreach (var field in fieldsToDeselect)
+        {
+            field.IsSelected = false;
+        }
+        
+        UpdateGraph();
+        _logger.LogInformation("Cleared all selected graph fields");
     }
 
 

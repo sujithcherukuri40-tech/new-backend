@@ -180,7 +180,7 @@ public class LogMapControl : UserControl
 
             // Create line geometry from GPS points
             var coordinates = points
-                .Where(p => Math.Abs(p.Latitude) > 0.001 || Math.Abs(p.Longitude) > 0.001) // Filter invalid points
+                .Where(p => Math.Abs(p.Latitude) > 0.001 && Math.Abs(p.Longitude) > 0.001) // Filter invalid points (both must be valid)
                 .Select(p =>
                 {
                     // Convert WGS84 (lat/lon) to Spherical Mercator (Web Mercator)
