@@ -31,6 +31,7 @@ public partial class App : Application
     public static ServiceProvider? Services { get; private set; }
     public static IConfiguration? Configuration { get; private set; }
     private static bool _isShuttingDown;
+    private static IConnectionService? _connectionService;
 
     // EMBEDDED API URL - No external config file needed
     private const string EMBEDDED_API_URL = "http://43.205.128.248:5000";
@@ -208,6 +209,9 @@ public partial class App : Application
         services.AddTransient<ViewModels.Admin.ParamLogsViewModel>();
 
         Services = services.BuildServiceProvider();
+        
+        // Get connection service and monitor for disconnections
+        _connectionService = Services.GetService<IConnectionService>();
     }
 
     public override void OnFrameworkInitializationCompleted()
@@ -504,6 +508,31 @@ public partial class App : Application
                         }
                         catch { }
                     });
+                };
+            }
+
+            // Subscribe to disconnection events to automatically return to ConnectionShell
+            if (_connectionService != null)
+            {
+                _connectionService.ConnectionStateChanged += (sender, isConnected) =>
+                {
+                    if (!isConnected && !_isShuttingDown)
+                    {
+                        Dispatcher.UIThread.Post(() =>
+                        {
+                            try
+                            {
+                                Console.WriteLine("Drone disconnected - returning to connection page");
+                                var oldWindow = desktop.MainWindow;
+                                ShowConnectionShell(desktop);
+                                oldWindow?.Close();
+                            }
+                            catch (Exception ex)
+                            {
+                                Console.WriteLine($"Error handling disconnection: {ex.Message}");
+                            }
+                        });
+                    }
                 };
             }
 
