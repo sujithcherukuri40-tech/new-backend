@@ -12,8 +12,6 @@ public sealed partial class ResetParametersPageViewModel : ViewModelBase
     private readonly IConnectionService _connectionService;
     private readonly IParameterService _parameterService;
     private bool _disposed;
-    private bool _waitingForReconnect;
-    private DateTime _rebootStartTime;
 
     [ObservableProperty]
     private bool _isConnected;
@@ -56,25 +54,17 @@ public sealed partial class ResetParametersPageViewModel : ViewModelBase
             var wasConnected = IsConnected;
             IsConnected = connected;
             
-            if (_waitingForReconnect && connected)
-            {
-                // Drone reconnected after reboot
-                _waitingForReconnect = false;
-                IsRebooting = false;
-                StatusMessage = "Drone reconnected! Click 'Refresh Parameters' to download the reset parameters.";
-            }
-            else if (!connected && wasConnected && IsRebooting)
+            if (!connected && wasConnected && IsRebooting)
             {
                 // Drone disconnected during reboot - this is expected
-                StatusMessage = "Drone is rebooting... waiting for reconnection...";
-                _waitingForReconnect = true;
+                IsRebooting = false;
+                StatusMessage = "Drone is rebooting. Please reconnect manually using the Connection page when ready.";
             }
             else if (!connected)
             {
                 ResetComplete = false;
                 ResetFailed = false;
                 IsRebooting = false;
-                _waitingForReconnect = false;
                 UpdateStatusMessage();
             }
         });
@@ -107,9 +97,7 @@ public sealed partial class ResetParametersPageViewModel : ViewModelBase
                 if (e.IsSuccess)
                 {
                     IsRebooting = true;
-                    _rebootStartTime = DateTime.UtcNow;
-                    StatusMessage = "Reboot command accepted. Drone is rebooting...";
-                    _ = MonitorRebootAsync();
+                    StatusMessage = "Reboot command accepted. Drone is rebooting... Please reconnect manually when ready.";
                 }
                 else
                 {
@@ -153,30 +141,6 @@ public sealed partial class ResetParametersPageViewModel : ViewModelBase
             ResetComplete = false;
             ResetFailed = true;
             StatusMessage = $"Alternative reset failed: {ex.Message}";
-        }
-    }
-
-    private async Task MonitorRebootAsync()
-    {
-        _waitingForReconnect = true;
-        
-        // Wait up to 30 seconds for reconnection
-        for (int i = 0; i < 30 && _waitingForReconnect; i++)
-        {
-            await Task.Delay(1000);
-            
-            if (!_waitingForReconnect)
-                break;
-                
-            var elapsed = (DateTime.UtcNow - _rebootStartTime).TotalSeconds;
-            StatusMessage = $"Drone is rebooting... waiting for reconnection ({elapsed:F0}s)";
-        }
-
-        if (_waitingForReconnect)
-        {
-            _waitingForReconnect = false;
-            IsRebooting = false;
-            StatusMessage = "Reboot timeout. Please manually reconnect to the drone using the Connection page.";
         }
     }
 
@@ -268,23 +232,10 @@ public sealed partial class ResetParametersPageViewModel : ViewModelBase
         
         await Task.Delay(100); // Simulate async dialog
         return true; // Placeholder - always confirm for now
-        
-        // Production implementation would look like:
-        // var result = await MessageBox.Show(
-        //     owner: GetMainWindow(),
-        //     title: "Confirm Factory Reset",
-        //     message: "This will reset ALL parameters to factory defaults.\n\n" +
-        //              "All custom configurations will be permanently lost.\n\n" +
-        //              "Are you sure you want to proceed?",
-        //     buttons: MessageBoxButtons.CancelReset,
-        //     icon: MessageBoxIcon.Warning,
-        //     defaultButton: MessageBoxDefaultButton.Cancel
-        // );
-        // return result == MessageBoxResult.Reset;
     }
 
     [RelayCommand]
-    private async Task RebootDroneAsync()
+    private void RebootDrone()
     {
         if (!IsConnected || IsRebooting)
             return;
@@ -292,18 +243,11 @@ public sealed partial class ResetParametersPageViewModel : ViewModelBase
         IsRebooting = true;
         StatusMessage = "Sending reboot command to drone...";
         
+        // Send reboot command - drone will disconnect immediately
         _connectionService.SendPreflightReboot(1, 0);
         
-        // Wait a bit for the ACK
-        await Task.Delay(2000);
-        
-        // If we didn't get an ACK, the drone might have already started rebooting
-        if (IsRebooting && IsConnected)
-        {
-            _rebootStartTime = DateTime.UtcNow;
-            StatusMessage = "Reboot command sent. Waiting for drone to restart...";
-            await MonitorRebootAsync();
-        }
+        // No timeout monitoring - drone disconnects and user reconnects manually
+        StatusMessage = "Reboot command sent. Drone is rebooting... Please reconnect manually when ready.";
     }
 
     [RelayCommand]
