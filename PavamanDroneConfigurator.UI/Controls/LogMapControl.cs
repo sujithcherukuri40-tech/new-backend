@@ -240,7 +240,7 @@ public class LogMapControl : UserControl
             IsVisible = false,
             Child = new TextBlock
             {
-                Text = "?? CRASH DETECTED - Emergency Event Recorded",
+                Text = "? CRASH DETECTED - Emergency Event Recorded",
                 Foreground = Brushes.White,
                 FontWeight = FontWeight.Bold,
                 FontSize = 14
@@ -265,7 +265,7 @@ public class LogMapControl : UserControl
 
         _searchBox = new TextBox
         {
-            Watermark = "?? Search location...",
+            Watermark = "Search location...",
             Width = 280,
             FontSize = 13,
             Padding = new Thickness(12, 10)
@@ -336,9 +336,9 @@ public class LogMapControl : UserControl
         {
             ("+", "Zoom In", () => _map.Navigator?.ZoomIn()),
             ("?", "Zoom Out", () => _map.Navigator?.ZoomOut()),
-            ("??", "Fit to Track", () => ZoomToTrack()),
-            ("??", "Reset North", () => _map.Navigator?.RotateTo(0)),
-            ("??", "Toggle Legend", () => { if (_legendPanel != null) _legendPanel.IsVisible = !_legendPanel.IsVisible; })
+            ("?", "Fit to Track", () => ZoomToTrack()),
+            ("?", "Reset North", () => _map.Navigator?.RotateTo(0)),
+            ("•", "Toggle Legend", () => { if (_legendPanel != null) _legendPanel.IsVisible = !_legendPanel.IsVisible; })
         };
 
         foreach (var (content, tooltip, onClick) in buttons)
@@ -848,21 +848,21 @@ public class LogMapControl : UserControl
             // Event count
             var eventCount = (CriticalEvents?.Count() ?? 0) + (AllEvents?.Count() ?? 0);
 
-            _statsPanel.Text = $@"?? Flight Statistics
+            _statsPanel.Text = $@"Flight Statistics
 ?????????????????????
-?? Distance:    {totalDistance:F2} km
-?? Duration:    {minutes}m {seconds}s
+Distance:    {totalDistance:F2} km
+Duration:    {minutes}m {seconds}s
 ?????????????????????
-?? Max Alt:     {maxAlt:F1} m
-?? Min Alt:     {minAlt:F1} m
-?? Avg Alt:     {avgAlt:F1} m
+Max Alt:     {maxAlt:F1} m
+Min Alt:     {minAlt:F1} m
+Avg Alt:     {avgAlt:F1} m
 ?????????????????????
-?? Max Speed:   {maxSpeed:F1} m/s
-?? Avg Speed:   {avgSpeed:F1} m/s
+Max Speed:   {maxSpeed:F1} m/s
+Avg Speed:   {avgSpeed:F1} m/s
 ?????????????????????
-?? GPS Points:  {points.Count:N0}
-?? Events:      {eventCount}
-?? Crashes:     {_crashSegments.Count}";
+GPS Points:  {points.Count:N0}
+Events:      {eventCount}
+Crashes:     {_crashSegments.Count}";
 
             // Show stats panel
             if (_statsPanel.Parent is Border border)

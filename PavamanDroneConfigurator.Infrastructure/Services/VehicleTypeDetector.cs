@@ -113,18 +113,18 @@ public class VehicleTypeDetector
     }
 
     /// <summary>
-    /// Gets emoji icon for vehicle type (for UI display).
-    /// Uses Unicode escape sequences for Avalonia compatibility.
+    /// Gets text icon for vehicle type (for UI display).
+    /// Uses simple text characters for Avalonia compatibility.
     /// </summary>
     public string GetVehicleTypeIcon(VehicleType vehicleType)
     {
         return vehicleType switch
         {
-            VehicleType.Copter => "\U0001F681",    // Helicopter
-            VehicleType.Plane => "\u2708",          // Airplane
-            VehicleType.Rover => "\U0001F697",     // Car
-            VehicleType.Sub => "\U0001F6A4",       // Speedboat (closest to submarine)
-            VehicleType.Tracker => "\U0001F4E1",   // Satellite antenna
+            VehicleType.Copter => "?",      // Diamond (Copter)
+            VehicleType.Plane => "?",       // Right triangle (Plane)
+            VehicleType.Rover => "?",       // Square (Rover)
+            VehicleType.Sub => "?",         // Circle (Sub)
+            VehicleType.Tracker => "?",     // Inverted bullet (Tracker)
             _ => "?"
         };
     }
