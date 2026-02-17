@@ -96,6 +96,9 @@ public partial class App : Application
         // Auto-connect settings storage
         services.AddSingleton<ConnectionSettingsStorage>();
 
+        // Token authentication handler for API services requiring JWT
+        services.AddTransient<TokenAuthenticationHandler>();
+
         // Get API URL - embedded default, can be overridden by env var
         var apiUrl = Environment.GetEnvironmentVariable("API_BASE_URL") ?? EMBEDDED_API_URL;
 
@@ -111,14 +114,16 @@ public partial class App : Application
             client.BaseAddress = new Uri(apiUrl);
             client.DefaultRequestHeaders.Add("Accept", "application/json");
             client.Timeout = TimeSpan.FromSeconds(30);
-        });
+        })
+        .AddHttpMessageHandler<TokenAuthenticationHandler>(); // ? Add JWT token handler
 
         services.AddHttpClient<FirmwareApiService>(client =>
         {
             client.BaseAddress = new Uri(apiUrl);
             client.DefaultRequestHeaders.Add("Accept", "application/json");
             client.Timeout = TimeSpan.FromMinutes(5);
-        });
+        })
+        .AddHttpMessageHandler<TokenAuthenticationHandler>(); // ? Add JWT token handler
 
         services.AddSingleton<AuthSessionViewModel>();
 
