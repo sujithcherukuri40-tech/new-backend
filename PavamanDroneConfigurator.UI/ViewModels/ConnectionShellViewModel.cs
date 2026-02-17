@@ -9,17 +9,20 @@ using CommunityToolkit.Mvvm.Input;
 using PavamanDroneConfigurator.Core.Enums;
 using PavamanDroneConfigurator.Core.Interfaces;
 using PavamanDroneConfigurator.Core.Models;
+using PavamanDroneConfigurator.Infrastructure.Services;
 
 namespace PavamanDroneConfigurator.UI.ViewModels;
 
 /// <summary>
 /// ViewModel for the connection shell window that appears after login.
 /// Handles connection setup before showing the main application.
+/// Supports auto-connect with saved connection settings.
 /// </summary>
 public partial class ConnectionShellViewModel : ViewModelBase
 {
     private readonly IConnectionService _connectionService;
     private readonly IParameterService _parameterService;
+    private readonly ConnectionSettingsStorage? _settingsStorage;
     private bool _hasNavigatedToMain;
 
     /// <summary>
@@ -88,6 +91,9 @@ public partial class ConnectionShellViewModel : ViewModelBase
     [ObservableProperty]
     private double _parameterProgressPercentage;
 
+    [ObservableProperty]
+    private bool _enableAutoConnect;
+
     /// <summary>
     /// Determines if the Connect button should be enabled
     /// </summary>
@@ -114,10 +120,12 @@ public partial class ConnectionShellViewModel : ViewModelBase
 
     public ConnectionShellViewModel(
         IConnectionService connectionService,
-        IParameterService parameterService)
+        IParameterService parameterService,
+        ConnectionSettingsStorage? settingsStorage = null)
     {
         _connectionService = connectionService;
         _parameterService = parameterService;
+        _settingsStorage = settingsStorage;
 
         _connectionService.ConnectionStateChanged += OnConnectionStateChanged;
         _connectionService.AvailableSerialPortsChanged += OnAvailableSerialPortsChanged;
@@ -133,6 +141,68 @@ public partial class ConnectionShellViewModel : ViewModelBase
         }
 
         SelectedBaudRate = AvailableBaudRates.FirstOrDefault(b => b.Value == 115200);
+
+        // Load saved settings if available
+        LoadSavedSettings();
+    }
+
+    /// <summary>
+    /// Load saved connection settings for auto-connect
+    /// </summary>
+    private void LoadSavedSettings()
+    {
+        if (_settingsStorage == null) return;
+
+        try
+        {
+            var (settings, autoConnect) = _settingsStorage.LoadSettings();
+
+            if (settings != null)
+            {
+                ConnectionType = settings.Type;
+                EnableAutoConnect = autoConnect;
+
+                switch (settings.Type)
+                {
+                    case ConnectionType.Serial:
+                        if (!string.IsNullOrEmpty(settings.PortName))
+                        {
+                            SelectedSerialPort = AvailableSerialPorts.FirstOrDefault(p => p.PortName == settings.PortName);
+                        }
+                        SelectedBaudRate = AvailableBaudRates.FirstOrDefault(b => b.Value == settings.BaudRate);
+                        break;
+
+                    case ConnectionType.Tcp:
+                        IpAddress = settings.IpAddress ?? "127.0.0.1";
+                        TcpPort = settings.Port;
+                        break;
+
+                    case ConnectionType.Bluetooth:
+                        // Bluetooth device will be loaded when devices are scanned
+                        break;
+                }
+
+                StatusMessage = "Last connection settings loaded";
+                
+                // Trigger auto-connect if enabled
+                if (autoConnect)
+                {
+                    _ = Task.Run(async () =>
+                    {
+                        await Task.Delay(1000); // Small delay to let UI settle
+                        await Dispatcher.UIThread.InvokeAsync(async () =>
+                        {
+                            StatusMessage = "Auto-connecting...";
+                            await ConnectAsync();
+                        });
+                    });
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Failed to load saved settings: {ex.Message}");
+        }
     }
 
     private void OnAvailableSerialPortsChanged(object? sender, IEnumerable<SerialPortInfo> ports)
@@ -167,6 +237,9 @@ public partial class ConnectionShellViewModel : ViewModelBase
                 IsDownloadingParameters = true;
                 StatusMessage = "Connected - Downloading parameters...";
 
+                // Save connection settings for auto-connect
+                SaveConnectionSettings();
+
                 // Trigger parameter download
                 _ = Task.Run(async () =>
                 {
@@ -192,6 +265,34 @@ public partial class ConnectionShellViewModel : ViewModelBase
                 _hasNavigatedToMain = false;
             }
         });
+    }
+
+    /// <summary>
+    /// Save current connection settings after successful connection
+    /// </summary>
+    private void SaveConnectionSettings()
+    {
+        if (_settingsStorage == null) return;
+
+        try
+        {
+            var settings = new ConnectionSettings
+            {
+                Type = ConnectionType,
+                PortName = SelectedSerialPort?.PortName ?? string.Empty,
+                BaudRate = BaudRate,
+                IpAddress = IpAddress,
+                Port = TcpPort,
+                BluetoothDeviceAddress = SelectedBluetoothDevice?.DeviceAddress,
+                BluetoothDeviceName = SelectedBluetoothDevice?.DeviceName
+            };
+
+            _settingsStorage.SaveSettings(settings, EnableAutoConnect);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Failed to save connection settings: {ex.Message}");
+        }
     }
 
     private void OnParameterDownloadProgressChanged(object? sender, EventArgs e)

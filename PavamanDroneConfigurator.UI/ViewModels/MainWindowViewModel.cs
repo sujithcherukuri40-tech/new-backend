@@ -195,6 +195,14 @@ public partial class MainWindowViewModel : ViewModelBase
         Dispatcher.UIThread.Post(() =>
         {
             UpdateAccessPermissions();
+            
+            // Auto-navigate to connection tab on disconnect
+            if (!connected)
+            {
+                // Disconnect detected - navigate to Connection page
+                CurrentPage = ConnectionPage;
+                // Also update view if MainWindow has a method to set view
+            }
         });
     }
 

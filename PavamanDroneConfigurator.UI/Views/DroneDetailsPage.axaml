@@ -17,7 +17,7 @@
 			<Grid ColumnDefinitions="*,Auto">
 				<StackPanel Grid.Column="0" Spacing="8">
 					<TextBlock Text="Drone Details" Classes="page-title"/>
-					<TextBlock Text="View your drone's identification and version information" Classes="page-subtitle"/>
+					<TextBlock Text="View your drone's identification and checksums" Classes="page-subtitle"/>
 				</StackPanel>
 
 				<Button Grid.Column="1"
@@ -67,38 +67,24 @@
 					<StackPanel Grid.Column="1" Spacing="20">
 						<TextBlock Text="Identification" Classes="section-title"/>
 
-						<Grid ColumnDefinitions="160,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto" RowSpacing="16">
+						<Grid ColumnDefinitions="160,*" RowDefinitions="Auto,Auto,Auto" RowSpacing="16">
 
 							<!-- Drone ID -->
 							<TextBlock Grid.Row="0" Grid.Column="0" Text="Drone ID" Classes="caption"/>
 							<TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding DroneId}"
                                        Classes="value" FontFamily="{DynamicResource MonospaceFont}"/>
 
-							<!-- FC ID -->
-							<TextBlock Grid.Row="1" Grid.Column="0" Text="Flight Controller ID" Classes="caption"/>
-							<TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding FcId}"
-                                       Classes="value" FontFamily="{DynamicResource MonospaceFont}"/>
-
-							<!-- Firmware Version -->
-							<TextBlock Grid.Row="2" Grid.Column="0" Text="Firmware Version" Classes="caption"/>
-							<Border Grid.Row="2" Grid.Column="1" Classes="badge-info" HorizontalAlignment="Left">
-								<TextBlock Text="{Binding FirmwareVersion}"
-                                           FontSize="{DynamicResource FontSizeSM}"
-                                           FontWeight="SemiBold"
-                                           Foreground="{DynamicResource PrimaryBrush}"/>
-							</Border>
-
 							<!-- Code Checksum -->
-							<TextBlock Grid.Row="3" Grid.Column="0" Text="Code Checksum" Classes="caption"/>
-							<TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding CodeChecksum}"
+							<TextBlock Grid.Row="1" Grid.Column="0" Text="Code Checksum" Classes="caption"/>
+							<TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding CodeChecksum}"
                                        FontFamily="{DynamicResource MonospaceFont}"
                                        FontSize="{DynamicResource FontSizeSM}"
                                        Foreground="{DynamicResource TextMutedBrush}"
                                        TextWrapping="Wrap"/>
 
 							<!-- Data Checksum -->
-							<TextBlock Grid.Row="4" Grid.Column="0" Text="Data Checksum" Classes="caption"/>
-							<TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding DataChecksum}"
+							<TextBlock Grid.Row="2" Grid.Column="0" Text="Data Checksum" Classes="caption"/>
+							<TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding DataChecksum}"
                                        FontFamily="{DynamicResource MonospaceFont}"
                                        FontSize="{DynamicResource FontSizeSM}"
                                        Foreground="{DynamicResource TextMutedBrush}"

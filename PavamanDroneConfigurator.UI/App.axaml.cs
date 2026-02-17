@@ -93,6 +93,9 @@ public partial class App : Application
 
         services.AddSingleton<ITokenStorage, SecureTokenStorage>();
 
+        // Auto-connect settings storage
+        services.AddSingleton<ConnectionSettingsStorage>();
+
         // Get API URL - embedded default, can be overridden by env var
         var apiUrl = Environment.GetEnvironmentVariable("API_BASE_URL") ?? EMBEDDED_API_URL;
 

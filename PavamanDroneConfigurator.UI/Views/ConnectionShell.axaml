@@ -48,7 +48,7 @@
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Cursor" Value="Hand"/>
         </Style>
-        <Style Selector="Button.btn-cyan:pointerover">
+        <Style Selector="Button.btn-cyan.pointerover">
             <Setter Property="Background" Value="#0EA5E9"/>
         </Style>
         <Style Selector="Button.btn-cyan:disabled">
@@ -323,6 +323,25 @@
                                      CornerRadius="4"
                                      Foreground="#38BDF8"
                                      Background="#BFDBFE"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Auto-Connect Option -->
+                <Border Classes="conn-card">
+                    <StackPanel Spacing="12">
+                        <CheckBox IsChecked="{Binding EnableAutoConnect}"
+                                  IsEnabled="{Binding !IsConnected}">
+                            <StackPanel Spacing="4">
+                                <TextBlock Text="Enable Auto-Connect" 
+                                           FontWeight="SemiBold" 
+                                           FontSize="14" 
+                                           Foreground="#0F172A"/>
+                                <TextBlock Text="Automatically connect using these settings on next startup" 
+                                           FontSize="12" 
+                                           Foreground="#64748B"
+                                           TextWrapping="Wrap"/>
+                            </StackPanel>
+                        </CheckBox>
                     </StackPanel>
                 </Border>
 
