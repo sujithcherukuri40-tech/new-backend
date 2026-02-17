@@ -1,6 +1,7 @@
 using System;
 using System.Collections.ObjectModel;
 using System.Linq;
+using System.Net.Http;
 using System.Threading.Tasks;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -328,6 +329,7 @@ public sealed partial class AdminDashboardViewModel : ViewModelBase
         StatusMessage = "Loading users...";
         try
         {
+            _logger.LogInformation("Refreshing user list...");
             var response = await _adminService.GetAllUsersAsync();
 
             await Dispatcher.UIThread.InvokeAsync(() =>
@@ -358,10 +360,20 @@ public sealed partial class AdminDashboardViewModel : ViewModelBase
             StatusMessage = $"\u2714 Loaded {Users.Count} users";
             _logger.LogInformation("Loaded {Count} users ({Pending} pending)", Users.Count, PendingCount);
         }
+        catch (HttpRequestException httpEx)
+        {
+            _logger.LogError(httpEx, "HTTP error loading users: {Message}", httpEx.Message);
+            StatusMessage = $"\u274C {httpEx.Message}";
+        }
+        catch (InvalidOperationException authEx)
+        {
+            _logger.LogError(authEx, "Authentication error: {Message}", authEx.Message);
+            StatusMessage = $"\u274C {authEx.Message}";
+        }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to load users");
-            StatusMessage = "\u274C Failed to load users";
+            _logger.LogError(ex, "Failed to load users: {Message}", ex.Message);
+            StatusMessage = $"\u274C Failed to load users: {ex.Message}";
         }
         finally
         {
