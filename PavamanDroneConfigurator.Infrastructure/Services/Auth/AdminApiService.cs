@@ -39,21 +39,47 @@ public sealed class AdminApiService : IAdminService
             var accessToken = await _tokenStorage.GetAccessTokenAsync(cancellationToken);
             if (string.IsNullOrEmpty(accessToken))
             {
-                throw new InvalidOperationException("No access token available");
+                _logger.LogError("Cannot get users - no access token available");
+                throw new InvalidOperationException("Not authenticated - please login again");
             }
 
+            _logger.LogInformation("Fetching users list from API: {BaseAddress}/admin/users", _httpClient.BaseAddress);
+            
             using var request = new HttpRequestMessage(HttpMethod.Get, "/admin/users");
             request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
 
             var response = await _httpClient.SendAsync(request, cancellationToken);
-            response.EnsureSuccessStatusCode();
+            
+            // Handle different HTTP status codes with specific error messages
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorContent = await response.Content.ReadAsStringAsync(cancellationToken);
+                _logger.LogError("Failed to get users. Status: {StatusCode}, Response: {Response}", 
+                    response.StatusCode, errorContent);
+                
+                throw response.StatusCode switch
+                {
+                    System.Net.HttpStatusCode.Unauthorized => 
+                        new HttpRequestException("Session expired - please login again", null, System.Net.HttpStatusCode.Unauthorized),
+                    System.Net.HttpStatusCode.Forbidden => 
+                        new HttpRequestException("Access denied - admin privileges required", null, System.Net.HttpStatusCode.Forbidden),
+                    System.Net.HttpStatusCode.NotFound => 
+                        new HttpRequestException("API endpoint not found - check server configuration", null, System.Net.HttpStatusCode.NotFound),
+                    System.Net.HttpStatusCode.InternalServerError => 
+                        new HttpRequestException("Server error - please try again later", null, System.Net.HttpStatusCode.InternalServerError),
+                    _ => new HttpRequestException($"Server returned {(int)response.StatusCode}: {response.ReasonPhrase}", null, response.StatusCode)
+                };
+            }
 
             var apiResponse = await response.Content.ReadFromJsonAsync<UsersListApiResponse>(JsonOptions, cancellationToken);
 
             if (apiResponse == null)
             {
+                _logger.LogError("Invalid response from server - null response received");
                 throw new InvalidOperationException("Invalid response from server");
             }
+
+            _logger.LogInformation("Successfully retrieved {Count} users from API", apiResponse.Users.Count);
 
             return new AdminUsersResponse
             {
@@ -70,10 +96,29 @@ public sealed class AdminApiService : IAdminService
                 TotalCount = apiResponse.TotalCount
             };
         }
+        catch (HttpRequestException ex)
+        {
+            _logger.LogError(ex, "HTTP error fetching users list: {Message}", ex.Message);
+            throw; // Re-throw to preserve the specific error message
+        }
+        catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException)
+        {
+            _logger.LogError(ex, "Request timeout while fetching users");
+            throw new HttpRequestException("Connection timeout - check your network connection");
+        }
+        catch (TaskCanceledException ex)
+        {
+            _logger.LogError(ex, "Request cancelled while fetching users");
+            throw new HttpRequestException("Request was cancelled");
+        }
+        catch (InvalidOperationException)
+        {
+            throw; // Re-throw authentication errors
+        }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to get users list");
-            throw;
+            _logger.LogError(ex, "Unexpected error fetching users list: {Message}", ex.Message);
+            throw new HttpRequestException($"Failed to load users: {ex.Message}");
         }
     }
 
