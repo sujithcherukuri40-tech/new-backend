@@ -21,6 +21,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
 using System.Text.Json;
+using System.Threading;
 using System.Threading.Tasks;
 using AvaloniaColor = Avalonia.Media.Color;
 using MapsuiColor = Mapsui.Styles.Color;
@@ -32,9 +33,9 @@ using PavamanDroneConfigurator.Core.Interfaces;
 namespace PavamanDroneConfigurator.UI.Controls;
 
 /// <summary>
-/// Enhanced Map control for displaying GPS tracks from flight logs using OpenStreetMap tiles.
+/// Industrial-grade Map control using Mapsui with OpenStreetMap (100% Free).
 /// Features: GPS track visualization, crash detection (red lines), search bar, map controls,
-/// altitude/speed data, event markers with color coding.
+/// altitude/speed data, event markers with color coding, proper refresh handling.
 /// </summary>
 public class LogMapControl : UserControl
 {
@@ -45,6 +46,7 @@ public class LogMapControl : UserControl
     private WritableLayer? _markerLayer;
     private WritableLayer? _eventLayer;
     private WritableLayer? _currentPositionLayer;
+    private TileLayer? _osmLayer;
     
     // UI Controls
     private TextBox? _searchBox;
@@ -57,6 +59,13 @@ public class LogMapControl : UserControl
     // Data
     private List<GpsTrackPoint> _trackPoints = new();
     private List<(GpsTrackPoint Start, GpsTrackPoint End)> _crashSegments = new();
+    
+    // Refresh management
+    private CancellationTokenSource? _refreshCts;
+    private readonly object _refreshLock = new();
+    private bool _isRefreshing;
+    private DateTime _lastRefresh = DateTime.MinValue;
+    private const int MinRefreshIntervalMs = 100;
     
     #region Styled Properties
 
@@ -414,48 +423,86 @@ public class LogMapControl : UserControl
         TrackPointsProperty.Changed.AddClassHandler<LogMapControl>((control, args) =>
         {
             if (control == this)
-                Dispatcher.UIThread.Post(() => UpdateTrack());
+                control.ScheduleRefresh(() => control.UpdateTrack());
         });
 
         CriticalEventsProperty.Changed.AddClassHandler<LogMapControl>((control, args) =>
         {
             if (control == this)
-                Dispatcher.UIThread.Post(() => UpdateCriticalEvents());
+                control.ScheduleRefresh(() => control.UpdateCriticalEvents());
         });
 
         AllEventsProperty.Changed.AddClassHandler<LogMapControl>((control, args) =>
         {
             if (control == this)
-                Dispatcher.UIThread.Post(() => UpdateAllEvents());
-        });
-
-        CenterLatitudeProperty.Changed.AddClassHandler<LogMapControl>((control, args) =>
-        {
-            if (control == this)
-                Dispatcher.UIThread.Post(() => UpdateCenter());
-        });
-
-        CenterLongitudeProperty.Changed.AddClassHandler<LogMapControl>((control, args) =>
-        {
-            if (control == this)
-                Dispatcher.UIThread.Post(() => UpdateCenter());
+                control.ScheduleRefresh(() => control.UpdateAllEvents());
         });
 
         CurrentPositionTimestampProperty.Changed.AddClassHandler<LogMapControl>((control, args) =>
         {
             if (control == this)
-                Dispatcher.UIThread.Post(() => UpdateCurrentPosition());
+                control.ScheduleRefresh(() => control.UpdateCurrentPosition());
         });
+
+        CenterLatitudeProperty.Changed.AddClassHandler<LogMapControl>((control, args) =>
+        {
+            if (control == this)
+                control.ScheduleRefresh(() => control.UpdateCenter());
+        });
+
+        CenterLongitudeProperty.Changed.AddClassHandler<LogMapControl>((control, args) =>
+        {
+            if (control == this)
+                control.ScheduleRefresh(() => control.UpdateCenter());
+        });
+    }
+
+    private void ScheduleRefresh(Action refreshAction)
+    {
+        lock (_refreshLock)
+        {
+            // Cancel any pending refresh
+            _refreshCts?.Cancel();
+            _refreshCts?.Dispose();
+            _refreshCts = new CancellationTokenSource();
+
+            var cts = _refreshCts;
+            var timeSinceLastRefresh = (DateTime.Now - _lastRefresh).TotalMilliseconds;
+            var delay = Math.Max(0, MinRefreshIntervalMs - (int)timeSinceLastRefresh);
+
+            Task.Delay(delay, cts.Token).ContinueWith(_ =>
+            {
+                if (!cts.Token.IsCancellationRequested)
+                {
+                    Dispatcher.UIThread.Post(() =>
+                    {
+                        if (!cts.Token.IsCancellationRequested && !_isRefreshing)
+                        {
+                            try
+                            {
+                                _isRefreshing = true;
+                                _lastRefresh = DateTime.Now;
+                                refreshAction();
+                            }
+                            finally
+                            {
+                                _isRefreshing = false;
+                            }
+                        }
+                    });
+                }
+            }, TaskScheduler.Default);
+        }
     }
 
     private void InitializeMap()
     {
         try
         {
-            // Add OpenStreetMap layer
-            var osmLayer = OpenStreetMap.CreateTileLayer();
-            osmLayer.Name = "OpenStreetMap";
-            _map.Layers.Add(osmLayer);
+            // Add OpenStreetMap layer (100% Free - No API key needed)
+            _osmLayer = OpenStreetMap.CreateTileLayer();
+            _osmLayer.Name = "OpenStreetMap";
+            _map.Layers.Add(_osmLayer);
 
             // Create layers in order (bottom to top)
             _trackLayer = new WritableLayer { Name = "GPS Track" };
@@ -669,6 +716,9 @@ public class LogMapControl : UserControl
 
             // Zoom to track
             ZoomToTrack();
+            
+            // Invalidate map to refresh display
+            _mapControl.InvalidateVisual();
         }
         catch (Exception ex)
         {
@@ -1085,6 +1135,11 @@ public class LogMapControl : UserControl
 
         try
         {
+            // Cancel any pending refreshes
+            _refreshCts?.Cancel();
+            _refreshCts?.Dispose();
+            _refreshCts = null;
+            
             _mapControl.PointerMoved -= OnMapPointerMoved;
             
             _trackLayer?.Clear();
