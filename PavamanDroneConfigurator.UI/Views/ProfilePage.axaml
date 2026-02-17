@@ -155,6 +155,7 @@
                             <TextBlock Text="Automatically connect to last used drone" Classes="caption"/>
                         </StackPanel>
                         <ToggleSwitch Grid.Row="1" Grid.Column="1" 
+                                      IsChecked="{Binding EnableAutoConnect}"
                                       OnContent="On" 
                                       OffContent="Off"/>
                         
@@ -164,9 +165,9 @@
                             <TextBlock Text="Save telemetry data for analysis" Classes="caption"/>
                         </StackPanel>
                         <ToggleSwitch Grid.Row="2" Grid.Column="1" 
+                                      IsChecked="{Binding EnableTelemetryLogging}"
                                       OnContent="On" 
-                                      OffContent="Off"
-                                      IsChecked="True"/>
+                                      OffContent="Off"/>
                     </Grid>
                 </StackPanel>
             </Border>

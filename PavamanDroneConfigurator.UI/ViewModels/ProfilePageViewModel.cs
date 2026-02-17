@@ -2,6 +2,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 using PavamanDroneConfigurator.Core.Interfaces;
+using PavamanDroneConfigurator.Infrastructure.Services;
 using PavamanDroneConfigurator.UI.ViewModels.Auth;
 using System.Collections.ObjectModel;
 
@@ -11,6 +12,7 @@ public partial class ProfilePageViewModel : ViewModelBase
 {
     private readonly IPersistenceService _persistenceService;
     private readonly AuthSessionViewModel _authSession;
+    private readonly ConnectionSettingsStorage _connectionSettingsStorage;
     private readonly ILogger<ProfilePageViewModel> _logger;
 
     [ObservableProperty]
@@ -53,6 +55,14 @@ public partial class ProfilePageViewModel : ViewModelBase
     [ObservableProperty]
     private bool _isLoggingOut;
 
+    // Auto-connect setting
+    [ObservableProperty]
+    private bool _enableAutoConnect;
+
+    // Telemetry logging setting
+    [ObservableProperty]
+    private bool _enableTelemetryLogging = true;
+
     /// <summary>
     /// Whether the user can logout (inverse of IsLoggingOut for binding)
     /// </summary>
@@ -92,14 +102,19 @@ public partial class ProfilePageViewModel : ViewModelBase
     public ProfilePageViewModel(
         IPersistenceService persistenceService,
         AuthSessionViewModel authSession,
+        ConnectionSettingsStorage connectionSettingsStorage,
         ILogger<ProfilePageViewModel> logger)
     {
         _persistenceService = persistenceService;
         _authSession = authSession;
+        _connectionSettingsStorage = connectionSettingsStorage;
         _logger = logger;
 
         // Load user details from auth session
         LoadUserDetails();
+
+        // Load auto-connect setting
+        LoadAutoConnectSetting();
 
         // Subscribe to auth state changes
         _authSession.StateChanged += OnAuthStateChanged;
@@ -153,6 +168,50 @@ public partial class ProfilePageViewModel : ViewModelBase
         }
 
         _logger.LogInformation("=== ProfilePage: User details loaded successfully ===");
+    }
+
+    private void LoadAutoConnectSetting()
+    {
+        try
+        {
+            var (_, autoConnectEnabled) = _connectionSettingsStorage.LoadSettings();
+            EnableAutoConnect = autoConnectEnabled;
+            _logger.LogInformation("Loaded auto-connect setting: {Enabled}", autoConnectEnabled);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to load auto-connect setting");
+            EnableAutoConnect = false;
+        }
+    }
+
+    partial void OnEnableAutoConnectChanged(bool value)
+    {
+        try
+        {
+            // Load existing settings
+            var (settings, _) = _connectionSettingsStorage.LoadSettings();
+            
+            if (settings != null)
+            {
+                // Update the auto-connect flag
+                _connectionSettingsStorage.SaveSettings(settings, value);
+                _logger.LogInformation("Auto-connect setting updated: {Enabled}", value);
+                StatusMessage = value ? "Auto-connect enabled" : "Auto-connect disabled";
+            }
+            else
+            {
+                _logger.LogWarning("No saved connection settings found - auto-connect setting not saved");
+                StatusMessage = "Connect to a drone first to enable auto-connect";
+                // Revert the toggle
+                EnableAutoConnect = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to update auto-connect setting");
+            StatusMessage = "Failed to update auto-connect setting";
+        }
     }
 
     [RelayCommand]
