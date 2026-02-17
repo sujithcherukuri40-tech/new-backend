@@ -22,208 +22,271 @@
         <vm:MainWindowViewModel/>
     </Design.DataContext>
 
-    <Grid ColumnDefinitions="260,*">
+    <Grid RowDefinitions="Auto,*">
         
         <!-- ═══════════════════════════════════════════════════════════════════════════════════
-             MODERN NAVIGATION SIDEBAR
+             TOP NAVIGATION BAR (Visible on all pages)
         ═══════════════════════════════════════════════════════════════════════════════════ -->
-        <Border Grid.Column="0" Classes="sidebar">
-            <Grid RowDefinitions="Auto,*,Auto">
+        <Border Grid.Row="0" 
+                Background="#1E293B"
+                Padding="16,10"
+                BoxShadow="0 2 8 0 #20000000">
+            <Grid ColumnDefinitions="Auto,*,Auto">
                 
-                <!-- App Branding (Fixed at top) -->
-                <StackPanel Grid.Row="0" Spacing="4" Margin="20,24,20,0">
-                    <!-- Logo -->
-                    <Border Width="48"
-                            Height="48"
-                            CornerRadius="12"
-                            Background="{DynamicResource SurfaceBrush}"
-                            Margin="0,0,0,12"
-                            HorizontalAlignment="Left"
-                            BoxShadow="{DynamicResource ShadowSM}">
+                <!-- Left: Logo and Brand Name (Side by Side) -->
+                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+                    <Border Width="36"
+                            Height="36"
+                            CornerRadius="8"
+                            Background="#334155">
                         <Image Source="avares://PavamanDroneConfigurator.UI/Assets/Images/logo.ico"
                                Stretch="Uniform"
-                               Margin="8"/>
+                               Margin="6"/>
                     </Border>
-
-                    <TextBlock Text="Pavaman" 
-                               FontSize="{DynamicResource FontSize2XL}"
-                               FontWeight="Bold"
-                               Foreground="{DynamicResource TextInverseBrush}"
-                               FontFamily="{DynamicResource PrimaryFont}"/>
-                    <TextBlock Text="Drone Configurator" 
-                               FontSize="{DynamicResource FontSizeSM}"
-                               Foreground="#C7D2FE"
-                               Margin="0,0,0,16"
+                    <TextBlock Text="Pavaman Drone Configurator" 
+                               FontSize="16"
+                               FontWeight="SemiBold"
+                               Foreground="White"
+                               VerticalAlignment="Center"
                                FontFamily="{DynamicResource PrimaryFont}"/>
                 </StackPanel>
-
-                <!-- Scrollable Navigation Menu -->
-                <ScrollViewer Grid.Row="1"
-                              VerticalScrollBarVisibility="Auto"
-                              HorizontalScrollBarVisibility="Disabled"
-                              Margin="0,0,0,8">
-                    <StackPanel x:Name="NavigationMenu" Margin="8,0">
-
-                        <!-- Install Firmware Group -->
-                        <TextBlock Text="INSTALL FIRMWARE" Classes="nav-group-title"/>
-                        <Button Content="&#x1F4BE;  Firmware Upgrade"
-                                Classes="nav-button"
-                                Tag="FirmwarePage"
-                                CommandParameter="{Binding FirmwarePage}"
-                                Click="NavButton_Click" />
-
-                        <!-- Hardware Setup Group -->
-                        <TextBlock Text="HARDWARE SETUP" Classes="nav-group-title"/>
-                        <Button Content="&#x2708;  Airframe"
-                                Classes="nav-button"
-                                Tag="AirframePage"
-                                CommandParameter="{Binding AirframePage}"
-                                Click="NavButton_Click"
-                                IsEnabled="{Binding CanAccessAirframe}" />
-
-                        <!-- Calibration Group -->
-                        <TextBlock Text="CALIBRATION" Classes="nav-group-title"/>
-                        <Button Content="&#x1F4CA;  Sensors"
-                                Classes="nav-button"
-                                Tag="SensorsCalibrationPage"
-                                CommandParameter="{Binding SensorsCalibrationPage}"
-                                Click="NavButton_Click" />
-                        <Button Content="&#x1F3AE;  RC Calibration"
-                                Classes="nav-button"
-                                Tag="RcCalibrationPage"
-                                CommandParameter="{Binding RcCalibrationPage}"
-                                Click="NavButton_Click" />
-                        <Button Content="&#x1F500;  Flight Modes"
-                                Classes="nav-button"
-                                Tag="FlightModePage"
-                                CommandParameter="{Binding FlightModePage}"
-                                Click="NavButton_Click" />
-                        <Button Content="&#x26A1;  Motor &amp; ESC"
-                                Classes="nav-button"
-                                Tag="MotorEscPage"
-                                CommandParameter="{Binding MotorEscPage}"
-                                Click="NavButton_Click" />
-                        <Button Content="&#x1F50B;  Power"
-                                Classes="nav-button"
-                                Tag="PowerPage"
-                                CommandParameter="{Binding PowerPage}"
-                                Click="NavButton_Click" />
-
-                        <!-- Drone Safety Group -->
-                        <TextBlock Text="DRONE SAFETY" Classes="nav-group-title"/>
-                        <Button Content="&#x1F6E1;  Safety"
-                                Classes="nav-button"
-                                Tag="SafetyPage"
-                                CommandParameter="{Binding SafetyPage}"
-                                Click="NavButton_Click" />
-
-                        <!-- Advanced Configuration Group -->
-                        <TextBlock Text="ADVANCED CONFIGURATION" Classes="nav-group-title"/>
-                        <Button Content="&#x1F4F7;  Camera"
-                                Classes="nav-button"
-                                Tag="CameraConfigPage"
-                                CommandParameter="{Binding CameraConfigPage}"
-                                Click="NavButton_Click" />
-                        <Button Content="&#x1F527;  Serial Config"
-                                Classes="nav-button"
-                                Tag="SerialConfigPage"
-                                CommandParameter="{Binding SerialConfigPage}"
-                                Click="NavButton_Click" />
-                        <Button Content="&#x1F3AF;  PID Tuning"
-                                Classes="nav-button"
-                                Tag="PidTuningPage"
-                                CommandParameter="{Binding PidTuningPage}"
-                                Click="NavButton_Click" />
-                        <Button Content="&#x1F33E;  Spraying Config"
-                                Classes="nav-button"
-                                Tag="SprayingConfigPage"
-                                CommandParameter="{Binding SprayingConfigPage}"
-                                Click="NavButton_Click" />
-
-                        <!-- Information & Support Group -->
-                        <TextBlock Text="INFORMATION &amp; SUPPORT" Classes="nav-group-title"/>
-                        <Button Content="&#x2139;  Drone Details"
-                                Classes="nav-button"
-                                Tag="DroneDetailsPage"
-                                CommandParameter="{Binding DroneDetailsPage}"
-                                Click="NavButton_Click" />
-                        <Button Content="&#x2699;  Parameters"
-                                Classes="nav-button"
-                                Tag="ParametersPage"
-                                CommandParameter="{Binding ParametersPage}"
-                                Click="NavButton_Click"
-                                IsEnabled="{Binding CanAccessParameters}" />
-                        <Button Content="&#x1F4CB;  Profiles"
-                                Classes="nav-button"
-                                Tag="ProfilePage"
-                                CommandParameter="{Binding ProfilePage}"
-                                Click="NavButton_Click" />
-                        <Button Content="&#x1F4C8;  Log Analyzer"
-                                Classes="nav-button"
-                                Tag="LogAnalyzerPage"
-                                CommandParameter="{Binding LogAnalyzerPage}"
-                                Click="NavButton_Click" />
-                        <Button Content="&#x21BA;  Reset Parameters"
-                                Classes="nav-button"
-                                Tag="ResetParametersPage"
-                                CommandParameter="{Binding ResetParametersPage}"
-                                Click="NavButton_Click" />
-
-                        <!-- Admin Panel (Admin Only) -->
-                        <TextBlock Text="ADMIN" 
-                                   Classes="nav-group-title"
-                                   IsVisible="{Binding IsAdmin}"/>
-                        <Button Content="&#x1F4CA;  Dashboard"
-                                Classes="nav-button"
-                                Tag="AdminDashboardPage"
-                                CommandParameter="{Binding AdminDashboardPage}"
-                                Click="NavButton_Click"
-                                IsVisible="{Binding IsAdmin}" />
-                        <Button Content="&#x1F680;  Firmware Management"
-                                Classes="nav-button"
-                                Tag="FirmwareManagementPage"
-                                CommandParameter="{Binding FirmwareManagementPage}"
-                                Click="NavButton_Click"
-                                IsVisible="{Binding IsAdmin}" />
-                        <Button Content="&#x1F4CB;  Parameter Logs"
-                                Classes="nav-button"
-                                Tag="ParamLogsPage"
-                                CommandParameter="{Binding ParamLogsPage}"
-                                Click="NavButton_Click"
-                                IsVisible="{Binding IsAdmin}" />
-
-                    </StackPanel>
-                </ScrollViewer>
-
-                <!-- Version Info (Fixed at bottom) -->
-                <Border Grid.Row="2"
-                        Background="#15FFFFFF"
-                        CornerRadius="{DynamicResource RadiusBase}"
-                        Padding="16,12"
-                        Margin="16,8,16,20">
-                    <StackPanel Spacing="4">
-                        <TextBlock Text="Version 1.0.0"
-                                   FontSize="{DynamicResource FontSizeSM}"
-                                   Foreground="#E0E7FF"
-                                   FontWeight="SemiBold"
-                                   FontFamily="{DynamicResource PrimaryFont}"/>
-                        <TextBlock Text="&#x00A9; 2025 Pavaman Technologies"
-                                   FontSize="{DynamicResource FontSizeXS}"
-                                   Foreground="#A5B4FC"
-                                   FontFamily="{DynamicResource PrimaryFont}"/>
-                    </StackPanel>
-                </Border>
+                
+                <!-- Center: Connection Status -->
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" 
+                            HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <Ellipse Width="8" Height="8" 
+                             Fill="{Binding IsConnected, Converter={StaticResource BoolToColorConverter}, ConverterParameter='#22C55E|#EF4444'}"/>
+                    <TextBlock Text="{Binding IsConnected, Converter={StaticResource BoolToStringConverter}, ConverterParameter='Connected|Disconnected'}"
+                               FontSize="13"
+                               Foreground="#94A3B8"
+                               VerticalAlignment="Center"/>
+                </StackPanel>
+                
+                <!-- Right: Profile Button + Disconnect Button -->
+                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="12" 
+                            HorizontalAlignment="Right" VerticalAlignment="Center">
+                    
+                    <!-- Profile Button -->
+                    <Button x:Name="NavbarProfileButton"
+                            Content="&#x1F464;  Profile"
+                            CommandParameter="{Binding ProfilePage}"
+                            Click="NavButton_Click"
+                            Padding="16,8"
+                            FontSize="13"
+                            FontWeight="SemiBold"
+                            Background="#3B82F6"
+                            Foreground="White"
+                            CornerRadius="6"
+                            Cursor="Hand">
+                        <Button.Styles>
+                            <Style Selector="Button:pointerover">
+                                <Setter Property="Background" Value="#2563EB"/>
+                            </Style>
+                        </Button.Styles>
+                    </Button>
+                    
+                    <!-- Disconnect Button -->
+                    <Button Content="&#x23FB;  Disconnect"
+                            Command="{Binding DisconnectCommand}"
+                            IsEnabled="{Binding IsConnected}"
+                            Padding="16,8"
+                            FontSize="13"
+                            FontWeight="SemiBold"
+                            Background="#DC2626"
+                            Foreground="White"
+                            CornerRadius="6"
+                            Cursor="Hand">
+                        <Button.Styles>
+                            <Style Selector="Button:pointerover">
+                                <Setter Property="Background" Value="#B91C1C"/>
+                            </Style>
+                            <Style Selector="Button:disabled">
+                                <Setter Property="Background" Value="#475569"/>
+                                <Setter Property="Foreground" Value="#94A3B8"/>
+                            </Style>
+                        </Button.Styles>
+                    </Button>
+                </StackPanel>
             </Grid>
         </Border>
 
-        <!-- ═══════════════════════════════════════════════════════════════════════════════════
-             CONTENT AREA
-        ═══════════════════════════════════════════════════════════════════════════════════ -->
-        <Border Grid.Column="1" Background="{DynamicResource BackgroundBrush}">
-            <Grid>
-                <ContentControl Content="{Binding CurrentView}" />
-            </Grid>
-        </Border>
+        <!-- Main Content Area -->
+        <Grid Grid.Row="1" ColumnDefinitions="260,*">
+            
+            <!-- ═══════════════════════════════════════════════════════════════════════════════════
+                 MODERN NAVIGATION SIDEBAR
+            ═══════════════════════════════════════════════════════════════════════════════════ -->
+            <Border Grid.Column="0" Classes="sidebar">
+                <Grid RowDefinitions="*,Auto">
+
+                    <!-- Scrollable Navigation Menu -->
+                    <ScrollViewer Grid.Row="0"
+                                  VerticalScrollBarVisibility="Auto"
+                                  HorizontalScrollBarVisibility="Disabled"
+                                  Margin="0,16,0,8">
+                        <StackPanel x:Name="NavigationMenu" Margin="8,0">
+
+                            <!-- Install Firmware Group -->
+                            <TextBlock Text="INSTALL FIRMWARE" Classes="nav-group-title"/>
+                            <Button Content="&#x1F4BE;  Firmware Upgrade"
+                                    Classes="nav-button"
+                                    Tag="FirmwarePage"
+                                    CommandParameter="{Binding FirmwarePage}"
+                                    Click="NavButton_Click" />
+
+                            <!-- Hardware Setup Group -->
+                            <TextBlock Text="HARDWARE SETUP" Classes="nav-group-title"/>
+                            <Button Content="&#x2708;  Airframe"
+                                    Classes="nav-button"
+                                    Tag="AirframePage"
+                                    CommandParameter="{Binding AirframePage}"
+                                    Click="NavButton_Click"
+                                    IsEnabled="{Binding CanAccessAirframe}" />
+
+                            <!-- Calibration Group -->
+                            <TextBlock Text="CALIBRATION" Classes="nav-group-title"/>
+                            <Button Content="&#x1F4CA;  Sensors"
+                                    Classes="nav-button"
+                                    Tag="SensorsCalibrationPage"
+                                    CommandParameter="{Binding SensorsCalibrationPage}"
+                                    Click="NavButton_Click" />
+                            <Button Content="&#x1F3AE;  RC Calibration"
+                                    Classes="nav-button"
+                                    Tag="RcCalibrationPage"
+                                    CommandParameter="{Binding RcCalibrationPage}"
+                                    Click="NavButton_Click" />
+                            <Button Content="&#x1F500;  Flight Modes"
+                                    Classes="nav-button"
+                                    Tag="FlightModePage"
+                                    CommandParameter="{Binding FlightModePage}"
+                                    Click="NavButton_Click" />
+                            <Button Content="&#x26A1;  Motor &amp; ESC"
+                                    Classes="nav-button"
+                                    Tag="MotorEscPage"
+                                    CommandParameter="{Binding MotorEscPage}"
+                                    Click="NavButton_Click" />
+                            <Button Content="&#x1F50B;  Power"
+                                    Classes="nav-button"
+                                    Tag="PowerPage"
+                                    CommandParameter="{Binding PowerPage}"
+                                    Click="NavButton_Click" />
+
+                            <!-- Drone Safety Group -->
+                            <TextBlock Text="DRONE SAFETY" Classes="nav-group-title"/>
+                            <Button Content="&#x1F6E1;  Safety"
+                                    Classes="nav-button"
+                                    Tag="SafetyPage"
+                                    CommandParameter="{Binding SafetyPage}"
+                                    Click="NavButton_Click" />
+
+                            <!-- Advanced Configuration Group -->
+                            <TextBlock Text="ADVANCED CONFIGURATION" Classes="nav-group-title"/>
+                            <Button Content="&#x1F4F7;  Camera"
+                                    Classes="nav-button"
+                                    Tag="CameraConfigPage"
+                                    CommandParameter="{Binding CameraConfigPage}"
+                                    Click="NavButton_Click" />
+                            <Button Content="&#x1F527;  Serial Config"
+                                    Classes="nav-button"
+                                    Tag="SerialConfigPage"
+                                    CommandParameter="{Binding SerialConfigPage}"
+                                    Click="NavButton_Click" />
+                            <Button Content="&#x1F3AF;  PID Tuning"
+                                    Classes="nav-button"
+                                    Tag="PidTuningPage"
+                                    CommandParameter="{Binding PidTuningPage}"
+                                    Click="NavButton_Click" />
+                            <Button Content="&#x1F33E;  Spraying Config"
+                                    Classes="nav-button"
+                                    Tag="SprayingConfigPage"
+                                    CommandParameter="{Binding SprayingConfigPage}"
+                                    Click="NavButton_Click" />
+
+                            <!-- Information & Support Group -->
+                            <TextBlock Text="INFORMATION &amp; SUPPORT" Classes="nav-group-title"/>
+                            <Button Content="&#x2139;  Drone Details"
+                                    Classes="nav-button"
+                                    Tag="DroneDetailsPage"
+                                    CommandParameter="{Binding DroneDetailsPage}"
+                                    Click="NavButton_Click" />
+                            <Button Content="&#x2699;  Parameters"
+                                    Classes="nav-button"
+                                    Tag="ParametersPage"
+                                    CommandParameter="{Binding ParametersPage}"
+                                    Click="NavButton_Click"
+                                    IsEnabled="{Binding CanAccessParameters}" />
+                            <Button Content="&#x1F4CB;  Profiles"
+                                    Classes="nav-button"
+                                    Tag="ProfilePage"
+                                    CommandParameter="{Binding ProfilePage}"
+                                    Click="NavButton_Click" />
+                            <Button Content="&#x1F4C8;  Log Analyzer"
+                                    Classes="nav-button"
+                                    Tag="LogAnalyzerPage"
+                                    CommandParameter="{Binding LogAnalyzerPage}"
+                                    Click="NavButton_Click" />
+                            <Button Content="&#x21BA;  Reset Parameters"
+                                    Classes="nav-button"
+                                    Tag="ResetParametersPage"
+                                    CommandParameter="{Binding ResetParametersPage}"
+                                    Click="NavButton_Click" />
+
+                            <!-- Admin Panel (Admin Only) -->
+                            <TextBlock Text="ADMIN" 
+                                       Classes="nav-group-title"
+                                       IsVisible="{Binding IsAdmin}"/>
+                            <Button Content="&#x1F4CA;  Dashboard"
+                                    Classes="nav-button"
+                                    Tag="AdminDashboardPage"
+                                    CommandParameter="{Binding AdminDashboardPage}"
+                                    Click="NavButton_Click"
+                                    IsVisible="{Binding IsAdmin}" />
+                            <Button Content="&#x1F680;  Firmware Management"
+                                    Classes="nav-button"
+                                    Tag="FirmwareManagementPage"
+                                    CommandParameter="{Binding FirmwareManagementPage}"
+                                    Click="NavButton_Click"
+                                    IsVisible="{Binding IsAdmin}" />
+                            <Button Content="&#x1F4CB;  Parameter Logs"
+                                    Classes="nav-button"
+                                    Tag="ParamLogsPage"
+                                    CommandParameter="{Binding ParamLogsPage}"
+                                    Click="NavButton_Click"
+                                    IsVisible="{Binding IsAdmin}" />
+
+                        </StackPanel>
+                    </ScrollViewer>
+
+                    <!-- Version Info (Fixed at bottom) -->
+                    <Border Grid.Row="1"
+                            Background="#15FFFFFF"
+                            CornerRadius="{DynamicResource RadiusBase}"
+                            Padding="16,12"
+                            Margin="16,8,16,20">
+                        <StackPanel Spacing="4">
+                            <TextBlock Text="Version 1.0.0"
+                                       FontSize="{DynamicResource FontSizeSM}"
+                                       Foreground="#E0E7FF"
+                                       FontWeight="SemiBold"
+                                       FontFamily="{DynamicResource PrimaryFont}"/>
+                            <TextBlock Text="&#x00A9; 2025 Pavaman Technologies"
+                                       FontSize="{DynamicResource FontSizeXS}"
+                                       Foreground="#A5B4FC"
+                                       FontFamily="{DynamicResource PrimaryFont}"/>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </Border>
+
+            <!-- ═══════════════════════════════════════════════════════════════════════════════════
+                 CONTENT AREA
+            ═══════════════════════════════════════════════════════════════════════════════════ -->
+            <Border Grid.Column="1" Background="{DynamicResource BackgroundBrush}">
+                <Grid>
+                    <ContentControl Content="{Binding CurrentView}" />
+                </Grid>
+            </Border>
+        </Grid>
     </Grid>
 
 </Window>

@@ -536,6 +536,26 @@ public partial class App : Application
                 };
             }
 
+            // Subscribe to disconnect request from MainWindow navbar button
+            mainViewModel.DisconnectRequested += (_, _) =>
+            {
+                if (_isShuttingDown) return;
+                Dispatcher.UIThread.Post(() =>
+                {
+                    try
+                    {
+                        Console.WriteLine("Disconnect requested - returning to entry page");
+                        var oldWindow = desktop.MainWindow;
+                        ShowEntryPage(desktop);
+                        oldWindow?.Close();
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"Error handling disconnect: {ex.Message}");
+                    }
+                });
+            };
+
             var mainWindow = new MainWindow { DataContext = mainViewModel };
             desktop.MainWindow = mainWindow;
             mainWindow.Show();

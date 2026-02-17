@@ -1,6 +1,8 @@
 using System;
+using System.Threading.Tasks;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using PavamanDroneConfigurator.Core.Interfaces;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -35,6 +37,9 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty]
     private object? _currentView;
 
+    [ObservableProperty]
+    private bool _isConnected;
+
     public ConnectionPageViewModel ConnectionPage { get; }
     public DroneDetailsPageViewModel DroneDetailsPage { get; }
     public AirframePageViewModel AirframePage { get; }
@@ -63,6 +68,11 @@ public partial class MainWindowViewModel : ViewModelBase
     private readonly IConnectionService _connectionService;
     
     public bool IsAdmin { get; }
+
+    /// <summary>
+    /// Event raised when disconnect is requested and app should navigate back to entry page.
+    /// </summary>
+    public event EventHandler? DisconnectRequested;
 
     public MainWindowViewModel(
         ConnectionPageViewModel connectionPage,
@@ -155,6 +165,21 @@ public partial class MainWindowViewModel : ViewModelBase
 
         // Start on the Airframe page (connection already completed before MainWindow)
         _currentPage = airframePage;
+        
+        // Initialize connection state
+        IsConnected = _connectionService.IsConnected;
+    }
+
+    /// <summary>
+    /// Disconnect from the drone immediately.
+    /// </summary>
+    [RelayCommand]
+    private async Task DisconnectAsync()
+    {
+        if (!_connectionService.IsConnected) return;
+        
+        await _connectionService.DisconnectAsync();
+        DisconnectRequested?.Invoke(this, EventArgs.Empty);
     }
 
     private void OnParameterDownloadStarted(object? sender, EventArgs e)
@@ -194,6 +219,7 @@ public partial class MainWindowViewModel : ViewModelBase
     {
         Dispatcher.UIThread.Post(() =>
         {
+            IsConnected = connected;
             UpdateAccessPermissions();
             
             // Auto-navigate to connection tab on disconnect
@@ -210,6 +236,7 @@ public partial class MainWindowViewModel : ViewModelBase
     {
         IsParameterDownloadInProgress = _parameterService.IsParameterDownloadInProgress;
         IsParameterDownloadComplete = _parameterService.IsParameterDownloadComplete;
+        IsConnected = _connectionService.IsConnected;
         UpdateProgress();
         UpdateAccessPermissions();
     }
