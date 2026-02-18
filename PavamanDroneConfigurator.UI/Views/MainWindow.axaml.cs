@@ -16,6 +16,10 @@ public partial class MainWindow : Window
     private Button? _lastActiveButton;
     private WindowNotificationManager? _notificationManager;
 
+    // CSS class names for navigation styling
+    private const string NavItemClass = "sidebar-nav-item";
+    private const string NavActiveClass = "sidebar-nav-active";
+
     public MainWindow()
     {
         InitializeComponent();
@@ -44,7 +48,7 @@ public partial class MainWindow : Window
             if (this.FindControl<StackPanel>("NavigationMenu") is StackPanel navMenu)
             {
                 var firstButton = navMenu.Children.OfType<Button>()
-                    .FirstOrDefault(b => b.Classes.Contains("nav-button"));
+                    .FirstOrDefault(b => b.Classes.Contains(NavItemClass));
                 if (firstButton != null && firstButton.CommandParameter is ViewModelBase pageVm)
                 {
                     var view = CreateView(pageVm);
@@ -226,14 +230,16 @@ public partial class MainWindow : Window
 
     private void SetActiveButton(Button activeButton)
     {
-        if (_lastActiveButton != null && _lastActiveButton.Classes.Contains("nav-button-active"))
+        // Remove active class from previous button
+        if (_lastActiveButton != null && _lastActiveButton.Classes.Contains(NavActiveClass))
         {
-            _lastActiveButton.Classes.Remove("nav-button-active");
+            _lastActiveButton.Classes.Remove(NavActiveClass);
         }
 
-        if (!activeButton.Classes.Contains("nav-button-active"))
+        // Add active class to new button
+        if (!activeButton.Classes.Contains(NavActiveClass))
         {
-            activeButton.Classes.Add("nav-button-active");
+            activeButton.Classes.Add(NavActiveClass);
         }
 
         _lastActiveButton = activeButton;

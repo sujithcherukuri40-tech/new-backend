@@ -6,7 +6,7 @@
         mc:Ignorable="d" d:DesignWidth="900" d:DesignHeight="640"
         x:Class="PavamanDroneConfigurator.UI.Views.EntryPage"
         x:DataType="vm:EntryPageViewModel"
-        Title="Pavaman Drone Configurator"
+        Title="Pavaman Aviation Drone Configurator"
         Width="900"
         Height="640"
         MinWidth="800"
@@ -378,7 +378,7 @@
                         </Border>
                         
                         <!-- App Title -->
-                        <TextBlock Text="Pavaman Drone Configurator"
+                        <TextBlock Text="Pavaman Aviation Drone Configurator"
                                    FontSize="28"
                                    FontWeight="SemiBold"
                                    Foreground="White"
@@ -556,7 +556,7 @@
                                Opacity="0.8">
                         <Run Text="v1.0.0"/>
                         <Run Text="  •  " Foreground="#475569"/>
-                        <Run Text="Pavaman Technologies"/>
+                        <Run Text="Pavaman Aviation Technologies"/>
                     </TextBlock>
                     
                     <!-- Copyright -->

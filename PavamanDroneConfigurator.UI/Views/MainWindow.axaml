@@ -9,7 +9,7 @@
         mc:Ignorable="d" d:DesignWidth="1280" d:DesignHeight="800"
         x:Class="PavamanDroneConfigurator.UI.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
-        Title="Pavaman Drone Configurator"
+        Title="Pavaman Aviation Drone Configurator"
         Width="1280"
         Height="800"
         MinWidth="1024"
@@ -22,258 +22,463 @@
         <vm:MainWindowViewModel/>
     </Design.DataContext>
 
+    <Window.Styles>
+        <!-- ═══════════════════════════════════════════════════════════════════════════════════
+             MODERN FLOATING NAVBAR STYLES
+        ═══════════════════════════════════════════════════════════════════════════════════ -->
+        
+        <!-- Navbar Container - Increased Height -->
+        <Style Selector="Border.floating-navbar">
+            <Setter Property="CornerRadius" Value="20"/>
+            <Setter Property="Padding" Value="20,14"/>
+            <Setter Property="BoxShadow" Value="0 4 24 0 #18000000, 0 1 6 0 #10000000"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="MinHeight" Value="70"/>
+        </Style>
+        
+        <!-- Navbar Buttons Base -->
+        <Style Selector="Button.navbar-btn">
+            <Setter Property="Padding" Value="18,10"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="CornerRadius" Value="12"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="MinHeight" Value="42"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="Transitions">
+                <Transitions>
+                    <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.12"/>
+                </Transitions>
+            </Setter>
+        </Style>
+        
+        <Style Selector="Button.navbar-btn:pointerover">
+            <Setter Property="RenderTransform" Value="scale(1.02)"/>
+        </Style>
+        
+        <Style Selector="Button.navbar-btn:pressed">
+            <Setter Property="RenderTransform" Value="scale(0.98)"/>
+        </Style>
+        
+        <!-- ═══════════════════════════════════════════════════════════════════════════════════
+             MODERN SIDEBAR STYLES - WHITE TO BLUE GRADIENT
+        ═══════════════════════════════════════════════════════════════════════════════════ -->
+        
+        <!-- Sidebar Navigation Button - Bold Text for Light Background -->
+        <Style Selector="Button.sidebar-nav-item">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="#1E3A8A"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="16,11"/>
+            <Setter Property="Margin" Value="10,2"/>
+            <Setter Property="CornerRadius" Value="10"/>
+            <Setter Property="HorizontalAlignment" Value="Stretch"/>
+            <Setter Property="HorizontalContentAlignment" Value="Left"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="FontFamily" Value="{DynamicResource PrimaryFont}"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Transitions">
+                <Transitions>
+                    <BrushTransition Property="Background" Duration="0:0:0.15"/>
+                    <BrushTransition Property="Foreground" Duration="0:0:0.15"/>
+                </Transitions>
+            </Setter>
+        </Style>
+        
+        <Style Selector="Button.sidebar-nav-item:pointerover">
+            <Setter Property="Background" Value="#DBEAFE"/>
+            <Setter Property="Foreground" Value="#1E40AF"/>
+        </Style>
+        
+        <Style Selector="Button.sidebar-nav-item:pressed">
+            <Setter Property="Background" Value="#BFDBFE"/>
+        </Style>
+        
+        <Style Selector="Button.sidebar-nav-item:disabled">
+            <Setter Property="Foreground" Value="#9CA3AF"/>
+            <Setter Property="Cursor" Value="Arrow"/>
+        </Style>
+        
+        <!-- Active Navigation Item -->
+        <Style Selector="Button.sidebar-nav-active">
+            <Setter Property="Background">
+                <Setter.Value>
+                    <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,0%">
+                        <GradientStop Color="#3B82F6" Offset="0"/>
+                        <GradientStop Color="#2563EB" Offset="1"/>
+                    </LinearGradientBrush>
+                </Setter.Value>
+            </Setter>
+            <Setter Property="Foreground" Value="#FFFFFF"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+        </Style>
+        
+        <!-- Section Title - Blue Theme -->
+        <Style Selector="TextBlock.sidebar-section-title">
+            <Setter Property="FontSize" Value="10"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="Foreground" Value="#3B82F6"/>
+            <Setter Property="Margin" Value="16,20,16,8"/>
+            <Setter Property="FontFamily" Value="{DynamicResource PrimaryFont}"/>
+            <Setter Property="LetterSpacing" Value="1"/>
+        </Style>
+    </Window.Styles>
+
     <Grid RowDefinitions="Auto,*">
         
         <!-- ═══════════════════════════════════════════════════════════════════════════════════
-             TOP NAVIGATION BAR (Visible on all pages)
+             FLOATING iOS-STYLE GLASSMORPHISM NAVBAR - INCREASED HEIGHT
         ═══════════════════════════════════════════════════════════════════════════════════ -->
-        <Border Grid.Row="0" 
-                Background="#1E293B"
-                Padding="16,10"
-                BoxShadow="0 2 8 0 #20000000">
-            <Grid ColumnDefinitions="Auto,*,Auto">
+        <Grid Grid.Row="0" Margin="16,12,16,6">
+            <!-- Floating Bubble Container with Glassmorphism -->
+            <Border Classes="floating-navbar"
+                    HorizontalAlignment="Stretch">
                 
-                <!-- Left: Logo and Brand Name (Side by Side) -->
-                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
-                    <Border Width="36"
-                            Height="36"
-                            CornerRadius="8"
-                            Background="#334155">
-                        <Image Source="avares://PavamanDroneConfigurator.UI/Assets/Images/logo.ico"
-                               Stretch="Uniform"
-                               Margin="6"/>
+                <!-- Glassmorphism Background -->
+                <Border.Background>
+                    <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
+                        <GradientStop Color="#F0FFFFFF" Offset="0"/>
+                        <GradientStop Color="#E5F8FAFC" Offset="0.5"/>
+                        <GradientStop Color="#F0FFFFFF" Offset="1"/>
+                    </LinearGradientBrush>
+                </Border.Background>
+                
+                <!-- Subtle Glass Border -->
+                <Border.BorderBrush>
+                    <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
+                        <GradientStop Color="#50FFFFFF" Offset="0"/>
+                        <GradientStop Color="#25E2E8F0" Offset="0.5"/>
+                        <GradientStop Color="#40FFFFFF" Offset="1"/>
+                    </LinearGradientBrush>
+                </Border.BorderBrush>
+                
+                <Grid ColumnDefinitions="Auto,*,Auto">
+                    
+                    <!-- Left: Logo and Brand - Increased Size -->
+                    <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+                        <!-- Logo Container - Larger to match navbar height -->
+                        <Border Width="48"
+                                Height="48"
+                                CornerRadius="12"
+                                BoxShadow="0 2 8 0 #15000000">
+                            <Border.Background>
+                                <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
+                                    <GradientStop Color="#FFFFFF" Offset="0"/>
+                                    <GradientStop Color="#F1F5F9" Offset="1"/>
+                                </LinearGradientBrush>
+                            </Border.Background>
+                            <Image Source="avares://PavamanDroneConfigurator.UI/Assets/Images/logo.ico"
+                                   Stretch="Uniform"
+                                   Margin="6"/>
+                        </Border>
+                        
+                        <!-- Brand Name - Larger Font -->
+                        <StackPanel Orientation="Vertical" VerticalAlignment="Center" Spacing="-1">
+                            <TextBlock Text="Pavaman Aviation" 
+                                       FontSize="20"
+                                       FontWeight="Bold"
+                                       Foreground="#0F172A"
+                                       FontFamily="{DynamicResource PrimaryFont}"/>
+                            <TextBlock Text="Drone Configurator"
+                                       FontSize="12"
+                                       Foreground="#64748B"
+                                       FontFamily="{DynamicResource PrimaryFont}"/>
+                        </StackPanel>
+                    </StackPanel>
+                    
+                    <!-- Center: Connection Status Pill -->
+                    <Border Grid.Column="1" 
+                            HorizontalAlignment="Center" 
+                            VerticalAlignment="Center"
+                            CornerRadius="18"
+                            Padding="16,8">
+                        <Border.Background>
+                            <SolidColorBrush Color="{Binding IsConnected, Converter={StaticResource BoolToColorConverter}, ConverterParameter='#E8F5E9|#FFEBEE'}"/>
+                        </Border.Background>
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <!-- Status Dot -->
+                            <Border Width="10" Height="10" CornerRadius="5"
+                                    VerticalAlignment="Center">
+                                <Border.Background>
+                                    <SolidColorBrush Color="{Binding IsConnected, Converter={StaticResource BoolToColorConverter}, ConverterParameter='#4CAF50|#EF5350'}"/>
+                                </Border.Background>
+                            </Border>
+                            <TextBlock FontSize="14"
+                                       FontWeight="SemiBold"
+                                       VerticalAlignment="Center"
+                                       FontFamily="{DynamicResource PrimaryFont}">
+                                <TextBlock.Text>
+                                    <Binding Path="IsConnected" Converter="{StaticResource BoolToStringConverter}" ConverterParameter="Connected|Disconnected"/>
+                                </TextBlock.Text>
+                                <TextBlock.Foreground>
+                                    <SolidColorBrush Color="{Binding IsConnected, Converter={StaticResource BoolToColorConverter}, ConverterParameter='#2E7D32|#C62828'}"/>
+                                </TextBlock.Foreground>
+                            </TextBlock>
+                        </StackPanel>
                     </Border>
-                    <TextBlock Text="Pavaman Drone Configurator" 
-                               FontSize="16"
-                               FontWeight="SemiBold"
-                               Foreground="White"
-                               VerticalAlignment="Center"
-                               FontFamily="{DynamicResource PrimaryFont}"/>
-                </StackPanel>
-                
-                <!-- Center: Connection Status -->
-                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" 
-                            HorizontalAlignment="Center" VerticalAlignment="Center">
-                    <Ellipse Width="8" Height="8" 
-                             Fill="{Binding IsConnected, Converter={StaticResource BoolToColorConverter}, ConverterParameter='#22C55E|#EF4444'}"/>
-                    <TextBlock Text="{Binding IsConnected, Converter={StaticResource BoolToStringConverter}, ConverterParameter='Connected|Disconnected'}"
-                               FontSize="13"
-                               Foreground="#94A3B8"
-                               VerticalAlignment="Center"/>
-                </StackPanel>
-                
-                <!-- Right: Profile Button + Disconnect Button -->
-                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="12" 
-                            HorizontalAlignment="Right" VerticalAlignment="Center">
                     
-                    <!-- Profile Button -->
-                    <Button x:Name="NavbarProfileButton"
-                            Content="&#x1F464;  Profile"
-                            CommandParameter="{Binding ProfilePage}"
-                            Click="NavButton_Click"
-                            Padding="16,8"
-                            FontSize="13"
-                            FontWeight="SemiBold"
-                            Background="#3B82F6"
-                            Foreground="White"
-                            CornerRadius="6"
-                            Cursor="Hand">
-                        <Button.Styles>
-                            <Style Selector="Button:pointerover">
-                                <Setter Property="Background" Value="#2563EB"/>
-                            </Style>
-                        </Button.Styles>
-                    </Button>
-                    
-                    <!-- Disconnect Button -->
-                    <Button Content="&#x23FB;  Disconnect"
-                            Command="{Binding DisconnectCommand}"
-                            IsEnabled="{Binding IsConnected}"
-                            Padding="16,8"
-                            FontSize="13"
-                            FontWeight="SemiBold"
-                            Background="#DC2626"
-                            Foreground="White"
-                            CornerRadius="6"
-                            Cursor="Hand">
-                        <Button.Styles>
-                            <Style Selector="Button:pointerover">
-                                <Setter Property="Background" Value="#B91C1C"/>
-                            </Style>
-                            <Style Selector="Button:disabled">
-                                <Setter Property="Background" Value="#475569"/>
-                                <Setter Property="Foreground" Value="#94A3B8"/>
-                            </Style>
-                        </Button.Styles>
-                    </Button>
-                </StackPanel>
-            </Grid>
-        </Border>
+                    <!-- Right: Action Buttons -->
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="10" 
+                                HorizontalAlignment="Right" VerticalAlignment="Center">
+                        
+                        <!-- Profile Button -->
+                        <Button x:Name="NavbarProfileButton"
+                                Classes="navbar-btn"
+                                CommandParameter="{Binding ProfilePage}"
+                                Click="NavButton_Click"
+                                Foreground="White">
+                            <Button.Background>
+                                <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
+                                    <GradientStop Color="#3B82F6" Offset="0"/>
+                                    <GradientStop Color="#2563EB" Offset="1"/>
+                                </LinearGradientBrush>
+                            </Button.Background>
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <TextBlock Text="👤" FontSize="14"/>
+                                <TextBlock Text="Profile" FontSize="14" FontWeight="SemiBold"/>
+                            </StackPanel>
+                        </Button>
+                        
+                        <!-- Disconnect Button -->
+                        <Button Classes="navbar-btn"
+                                Command="{Binding DisconnectCommand}"
+                                IsEnabled="{Binding IsConnected}"
+                                Foreground="White">
+                            <Button.Background>
+                                <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
+                                    <GradientStop Color="#EF4444" Offset="0"/>
+                                    <GradientStop Color="#DC2626" Offset="1"/>
+                                </LinearGradientBrush>
+                            </Button.Background>
+                            <Button.Styles>
+                                <Style Selector="Button:disabled">
+                                    <Setter Property="Background" Value="#E5E7EB"/>
+                                    <Setter Property="Foreground" Value="#9CA3AF"/>
+                                    <Setter Property="Cursor" Value="Arrow"/>
+                                </Style>
+                            </Button.Styles>
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <TextBlock Text="⏻" FontSize="14"/>
+                                <TextBlock Text="Disconnect" FontSize="14" FontWeight="SemiBold"/>
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </Grid>
 
         <!-- Main Content Area -->
-        <Grid Grid.Row="1" ColumnDefinitions="260,*">
+        <Grid Grid.Row="1" ColumnDefinitions="250,*">
             
             <!-- ═══════════════════════════════════════════════════════════════════════════════════
-                 MODERN NAVIGATION SIDEBAR
+                 MODERN NAVIGATION SIDEBAR - White to Blue Gradient
             ═══════════════════════════════════════════════════════════════════════════════════ -->
-            <Border Grid.Column="0" Classes="sidebar">
-                <Grid RowDefinitions="*,Auto">
+            <Border Grid.Column="0"
+                    Margin="12,0,0,12"
+                    CornerRadius="16"
+                    BoxShadow="0 4 20 0 #15000000">
+                
+                <!-- Sidebar White to Blue Gradient Background -->
+                <Border.Background>
+                    <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
+                        <GradientStop Color="#FFFFFF" Offset="0"/>
+                        <GradientStop Color="#EFF6FF" Offset="0.3"/>
+                        <GradientStop Color="#DBEAFE" Offset="0.6"/>
+                        <GradientStop Color="#BFDBFE" Offset="1"/>
+                    </LinearGradientBrush>
+                </Border.Background>
+                
+                <Grid RowDefinitions="Auto,*,Auto">
+                    
+                    <!-- Sidebar Header -->
+                    <Border Grid.Row="0" Padding="16,16,16,8">
+                        <StackPanel Spacing="4">
+                            <TextBlock Text="Navigation"
+                                       FontSize="11"
+                                       FontWeight="Bold"
+                                       Foreground="#2563EB"
+                                       FontFamily="{DynamicResource PrimaryFont}"
+                                       LetterSpacing="1"/>
+                            <Border Height="1" Background="#93C5FD" Margin="0,8,0,0" Opacity="0.6"/>
+                        </StackPanel>
+                    </Border>
 
                     <!-- Scrollable Navigation Menu -->
-                    <ScrollViewer Grid.Row="0"
+                    <ScrollViewer Grid.Row="1"
                                   VerticalScrollBarVisibility="Auto"
-                                  HorizontalScrollBarVisibility="Disabled"
-                                  Margin="0,16,0,8">
-                        <StackPanel x:Name="NavigationMenu" Margin="8,0">
+                                  HorizontalScrollBarVisibility="Disabled">
+                        <StackPanel x:Name="NavigationMenu" Margin="4,0">
 
-                            <!-- Install Firmware Group -->
-                            <TextBlock Text="INSTALL FIRMWARE" Classes="nav-group-title"/>
-                            <Button Content="&#x1F4BE;  Firmware Upgrade"
-                                    Classes="nav-button"
+                            <!-- ═══════════ FIRMWARE ═══════════ -->
+                            <TextBlock Text="FIRMWARE" Classes="sidebar-section-title"/>
+                            <Button Content="📦  Firmware Upgrade"
+                                    Classes="sidebar-nav-item"
                                     Tag="FirmwarePage"
                                     CommandParameter="{Binding FirmwarePage}"
                                     Click="NavButton_Click" />
 
-                            <!-- Hardware Setup Group -->
-                            <TextBlock Text="HARDWARE SETUP" Classes="nav-group-title"/>
-                            <Button Content="&#x2708;  Airframe"
-                                    Classes="nav-button"
+                            <!-- ═══════════ HARDWARE ═══════════ -->
+                            <TextBlock Text="HARDWARE" Classes="sidebar-section-title"/>
+                            <Button Content="✈️  Airframe"
+                                    Classes="sidebar-nav-item"
                                     Tag="AirframePage"
                                     CommandParameter="{Binding AirframePage}"
                                     Click="NavButton_Click"
                                     IsEnabled="{Binding CanAccessAirframe}" />
 
-                            <!-- Calibration Group -->
-                            <TextBlock Text="CALIBRATION" Classes="nav-group-title"/>
-                            <Button Content="&#x1F4CA;  Sensors"
-                                    Classes="nav-button"
+                            <!-- ═══════════ CALIBRATION ═══════════ -->
+                            <TextBlock Text="CALIBRATION" Classes="sidebar-section-title"/>
+                            <Button Content="📊  Sensors"
+                                    Classes="sidebar-nav-item"
                                     Tag="SensorsCalibrationPage"
                                     CommandParameter="{Binding SensorsCalibrationPage}"
                                     Click="NavButton_Click" />
-                            <Button Content="&#x1F3AE;  RC Calibration"
-                                    Classes="nav-button"
+                            <Button Content="🎮  RC Calibration"
+                                    Classes="sidebar-nav-item"
                                     Tag="RcCalibrationPage"
                                     CommandParameter="{Binding RcCalibrationPage}"
                                     Click="NavButton_Click" />
-                            <Button Content="&#x1F500;  Flight Modes"
-                                    Classes="nav-button"
+                            <Button Content="🔀  Flight Modes"
+                                    Classes="sidebar-nav-item"
                                     Tag="FlightModePage"
                                     CommandParameter="{Binding FlightModePage}"
                                     Click="NavButton_Click" />
-                            <Button Content="&#x26A1;  Motor &amp; ESC"
-                                    Classes="nav-button"
+                            <Button Content="⚡  Motor &amp; ESC"
+                                    Classes="sidebar-nav-item"
                                     Tag="MotorEscPage"
                                     CommandParameter="{Binding MotorEscPage}"
                                     Click="NavButton_Click" />
-                            <Button Content="&#x1F50B;  Power"
-                                    Classes="nav-button"
+                            <Button Content="🔋  Power"
+                                    Classes="sidebar-nav-item"
                                     Tag="PowerPage"
                                     CommandParameter="{Binding PowerPage}"
                                     Click="NavButton_Click" />
 
-                            <!-- Drone Safety Group -->
-                            <TextBlock Text="DRONE SAFETY" Classes="nav-group-title"/>
-                            <Button Content="&#x1F6E1;  Safety"
-                                    Classes="nav-button"
+                            <!-- ═══════════ SAFETY ═══════════ -->
+                            <TextBlock Text="SAFETY" Classes="sidebar-section-title"/>
+                            <Button Content="🛡️  Safety Settings"
+                                    Classes="sidebar-nav-item"
                                     Tag="SafetyPage"
                                     CommandParameter="{Binding SafetyPage}"
                                     Click="NavButton_Click" />
 
-                            <!-- Advanced Configuration Group -->
-                            <TextBlock Text="ADVANCED CONFIGURATION" Classes="nav-group-title"/>
-                            <Button Content="&#x1F4F7;  Camera"
-                                    Classes="nav-button"
+                            <!-- ═══════════ ADVANCED ═══════════ -->
+                            <TextBlock Text="ADVANCED" Classes="sidebar-section-title"/>
+                            <Button Content="📷  Camera"
+                                    Classes="sidebar-nav-item"
                                     Tag="CameraConfigPage"
                                     CommandParameter="{Binding CameraConfigPage}"
                                     Click="NavButton_Click" />
-                            <Button Content="&#x1F527;  Serial Config"
-                                    Classes="nav-button"
+                            <Button Content="🔧  Serial Config"
+                                    Classes="sidebar-nav-item"
                                     Tag="SerialConfigPage"
                                     CommandParameter="{Binding SerialConfigPage}"
                                     Click="NavButton_Click" />
-                            <Button Content="&#x1F3AF;  PID Tuning"
-                                    Classes="nav-button"
+                            <Button Content="🎯  PID Tuning"
+                                    Classes="sidebar-nav-item"
                                     Tag="PidTuningPage"
                                     CommandParameter="{Binding PidTuningPage}"
                                     Click="NavButton_Click" />
-                            <Button Content="&#x1F33E;  Spraying Config"
-                                    Classes="nav-button"
+                            <Button Content="🌾  Spraying Config"
+                                    Classes="sidebar-nav-item"
                                     Tag="SprayingConfigPage"
                                     CommandParameter="{Binding SprayingConfigPage}"
                                     Click="NavButton_Click" />
 
-                            <!-- Information & Support Group -->
-                            <TextBlock Text="INFORMATION &amp; SUPPORT" Classes="nav-group-title"/>
-                            <Button Content="&#x2139;  Drone Details"
-                                    Classes="nav-button"
+                            <!-- ═══════════ INFORMATION ═══════════ -->
+                            <TextBlock Text="INFORMATION" Classes="sidebar-section-title"/>
+                            <Button Content="ℹ️  Drone Details"
+                                    Classes="sidebar-nav-item"
                                     Tag="DroneDetailsPage"
                                     CommandParameter="{Binding DroneDetailsPage}"
                                     Click="NavButton_Click" />
-                            <Button Content="&#x2699;  Parameters"
-                                    Classes="nav-button"
+                            <Button Content="⚙️  Parameters"
+                                    Classes="sidebar-nav-item"
                                     Tag="ParametersPage"
                                     CommandParameter="{Binding ParametersPage}"
                                     Click="NavButton_Click"
                                     IsEnabled="{Binding CanAccessParameters}" />
-                            <Button Content="&#x1F4CB;  Profiles"
-                                    Classes="nav-button"
+                            <Button Content="📋  Profiles"
+                                    Classes="sidebar-nav-item"
                                     Tag="ProfilePage"
                                     CommandParameter="{Binding ProfilePage}"
                                     Click="NavButton_Click" />
-                            <Button Content="&#x1F4C8;  Log Analyzer"
-                                    Classes="nav-button"
+                            <Button Content="📈  Log Analyzer"
+                                    Classes="sidebar-nav-item"
                                     Tag="LogAnalyzerPage"
                                     CommandParameter="{Binding LogAnalyzerPage}"
                                     Click="NavButton_Click" />
-                            <Button Content="&#x21BA;  Reset Parameters"
-                                    Classes="nav-button"
+                            <Button Content="↩️  Reset Parameters"
+                                    Classes="sidebar-nav-item"
                                     Tag="ResetParametersPage"
                                     CommandParameter="{Binding ResetParametersPage}"
                                     Click="NavButton_Click" />
 
-                            <!-- Admin Panel (Admin Only) -->
+                            <!-- ═══════════ ADMIN (Conditional) ═══════════ -->
                             <TextBlock Text="ADMIN" 
-                                       Classes="nav-group-title"
+                                       Classes="sidebar-section-title"
                                        IsVisible="{Binding IsAdmin}"/>
-                            <Button Content="&#x1F4CA;  Dashboard"
-                                    Classes="nav-button"
+                            <Button Content="📊  Dashboard"
+                                    Classes="sidebar-nav-item"
                                     Tag="AdminDashboardPage"
                                     CommandParameter="{Binding AdminDashboardPage}"
                                     Click="NavButton_Click"
                                     IsVisible="{Binding IsAdmin}" />
-                            <Button Content="&#x1F680;  Firmware Management"
-                                    Classes="nav-button"
+                            <Button Content="🚀  Firmware Mgmt"
+                                    Classes="sidebar-nav-item"
                                     Tag="FirmwareManagementPage"
                                     CommandParameter="{Binding FirmwareManagementPage}"
                                     Click="NavButton_Click"
                                     IsVisible="{Binding IsAdmin}" />
-                            <Button Content="&#x1F4CB;  Parameter Logs"
-                                    Classes="nav-button"
+                            <Button Content="📋  Param Logs"
+                                    Classes="sidebar-nav-item"
                                     Tag="ParamLogsPage"
                                     CommandParameter="{Binding ParamLogsPage}"
                                     Click="NavButton_Click"
                                     IsVisible="{Binding IsAdmin}" />
+                            
+                            <!-- Bottom Spacer -->
+                            <Border Height="12"/>
 
                         </StackPanel>
                     </ScrollViewer>
 
-                    <!-- Version Info (Fixed at bottom) -->
-                    <Border Grid.Row="1"
-                            Background="#15FFFFFF"
-                            CornerRadius="{DynamicResource RadiusBase}"
-                            Padding="16,12"
-                            Margin="16,8,16,20">
-                        <StackPanel Spacing="4">
-                            <TextBlock Text="Version 1.0.0"
-                                       FontSize="{DynamicResource FontSizeSM}"
-                                       Foreground="#E0E7FF"
-                                       FontWeight="SemiBold"
-                                       FontFamily="{DynamicResource PrimaryFont}"/>
-                            <TextBlock Text="&#x00A9; 2025 Pavaman Technologies"
-                                       FontSize="{DynamicResource FontSizeXS}"
-                                       Foreground="#A5B4FC"
-                                       FontFamily="{DynamicResource PrimaryFont}"/>
-                        </StackPanel>
+                    <!-- Version Info (Fixed at bottom) - Blue Theme -->
+                    <Border Grid.Row="2"
+                            Margin="12,8,12,12"
+                            Padding="14,10"
+                            CornerRadius="10"
+                            Background="#DBEAFE">
+                        <Grid ColumnDefinitions="Auto,*">
+                            <!-- Version Icon -->
+                            <Border Grid.Column="0"
+                                    Width="32" Height="32"
+                                    CornerRadius="8"
+                                    Background="#BFDBFE"
+                                    VerticalAlignment="Center"
+                                    Margin="0,0,10,0">
+                                <TextBlock Text="🛸"
+                                           FontSize="16"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"/>
+                            </Border>
+                            <!-- Version Text -->
+                            <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                                <TextBlock Text="Version 1.0.0"
+                                           FontSize="12"
+                                           Foreground="#1E40AF"
+                                           FontWeight="Bold"
+                                           FontFamily="{DynamicResource PrimaryFont}"/>
+                                <TextBlock Text="© 2025 Pavaman Aviation"
+                                           FontSize="10"
+                                           Foreground="#3B82F6"
+                                           FontWeight="SemiBold"
+                                           FontFamily="{DynamicResource PrimaryFont}"/>
+                            </StackPanel>
+                        </Grid>
                     </Border>
                 </Grid>
             </Border>
@@ -281,7 +486,11 @@
             <!-- ═══════════════════════════════════════════════════════════════════════════════════
                  CONTENT AREA
             ═══════════════════════════════════════════════════════════════════════════════════ -->
-            <Border Grid.Column="1" Background="{DynamicResource BackgroundBrush}">
+            <Border Grid.Column="1" 
+                    Background="{DynamicResource BackgroundBrush}"
+                    Margin="8,0,12,12"
+                    CornerRadius="16"
+                    ClipToBounds="True">
                 <Grid>
                     <ContentControl Content="{Binding CurrentView}" />
                 </Grid>

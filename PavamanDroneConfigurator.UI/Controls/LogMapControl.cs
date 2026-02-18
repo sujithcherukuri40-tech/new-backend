@@ -36,6 +36,7 @@ namespace PavamanDroneConfigurator.UI.Controls;
 /// Industrial-grade Map control using Mapsui with OpenStreetMap (100% Free).
 /// Features: GPS track visualization, crash detection (red lines), search bar, map controls,
 /// altitude/speed data, event markers with color coding, proper refresh handling.
+/// OPTIMIZED: Thread-safe, memory-efficient, crash-resistant implementation.
 /// </summary>
 public class LogMapControl : UserControl
 {
@@ -56,16 +57,23 @@ public class LogMapControl : UserControl
     private Border? _legendPanel;
     private Border? _crashAlert;
     
-    // Data
+    // Data with thread-safe access
     private List<GpsTrackPoint> _trackPoints = new();
     private List<(GpsTrackPoint Start, GpsTrackPoint End)> _crashSegments = new();
+    private readonly object _dataLock = new(); // Thread-safe data access
     
-    // Refresh management
+    // Refresh management - OPTIMIZED
     private CancellationTokenSource? _refreshCts;
     private readonly object _refreshLock = new();
     private bool _isRefreshing;
+    private bool _isDisposed; // Track disposal state
     private DateTime _lastRefresh = DateTime.MinValue;
     private const int MinRefreshIntervalMs = 100;
+    
+    // Performance limits to prevent memory issues
+    private const int MaxTrackPoints = 10000;
+    private const int MaxEvents = 500;
+    private const int MaxCrashSegments = 100;
     
     #region Styled Properties
 
@@ -422,43 +430,45 @@ public class LogMapControl : UserControl
     {
         TrackPointsProperty.Changed.AddClassHandler<LogMapControl>((control, args) =>
         {
-            if (control == this)
+            if (control == this && !_isDisposed)
                 control.ScheduleRefresh(() => control.UpdateTrack());
         });
 
         CriticalEventsProperty.Changed.AddClassHandler<LogMapControl>((control, args) =>
         {
-            if (control == this)
+            if (control == this && !_isDisposed)
                 control.ScheduleRefresh(() => control.UpdateCriticalEvents());
         });
 
         AllEventsProperty.Changed.AddClassHandler<LogMapControl>((control, args) =>
         {
-            if (control == this)
+            if (control == this && !_isDisposed)
                 control.ScheduleRefresh(() => control.UpdateAllEvents());
         });
 
         CurrentPositionTimestampProperty.Changed.AddClassHandler<LogMapControl>((control, args) =>
         {
-            if (control == this)
+            if (control == this && !_isDisposed)
                 control.ScheduleRefresh(() => control.UpdateCurrentPosition());
         });
 
         CenterLatitudeProperty.Changed.AddClassHandler<LogMapControl>((control, args) =>
         {
-            if (control == this)
+            if (control == this && !_isDisposed)
                 control.ScheduleRefresh(() => control.UpdateCenter());
         });
 
         CenterLongitudeProperty.Changed.AddClassHandler<LogMapControl>((control, args) =>
         {
-            if (control == this)
+            if (control == this && !_isDisposed)
                 control.ScheduleRefresh(() => control.UpdateCenter());
         });
     }
 
     private void ScheduleRefresh(Action refreshAction)
     {
+        if (_isDisposed) return;
+
         lock (_refreshLock)
         {
             // Cancel any pending refresh
@@ -472,17 +482,22 @@ public class LogMapControl : UserControl
 
             Task.Delay(delay, cts.Token).ContinueWith(_ =>
             {
-                if (!cts.Token.IsCancellationRequested)
+                if (!cts.Token.IsCancellationRequested && !_isDisposed)
                 {
                     Dispatcher.UIThread.Post(() =>
                     {
-                        if (!cts.Token.IsCancellationRequested && !_isRefreshing)
+                        if (!cts.Token.IsCancellationRequested && !_isRefreshing && !_isDisposed)
                         {
                             try
                             {
                                 _isRefreshing = true;
                                 _lastRefresh = DateTime.Now;
                                 refreshAction();
+                            }
+                            catch (Exception ex)
+                            {
+                                System.Diagnostics.Debug.WriteLine($"Map refresh error: {ex.Message}");
+                                System.Diagnostics.Debug.WriteLine($"Stack trace: {ex.StackTrace}");
                             }
                             finally
                             {
@@ -614,7 +629,7 @@ public class LogMapControl : UserControl
 
     private void OnMapPointerMoved(object? sender, PointerEventArgs e)
     {
-        if (_coordsDisplay == null || _map == null)
+        if (_isDisposed || _coordsDisplay == null || _map == null)
             return;
 
         try
@@ -622,8 +637,9 @@ public class LogMapControl : UserControl
             var point = e.GetPosition(_mapControl);
             var worldPos = _mapControl.Map.Navigator.Viewport.ScreenToWorld(point.X, point.Y);
             var lonLat = SphericalMercator.ToLonLat(worldPos.X, worldPos.Y);
-            
-            _coordsDisplay.Text = $"Lat: {lonLat.lat:F6}° | Lon: {lonLat.lon:F6}°";
+
+            if (!_isDisposed && _coordsDisplay != null)
+                _coordsDisplay.Text = $"Lat: {lonLat.lat:F6}° | Lon: {lonLat.lon:F6}°";
         }
         catch
         {
@@ -637,92 +653,169 @@ public class LogMapControl : UserControl
 
     private void UpdateTrack()
     {
-        if (_trackLayer == null || TrackPoints == null)
+        if (_isDisposed || _trackLayer == null || TrackPoints == null)
             return;
 
         try
         {
-            // Clear existing layers
-            _trackLayer.Clear();
-            _crashLayer?.Clear();
-            _markerLayer?.Clear();
-            _crashSegments.Clear();
-
-            _trackPoints = TrackPoints.ToList();
-            if (_trackPoints.Count < 2)
+            lock (_dataLock)
             {
-                HideStatsPanel();
-                return;
-            }
+                // Clear existing layers safely
+                SafeClearLayer(_trackLayer);
+                SafeClearLayer(_crashLayer);
+                SafeClearLayer(_markerLayer);
+                _crashSegments.Clear();
 
-            // Filter valid points
-            var validPoints = _trackPoints
-                .Where(p => Math.Abs(p.Latitude) > 0.001 && Math.Abs(p.Longitude) > 0.001)
-                .ToList();
+                // Limit track points to prevent memory issues
+                _trackPoints = TrackPoints
+                    .Take(MaxTrackPoints)
+                    .ToList();
 
-            if (validPoints.Count < 2)
-            {
-                HideStatsPanel();
-                return;
-            }
-
-            // Detect crash segments
-            DetectCrashSegments(validPoints);
-
-            // Create main track line (blue)
-            var coordinates = validPoints
-                .Select(p =>
+                if (_trackPoints.Count < 2)
                 {
-                    var mercator = SphericalMercator.FromLonLat(p.Longitude, p.Latitude);
-                    return new Coordinate(mercator.x, mercator.y);
-                })
-                .ToArray();
+                    HideStatsPanel();
+                    return;
+                }
 
-            var lineString = new LineString(coordinates);
-            var trackFeature = new GeometryFeature { Geometry = lineString };
-            trackFeature.Styles.Add(new VectorStyle
-            {
-                Line = new MapsuiPen(new MapsuiColor(59, 130, 246, 255), 4) // Blue #3B82F6
-            });
-            _trackLayer.Add(trackFeature);
+                // Filter valid points with better validation
+                var validPoints = _trackPoints
+                    .Where(p => IsValidCoordinate(p.Latitude, p.Longitude))
+                    .ToList();
 
-            // Add crash segments (red)
-            foreach (var segment in _crashSegments)
-            {
-                AddCrashSegment(segment.Start, segment.End);
+                if (validPoints.Count < 2)
+                {
+                    HideStatsPanel();
+                    return;
+                }
+
+                // Detect crash segments
+                DetectCrashSegments(validPoints);
+
+                // Create main track line with safe coordinate conversion
+                var coordinates = validPoints
+                    .Select(p =>
+                    {
+                        try
+                        {
+                            var mercator = SphericalMercator.FromLonLat(p.Longitude, p.Latitude);
+                            return new Coordinate(mercator.x, mercator.y);
+                        }
+                        catch
+                        {
+                            return null;
+                        }
+                    })
+                    .Where(c => c != null)
+                    .Cast<Coordinate>()
+                    .ToArray();
+
+                if (coordinates.Length < 2)
+                {
+                    HideStatsPanel();
+                    return;
+                }
+
+                var lineString = new LineString(coordinates);
+                var trackFeature = new GeometryFeature { Geometry = lineString };
+                trackFeature.Styles.Add(new VectorStyle
+                {
+                    Line = new MapsuiPen(new MapsuiColor(59, 130, 246, 255), 4)
+                });
+                _trackLayer.Add(trackFeature);
+
+                // Add crash segments (limited)
+                foreach (var segment in _crashSegments.Take(MaxCrashSegments))
+                {
+                    AddCrashSegment(segment.Start, segment.End);
+                }
+
+                // Show crash alert
+                if (_crashSegments.Count > 0 && _crashAlert != null && !_isDisposed)
+                {
+                    Dispatcher.UIThread.Post(() =>
+                    {
+                        if (!_isDisposed && _crashAlert != null)
+                        {
+                            _crashAlert.IsVisible = true;
+                            Task.Delay(5000).ContinueWith(_ =>
+                                Dispatcher.UIThread.Post(() =>
+                                {
+                                    if (!_isDisposed && _crashAlert != null)
+                                        _crashAlert.IsVisible = false;
+                                }));
+                        }
+                    });
+                }
+
+                // Add markers
+                AddMarker(validPoints.First(), new MapsuiColor(34, 197, 94, 255), "Start");
+                AddMarker(validPoints.Last(), new MapsuiColor(239, 68, 68, 255), "End");
+
+                // Update statistics
+                UpdateStatistics(validPoints);
+
+                // Show legend
+                if (_legendPanel != null && !_isDisposed)
+                {
+                    Dispatcher.UIThread.Post(() =>
+                    {
+                        if (!_isDisposed && _legendPanel != null)
+                            _legendPanel.IsVisible = true;
+                    });
+                }
+
+                // Zoom to track
+                ZoomToTrack();
+
+                // Invalidate map safely
+                SafeInvalidateMap();
             }
-
-            // Show crash alert if crashes detected
-            if (_crashSegments.Count > 0 && _crashAlert != null)
-            {
-                _crashAlert.IsVisible = true;
-                // Hide after 5 seconds
-                Task.Delay(5000).ContinueWith(_ => 
-                    Dispatcher.UIThread.Post(() => { if (_crashAlert != null) _crashAlert.IsVisible = false; }));
-            }
-
-            // Add start marker (green)
-            AddMarker(validPoints.First(), new MapsuiColor(34, 197, 94, 255), "Start"); // #22C55E
-
-            // Add end marker (red)
-            AddMarker(validPoints.Last(), new MapsuiColor(239, 68, 68, 255), "End"); // #EF4444
-
-            // Update statistics
-            UpdateStatistics(validPoints);
-
-            // Show legend
-            if (_legendPanel != null)
-                _legendPanel.IsVisible = true;
-
-            // Zoom to track
-            ZoomToTrack();
-            
-            // Invalidate map to refresh display
-            _mapControl.InvalidateVisual();
         }
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"Error updating track: {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"Stack trace: {ex.StackTrace}");
+            HideStatsPanel();
+        }
+    }
+
+    private static bool IsValidCoordinate(double lat, double lon)
+    {
+        return Math.Abs(lat) > 0.001 &&
+               Math.Abs(lon) > 0.001 &&
+               Math.Abs(lat) <= 90 &&
+               Math.Abs(lon) <= 180;
+    }
+
+    private void SafeClearLayer(WritableLayer? layer)
+    {
+        if (layer == null || _isDisposed) return;
+
+        try
+        {
+            layer.Clear();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error clearing layer: {ex.Message}");
+        }
+    }
+
+    private void SafeInvalidateMap()
+    {
+        if (_isDisposed) return;
+
+        try
+        {
+            Dispatcher.UIThread.Post(() =>
+            {
+                if (!_isDisposed)
+                    _mapControl?.InvalidateVisual();
+            });
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error invalidating map: {ex.Message}");
         }
     }
 
@@ -910,45 +1003,62 @@ Crashes:     {_crashSegments.Count}";
 
     private void UpdateEvents(IEnumerable<LogEvent>? events)
     {
-        if (_eventLayer == null || events == null)
+        if (_isDisposed || _eventLayer == null || events == null)
             return;
 
         try
         {
-            _eventLayer.Clear();
-
-            foreach (var evt in events.Where(e => e.HasLocation))
+            lock (_dataLock)
             {
-                var mercator = SphericalMercator.FromLonLat(evt.Longitude!.Value, evt.Latitude!.Value);
-                var eventMarker = new GeometryFeature
-                {
-                    Geometry = new GeoPoint(mercator.x, mercator.y)
-                };
+                SafeClearLayer(_eventLayer);
 
-                var (color, symbolType, scale) = GetEventMarkerStyle(evt);
-                eventMarker.Styles.Add(new SymbolStyle
-                {
-                    Fill = new MapsuiBrush(color),
-                    Outline = new MapsuiPen(new MapsuiColor(255, 255, 255, 255), 2),
-                    SymbolType = symbolType,
-                    SymbolScale = scale
-                });
+                // Limit events to prevent performance issues
+                var limitedEvents = events
+                    .Where(e => e.HasLocation && IsValidCoordinate(e.Latitude!.Value, e.Longitude!.Value))
+                    .Take(MaxEvents)
+                    .ToList();
 
-                // Add label with event title
-                eventMarker.Styles.Add(new LabelStyle
+                foreach (var evt in limitedEvents)
                 {
-                    Text = evt.Title,
-                    BackColor = new MapsuiBrush(new MapsuiColor(0, 0, 0, 200)),
-                    ForeColor = MapsuiColor.White,
-                    Offset = new Offset(0, 22),
-                    Font = new Font { FontFamily = "Arial", Size = 9 },
-                    HorizontalAlignment = LabelStyle.HorizontalAlignmentEnum.Center
-                });
+                    try
+                    {
+                        var mercator = SphericalMercator.FromLonLat(evt.Longitude!.Value, evt.Latitude!.Value);
+                        var eventMarker = new GeometryFeature
+                        {
+                            Geometry = new GeoPoint(mercator.x, mercator.y)
+                        };
 
-                _eventLayer.Add(eventMarker);
+                        var (color, symbolType, scale) = GetEventMarkerStyle(evt);
+                        eventMarker.Styles.Add(new SymbolStyle
+                        {
+                            Fill = new MapsuiBrush(color),
+                            Outline = new MapsuiPen(new MapsuiColor(255, 255, 255, 255), 2),
+                            SymbolType = symbolType,
+                            SymbolScale = scale
+                        });
+
+                        // Add label with truncated title to prevent rendering issues
+                        var title = evt.Title.Length > 30 ? evt.Title.Substring(0, 27) + "..." : evt.Title;
+                        eventMarker.Styles.Add(new LabelStyle
+                        {
+                            Text = title,
+                            BackColor = new MapsuiBrush(new MapsuiColor(0, 0, 0, 200)),
+                            ForeColor = MapsuiColor.White,
+                            Offset = new Offset(0, 22),
+                            Font = new Font { FontFamily = "Arial", Size = 9 },
+                            HorizontalAlignment = LabelStyle.HorizontalAlignmentEnum.Center
+                        });
+
+                        _eventLayer.Add(eventMarker);
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"Error adding event marker: {ex.Message}");
+                    }
+                }
+
+                SafeInvalidateMap();
             }
-
-            _mapControl.InvalidateVisual();
         }
         catch (Exception ex)
         {
@@ -994,37 +1104,49 @@ Crashes:     {_crashSegments.Count}";
 
     private void UpdateCurrentPosition()
     {
-        if (_currentPositionLayer == null || _trackPoints.Count == 0)
+        if (_isDisposed || _currentPositionLayer == null || _trackPoints.Count == 0)
             return;
 
         try
         {
-            _currentPositionLayer.Clear();
-
-            // Find closest point to timestamp
-            var closest = _trackPoints
-                .OrderBy(p => Math.Abs(p.Timestamp - CurrentPositionTimestamp))
-                .FirstOrDefault();
-
-            if (closest == null || Math.Abs(closest.Latitude) < 0.001)
-                return;
-
-            var mercator = SphericalMercator.FromLonLat(closest.Longitude, closest.Latitude);
-            var marker = new GeometryFeature
+            lock (_dataLock)
             {
-                Geometry = new GeoPoint(mercator.x, mercator.y)
-            };
+                SafeClearLayer(_currentPositionLayer);
 
-            marker.Styles.Add(new SymbolStyle
-            {
-                Fill = new MapsuiBrush(new MapsuiColor(251, 191, 36, 255)), // Yellow #FBBF24
-                Outline = new MapsuiPen(new MapsuiColor(255, 255, 255, 255), 3),
-                SymbolType = SymbolType.Ellipse,
-                SymbolScale = 1.0
-            });
+                // Find closest point with safe algorithm
+                GpsTrackPoint? closest = null;
+                double minDiff = double.MaxValue;
 
-            _currentPositionLayer.Add(marker);
-            _mapControl.InvalidateVisual();
+                foreach (var p in _trackPoints)
+                {
+                    var diff = Math.Abs(p.Timestamp - CurrentPositionTimestamp);
+                    if (diff < minDiff)
+                    {
+                        minDiff = diff;
+                        closest = p;
+                    }
+                }
+
+                if (closest == null || !IsValidCoordinate(closest.Latitude, closest.Longitude))
+                    return;
+
+                var mercator = SphericalMercator.FromLonLat(closest.Longitude, closest.Latitude);
+                var marker = new GeometryFeature
+                {
+                    Geometry = new GeoPoint(mercator.x, mercator.y)
+                };
+
+                marker.Styles.Add(new SymbolStyle
+                {
+                    Fill = new MapsuiBrush(new MapsuiColor(251, 191, 36, 255)),
+                    Outline = new MapsuiPen(new MapsuiColor(255, 255, 255, 255), 3),
+                    SymbolType = SymbolType.Ellipse,
+                    SymbolScale = 1.0
+                });
+
+                _currentPositionLayer.Add(marker);
+                SafeInvalidateMap();
+            }
         }
         catch (Exception ex)
         {
@@ -1038,17 +1160,24 @@ Crashes:     {_crashSegments.Count}";
 
     private void UpdateCenter()
     {
-        if (_map == null)
+        if (_isDisposed || _map == null)
             return;
 
         try
         {
-            if (Math.Abs(CenterLatitude) < 0.001 && Math.Abs(CenterLongitude) < 0.001)
+            if (!IsValidCoordinate(CenterLatitude, CenterLongitude))
                 return;
 
             var mercator = SphericalMercator.FromLonLat(CenterLongitude, CenterLatitude);
-            _map.Navigator?.CenterOn(mercator.x, mercator.y);
-            _mapControl.InvalidateVisual();
+
+            Dispatcher.UIThread.Post(() =>
+            {
+                if (!_isDisposed && _map.Navigator != null)
+                {
+                    _map.Navigator.CenterOn(mercator.x, mercator.y);
+                    SafeInvalidateMap();
+                }
+            });
         }
         catch (Exception ex)
         {
@@ -1061,42 +1190,47 @@ Crashes:     {_crashSegments.Count}";
     /// </summary>
     public void ZoomToTrack()
     {
-        if (_trackPoints.Count < 2)
+        if (_isDisposed || _trackPoints.Count < 2)
             return;
 
         try
         {
-            var validPoints = _trackPoints
-                .Where(p => Math.Abs(p.Latitude) > 0.001 && Math.Abs(p.Longitude) > 0.001)
-                .ToList();
-
-            if (validPoints.Count < 2)
-                return;
-
-            var minLat = validPoints.Min(p => p.Latitude);
-            var maxLat = validPoints.Max(p => p.Latitude);
-            var minLon = validPoints.Min(p => p.Longitude);
-            var maxLon = validPoints.Max(p => p.Longitude);
-
-            var min = SphericalMercator.FromLonLat(minLon, minLat);
-            var max = SphericalMercator.FromLonLat(maxLon, maxLat);
-
-            // Add padding
-            var padding = 0.1;
-            var width = max.x - min.x;
-            var height = max.y - min.y;
-
-            var extent = new MRect(
-                min.x - width * padding,
-                min.y - height * padding,
-                max.x + width * padding,
-                max.y + height * padding);
-
-            Dispatcher.UIThread.Post(() =>
+            lock (_dataLock)
             {
-                _map.Navigator?.ZoomToBox(extent);
-                _mapControl.InvalidateVisual();
-            });
+                var validPoints = _trackPoints
+                    .Where(p => IsValidCoordinate(p.Latitude, p.Longitude))
+                    .ToList();
+
+                if (validPoints.Count < 2)
+                    return;
+
+                var minLat = validPoints.Min(p => p.Latitude);
+                var maxLat = validPoints.Max(p => p.Latitude);
+                var minLon = validPoints.Min(p => p.Longitude);
+                var maxLon = validPoints.Max(p => p.Longitude);
+
+                var min = SphericalMercator.FromLonLat(minLon, minLat);
+                var max = SphericalMercator.FromLonLat(maxLon, maxLat);
+
+                var padding = 0.1;
+                var width = max.x - min.x;
+                var height = max.y - min.y;
+
+                var extent = new MRect(
+                    min.x - width * padding,
+                    min.y - height * padding,
+                    max.x + width * padding,
+                    max.y + height * padding);
+
+                Dispatcher.UIThread.Post(() =>
+                {
+                    if (!_isDisposed && _map.Navigator != null)
+                    {
+                        _map.Navigator.ZoomToBox(extent);
+                        SafeInvalidateMap();
+                    }
+                });
+            }
         }
         catch (Exception ex)
         {
@@ -1109,21 +1243,35 @@ Crashes:     {_crashSegments.Count}";
     /// </summary>
     public void ClearTrack()
     {
+        if (_isDisposed) return;
+
         Dispatcher.UIThread.Post(() =>
         {
-            _trackLayer?.Clear();
-            _crashLayer?.Clear();
-            _markerLayer?.Clear();
-            _eventLayer?.Clear();
-            _currentPositionLayer?.Clear();
-            _trackPoints.Clear();
-            _crashSegments.Clear();
-            
-            HideStatsPanel();
-            if (_legendPanel != null) _legendPanel.IsVisible = false;
-            if (_crashAlert != null) _crashAlert.IsVisible = false;
-            
-            _mapControl.InvalidateVisual();
+            if (_isDisposed) return;
+
+            try
+            {
+                lock (_dataLock)
+                {
+                    SafeClearLayer(_trackLayer);
+                    SafeClearLayer(_crashLayer);
+                    SafeClearLayer(_markerLayer);
+                    SafeClearLayer(_eventLayer);
+                    SafeClearLayer(_currentPositionLayer);
+                    _trackPoints.Clear();
+                    _crashSegments.Clear();
+
+                    HideStatsPanel();
+                    if (_legendPanel != null) _legendPanel.IsVisible = false;
+                    if (_crashAlert != null) _crashAlert.IsVisible = false;
+
+                    SafeInvalidateMap();
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error clearing track: {ex.Message}");
+            }
         });
     }
 
@@ -1133,33 +1281,71 @@ Crashes:     {_crashSegments.Count}";
     {
         base.OnUnloaded(e);
 
+        if (_isDisposed) return;
+        _isDisposed = true;
+
         try
         {
-            // Cancel any pending refreshes
-            _refreshCts?.Cancel();
-            _refreshCts?.Dispose();
-            _refreshCts = null;
-            
-            _mapControl.PointerMoved -= OnMapPointerMoved;
-            
-            _trackLayer?.Clear();
-            _crashLayer?.Clear();
-            _markerLayer?.Clear();
-            _eventLayer?.Clear();
-            _currentPositionLayer?.Clear();
-
-            // Remove layers from map
-            foreach (var layer in new[] { _trackLayer, _crashLayer, _markerLayer, _eventLayer, _currentPositionLayer })
+            // Cancel any pending refreshes first
+            lock (_refreshLock)
             {
-                if (layer != null && _map?.Layers != null)
-                    _map.Layers.Remove(layer);
+                _refreshCts?.Cancel();
+                _refreshCts?.Dispose();
+                _refreshCts = null;
             }
 
-            (_map as IDisposable)?.Dispose();
+            // Unsubscribe from events
+            try
+            {
+                if (_mapControl != null)
+                    _mapControl.PointerMoved -= OnMapPointerMoved;
+            }
+            catch { }
+
+            // Clear all layers safely
+            lock (_dataLock)
+            {
+                SafeClearLayer(_trackLayer);
+                SafeClearLayer(_crashLayer);
+                SafeClearLayer(_markerLayer);
+                SafeClearLayer(_eventLayer);
+                SafeClearLayer(_currentPositionLayer);
+
+                // Remove layers from map
+                if (_map?.Layers != null)
+                {
+                    var layersToRemove = new ILayer?[] { _trackLayer, _crashLayer, _markerLayer, _eventLayer, _currentPositionLayer, _osmLayer };
+                    foreach (var layer in layersToRemove)
+                    {
+                        if (layer != null)
+                        {
+                            try
+                            {
+                                _map.Layers.Remove(layer);
+                            }
+                            catch { }
+                        }
+                    }
+                }
+
+                // Clear data
+                _trackPoints.Clear();
+                _crashSegments.Clear();
+            }
+
+            // Dispose map
+            try
+            {
+                (_map as IDisposable)?.Dispose();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error disposing map: {ex.Message}");
+            }
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"Error disposing map: {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"Error in OnUnloaded: {ex.Message}");
         }
     }
 }

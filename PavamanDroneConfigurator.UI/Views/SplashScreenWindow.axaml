@@ -3,12 +3,12 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:vm="using:PavamanDroneConfigurator.UI.ViewModels"
-        mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="500"
+        mc:Ignorable="d" d:DesignWidth="900" d:DesignHeight="600"
         x:Class="PavamanDroneConfigurator.UI.Views.SplashScreenWindow"
         x:DataType="vm:SplashScreenViewModel"
-        Title="pavaman Drone Configurator"
-        Width="800"
-        Height="500"
+        Title="Pavaman Aviation Drone Configurator"
+        Width="900"
+        Height="600"
         WindowStartupLocation="CenterScreen"
         CanResize="False"
         ShowInTaskbar="False"
@@ -17,128 +17,81 @@
         Background="Transparent">
 
     <Window.Styles>
-        <!-- Modern Splash Screen Styles -->
         <Style Selector="Border.splash-container">
-            <Setter Property="CornerRadius" Value="16"/>
+            <Setter Property="CornerRadius" Value="20"/>
             <Setter Property="BoxShadow" Value="0 25 50 -12 #40000000"/>
-        </Style>
-
-        <Style Selector="TextBlock.app-title">
-            <Setter Property="FontSize" Value="48"/>
-            <Setter Property="FontWeight" Value="Bold"/>
-            <Setter Property="Foreground" Value="White"/>
-        </Style>
-
-        <Style Selector="TextBlock.app-subtitle">
-            <Setter Property="FontSize" Value="18"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="Foreground" Value="#E0E7FF"/>
         </Style>
 
         <Style Selector="TextBlock.loading-text">
             <Setter Property="FontSize" Value="14"/>
-            <Setter Property="Foreground" Value="#C7D2FE"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Foreground" Value="White"/>
         </Style>
 
         <Style Selector="TextBlock.version-text">
             <Setter Property="FontSize" Value="12"/>
-            <Setter Property="Foreground" Value="#A5B4FC"/>
+            <Setter Property="Foreground" Value="#E0E7FF"/>
         </Style>
 
         <Style Selector="ProgressBar.splash-progress">
-            <Setter Property="Foreground" Value="White"/>
-            <Setter Property="Background" Value="#4C1D95"/>
-            <Setter Property="Height" Value="4"/>
-            <Setter Property="CornerRadius" Value="2"/>
+            <Setter Property="Foreground">
+                <Setter.Value>
+                    <LinearGradientBrush StartPoint="0%,50%" EndPoint="100%,50%">
+                        <GradientStop Color="#3B82F6" Offset="0"/>
+                        <GradientStop Color="#60A5FA" Offset="0.5"/>
+                        <GradientStop Color="#3B82F6" Offset="1"/>
+                    </LinearGradientBrush>
+                </Setter.Value>
+            </Setter>
+            <Setter Property="Background" Value="#30FFFFFF"/>
+            <Setter Property="Height" Value="6"/>
+            <Setter Property="CornerRadius" Value="3"/>
         </Style>
     </Window.Styles>
 
-    <Border Classes="splash-container">
-        <!-- Background Image -->
-        <Border.Background>
-            <ImageBrush Source="avares://PavamanDroneConfigurator.UI/Assets/Images/background.jpg" 
-                        Stretch="UniformToFill"/>
-        </Border.Background>
-        
-        <!-- Overlay for better text visibility -->
-        <Border Background="#80000000" CornerRadius="16">
-            <Grid RowDefinitions="*,Auto,Auto,Auto,*">
-                <!-- Logo Section (Top) -->
-                <StackPanel Grid.Row="1" 
-                            Spacing="16" 
-                            HorizontalAlignment="Center"
-                            VerticalAlignment="Center">
+    <Border Classes="splash-container" ClipToBounds="True">
+        <Grid>
+            <Image Source="avares://PavamanDroneConfigurator.UI/Assets/Images/splash.png" 
+                   Stretch="UniformToFill"
+                   HorizontalAlignment="Center"
+                   VerticalAlignment="Center"/>
+            
+            <Border Background="#40000000" CornerRadius="20"/>
+            
+            <Grid RowDefinitions="*,Auto">
+                <Border Grid.Row="1" 
+                        Padding="40,20,40,30"
+                        CornerRadius="0,0,20,20">
+                    <Border.Background>
+                        <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
+                            <GradientStop Color="#00000000" Offset="0"/>
+                            <GradientStop Color="#90000000" Offset="0.3"/>
+                            <GradientStop Color="#C0000000" Offset="1"/>
+                        </LinearGradientBrush>
+                    </Border.Background>
                     
-                    <!-- Custom Logo Image -->
-                    <Border Width="120" 
-                            Height="120" 
-                            CornerRadius="60"
-                            Background="White"
-                            BoxShadow="0 10 25 -5 #40000000"
-                            IsVisible="{Binding HasLogo}">
-                        <Image Source="avares://PavamanDroneConfigurator.UI/Assets/Images/logo.ico"
-                               Stretch="Uniform"
-                               Margin="20"/>
-                    </Border>
+                    <StackPanel Spacing="16" HorizontalAlignment="Center">
+                        <TextBlock Text="{Binding LoadingMessage}" 
+                                   Classes="loading-text"
+                                   HorizontalAlignment="Center"/>
 
-                    <!-- Fallback Logo (if no custom image) -->
-                    <Border Width="120" 
-                            Height="120" 
-                            CornerRadius="60"
-                            Background="White"
-                            BoxShadow="0 10 25 -5 #40000000"
-                            IsVisible="{Binding !HasLogo}">
-                        <Viewbox Width="60" Height="60">
-                            <Canvas Width="24" Height="24">
-                                <!-- Drone Icon SVG Path -->
-                                <Path Fill="#3B82F6" 
-                                      Data="M12 2L4 5v6.09c0 5.05 3.41 9.76 8 10.91 4.59-1.15 8-5.86 8-10.91V5l-8-3zm6 9.09c0 4-2.55 7.7-6 8.83-3.45-1.13-6-4.82-6-8.83v-4.7l6-2.25 6 2.25v4.7z"/>
-                            </Canvas>
-                        </Viewbox>
-                    </Border>
-
-                    <!-- App Title -->
-                    <TextBlock Text="pavaman" 
-                               Classes="app-title"
-                               HorizontalAlignment="Center"/>
-                    
-                    <TextBlock Text="Drone Configurator" 
-                               Classes="app-subtitle"
-                               HorizontalAlignment="Center"/>
-                </StackPanel>
-
-                <!-- Loading Section (Middle) -->
-                <StackPanel Grid.Row="2" 
-                            Spacing="12" 
-                            Margin="0,40,0,0"
-                            HorizontalAlignment="Center">
-                    
-                    <TextBlock Text="{Binding LoadingMessage}" 
-                               Classes="loading-text"
-                               HorizontalAlignment="Center"/>
-
-                    <ProgressBar Classes="splash-progress"
-                                 Width="300"
-                                 IsIndeterminate="{Binding IsIndeterminate}"
-                                 Value="{Binding Progress}"
-                                 Maximum="100"/>
-                </StackPanel>
-
-                <!-- Version & Copyright (Bottom) -->
-                <StackPanel Grid.Row="3" 
-                            Spacing="8" 
-                            Margin="0,0,0,32"
-                            HorizontalAlignment="Center">
-                    
-                    <TextBlock Text="{Binding VersionText}" 
-                               Classes="version-text"
-                               HorizontalAlignment="Center"/>
-                    
-                    <TextBlock Text="� 202pavamanam. All rights reserved." 
-                               Classes="version-text"
-                               HorizontalAlignment="Center"/>
-                </StackPanel>
+                        <ProgressBar Classes="splash-progress"
+                                     Width="400"
+                                     IsIndeterminate="{Binding IsIndeterminate}"
+                                     Value="{Binding Progress}"
+                                     Maximum="100"/>
+                        
+                        <StackPanel Orientation="Horizontal" 
+                                    Spacing="20" 
+                                    HorizontalAlignment="Center">
+                            <TextBlock Text="{Binding VersionText}" 
+                                       Classes="version-text"/>
+                            <TextBlock Text="Pavaman Aviation 2025" 
+                                       Classes="version-text"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
             </Grid>
-        </Border>
+        </Grid>
     </Border>
 </Window>

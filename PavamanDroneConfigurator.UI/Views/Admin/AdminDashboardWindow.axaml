@@ -7,7 +7,7 @@
         mc:Ignorable="d" d:DesignWidth="1200" d:DesignHeight="800"
         x:Class="PavamanDroneConfigurator.UI.Views.Admin.AdminDashboardWindow"
         x:DataType="vm:AdminDashboardViewModel"
-        Title="Admin Dashboard - Pavaman Drone Configurator"
+        Title="Admin Dashboard - Pavaman Aviation Drone Configurator"
         Width="1200"
         Height="800"
         MinWidth="900"

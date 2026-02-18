@@ -219,10 +219,39 @@ public partial class App : Application
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             DisableAvaloniaDataAnnotationValidation();
-            ShowAuthShell(desktop);
+            ShowSplashScreen(desktop);
         }
 
         base.OnFrameworkInitializationCompleted();
+    }
+
+    private async void ShowSplashScreen(IClassicDesktopStyleApplicationLifetime desktop)
+    {
+        if (_isShuttingDown || Services == null) return;
+
+        try
+        {
+            var splashViewModel = Services.GetRequiredService<SplashScreenViewModel>();
+            var splashWindow = new SplashScreenWindow { DataContext = splashViewModel };
+            
+            desktop.MainWindow = splashWindow;
+            splashWindow.Show();
+
+            // Initialize splash (minimal processing)
+            await splashViewModel.InitializeAsync();
+
+            // Close splash and show auth shell immediately
+            if (!_isShuttingDown)
+            {
+                ShowAuthShell(desktop);
+                splashWindow.Close();
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Failed to show splash screen: {ex.Message}");
+            ShowAuthShell(desktop);
+        }
     }
 
     private void ShowAuthShell(IClassicDesktopStyleApplicationLifetime desktop)

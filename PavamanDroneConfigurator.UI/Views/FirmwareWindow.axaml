@@ -7,7 +7,7 @@
         mc:Ignorable="d" d:DesignWidth="1100" d:DesignHeight="750"
         x:Class="PavamanDroneConfigurator.UI.Views.FirmwareWindow"
         x:DataType="vm:FirmwarePageViewModel"
-        Title="Pavaman Drone Configurator - Firmware"
+        Title="Pavaman Aviation Drone Configurator - Firmware"
         Width="1100"
         Height="750"
         MinWidth="900"

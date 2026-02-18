@@ -7,7 +7,7 @@
         mc:Ignorable="d" d:DesignWidth="520" d:DesignHeight="700"
         x:Class="PavamanDroneConfigurator.UI.Views.Auth.AuthShell"
         x:DataType="vm:AuthShellViewModel"
-        Title="Pavaman Drone Configurator - Sign In"
+        Title="Pavaman Aviation Drone Configurator - Sign In"
         Width="520"
         Height="700"
         MinWidth="480"
@@ -24,92 +24,18 @@
         </Style>
     </Window.Styles>
 
-    <Grid>
-        <!-- Splash Screen Overlay (shown during initialization) -->
-        <Border Background="#0F172A"
-                IsVisible="{Binding IsInitializing}"
-                ZIndex="100">
-            <Grid>
-                <!-- Background Image (if available) -->
-                <Image Source="avares://PavamanDroneConfigurator.UI/Assets/Images/background.jpg"
-                       Stretch="UniformToFill"
-                       Opacity="0.3"/>
-                
-                <!-- Dark Overlay -->
-                <Border Background="#0F172A" Opacity="0.7"/>
-                
-                <!-- Content -->
-                <StackPanel HorizontalAlignment="Center" 
-                            VerticalAlignment="Center"
-                            Spacing="32">
-                    
-                    <!-- Logo -->
-                    <Border Width="120"
-                            Height="120"
-                            CornerRadius="60"
-                            Background="#1E293B"
-                            BorderBrush="#3B82F6"
-                            BorderThickness="3"
-                            HorizontalAlignment="Center"
-                            BoxShadow="0 10 30 0 #40000000">
-                        <Image Source="avares://PavamanDroneConfigurator.UI/Assets/Images/logo.ico"
-                               Stretch="Uniform"
-                               Margin="20"/>
-                    </Border>
-                    
-                    <!-- Title -->
-                    <StackPanel Spacing="8" HorizontalAlignment="Center">
-                        <TextBlock Text="Pavaman Drone Configurator"
-                                   FontSize="24"
-                                   FontWeight="Bold"
-                                   Foreground="White"
-                                   HorizontalAlignment="Center"/>
-                        <TextBlock Text="Professional Ground Control Station"
-                                   FontSize="12"
-                                   Foreground="#94A3B8"
-                                   HorizontalAlignment="Center"/>
-                    </StackPanel>
-                    
-                    <!-- Loading -->
-                    <StackPanel Spacing="16" HorizontalAlignment="Center">
-                        <!-- Animated Progress Bar -->
-                        <ProgressBar IsIndeterminate="True"
-                                     Width="200"
-                                     Height="4"
-                                     Foreground="#3B82F6"
-                                     Background="#475569"
-                                     HorizontalAlignment="Center"/>
-                        
-                        <TextBlock Text="{Binding InitializingMessage}"
-                                   FontSize="14"
-                                   Foreground="#94A3B8"
-                                   HorizontalAlignment="Center"/>
-                    </StackPanel>
-                    
-                    <!-- Version -->
-                    <TextBlock Text="Version 1.0.0"
-                               FontSize="10"
-                               Foreground="#475569"
-                               HorizontalAlignment="Center"
-                               Margin="0,32,0,0"/>
-                </StackPanel>
-            </Grid>
-        </Border>
-
-        <!-- Main Content -->
-        <ContentControl Content="{Binding CurrentView}"
-                        IsVisible="{Binding !IsInitializing}">
-            <ContentControl.DataTemplates>
-                <DataTemplate DataType="vm:LoginViewModel">
-                    <views:LoginView />
-                </DataTemplate>
-                <DataTemplate DataType="vm:RegisterViewModel">
-                    <views:RegisterView />
-                </DataTemplate>
-                <DataTemplate DataType="vm:PendingApprovalViewModel">
-                    <views:PendingApprovalView />
-                </DataTemplate>
-            </ContentControl.DataTemplates>
-        </ContentControl>
-    </Grid>
+    <!-- Main Content -->
+    <ContentControl Content="{Binding CurrentView}">
+        <ContentControl.DataTemplates>
+            <DataTemplate DataType="vm:LoginViewModel">
+                <views:LoginView />
+            </DataTemplate>
+            <DataTemplate DataType="vm:RegisterViewModel">
+                <views:RegisterView />
+            </DataTemplate>
+            <DataTemplate DataType="vm:PendingApprovalViewModel">
+                <views:PendingApprovalView />
+            </DataTemplate>
+        </ContentControl.DataTemplates>
+    </ContentControl>
 </Window>
