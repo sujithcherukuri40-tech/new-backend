@@ -472,39 +472,75 @@ public class LogMapControl : UserControl
         lock (_refreshLock)
         {
             // Cancel any pending refresh
-            _refreshCts?.Cancel();
-            _refreshCts?.Dispose();
+            try
+            {
+                _refreshCts?.Cancel();
+            }
+            catch (ObjectDisposedException)
+            {
+                // Ignore if already disposed
+            }
+            
+            try
+            {
+                _refreshCts?.Dispose();
+            }
+            catch (ObjectDisposedException)
+            {
+                // Ignore if already disposed
+            }
+            
             _refreshCts = new CancellationTokenSource();
-
             var cts = _refreshCts;
             var timeSinceLastRefresh = (DateTime.Now - _lastRefresh).TotalMilliseconds;
             var delay = Math.Max(0, MinRefreshIntervalMs - (int)timeSinceLastRefresh);
 
             Task.Delay(delay, cts.Token).ContinueWith(_ =>
             {
-                if (!cts.Token.IsCancellationRequested && !_isDisposed)
+                // Check disposal state before accessing token
+                if (_isDisposed) return;
+                
+                try
                 {
-                    Dispatcher.UIThread.Post(() =>
+                    // Check token status - may throw ObjectDisposedException if CTS was disposed
+                    if (!cts.Token.IsCancellationRequested)
                     {
-                        if (!cts.Token.IsCancellationRequested && !_isRefreshing && !_isDisposed)
+                        Dispatcher.UIThread.Post(() =>
                         {
+                            // Double-check disposal and token state on UI thread
+                            if (_isDisposed) return;
+                            
                             try
                             {
-                                _isRefreshing = true;
-                                _lastRefresh = DateTime.Now;
-                                refreshAction();
+                                if (!cts.Token.IsCancellationRequested && !_isRefreshing)
+                                {
+                                    try
+                                    {
+                                        _isRefreshing = true;
+                                        _lastRefresh = DateTime.Now;
+                                        refreshAction();
+                                    }
+                                    catch (Exception ex)
+                                    {
+                                        System.Diagnostics.Debug.WriteLine($"Map refresh error: {ex.Message}");
+                                        System.Diagnostics.Debug.WriteLine($"Stack trace: {ex.StackTrace}");
+                                    }
+                                    finally
+                                    {
+                                        _isRefreshing = false;
+                                    }
+                                }
                             }
-                            catch (Exception ex)
+                            catch (ObjectDisposedException)
                             {
-                                System.Diagnostics.Debug.WriteLine($"Map refresh error: {ex.Message}");
-                                System.Diagnostics.Debug.WriteLine($"Stack trace: {ex.StackTrace}");
+                                // CTS was disposed between outer check and inner check - safe to ignore
                             }
-                            finally
-                            {
-                                _isRefreshing = false;
-                            }
-                        }
-                    });
+                        });
+                    }
+                }
+                catch (ObjectDisposedException)
+                {
+                    // CTS was disposed while checking token - safe to ignore during shutdown
                 }
             }, TaskScheduler.Default);
         }
@@ -1289,8 +1325,24 @@ Crashes:     {_crashSegments.Count}";
             // Cancel any pending refreshes first
             lock (_refreshLock)
             {
-                _refreshCts?.Cancel();
-                _refreshCts?.Dispose();
+                try
+                {
+                    _refreshCts?.Cancel();
+                }
+                catch (ObjectDisposedException)
+                {
+                    // Ignore if already disposed
+                }
+                
+                try
+                {
+                    _refreshCts?.Dispose();
+                }
+                catch (ObjectDisposedException)
+                {
+                    // Ignore if already disposed
+                }
+                
                 _refreshCts = null;
             }
 
