@@ -206,8 +206,8 @@
         <Border Grid.Row="0" Background="White" Padding="8" BorderBrush="#E1E1E1" BorderThickness="0,0,0,1">
             <Grid ColumnDefinitions="Auto,*,Auto">
                 <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="4">
-                    <Button Classes="ToolbarButton" Content="📂 Load Log" Command="{Binding BrowseLocalFileCommand}"/>
-                    <Button Classes="ToolbarButton" Content="📡 From FC" Command="{Binding OpenDownloadDialogCommand}" 
+                    <Button Classes="ToolbarButton" Content="&#x1F4C1; Load Log" Command="{Binding BrowseLocalFileCommand}"/>
+                    <Button Classes="ToolbarButton" Content="&#x1F4E1; From FC" Command="{Binding OpenDownloadDialogCommand}" 
                             IsEnabled="{Binding IsConnected}"/>
                 </StackPanel>
                 
@@ -320,10 +320,69 @@
             
             <!-- PLOT TAB -->
             <TabItem Header="Plot">
-                <Grid ColumnDefinitions="*,Auto,280" RowDefinitions="*,Auto,300">
+                <Grid ColumnDefinitions="*,Auto,280" RowDefinitions="Auto,*,Auto,300">
                     
-                    <!-- Graph Area (Top Left) -->
-                    <Grid Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="3">
+                    <!-- Graph Legend Panel (Top - shows selected fields with colors) -->
+                    <Border Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="3"
+                            Background="#1E1E1E"
+                            BorderBrush="#3E3E42"
+                            BorderThickness="0,0,0,1"
+                            Padding="12,8"
+                            IsVisible="{Binding HasLegendItems}">
+                        <Grid RowDefinitions="Auto,Auto">
+                            <TextBlock Grid.Row="0" 
+                                       Text="Graph Legend - Selected Fields" 
+                                       Foreground="#CCCCCC" 
+                                       FontSize="11" 
+                                       FontWeight="SemiBold"
+                                       Margin="0,0,0,8"/>
+                            <ItemsControl Grid.Row="1" ItemsSource="{Binding GraphLegendItems}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel Orientation="Horizontal"/>
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Background="#2D2D30" 
+                                                CornerRadius="4" 
+                                                Padding="10,6" 
+                                                Margin="0,0,8,6">
+                                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                                <!-- Color indicator -->
+                                                <Border Width="14" Height="14" CornerRadius="2">
+                                                    <Border.Background>
+                                                        <SolidColorBrush Color="{Binding Color}"/>
+                                                    </Border.Background>
+                                                </Border>
+                                                <!-- Field name -->
+                                                <TextBlock Text="{Binding FieldName}" 
+                                                           Foreground="#E0E0E0" 
+                                                           FontSize="11" 
+                                                           FontWeight="SemiBold"
+                                                           VerticalAlignment="Center"/>
+                                                <!-- Statistics -->
+                                                <TextBlock Foreground="#888888" 
+                                                           FontSize="10" 
+                                                           VerticalAlignment="Center">
+                                                    <TextBlock.Text>
+                                                        <MultiBinding StringFormat="min:{0} max:{1} avg:{2}">
+                                                            <Binding Path="MinDisplay"/>
+                                                            <Binding Path="MaxDisplay"/>
+                                                            <Binding Path="MeanDisplay"/>
+                                                        </MultiBinding>
+                                                    </TextBlock.Text>
+                                                </TextBlock>
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </Grid>
+                    </Border>
+                    
+                    <!-- Graph Area -->
+                    <Grid Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="1">
                         <controls:LogGraphControl x:Name="GraphControl"
                                                    GraphData="{Binding CurrentGraph}"
                                                    IsVisible="{Binding HasGraphData}"/>
@@ -345,17 +404,17 @@
                     </Grid>
                     
                     <!-- Vertical Splitter -->
-                    <GridSplitter Grid.Row="0" Grid.Column="1"
+                    <GridSplitter Grid.Row="0" Grid.RowSpan="2" Grid.Column="1"
                                   Background="#E1E1E1"
                                   Width="4"
                                   VerticalAlignment="Stretch"/>
                     
                     <!-- Field Selection Panel (Right) -->
-                    <Border Grid.Row="0" Grid.Column="2"
+                    <Border Grid.Row="0" Grid.RowSpan="2" Grid.Column="2"
                             Background="White"
                             BorderBrush="#E1E1E1"
                             BorderThickness="1,0,0,0">
-                        <Grid RowDefinitions="Auto,*,Auto">
+                        <Grid RowDefinitions="Auto,Auto,*,Auto">
                             <!-- Header -->
                             <Border Grid.Row="0"
                                     Background="#F5F5F5"
@@ -368,23 +427,50 @@
                                            Foreground="#333333"/>
                             </Border>
                             
+                            <!-- Search Box -->
+                            <Border Grid.Row="1"
+                                    Background="#FAFAFA"
+                                    Padding="8"
+                                    BorderBrush="#E1E1E1"
+                                    BorderThickness="0,0,0,1">
+                                <TextBox Text="{Binding FieldSearchText}"
+                                         Watermark="&#x1F50D; Search fields..."
+                                         Background="White"
+                                         BorderBrush="#DDDDDD"
+                                         Padding="8,6"
+                                         FontSize="12"/>
+                            </Border>
+                            
                             <!-- Field List -->
-                            <ScrollViewer Grid.Row="1"
+                            <ScrollViewer Grid.Row="2"
                                           VerticalScrollBarVisibility="Auto">
-                                <ItemsControl ItemsSource="{Binding MessageTypesTree}">
+                                <ItemsControl ItemsSource="{Binding FilteredMessageTypesTree}">
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
                                             <Expander Header="{Binding Name}"
-                                                      IsExpanded="True"
+                                                      IsExpanded="{Binding IsExpanded}"
                                                       Margin="4,2">
                                                 <ItemsControl ItemsSource="{Binding Fields}"
                                                               Margin="12,4,4,4">
                                                     <ItemsControl.ItemTemplate>
                                                         <DataTemplate>
-                                                            <CheckBox Content="{Binding Name}"
-                                                                      IsChecked="{Binding IsSelected, Mode=TwoWay}"
-                                                                      Margin="0,2"
-                                                                      FontSize="12"/>
+                                                            <Grid ColumnDefinitions="Auto,*,Auto">
+                                                                <CheckBox Grid.Column="0"
+                                                                          Content="{Binding Name}"
+                                                                          IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                                                          Margin="0,2"
+                                                                          FontSize="12"/>
+                                                                <!-- Color indicator for selected fields -->
+                                                                <Border Grid.Column="2"
+                                                                        Width="12" Height="12"
+                                                                        CornerRadius="2"
+                                                                        Margin="4,0,0,0"
+                                                                        IsVisible="{Binding IsSelected}">
+                                                                    <Border.Background>
+                                                                        <SolidColorBrush Color="{Binding Color}"/>
+                                                                    </Border.Background>
+                                                                </Border>
+                                                            </Grid>
                                                         </DataTemplate>
                                                     </ItemsControl.ItemTemplate>
                                                 </ItemsControl>
@@ -395,7 +481,7 @@
                             </ScrollViewer>
                             
                             <!-- Action Buttons -->
-                            <Border Grid.Row="2"
+                            <Border Grid.Row="3"
                                     Background="#FAFAFA"
                                     BorderBrush="#E1E1E1"
                                     BorderThickness="0,1,0,0"
@@ -418,13 +504,13 @@
                     </Border>
                     
                     <!-- Splitter -->
-                    <GridSplitter Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="3"
+                    <GridSplitter Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="3"
                                   Background="#E1E1E1"
                                   Height="4"
                                   HorizontalAlignment="Stretch"/>
                     
                     <!-- Map Area (Bottom) -->
-                    <Grid Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="3">
+                    <Grid Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="3">
                         <!-- Map Header with Controls -->
                         <Border Background="White"
                                 BorderBrush="#E1E1E1"
@@ -480,16 +566,17 @@
                                         
                                         <!-- Zoom to Fit Button -->
                                         <Button Grid.Column="3"
-                                                Content="🎯 Fit"
+                                                Content="&#x2302; Fit"
                                                 Padding="8,4"
                                                 Margin="0,0,8,0"
                                                 Classes="ToolbarButton"
                                                 IsVisible="{Binding HasGpsData}"
-                                                ToolTip.Tip="Zoom to fit GPS track"/>
+                                                Command="{Binding FitToMapWithWaypointsCommand}"
+                                                ToolTip.Tip="Zoom to fit GPS track and show waypoints"/>
                                         
                                         <!-- Toggle Map Button -->
                                         <ToggleButton Grid.Column="4"
-                                                      Content="📍 Map"
+                                                      Content="&#x1F4CD; Map"
                                                       Padding="8,4"
                                                       IsChecked="{Binding ShowMap}"
                                                       Classes="ToolbarButton"
@@ -503,6 +590,7 @@
                                                             CriticalEvents="{Binding CriticalMapEvents}"
                                                             CenterLatitude="{Binding MapCenterLat}"
                                                             CenterLongitude="{Binding MapCenterLng}"
+                                                            Waypoints="{Binding MapWaypoints}"
                                                             IsVisible="{Binding HasGpsData}"/>
                                     
                                     <!-- No GPS Data Message -->
@@ -534,6 +622,7 @@
                         CriticalEvents="{Binding CriticalMapEvents}"
                         CenterLatitude="{Binding MapCenterLat}"
                         CenterLongitude="{Binding MapCenterLng}"
+                        Waypoints="{Binding MapWaypoints}"
                         IsVisible="{Binding HasGpsData}"/>
                     
                     <!-- No GPS Data Message -->
@@ -595,7 +684,7 @@
                             
                             <!-- Search Box -->
                             <TextBox Grid.Column="4" Text="{Binding EventSearchText}" 
-                                     Watermark="🔍 Search events..." 
+                                     Watermark="&#x1F50D; Search events..." 
                                      Background="#334155" Foreground="#E2E8F0" 
                                      BorderBrush="#475569" Padding="10,8"
                                      Margin="0,0,16,0" FontSize="12"/>
@@ -616,7 +705,7 @@
                             <!-- Total Events -->
                             <Border Classes="StatCard StatCardTotal">
                                 <StackPanel Orientation="Horizontal" Spacing="10">
-                                    <TextBlock Text="📊" FontSize="16" VerticalAlignment="Center"/>
+                                    <TextBlock Text="&#x2261;" FontSize="16" VerticalAlignment="Center"/>
                                     <StackPanel>
                                         <TextBlock Text="Total Events" Foreground="#94A3B8" FontSize="11"/>
                                         <TextBlock Text="{Binding EventDisplaySummary.TotalEventsDisplay, FallbackValue=0}" 
@@ -628,7 +717,7 @@
                             <!-- Errors -->
                             <Border Classes="StatCard StatCardError">
                                 <StackPanel Orientation="Horizontal" Spacing="10">
-                                    <TextBlock Text="❌" FontSize="16" Foreground="#FCA5A5" VerticalAlignment="Center"/>
+                                    <TextBlock Text="&#x2717;" FontSize="16" Foreground="#FCA5A5" VerticalAlignment="Center"/>
                                     <StackPanel>
                                         <TextBlock Text="Errors" Foreground="#FCA5A5" FontSize="11"/>
                                         <TextBlock Text="{Binding EventDisplaySummary.ErrorCountDisplay, FallbackValue=0}" 
@@ -640,7 +729,7 @@
                             <!-- Warnings -->
                             <Border Classes="StatCard StatCardWarning">
                                 <StackPanel Orientation="Horizontal" Spacing="10">
-                                    <TextBlock Text="⚠" FontSize="16" Foreground="#FCD34D" VerticalAlignment="Center"/>
+                                    <TextBlock Text="&#x26A0;" FontSize="16" Foreground="#FCD34D" VerticalAlignment="Center"/>
                                     <StackPanel>
                                         <TextBlock Text="Warnings" Foreground="#FCD34D" FontSize="11"/>
                                         <TextBlock Text="{Binding EventDisplaySummary.WarningCountDisplay, FallbackValue=0}" 
@@ -652,7 +741,7 @@
                             <!-- Info Events -->
                             <Border Classes="StatCard StatCardInfo">
                                 <StackPanel Orientation="Horizontal" Spacing="10">
-                                    <TextBlock Text="ℹ" FontSize="16" Foreground="#93C5FD" VerticalAlignment="Center"/>
+                                    <TextBlock Text="&#x2139;" FontSize="16" Foreground="#93C5FD" VerticalAlignment="Center"/>
                                     <StackPanel>
                                         <TextBlock Text="Info Events" Foreground="#93C5FD" FontSize="11"/>
                                         <TextBlock Text="{Binding EventDisplaySummary.InfoCountDisplay, FallbackValue=0}" 
@@ -666,15 +755,15 @@
                             
                             <!-- Export Buttons -->
                             <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center" Margin="16,0,0,0">
-                                <Button Classes="EventsButtonSecondary" Content="📄 CSV" 
+                                <Button Classes="EventsButtonSecondary" Content="&#x1F4C4; CSV" 
                                         Command="{Binding ExportEventsToCsvCommand}"
                                         IsEnabled="{Binding HasFilteredEvents}"
                                         ToolTip.Tip="Export events to CSV"/>
-                                <Button Classes="EventsButtonSecondary" Content="🗺 KML" 
+                                <Button Classes="EventsButtonSecondary" Content="&#x1F5FA; KML" 
                                         Command="{Binding ExportToKmlCommand}"
                                         IsEnabled="{Binding HasGpsData}"
                                         ToolTip.Tip="Export GPS track to KML"/>
-                                <Button Classes="EventsButtonSecondary" Content="📋 JSON" 
+                                <Button Classes="EventsButtonSecondary" Content="&#x1F4CB; JSON" 
                                         Command="{Binding ExportEventsToJsonCommand}"
                                         IsEnabled="{Binding HasFilteredEvents}"
                                         ToolTip.Tip="Export events to JSON"/>
@@ -742,7 +831,7 @@
                                                     <Border Background="#DC2626" Padding="8,4" CornerRadius="4" HorizontalAlignment="Left"
                                                             IsVisible="{Binding Severity, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static interfaces:LogEventSeverity.Error}}">
                                                         <StackPanel Orientation="Horizontal" Spacing="4">
-                                                            <TextBlock Text="✗" Foreground="White" FontSize="10"/>
+                                                            <TextBlock Text="&#x2717;" Foreground="White" FontSize="10"/>
                                                             <TextBlock Text="Error" Foreground="White" FontSize="11" FontWeight="SemiBold"/>
                                                         </StackPanel>
                                                     </Border>
@@ -752,7 +841,7 @@
                                                     <Border Background="#F59E0B" Padding="8,4" CornerRadius="4" HorizontalAlignment="Left"
                                                             IsVisible="{Binding Severity, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static interfaces:LogEventSeverity.Warning}}">
                                                         <StackPanel Orientation="Horizontal" Spacing="4">
-                                                            <TextBlock Text="⚠" Foreground="White" FontSize="10"/>
+                                                            <TextBlock Text="&#x26A0;" Foreground="White" FontSize="10"/>
                                                             <TextBlock Text="Warning" Foreground="White" FontSize="11" FontWeight="SemiBold"/>
                                                         </StackPanel>
                                                     </Border>
@@ -762,7 +851,7 @@
                                                     <Border Background="#3B82F6" Padding="8,4" CornerRadius="4" HorizontalAlignment="Left"
                                                             IsVisible="{Binding Severity, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static interfaces:LogEventSeverity.Info}}">
                                                         <StackPanel Orientation="Horizontal" Spacing="4">
-                                                            <TextBlock Text="ℹ" Foreground="White" FontSize="10"/>
+                                                            <TextBlock Text="&#x2139;" Foreground="White" FontSize="10"/>
                                                             <TextBlock Text="Info" Foreground="White" FontSize="11" FontWeight="SemiBold"/>
                                                         </StackPanel>
                                                     </Border>
@@ -772,7 +861,7 @@
                                                     <Border Background="#991B1B" Padding="8,4" CornerRadius="4" HorizontalAlignment="Left"
                                                             IsVisible="{Binding Severity, Converter={x:Static ObjectConverters.Equal}, ConverterParameter={x:Static interfaces:LogEventSeverity.Critical}}">
                                                         <StackPanel Orientation="Horizontal" Spacing="4">
-                                                            <TextBlock Text="🔥" Foreground="White" FontSize="10"/>
+                                                            <TextBlock Text="&#x2762;" Foreground="White" FontSize="10"/>
                                                             <TextBlock Text="Critical" Foreground="White" FontSize="11" FontWeight="SemiBold"/>
                                                         </StackPanel>
                                                     </Border>
@@ -809,7 +898,7 @@
 
                                                 <!-- Jump to Event Button -->
                                                 <Button Grid.Column="6"
-                                                        Content="→"
+                                                        Content="&#x2192;"
                                                         Background="Transparent"
                                                         Foreground="#64748B"
                                                         Command="{Binding $parent[UserControl].((vm:LogAnalyzerPageViewModel)DataContext).JumpToEventCommand}"
@@ -912,7 +1001,7 @@
                     <!-- No Events Placeholder - when log is loaded but no events found -->
                     <Border Grid.Row="2" Background="#0F172A" IsVisible="{Binding ShowNoEventsMessage}">
                         <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
-                            <TextBlock Text="✓" FontSize="48" Foreground="#22C55E" HorizontalAlignment="Center" Margin="0,0,0,16"/>
+                            <TextBlock Text="&#x2713;" FontSize="48" Foreground="#22C55E" HorizontalAlignment="Center" Margin="0,0,0,16"/>
                             <TextBlock Text="No events present in this log" Foreground="#64748B" FontSize="18" 
                                        HorizontalAlignment="Center" FontWeight="SemiBold"/>
                             <TextBlock Text="The log file was analyzed but no events, warnings, or errors were detected." 
@@ -926,12 +1015,12 @@
                     <!-- No Log Loaded Placeholder -->
                     <Border Grid.Row="2" Background="#0F172A" IsVisible="{Binding !IsLogLoaded}">
                         <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
-                            <TextBlock Text="📋" FontSize="48" HorizontalAlignment="Center" Margin="0,0,0,16"/>
+                            <TextBlock Text="&#x1F4CB;" FontSize="48" HorizontalAlignment="Center" Margin="0,0,0,16"/>
                             <TextBlock Text="No log file loaded" Foreground="#64748B" FontSize="18" 
                                        HorizontalAlignment="Center" FontWeight="SemiBold"/>
                             <TextBlock Text="Load a log file to view events" Foreground="#475569" FontSize="13" 
                                        HorizontalAlignment="Center" Margin="0,8,0,0"/>
-                            <Button Content="📂 Load Log" Classes="EventsButton" 
+                            <Button Content="&#x1F4C1; Load Log" Classes="EventsButton" 
                                     Command="{Binding BrowseLocalFileCommand}"
                                     Margin="0,24,0,0" HorizontalAlignment="Center"/>
                         </StackPanel>
@@ -945,7 +1034,7 @@
                     <!-- Search Header -->
                     <Border Grid.Row="0" Background="#F8F8F8" Padding="12" BorderBrush="#E1E1E1" BorderThickness="0,0,0,1">
                         <Grid ColumnDefinitions="Auto,*">
-                            <TextBox Grid.Column="0" Text="{Binding ParameterSearchText}" Watermark="🔍 Search parameters..." 
+                            <TextBox Grid.Column="0" Text="{Binding ParameterSearchText}" Watermark="&#x1F50D; Search parameters..." 
                                      Width="300" Background="White" Foreground="#333333" BorderThickness="1" 
                                      BorderBrush="#DDDDDD" Padding="8,6" FontSize="12"/>
                             <TextBlock Grid.Column="1" Text="{Binding LogParameters.Count, StringFormat={}{0} parameters from log}" 

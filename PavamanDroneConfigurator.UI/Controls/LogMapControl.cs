@@ -19,8 +19,6 @@ using NetTopologySuite.Geometries;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Net.Http;
-using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using AvaloniaColor = Avalonia.Media.Color;
@@ -34,7 +32,7 @@ namespace PavamanDroneConfigurator.UI.Controls;
 
 /// <summary>
 /// Industrial-grade Map control using Mapsui with OpenStreetMap (100% Free).
-/// Features: GPS track visualization, crash detection (red lines), search bar, map controls,
+/// Features: GPS track visualization, crash detection (red lines), map controls,
 /// altitude/speed data, event markers with color coding, proper refresh handling.
 /// OPTIMIZED: Thread-safe, memory-efficient, crash-resistant implementation.
 /// </summary>
@@ -47,11 +45,10 @@ public class LogMapControl : UserControl
     private WritableLayer? _markerLayer;
     private WritableLayer? _eventLayer;
     private WritableLayer? _currentPositionLayer;
+    private WritableLayer? _waypointLayer;
     private TileLayer? _osmLayer;
     
     // UI Controls
-    private TextBox? _searchBox;
-    private ListBox? _searchResults;
     private TextBlock? _statsPanel;
     private TextBlock? _coordsDisplay;
     private Border? _legendPanel;
@@ -60,13 +57,14 @@ public class LogMapControl : UserControl
     // Data with thread-safe access
     private List<GpsTrackPoint> _trackPoints = new();
     private List<(GpsTrackPoint Start, GpsTrackPoint End)> _crashSegments = new();
-    private readonly object _dataLock = new(); // Thread-safe data access
+    private List<WaypointPoint> _waypoints = new();
+    private readonly object _dataLock = new();
     
     // Refresh management - OPTIMIZED
     private CancellationTokenSource? _refreshCts;
     private readonly object _refreshLock = new();
     private bool _isRefreshing;
-    private bool _isDisposed; // Track disposal state
+    private bool _isDisposed;
     private DateTime _lastRefresh = DateTime.MinValue;
     private const int MinRefreshIntervalMs = 100;
     
@@ -74,6 +72,7 @@ public class LogMapControl : UserControl
     private const int MaxTrackPoints = 10000;
     private const int MaxEvents = 500;
     private const int MaxCrashSegments = 100;
+    private const int MaxWaypoints = 500;
     
     #region Styled Properties
 
@@ -131,15 +130,6 @@ public class LogMapControl : UserControl
         set => SetValue(CurrentPositionTimestampProperty, value);
     }
 
-    public static readonly StyledProperty<bool> ShowSearchBarProperty =
-        AvaloniaProperty.Register<LogMapControl, bool>(nameof(ShowSearchBar), true);
-
-    public bool ShowSearchBar
-    {
-        get => GetValue(ShowSearchBarProperty);
-        set => SetValue(ShowSearchBarProperty, value);
-    }
-
     public static readonly StyledProperty<bool> ShowStatsProperty =
         AvaloniaProperty.Register<LogMapControl, bool>(nameof(ShowStats), true);
 
@@ -158,6 +148,15 @@ public class LogMapControl : UserControl
         set => SetValue(ShowLegendProperty, value);
     }
 
+    public static readonly StyledProperty<IEnumerable<WaypointPoint>?> WaypointsProperty =
+        AvaloniaProperty.Register<LogMapControl, IEnumerable<WaypointPoint>?>(nameof(Waypoints));
+
+    public IEnumerable<WaypointPoint>? Waypoints
+    {
+        get => GetValue(WaypointsProperty);
+        set => SetValue(WaypointsProperty, value);
+    }
+
     #endregion
 
     public LogMapControl()
@@ -168,7 +167,7 @@ public class LogMapControl : UserControl
             Map = _map
         };
 
-        // Build the control UI with search bar, stats, and legend
+        // Build the control UI with stats and legend
         BuildControlUI();
         
         // Initialize map
@@ -188,14 +187,6 @@ public class LogMapControl : UserControl
 
         // Map takes full space
         mainGrid.Children.Add(_mapControl);
-
-        // Search bar (top-left)
-        var searchPanel = CreateSearchPanel();
-        searchPanel.SetValue(Grid.RowProperty, 0);
-        searchPanel.HorizontalAlignment = HorizontalAlignment.Left;
-        searchPanel.VerticalAlignment = VerticalAlignment.Top;
-        searchPanel.Margin = new Thickness(12);
-        mainGrid.Children.Add(searchPanel);
 
         // Stats panel (top-right)
         var statsPanel = CreateStatsPanel();
@@ -248,7 +239,7 @@ public class LogMapControl : UserControl
             IsVisible = false,
             Child = new TextBlock
             {
-                Text = "? CRASH DETECTED - Emergency Event Recorded",
+                Text = "\u26A0 CRASH DETECTED - Emergency Event Recorded",
                 Foreground = Brushes.White,
                 FontWeight = FontWeight.Bold,
                 FontSize = 14
@@ -262,61 +253,11 @@ public class LogMapControl : UserControl
         _mapControl.PointerMoved += OnMapPointerMoved;
     }
 
-    private Border CreateSearchPanel()
-    {
-        var stackPanel = new StackPanel { Spacing = 0 };
-
-        var searchGrid = new Grid
-        {
-            ColumnDefinitions = new ColumnDefinitions("*,Auto")
-        };
-
-        _searchBox = new TextBox
-        {
-            Watermark = "Search location...",
-            Width = 280,
-            FontSize = 13,
-            Padding = new Thickness(12, 10)
-        };
-        _searchBox.KeyDown += OnSearchKeyDown;
-        searchGrid.Children.Add(_searchBox);
-
-        var searchBtn = new Button
-        {
-            Content = "Search",
-            Padding = new Thickness(16, 10),
-            Margin = new Thickness(4, 0, 0, 0)
-        };
-        searchBtn.Click += OnSearchClick;
-        searchBtn.SetValue(Grid.ColumnProperty, 1);
-        searchGrid.Children.Add(searchBtn);
-
-        stackPanel.Children.Add(searchGrid);
-
-        _searchResults = new ListBox
-        {
-            MaxHeight = 200,
-            IsVisible = false,
-            Margin = new Thickness(0, 4, 0, 0)
-        };
-        _searchResults.SelectionChanged += OnSearchResultSelected;
-        stackPanel.Children.Add(_searchResults);
-
-        return new Border
-        {
-            Background = new SolidColorBrush(AvaloniaColor.FromArgb(245, 255, 255, 255)),
-            CornerRadius = new CornerRadius(8),
-            Padding = new Thickness(8),
-            BoxShadow = new BoxShadows(new BoxShadow { Blur = 10, Color = AvaloniaColor.FromArgb(40, 0, 0, 0) }),
-            Child = stackPanel
-        };
-    }
-
     private Border CreateStatsPanel()
     {
         _statsPanel = new TextBlock
         {
-            Text = "Flight Statistics\n?????????????????\nLoad a log to see stats",
+            Text = "Flight Statistics\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\nLoad a log to see stats",
             FontSize = 12,
             FontFamily = new FontFamily("Consolas, Courier New, monospace"),
             Foreground = new SolidColorBrush(AvaloniaColor.FromRgb(226, 232, 240))
@@ -343,10 +284,10 @@ public class LogMapControl : UserControl
         var buttons = new (string Content, string Tooltip, Action OnClick)[]
         {
             ("+", "Zoom In", () => _map.Navigator?.ZoomIn()),
-            ("?", "Zoom Out", () => _map.Navigator?.ZoomOut()),
-            ("?", "Fit to Track", () => ZoomToTrack()),
-            ("?", "Reset North", () => _map.Navigator?.RotateTo(0)),
-            ("•", "Toggle Legend", () => { if (_legendPanel != null) _legendPanel.IsVisible = !_legendPanel.IsVisible; })
+            ("\u2212", "Zoom Out", () => _map.Navigator?.ZoomOut()),
+            ("\u2302", "Fit to Track", () => ZoomToTrack()),
+            ("\u21BB", "Reset North", () => _map.Navigator?.RotateTo(0)),
+            ("\u25CF", "Toggle Legend", () => { if (_legendPanel != null) _legendPanel.IsVisible = !_legendPanel.IsVisible; })
         };
 
         foreach (var (content, tooltip, onClick) in buttons)
@@ -390,21 +331,36 @@ public class LogMapControl : UserControl
             ("#EF4444", "End Point"),
             ("#F59E0B", "Warning Event"),
             ("#991B1B", "Critical Event"),
-            ("#3B82F6", "Info Event")
+            ("#3B82F6", "Info Event"),
+            ("#FFA500", "Mission Waypoint"),
+            ("#FFA500", "Mission Path (dashed)")
         };
 
         foreach (var (color, label) in items)
         {
             var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
             
-            row.Children.Add(new Border
+            var height = label.Contains("Path") ? 4 : 12;
+            var cornerRadius = label.Contains("Path") ? 2 : 6;
+            
+            var indicator = new Border
             {
                 Width = 16,
-                Height = label.Contains("Path") || label.Contains("Crash") ? 4 : 12,
-                CornerRadius = new CornerRadius(label.Contains("Path") || label.Contains("Crash") ? 2 : 6),
+                Height = height,
+                CornerRadius = new CornerRadius(cornerRadius),
                 Background = new SolidColorBrush(AvaloniaColor.Parse(color)),
                 VerticalAlignment = VerticalAlignment.Center
-            });
+            };
+            
+            // Add dashed effect for mission path
+            if (label.Contains("dashed"))
+            {
+                indicator.BorderBrush = new SolidColorBrush(AvaloniaColor.Parse(color));
+                indicator.BorderThickness = new Thickness(2);
+                indicator.Background = Brushes.Transparent;
+            }
+            
+            row.Children.Add(indicator);
             
             row.Children.Add(new TextBlock
             {
@@ -463,6 +419,12 @@ public class LogMapControl : UserControl
             if (control == this && !_isDisposed)
                 control.ScheduleRefresh(() => control.UpdateCenter());
         });
+
+        WaypointsProperty.Changed.AddClassHandler<LogMapControl>((control, args) =>
+        {
+            if (control == this && !_isDisposed)
+                control.ScheduleRefresh(() => control.UpdateWaypoints());
+        });
     }
 
     private void ScheduleRefresh(Action refreshAction)
@@ -471,14 +433,12 @@ public class LogMapControl : UserControl
 
         lock (_refreshLock)
         {
-            // Cancel any pending refresh
             try
             {
                 _refreshCts?.Cancel();
             }
             catch (ObjectDisposedException)
             {
-                // Ignore if already disposed
             }
             
             try
@@ -487,7 +447,6 @@ public class LogMapControl : UserControl
             }
             catch (ObjectDisposedException)
             {
-                // Ignore if already disposed
             }
             
             _refreshCts = new CancellationTokenSource();
@@ -497,17 +456,14 @@ public class LogMapControl : UserControl
 
             Task.Delay(delay, cts.Token).ContinueWith(_ =>
             {
-                // Check disposal state before accessing token
                 if (_isDisposed) return;
                 
                 try
                 {
-                    // Check token status - may throw ObjectDisposedException if CTS was disposed
                     if (!cts.Token.IsCancellationRequested)
                     {
                         Dispatcher.UIThread.Post(() =>
                         {
-                            // Double-check disposal and token state on UI thread
                             if (_isDisposed) return;
                             
                             try
@@ -533,14 +489,12 @@ public class LogMapControl : UserControl
                             }
                             catch (ObjectDisposedException)
                             {
-                                // CTS was disposed between outer check and inner check - safe to ignore
                             }
                         });
                     }
                 }
                 catch (ObjectDisposedException)
                 {
-                    // CTS was disposed while checking token - safe to ignore during shutdown
                 }
             }, TaskScheduler.Default);
         }
@@ -550,25 +504,24 @@ public class LogMapControl : UserControl
     {
         try
         {
-            // Add OpenStreetMap layer (100% Free - No API key needed)
             _osmLayer = OpenStreetMap.CreateTileLayer();
             _osmLayer.Name = "OpenStreetMap";
             _map.Layers.Add(_osmLayer);
 
-            // Create layers in order (bottom to top)
             _trackLayer = new WritableLayer { Name = "GPS Track" };
             _crashLayer = new WritableLayer { Name = "Crash Segments" };
             _markerLayer = new WritableLayer { Name = "Start/End Markers" };
             _eventLayer = new WritableLayer { Name = "Events" };
             _currentPositionLayer = new WritableLayer { Name = "Current Position" };
+            _waypointLayer = new WritableLayer { Name = "Waypoints" };
 
             _map.Layers.Add(_trackLayer);
             _map.Layers.Add(_crashLayer);
             _map.Layers.Add(_markerLayer);
             _map.Layers.Add(_eventLayer);
             _map.Layers.Add(_currentPositionLayer);
+            _map.Layers.Add(_waypointLayer);
 
-            // Set initial view (world)
             _map.Navigator?.CenterOn(0, 0);
             _map.Navigator?.ZoomTo(2);
 
@@ -579,87 +532,6 @@ public class LogMapControl : UserControl
             System.Diagnostics.Debug.WriteLine($"Error initializing map: {ex.Message}");
         }
     }
-
-    #region Search Functionality
-
-    private async void OnSearchKeyDown(object? sender, KeyEventArgs e)
-    {
-        if (e.Key == Key.Enter)
-        {
-            await PerformSearch();
-        }
-    }
-
-    private async void OnSearchClick(object? sender, RoutedEventArgs e)
-    {
-        await PerformSearch();
-    }
-
-    private async Task PerformSearch()
-    {
-        if (_searchBox == null || string.IsNullOrWhiteSpace(_searchBox.Text))
-            return;
-
-        try
-        {
-            using var client = new HttpClient();
-            client.DefaultRequestHeaders.Add("User-Agent", "PavamanDroneConfigurator/1.0");
-            
-            var query = Uri.EscapeDataString(_searchBox.Text);
-            var response = await client.GetStringAsync(
-                $"https://nominatim.openstreetmap.org/search?format=json&q={query}&limit=5");
-
-            var results = JsonSerializer.Deserialize<List<NominatimResult>>(response);
-            
-            if (results != null && results.Count > 0 && _searchResults != null)
-            {
-                _searchResults.Items.Clear();
-                foreach (var result in results)
-                {
-                    _searchResults.Items.Add(new ListBoxItem
-                    {
-                        Content = result.display_name,
-                        Tag = result
-                    });
-                }
-                _searchResults.IsVisible = true;
-            }
-            else if (_searchResults != null)
-            {
-                _searchResults.Items.Clear();
-                _searchResults.Items.Add(new ListBoxItem { Content = "No results found" });
-                _searchResults.IsVisible = true;
-            }
-        }
-        catch (Exception ex)
-        {
-            System.Diagnostics.Debug.WriteLine($"Search error: {ex.Message}");
-        }
-    }
-
-    private void OnSearchResultSelected(object? sender, SelectionChangedEventArgs e)
-    {
-        if (_searchResults?.SelectedItem is ListBoxItem { Tag: NominatimResult result })
-        {
-            if (double.TryParse(result.lat, out var lat) && double.TryParse(result.lon, out var lon))
-            {
-                var mercator = SphericalMercator.FromLonLat(lon, lat);
-                _map.Navigator?.CenterOn(mercator.x, mercator.y);
-                _map.Navigator?.ZoomTo(15);
-                _mapControl.InvalidateVisual();
-            }
-            _searchResults.IsVisible = false;
-        }
-    }
-
-    private class NominatimResult
-    {
-        public string lat { get; set; } = "";
-        public string lon { get; set; } = "";
-        public string display_name { get; set; } = "";
-    }
-
-    #endregion
 
     #region Map Events
 
@@ -675,11 +547,10 @@ public class LogMapControl : UserControl
             var lonLat = SphericalMercator.ToLonLat(worldPos.X, worldPos.Y);
 
             if (!_isDisposed && _coordsDisplay != null)
-                _coordsDisplay.Text = $"Lat: {lonLat.lat:F6}° | Lon: {lonLat.lon:F6}°";
+                _coordsDisplay.Text = $"Lat: {lonLat.lat:F6}\u00B0 | Lon: {lonLat.lon:F6}\u00B0";
         }
         catch
         {
-            // Ignore coordinate errors
         }
     }
 
@@ -696,13 +567,11 @@ public class LogMapControl : UserControl
         {
             lock (_dataLock)
             {
-                // Clear existing layers safely
                 SafeClearLayer(_trackLayer);
                 SafeClearLayer(_crashLayer);
                 SafeClearLayer(_markerLayer);
                 _crashSegments.Clear();
 
-                // Limit track points to prevent memory issues
                 _trackPoints = TrackPoints
                     .Take(MaxTrackPoints)
                     .ToList();
@@ -713,7 +582,6 @@ public class LogMapControl : UserControl
                     return;
                 }
 
-                // Filter valid points with better validation
                 var validPoints = _trackPoints
                     .Where(p => IsValidCoordinate(p.Latitude, p.Longitude))
                     .ToList();
@@ -724,10 +592,8 @@ public class LogMapControl : UserControl
                     return;
                 }
 
-                // Detect crash segments
                 DetectCrashSegments(validPoints);
 
-                // Create main track line with safe coordinate conversion
                 var coordinates = validPoints
                     .Select(p =>
                     {
@@ -759,13 +625,11 @@ public class LogMapControl : UserControl
                 });
                 _trackLayer.Add(trackFeature);
 
-                // Add crash segments (limited)
                 foreach (var segment in _crashSegments.Take(MaxCrashSegments))
                 {
                     AddCrashSegment(segment.Start, segment.End);
                 }
 
-                // Show crash alert
                 if (_crashSegments.Count > 0 && _crashAlert != null && !_isDisposed)
                 {
                     Dispatcher.UIThread.Post(() =>
@@ -783,14 +647,11 @@ public class LogMapControl : UserControl
                     });
                 }
 
-                // Add markers
                 AddMarker(validPoints.First(), new MapsuiColor(34, 197, 94, 255), "Start");
                 AddMarker(validPoints.Last(), new MapsuiColor(239, 68, 68, 255), "End");
 
-                // Update statistics
                 UpdateStatistics(validPoints);
 
-                // Show legend
                 if (_legendPanel != null && !_isDisposed)
                 {
                     Dispatcher.UIThread.Post(() =>
@@ -800,10 +661,7 @@ public class LogMapControl : UserControl
                     });
                 }
 
-                // Zoom to track
                 ZoomToTrack();
-
-                // Invalidate map safely
                 SafeInvalidateMap();
             }
         }
@@ -862,18 +720,12 @@ public class LogMapControl : UserControl
             var prev = points[i - 1];
             var curr = points[i];
 
-            // Calculate descent rate
             var timeDiff = Math.Max(curr.Timestamp - prev.Timestamp, 0.1);
             var altDiff = curr.Altitude - prev.Altitude;
             var descentRate = altDiff / timeDiff;
 
-            // Calculate speed change
             var speedDiff = Math.Abs(curr.Speed - prev.Speed);
 
-            // Detect crash conditions:
-            // 1. Rapid descent (> 10 m/s down)
-            // 2. Sudden speed loss while low altitude
-            // 3. Altitude drops to near zero from significant height
             bool isCrash = descentRate < -10 ||
                           (speedDiff > 15 && curr.Altitude < 50) ||
                           (curr.Altitude <= 2 && prev.Altitude > 15);
@@ -901,7 +753,7 @@ public class LogMapControl : UserControl
         var feature = new GeometryFeature { Geometry = line };
         feature.Styles.Add(new VectorStyle
         {
-            Line = new MapsuiPen(new MapsuiColor(220, 38, 38, 255), 6) // Red #DC2626
+            Line = new MapsuiPen(new MapsuiColor(220, 38, 38, 255), 6)
         });
 
         _crashLayer.Add(feature);
@@ -925,7 +777,6 @@ public class LogMapControl : UserControl
             SymbolScale = 1.2
         });
 
-        // Add label
         marker.Styles.Add(new LabelStyle
         {
             Text = label,
@@ -949,7 +800,6 @@ public class LogMapControl : UserControl
 
         try
         {
-            // Calculate distance (Haversine formula)
             double totalDistance = 0;
             for (int i = 1; i < points.Count; i++)
             {
@@ -958,42 +808,37 @@ public class LogMapControl : UserControl
                     points[i].Latitude, points[i].Longitude);
             }
 
-            // Duration
             var duration = points.Last().Timestamp - points.First().Timestamp;
             var minutes = (int)(duration / 60);
             var seconds = (int)(duration % 60);
 
-            // Altitude stats
             var altitudes = points.Where(p => p.Altitude > 0).Select(p => p.Altitude).ToList();
             var maxAlt = altitudes.Count > 0 ? altitudes.Max() : 0;
             var minAlt = altitudes.Count > 0 ? altitudes.Min() : 0;
             var avgAlt = altitudes.Count > 0 ? altitudes.Average() : 0;
 
-            // Speed stats
             var speeds = points.Where(p => p.Speed >= 0).Select(p => p.Speed).ToList();
             var maxSpeed = speeds.Count > 0 ? speeds.Max() : 0;
             var avgSpeed = speeds.Count > 0 ? speeds.Average() : 0;
 
-            // Event count
             var eventCount = (CriticalEvents?.Count() ?? 0) + (AllEvents?.Count() ?? 0);
 
             _statsPanel.Text = $@"Flight Statistics
-?????????????????????
+{new string('\u2500', 21)}
 Distance:    {totalDistance:F2} km
 Duration:    {minutes}m {seconds}s
-?????????????????????
+{new string('\u2500', 21)}
 Max Alt:     {maxAlt:F1} m
 Min Alt:     {minAlt:F1} m
 Avg Alt:     {avgAlt:F1} m
-?????????????????????
+{new string('\u2500', 21)}
 Max Speed:   {maxSpeed:F1} m/s
 Avg Speed:   {avgSpeed:F1} m/s
-?????????????????????
+{new string('\u2500', 21)}
 GPS Points:  {points.Count:N0}
 Events:      {eventCount}
 Crashes:     {_crashSegments.Count}";
 
-            // Show stats panel
             if (_statsPanel.Parent is Border border)
                 border.IsVisible = true;
         }
@@ -1011,7 +856,7 @@ Crashes:     {_crashSegments.Count}";
 
     private static double HaversineDistance(double lat1, double lon1, double lat2, double lon2)
     {
-        const double R = 6371; // Earth's radius in km
+        const double R = 6371;
         var dLat = ToRadians(lat2 - lat1);
         var dLon = ToRadians(lon2 - lon1);
         var a = Math.Sin(dLat / 2) * Math.Sin(dLat / 2) +
@@ -1048,7 +893,6 @@ Crashes:     {_crashSegments.Count}";
             {
                 SafeClearLayer(_eventLayer);
 
-                // Limit events to prevent performance issues
                 var limitedEvents = events
                     .Where(e => e.HasLocation && IsValidCoordinate(e.Latitude!.Value, e.Longitude!.Value))
                     .Take(MaxEvents)
@@ -1073,7 +917,6 @@ Crashes:     {_crashSegments.Count}";
                             SymbolScale = scale
                         });
 
-                        // Add label with truncated title to prevent rendering issues
                         var title = evt.Title.Length > 30 ? evt.Title.Substring(0, 27) + "..." : evt.Title;
                         eventMarker.Styles.Add(new LabelStyle
                         {
@@ -1107,27 +950,27 @@ Crashes:     {_crashSegments.Count}";
         return evt.Severity switch
         {
             LogEventSeverity.Emergency => (
-                new MapsuiColor(127, 29, 29, 255),    // Dark red #7F1D1D
+                new MapsuiColor(127, 29, 29, 255),
                 SymbolType.Triangle,
                 1.6
             ),
             LogEventSeverity.Critical => (
-                new MapsuiColor(153, 27, 27, 255),    // #991B1B
+                new MapsuiColor(153, 27, 27, 255),
                 SymbolType.Rectangle,
                 1.4
             ),
             LogEventSeverity.Error => (
-                new MapsuiColor(220, 38, 38, 255),    // Red #DC2626
+                new MapsuiColor(220, 38, 38, 255),
                 SymbolType.Ellipse,
                 1.2
             ),
             LogEventSeverity.Warning => (
-                new MapsuiColor(245, 158, 11, 255),   // Amber #F59E0B
+                new MapsuiColor(245, 158, 11, 255),
                 SymbolType.Ellipse,
                 1.0
             ),
             _ => (
-                new MapsuiColor(59, 130, 246, 255),   // Blue #3B82F6
+                new MapsuiColor(59, 130, 246, 255),
                 SymbolType.Ellipse,
                 0.9
             )
@@ -1149,7 +992,6 @@ Crashes:     {_crashSegments.Count}";
             {
                 SafeClearLayer(_currentPositionLayer);
 
-                // Find closest point with safe algorithm
                 GpsTrackPoint? closest = null;
                 double minDiff = double.MaxValue;
 
@@ -1221,9 +1063,6 @@ Crashes:     {_crashSegments.Count}";
         }
     }
 
-    /// <summary>
-    /// Zoom to fit all GPS track points
-    /// </summary>
     public void ZoomToTrack()
     {
         if (_isDisposed || _trackPoints.Count < 2)
@@ -1274,9 +1113,6 @@ Crashes:     {_crashSegments.Count}";
         }
     }
 
-    /// <summary>
-    /// Clear all data from the map
-    /// </summary>
     public void ClearTrack()
     {
         if (_isDisposed) return;
@@ -1294,8 +1130,10 @@ Crashes:     {_crashSegments.Count}";
                     SafeClearLayer(_markerLayer);
                     SafeClearLayer(_eventLayer);
                     SafeClearLayer(_currentPositionLayer);
+                    SafeClearLayer(_waypointLayer);
                     _trackPoints.Clear();
                     _crashSegments.Clear();
+                    _waypoints.Clear();
 
                     HideStatsPanel();
                     if (_legendPanel != null) _legendPanel.IsVisible = false;
@@ -1313,6 +1151,168 @@ Crashes:     {_crashSegments.Count}";
 
     #endregion
 
+    #region Waypoints Update
+
+    private void UpdateWaypoints()
+    {
+        if (_isDisposed || _waypointLayer == null || Waypoints == null)
+            return;
+
+        try
+        {
+            lock (_dataLock)
+            {
+                SafeClearLayer(_waypointLayer);
+
+                _waypoints = Waypoints
+                    .Take(MaxWaypoints)
+                    .ToList();
+
+                if (_waypoints.Count == 0)
+                    return;
+
+                if (_waypoints.Count >= 2)
+                {
+                    var pathCoordinates = _waypoints
+                        .Where(wp => IsValidCoordinate(wp.Latitude, wp.Longitude))
+                        .Select(wp =>
+                        {
+                            var mercator = SphericalMercator.FromLonLat(wp.Longitude, wp.Latitude);
+                            return new Coordinate(mercator.x, mercator.y);
+                        })
+                        .ToArray();
+
+                    if (pathCoordinates.Length >= 2)
+                    {
+                        var missionPath = new LineString(pathCoordinates);
+                        var pathFeature = new GeometryFeature { Geometry = missionPath };
+                        pathFeature.Styles.Add(new VectorStyle
+                        {
+                            Line = new MapsuiPen(new MapsuiColor(255, 165, 0, 200), 3)
+                            {
+                                PenStyle = PenStyle.Dash
+                            }
+                        });
+                        _waypointLayer.Add(pathFeature);
+                    }
+                }
+
+                int waypointIndex = 1;
+                foreach (var waypoint in _waypoints)
+                {
+                    if (!IsValidCoordinate(waypoint.Latitude, waypoint.Longitude))
+                        continue;
+
+                    var mercator = SphericalMercator.FromLonLat(waypoint.Longitude, waypoint.Latitude);
+                    var waypointMarker = new GeometryFeature
+                    {
+                        Geometry = new GeoPoint(mercator.x, mercator.y)
+                    };
+
+                    var (markerColor, markerScale) = GetWaypointStyle(waypoint.Label, waypointIndex);
+
+                    waypointMarker.Styles.Add(new SymbolStyle
+                    {
+                        Fill = new MapsuiBrush(markerColor),
+                        Outline = new MapsuiPen(MapsuiColor.White, 2),
+                        SymbolType = SymbolType.Ellipse,
+                        SymbolScale = markerScale
+                    });
+
+                    var displayLabel = GetWaypointDisplayLabel(waypoint.Label, waypointIndex);
+                    waypointMarker.Styles.Add(new LabelStyle
+                    {
+                        Text = displayLabel,
+                        BackColor = new MapsuiBrush(new MapsuiColor(0, 0, 0, 220)),
+                        ForeColor = MapsuiColor.White,
+                        Offset = new Offset(0, -24),
+                        Font = new Font { FontFamily = "Arial", Size = 10 },
+                        HorizontalAlignment = LabelStyle.HorizontalAlignmentEnum.Center,
+                        BorderColor = new MapsuiColor(255, 165, 0, 255)
+                    });
+
+                    _waypointLayer.Add(waypointMarker);
+                    waypointIndex++;
+                }
+
+                if (_waypoints.Count > 0 && IsValidCoordinate(_waypoints[0].Latitude, _waypoints[0].Longitude))
+                {
+                    var homeWp = _waypoints[0];
+                    var homeMercator = SphericalMercator.FromLonLat(homeWp.Longitude, homeWp.Latitude);
+                    
+                    var homeMarker = new GeometryFeature
+                    {
+                        Geometry = new GeoPoint(homeMercator.x, homeMercator.y)
+                    };
+                    
+                    homeMarker.Styles.Add(new SymbolStyle
+                    {
+                        Fill = new MapsuiBrush(new MapsuiColor(34, 197, 94, 255)),
+                        Outline = new MapsuiPen(MapsuiColor.White, 3),
+                        SymbolType = SymbolType.Rectangle,
+                        SymbolScale = 1.3
+                    });
+                    
+                    homeMarker.Styles.Add(new LabelStyle
+                    {
+                        Text = "H",
+                        ForeColor = MapsuiColor.White,
+                        Font = new Font { FontFamily = "Arial", Size = 12 },
+                        HorizontalAlignment = LabelStyle.HorizontalAlignmentEnum.Center
+                    });
+                    
+                    _waypointLayer.Add(homeMarker);
+                }
+
+                SafeInvalidateMap();
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Error updating waypoints: {ex.Message}");
+        }
+    }
+
+    private static (MapsuiColor Color, double Scale) GetWaypointStyle(string label, int index)
+    {
+        var labelUpper = label.ToUpperInvariant();
+        
+        if (labelUpper.Contains("TAKEOFF"))
+            return (new MapsuiColor(34, 197, 94, 255), 1.2);
+        
+        if (labelUpper.Contains("LAND"))
+            return (new MapsuiColor(239, 68, 68, 255), 1.2);
+        
+        if (labelUpper.Contains("RTL") || labelUpper.Contains("RETURN"))
+            return (new MapsuiColor(139, 92, 246, 255), 1.2);
+        
+        if (labelUpper.Contains("LOITER") || labelUpper.Contains("HOLD"))
+            return (new MapsuiColor(59, 130, 246, 255), 1.1);
+        
+        return (new MapsuiColor(255, 165, 0, 255), 1.0);
+    }
+
+    private static string GetWaypointDisplayLabel(string label, int index)
+    {
+        var labelUpper = label.ToUpperInvariant();
+        
+        if (labelUpper.Contains("TAKEOFF"))
+            return "\u2191 Takeoff";
+        
+        if (labelUpper.Contains("LAND"))
+            return "\u2193 Land";
+        
+        if (labelUpper.Contains("RTL") || labelUpper.Contains("RETURN"))
+            return "\u21A9 RTL";
+        
+        if (label.StartsWith("WP"))
+            return label;
+        
+        return $"#{index}";
+    }
+
+    #endregion
+
     protected override void OnUnloaded(RoutedEventArgs e)
     {
         base.OnUnloaded(e);
@@ -1322,7 +1322,6 @@ Crashes:     {_crashSegments.Count}";
 
         try
         {
-            // Cancel any pending refreshes first
             lock (_refreshLock)
             {
                 try
@@ -1331,7 +1330,6 @@ Crashes:     {_crashSegments.Count}";
                 }
                 catch (ObjectDisposedException)
                 {
-                    // Ignore if already disposed
                 }
                 
                 try
@@ -1340,13 +1338,11 @@ Crashes:     {_crashSegments.Count}";
                 }
                 catch (ObjectDisposedException)
                 {
-                    // Ignore if already disposed
                 }
                 
                 _refreshCts = null;
             }
 
-            // Unsubscribe from events
             try
             {
                 if (_mapControl != null)
@@ -1354,7 +1350,6 @@ Crashes:     {_crashSegments.Count}";
             }
             catch { }
 
-            // Clear all layers safely
             lock (_dataLock)
             {
                 SafeClearLayer(_trackLayer);
@@ -1362,11 +1357,11 @@ Crashes:     {_crashSegments.Count}";
                 SafeClearLayer(_markerLayer);
                 SafeClearLayer(_eventLayer);
                 SafeClearLayer(_currentPositionLayer);
+                SafeClearLayer(_waypointLayer);
 
-                // Remove layers from map
                 if (_map?.Layers != null)
                 {
-                    var layersToRemove = new ILayer?[] { _trackLayer, _crashLayer, _markerLayer, _eventLayer, _currentPositionLayer, _osmLayer };
+                    var layersToRemove = new ILayer?[] { _trackLayer, _crashLayer, _markerLayer, _eventLayer, _currentPositionLayer, _waypointLayer, _osmLayer };
                     foreach (var layer in layersToRemove)
                     {
                         if (layer != null)
@@ -1380,12 +1375,11 @@ Crashes:     {_crashSegments.Count}";
                     }
                 }
 
-                // Clear data
                 _trackPoints.Clear();
                 _crashSegments.Clear();
+                _waypoints.Clear();
             }
 
-            // Dispose map
             try
             {
                 (_map as IDisposable)?.Dispose();
@@ -1418,4 +1412,14 @@ public class GpsTrackPoint
     public double VerticalAccuracy { get; set; }
     public double GroundSpeed { get; set; }
     public double VerticalSpeed { get; set; }
+}
+
+/// <summary>
+/// Waypoint point for map display with label
+/// </summary>
+public class WaypointPoint
+{
+    public double Latitude { get; set; }
+    public double Longitude { get; set; }
+    public string Label { get; set; } = string.Empty;
 }
