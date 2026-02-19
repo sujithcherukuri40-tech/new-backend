@@ -1,0 +1,123 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="using:PavamanDroneConfigurator.UI.ViewModels"
+        mc:Ignorable="d" d:DesignWidth="700" d:DesignHeight="600"
+        x:Class="PavamanDroneConfigurator.UI.Views.TermsAndConditionsDialog"
+        x:DataType="vm:TermsAndConditionsViewModel"
+        Title="Terms and Conditions"
+        Width="700"
+        Height="600"
+        MinWidth="500"
+        MinHeight="400"
+        WindowStartupLocation="CenterOwner"
+        CanResize="True"
+        Background="{DynamicResource BackgroundBrush}">
+
+    <Window.Styles>
+        <!-- Dialog Container Style -->
+        <Style Selector="Border.dialog-container">
+            <Setter Property="Background" Value="{DynamicResource SurfaceBrush}"/>
+            <Setter Property="CornerRadius" Value="12"/>
+            <Setter Property="Padding" Value="24"/>
+        </Style>
+        
+        <!-- Terms Content Style -->
+        <Style Selector="TextBox.terms-content">
+            <Setter Property="Background" Value="#F9FAFB"/>
+            <Setter Property="BorderBrush" Value="#E5E7EB"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Padding" Value="16"/>
+            <Setter Property="FontFamily" Value="Consolas, Menlo, Monaco, monospace"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Foreground" Value="#374151"/>
+            <Setter Property="IsReadOnly" Value="True"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+            <Setter Property="AcceptsReturn" Value="True"/>
+        </Style>
+
+        <!-- Primary Button Style -->
+        <Style Selector="Button.btn-primary">
+            <Setter Property="Background" Value="#3B82F6"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Padding" Value="24,12"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+        </Style>
+
+        <Style Selector="Button.btn-primary:pointerover">
+            <Setter Property="Background" Value="#2563EB"/>
+        </Style>
+
+        <Style Selector="Button.btn-primary:pressed">
+            <Setter Property="Background" Value="#1D4ED8"/>
+        </Style>
+    </Window.Styles>
+
+    <Grid Margin="16">
+        <Border Classes="dialog-container">
+            <Grid RowDefinitions="Auto,*,Auto,Auto">
+                
+                <!-- Header -->
+                <StackPanel Grid.Row="0" Spacing="8" Margin="0,0,0,16">
+                    <StackPanel Orientation="Horizontal" Spacing="12">
+                        <!-- Document Icon -->
+                        <Border Width="48" Height="48" 
+                                CornerRadius="10" 
+                                Background="#EEF2FF"
+                                VerticalAlignment="Center">
+                            <Path Data="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20M9,13V19H7V13H9M15,15V19H17V15H15M11,11V19H13V11H11Z"
+                                  Fill="#3B82F6"
+                                  Width="24"
+                                  Height="24"
+                                  Stretch="Uniform"
+                                  HorizontalAlignment="Center"
+                                  VerticalAlignment="Center"/>
+                        </Border>
+                        
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock Text="{Binding Title}"
+                                       FontSize="22"
+                                       FontWeight="Bold"
+                                       Foreground="{DynamicResource TextPrimaryBrush}"/>
+                            <TextBlock Text="{Binding LastUpdated, StringFormat='Last Updated: {0}'}"
+                                       FontSize="13"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"/>
+                        </StackPanel>
+                    </StackPanel>
+                </StackPanel>
+
+                <!-- Terms Content -->
+                <ScrollViewer Grid.Row="1" 
+                              VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Disabled">
+                    <TextBox Classes="terms-content"
+                             Text="{Binding TermsContent}"
+                             VerticalAlignment="Stretch"/>
+                </ScrollViewer>
+
+                <!-- Copyright -->
+                <TextBlock Grid.Row="2"
+                           Text="{Binding Copyright}"
+                           FontSize="12"
+                           Foreground="{DynamicResource TextSecondaryBrush}"
+                           HorizontalAlignment="Center"
+                           Margin="0,16,0,8"/>
+
+                <!-- Close Button -->
+                <Button Grid.Row="3"
+                        Classes="btn-primary"
+                        Content="Close"
+                        Command="{Binding CloseCommand}"
+                        HorizontalAlignment="Center"
+                        MinWidth="120"/>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

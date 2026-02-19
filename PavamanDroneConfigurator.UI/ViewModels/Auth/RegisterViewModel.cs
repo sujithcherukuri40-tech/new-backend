@@ -32,6 +32,10 @@ public sealed partial class RegisterViewModel : ViewModelBase
     private string _confirmPassword = string.Empty;
 
     [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(RegisterCommand))]
+    private bool _acceptedTerms;
+
+    [ObservableProperty]
     private string? _errorMessage;
 
     [ObservableProperty]
@@ -53,6 +57,9 @@ public sealed partial class RegisterViewModel : ViewModelBase
     [ObservableProperty]
     private string? _confirmPasswordError;
 
+    [ObservableProperty]
+    private string? _acceptedTermsError;
+
     /// <summary>
     /// Event raised when user wants to navigate back to login.
     /// </summary>
@@ -63,6 +70,11 @@ public sealed partial class RegisterViewModel : ViewModelBase
     /// The parameter indicates the resulting auth state (typically PendingApproval).
     /// </summary>
     public event EventHandler<AuthState>? RegistrationSucceeded;
+
+    /// <summary>
+    /// Event raised when user wants to view the Terms and Conditions.
+    /// </summary>
+    public event EventHandler? ViewTermsRequested;
 
     public RegisterViewModel(AuthSessionViewModel authSession)
     {
@@ -114,6 +126,7 @@ public sealed partial class RegisterViewModel : ViewModelBase
                !string.IsNullOrWhiteSpace(Email) &&
                !string.IsNullOrWhiteSpace(Password) &&
                !string.IsNullOrWhiteSpace(ConfirmPassword) &&
+               AcceptedTerms &&
                !IsLoading;
     }
 
@@ -122,6 +135,21 @@ public sealed partial class RegisterViewModel : ViewModelBase
     {
         ClearErrors();
         NavigateToLoginRequested?.Invoke(this, EventArgs.Empty);
+    }
+
+    [RelayCommand]
+    private void ViewTerms()
+    {
+        ViewTermsRequested?.Invoke(this, EventArgs.Empty);
+    }
+
+    partial void OnAcceptedTermsChanged(bool value)
+    {
+        // Clear the terms error when user checks the checkbox
+        if (value)
+        {
+            AcceptedTermsError = null;
+        }
     }
 
     private bool ValidateInputs()
@@ -186,6 +214,13 @@ public sealed partial class RegisterViewModel : ViewModelBase
             isValid = false;
         }
 
+        // Validate terms acceptance
+        if (!AcceptedTerms)
+        {
+            AcceptedTermsError = "You must accept the Terms and Conditions to register.";
+            isValid = false;
+        }
+
         if (!isValid)
         {
             HasError = true;
@@ -241,6 +276,7 @@ public sealed partial class RegisterViewModel : ViewModelBase
         EmailError = null;
         PasswordError = null;
         ConfirmPasswordError = null;
+        AcceptedTermsError = null;
     }
 
     /// <summary>
@@ -252,6 +288,7 @@ public sealed partial class RegisterViewModel : ViewModelBase
         Email = string.Empty;
         Password = string.Empty;
         ConfirmPassword = string.Empty;
+        AcceptedTerms = false;
         ClearErrors();
         IsLoading = false;
     }

@@ -124,6 +124,35 @@
                             </Grid>
                         </StackPanel>
 
+                        <!-- Terms and Conditions Checkbox -->
+                        <StackPanel Spacing="4">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <CheckBox IsChecked="{Binding AcceptedTerms, Mode=TwoWay}"
+                                          IsEnabled="{Binding !IsLoading}"
+                                          VerticalAlignment="Center"/>
+                                <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                                    <TextBlock Text="I accept the"
+                                               FontSize="14"
+                                               Foreground="{DynamicResource TextSecondaryBrush}"
+                                               VerticalAlignment="Center"/>
+                                    <Button Classes="btn-ghost"
+                                            Content="Terms and Conditions"
+                                            Command="{Binding ViewTermsCommand}"
+                                            Foreground="{DynamicResource PrimaryBrush}"
+                                            FontWeight="SemiBold"
+                                            FontSize="14"
+                                            Padding="0"
+                                            VerticalAlignment="Center"
+                                            Cursor="Hand"/>
+                                </StackPanel>
+                            </StackPanel>
+                            <!-- Terms Error Message -->
+                            <TextBlock Text="{Binding AcceptedTermsError}"
+                                       FontSize="12"
+                                       Foreground="#EF4444"
+                                       IsVisible="{Binding AcceptedTermsError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                                       Margin="28,0,0,0"/>
+                        </StackPanel>
 
                         <!-- Login Button -->
                         <Button Classes="btn-primary"

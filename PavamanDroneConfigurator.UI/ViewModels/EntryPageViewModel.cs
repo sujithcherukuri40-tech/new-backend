@@ -34,6 +34,11 @@ public partial class EntryPageViewModel : ViewModelBase
     /// </summary>
     public event EventHandler? AdminDashboardRequested;
 
+    /// <summary>
+    /// Event raised when user wants to view Terms and Conditions.
+    /// </summary>
+    public event EventHandler? ViewTermsRequested;
+
     [ObservableProperty]
     private string _welcomeMessage = "Welcome to Pavaman Drone Configurator";
 
@@ -102,6 +107,15 @@ public partial class EntryPageViewModel : ViewModelBase
         {
             AdminDashboardRequested?.Invoke(this, EventArgs.Empty);
         }
+    }
+
+    /// <summary>
+    /// Opens the Terms and Conditions dialog.
+    /// </summary>
+    [RelayCommand]
+    private void ViewTerms()
+    {
+        ViewTermsRequested?.Invoke(this, EventArgs.Empty);
     }
 
     /// <summary>

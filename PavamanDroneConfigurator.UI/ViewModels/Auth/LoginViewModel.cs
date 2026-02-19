@@ -22,6 +22,10 @@ public sealed partial class LoginViewModel : ViewModelBase
     private string _password = string.Empty;
 
     [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(LoginCommand))]
+    private bool _acceptedTerms;
+
+    [ObservableProperty]
     private string? _errorMessage;
 
     [ObservableProperty]
@@ -29,6 +33,9 @@ public sealed partial class LoginViewModel : ViewModelBase
 
     [ObservableProperty]
     private bool _isLoading;
+
+    [ObservableProperty]
+    private string? _acceptedTermsError;
 
     /// <summary>
     /// Event raised when user wants to navigate to registration.
@@ -40,6 +47,11 @@ public sealed partial class LoginViewModel : ViewModelBase
     /// The parameter indicates the resulting auth state.
     /// </summary>
     public event EventHandler<AuthState>? LoginSucceeded;
+
+    /// <summary>
+    /// Event raised when user wants to view the Terms and Conditions.
+    /// </summary>
+    public event EventHandler? ViewTermsRequested;
 
     public LoginViewModel(AuthSessionViewModel authSession)
     {
@@ -83,6 +95,7 @@ public sealed partial class LoginViewModel : ViewModelBase
     {
         return !string.IsNullOrWhiteSpace(Email) &&
                !string.IsNullOrWhiteSpace(Password) &&
+               AcceptedTerms &&
                !IsLoading;
     }
 
@@ -91,6 +104,21 @@ public sealed partial class LoginViewModel : ViewModelBase
     {
         ClearError();
         NavigateToRegisterRequested?.Invoke(this, EventArgs.Empty);
+    }
+
+    [RelayCommand]
+    private void ViewTerms()
+    {
+        ViewTermsRequested?.Invoke(this, EventArgs.Empty);
+    }
+
+    partial void OnAcceptedTermsChanged(bool value)
+    {
+        // Clear the terms error when user checks the checkbox
+        if (value)
+        {
+            AcceptedTermsError = null;
+        }
     }
 
     private bool ValidateInputs()
@@ -110,6 +138,13 @@ public sealed partial class LoginViewModel : ViewModelBase
         if (string.IsNullOrWhiteSpace(Password))
         {
             ShowError("Please enter your password.");
+            return false;
+        }
+
+        if (!AcceptedTerms)
+        {
+            AcceptedTermsError = "You must accept the Terms and Conditions to continue.";
+            ShowError("Please accept the Terms and Conditions to continue.");
             return false;
         }
 
@@ -141,6 +176,7 @@ public sealed partial class LoginViewModel : ViewModelBase
     {
         ErrorMessage = null;
         HasError = false;
+        AcceptedTermsError = null;
     }
 
     /// <summary>
@@ -150,6 +186,7 @@ public sealed partial class LoginViewModel : ViewModelBase
     {
         Email = string.Empty;
         Password = string.Empty;
+        AcceptedTerms = false;
         ClearError();
         IsLoading = false;
     }
