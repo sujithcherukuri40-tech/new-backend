@@ -183,9 +183,18 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
 
     [ObservableProperty]
     private ObservableCollection<LogMessageTypeNode> _messageTypesTree = new();
+    
+    [ObservableProperty]
+    private ObservableCollection<LogMessageTypeNode> _filteredMessageTypesTree = new();
+    
+    [ObservableProperty]
+    private string _fieldSearchText = string.Empty;
 
     [ObservableProperty]
     private bool _hasTreeData;
+
+    // Flag to prevent recursive selection updates
+    private bool _isUpdatingFieldSelection;
 
     [ObservableProperty]
     private double _cursorTime;
@@ -201,6 +210,18 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
 
     [ObservableProperty]
     private double _zoomEndTime;
+
+    /// <summary>
+    /// Selected fields with their colors for display in the graph legend panel.
+    /// Shows field name, color indicator, and statistics (min/max/avg).
+    /// </summary>
+    [ObservableProperty]
+    private ObservableCollection<GraphLegendItem> _graphLegendItems = new();
+    
+    /// <summary>
+    /// Indicates whether there are selected fields to show in the legend.
+    /// </summary>
+    public bool HasLegendItems => GraphLegendItems.Count > 0;
 
     #endregion
 
@@ -353,6 +374,13 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
 
     [ObservableProperty]
     private int _mapZoom = 15;
+
+    /// <summary>
+    /// Waypoints extracted from CMD messages in the log file.
+    /// Displayed on map when user clicks the "Fit" button.
+    /// </summary>
+    [ObservableProperty]
+    private ObservableCollection<Controls.WaypointPoint> _mapWaypoints = new();
 
     #endregion
 
@@ -549,6 +577,9 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
 
                     // Load GPS track for map FIRST (so map shows immediately)
                     LoadGpsTrack();
+
+                    // Load waypoints/mission from CMD messages
+                    LoadWaypointsFromLog();
 
                     // Detect events in background
                     if (_eventDetector != null)
@@ -863,6 +894,11 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
     {
         FilterGraphFields();
     }
+    
+    partial void OnFieldSearchTextChanged(string value)
+    {
+        FilterMessageTypesTree();
+    }
 
     partial void OnSelectedEventChanged(LogEvent? value)
     {
@@ -885,6 +921,79 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
     partial void OnShowErrorEventsChanged(bool value) => FilterEvents();
     partial void OnShowCriticalEventsChanged(bool value) => FilterEvents();
     partial void OnEventSearchTextChanged(string value) => FilterEvents();
+
+    #endregion
+
+    #region Event Handlers
+
+    private void FilterGraphFields()
+    {
+        FilteredFields.Clear();
+        var filter = GraphFieldFilter?.ToLowerInvariant() ?? "";
+        var filtered = string.IsNullOrEmpty(filter)
+            ? AvailableFields
+            : AvailableFields.Where(f => f.DisplayName.ToLowerInvariant().Contains(filter));
+
+        foreach (var field in filtered)
+        {
+            FilteredFields.Add(field);
+        }
+    }
+    
+    /// <summary>
+    /// Filters the message types tree based on the field search text.
+    /// Shows only message types and fields that match the search criteria.
+    /// </summary>
+    private void FilterMessageTypesTree()
+    {
+        FilteredMessageTypesTree.Clear();
+        
+        var searchText = FieldSearchText?.ToLowerInvariant()?.Trim() ?? "";
+        
+        if (string.IsNullOrEmpty(searchText))
+        {
+            // No search - show all message types
+            foreach (var node in MessageTypesTree)
+            {
+                FilteredMessageTypesTree.Add(node);
+            }
+            return;
+        }
+        
+        // Filter message types and fields based on search text
+        foreach (var node in MessageTypesTree)
+        {
+            // Check if the message type name matches
+            bool messageTypeMatches = node.Name.ToLowerInvariant().Contains(searchText);
+            
+            // Check if any field name matches
+            var matchingFields = node.Fields
+                .Where(f => f.Name.ToLowerInvariant().Contains(searchText) || 
+                            f.FullKey.ToLowerInvariant().Contains(searchText))
+                .ToList();
+            
+            if (messageTypeMatches || matchingFields.Count > 0)
+            {
+                // Create a filtered copy of the node
+                var filteredNode = new LogMessageTypeNode
+                {
+                    Name = node.Name,
+                    IsMessageType = node.IsMessageType,
+                    IsExpanded = true // Expand matching nodes
+                };
+                
+                // Add matching fields (or all fields if the message type name matches)
+                IEnumerable<LogFieldNode> fieldsToAdd = messageTypeMatches ? node.Fields : matchingFields;
+                foreach (var field in fieldsToAdd)
+                {
+                    // Create a reference to the original field to maintain selection state
+                    filteredNode.Fields.Add(field);
+                }
+                
+                FilteredMessageTypesTree.Add(filteredNode);
+            }
+        }
+    }
 
     #endregion
 
@@ -1612,6 +1721,110 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
 
         _logger.LogInformation("Loaded {Count} critical events for map display", CriticalMapEvents.Count);
     }
+
+    /// <summary>
+    /// Fits the map view to include track and displays waypoints.
+    /// Called when user clicks the "Fit" button in the Plot tab.
+    /// Extracts waypoints from CMD messages in the log file.
+    /// </summary>
+    [RelayCommand]
+    private void FitToMapWithWaypoints()
+    {
+        if (!IsLogLoaded)
+        {
+            StatusMessage = "Please load a log file first";
+            return;
+        }
+
+        // Load waypoints from CMD messages if not already loaded
+        if (MapWaypoints.Count == 0)
+        {
+            LoadWaypointsFromLog();
+        }
+
+        StatusMessage = MapWaypoints.Count > 0
+            ? $"Showing {MapWaypoints.Count} waypoints on map"
+            : "No waypoint data found in log";
+
+        _logger.LogInformation("Fit button clicked: WaypointCount={Count}", MapWaypoints.Count);
+    }
+
+    /// <summary>
+    /// Loads waypoint data from CMD (command/mission) messages in the log file.
+    /// ArduPilot logs mission items in CMD messages with fields like Lat, Lng, Alt.
+    /// </summary>
+    private void LoadWaypointsFromLog()
+    {
+        MapWaypoints.Clear();
+
+        try
+        {
+            // Try to get CMD messages which contain mission/waypoint data
+            var cmdMessages = _logAnalyzerService.GetMessages("CMD", 0, 1000);
+
+            if (cmdMessages == null || cmdMessages.Count == 0)
+            {
+                _logger.LogInformation("No CMD messages found in log");
+                return;
+            }
+
+            int waypointIndex = 1;
+            foreach (var msg in cmdMessages)
+            {
+                // Extract waypoint coordinates from CMD message fields
+                double? lat = null;
+                double? lng = null;
+                string label = $"WP{waypointIndex}";
+
+                // Try different field name variations for latitude
+                if (msg.Fields.TryGetValue("Lat", out var latStr))
+                {
+                    if (double.TryParse(latStr, out var latVal))
+                        lat = latVal;
+                }
+
+                // Try different field name variations for longitude
+                if (msg.Fields.TryGetValue("Lng", out var lngStr))
+                {
+                    if (double.TryParse(lngStr, out var lngVal))
+                        lng = lngVal;
+                }
+
+                // Also try CId (Command ID) for naming
+                if (msg.Fields.TryGetValue("CId", out var cidStr))
+                {
+                    label = cidStr switch
+                    {
+                        "16" => $"WP{waypointIndex}",  // MAV_CMD_NAV_WAYPOINT
+                        "22" => "Takeoff",             // MAV_CMD_NAV_TAKEOFF
+                        "21" => "Land",                // MAV_CMD_NAV_LAND
+                        "20" => "RTL",                 // MAV_CMD_NAV_RETURN_TO_LAUNCH
+                        _ => $"WP{waypointIndex}"
+                    };
+                }
+
+                // Only add if we have valid coordinates
+                if (lat.HasValue && lng.HasValue &&
+                    Math.Abs(lat.Value) > 0.001 && Math.Abs(lng.Value) > 0.001 &&
+                    Math.Abs(lat.Value) <= 90 && Math.Abs(lng.Value) <= 180)
+                {
+                    MapWaypoints.Add(new Controls.WaypointPoint
+                    {
+                        Latitude = lat.Value,
+                        Longitude = lng.Value,
+                        Label = label
+                    });
+                    waypointIndex++;
+                }
+            }
+
+            _logger.LogInformation("Loaded {Count} waypoints from CMD messages", MapWaypoints.Count);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading waypoints from log");
+        }
+    }
     
     #endregion
 
@@ -2155,6 +2368,8 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
         FilteredFields.Clear();
         SelectedGraphFields.Clear();
         MessageTypesTree.Clear();
+        FilteredMessageTypesTree.Clear();
+        GraphLegendItems.Clear();
 
         var fields = _logAnalyzerService.GetAvailableGraphFields();
         _logger.LogInformation("GetAvailableGraphFields returned {Count} fields", fields?.Count ?? 0);
@@ -2163,11 +2378,11 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
         {
             _logger.LogWarning("No graph fields available from log");
             HasTreeData = false;
+            OnPropertyChanged(nameof(HasLegendItems));
             return;
         }
         
         // Build dictionary for O(1) lookup performance
-        // Note: This dictionary is populated before event handlers are attached and is read-only after initialization
         var fieldLookup = new Dictionary<string, LogFieldInfo>();
         
         foreach (var field in fields)
@@ -2205,17 +2420,64 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
                     MeanValue = field.MeanValue
                 };
                 
-                // Wire up property changed event to sync with AvailableFields
-                // Dictionary lookup provides O(1) performance
-                // Event handlers execute on UI thread via OnFieldSelectionChanged which uses Dispatcher
+                // Use a closure to capture the specific field key
+                var capturedFieldKey = field.DisplayName;
                 fieldNode.PropertyChanged += (s, e) =>
                 {
+                    // Prevent recursive updates from tree node sync
+                    if (_isUpdatingFieldSelection) return;
+                    
                     if (e.PropertyName == nameof(LogFieldNode.IsSelected) && s is LogFieldNode node)
                     {
-                        if (fieldLookup.TryGetValue(node.FullKey, out var matchingField))
+                        // Only process if the node's FullKey matches what we expect
+                        if (node.FullKey == capturedFieldKey && fieldLookup.TryGetValue(capturedFieldKey, out var matchingField))
                         {
-                            matchingField.IsSelected = node.IsSelected;
-                            OnFieldSelectionChanged(matchingField);
+                            // Handle selection change directly (not through OnFieldSelectionChanged which has a guard)
+                            if (node.IsSelected)
+                            {
+                                // Add field to graph if not already present
+                                if (!SelectedGraphFields.Any(f => f.DisplayName == matchingField.DisplayName))
+                                {
+                                    _isUpdatingFieldSelection = true;
+                                    try
+                                    {
+                                        matchingField.IsSelected = true;
+                                        matchingField.Color = GraphColors.GetColor(SelectedGraphFields.Count);
+                                        SelectedGraphFields.Add(matchingField);
+                                    }
+                                    finally
+                                    {
+                                        _isUpdatingFieldSelection = false;
+                                    }
+                                    UpdateGraph();
+                                }
+                            }
+                            else
+                            {
+                                // Remove field from graph if present
+                                var existingField = SelectedGraphFields.FirstOrDefault(f => f.DisplayName == matchingField.DisplayName);
+                                if (existingField != null)
+                                {
+                                    _isUpdatingFieldSelection = true;
+                                    try
+                                    {
+                                        SelectedGraphFields.Remove(existingField);
+                                        existingField.IsSelected = false;
+                                        existingField.Color = null;
+                                        
+                                        // Reassign colors to remaining fields
+                                        for (int i = 0; i < SelectedGraphFields.Count; i++)
+                                        {
+                                            SelectedGraphFields[i].Color = GraphColors.GetColor(i);
+                                        }
+                                    }
+                                    finally
+                                    {
+                                        _isUpdatingFieldSelection = false;
+                                    }
+                                    UpdateGraph();
+                                }
+                            }
                         }
                     }
                 };
@@ -2224,9 +2486,11 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
             }
 
             MessageTypesTree.Add(typeNode);
+            FilteredMessageTypesTree.Add(typeNode);
         }
 
         HasTreeData = MessageTypesTree.Count > 0;
+        OnPropertyChanged(nameof(HasLegendItems));
         _logger.LogInformation("Loaded {FieldCount} fields in {TypeCount} message types", 
             AvailableFields.Count, MessageTypesTree.Count);
     }
@@ -2374,73 +2638,125 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
         _logger.LogInformation("Cleared all selected graph fields");
     }
 
-
-
-    private void FilterGraphFields()
-    {
-        FilteredFields.Clear();
-        var filter = GraphFieldFilter?.ToLowerInvariant() ?? "";
-        var filtered = string.IsNullOrEmpty(filter)
-            ? AvailableFields
-            : AvailableFields.Where(f => f.DisplayName.ToLowerInvariant().Contains(filter));
-
-        foreach (var field in filtered)
-        {
-            FilteredFields.Add(field);
-        }
-    }
-
     [RelayCommand]
     private void AddFieldToGraph(LogFieldInfo? field)
     {
         if (field == null) return;
-        if (!SelectedGraphFields.Any(f => f.DisplayName == field.DisplayName))
+        if (SelectedGraphFields.Any(f => f.DisplayName == field.DisplayName)) return;
+        
+        _isUpdatingFieldSelection = true;
+        try
         {
             field.IsSelected = true;
             field.Color = GraphColors.GetColor(SelectedGraphFields.Count);
             SelectedGraphFields.Add(field);
             
-            UpdateGraph();
+            // Also update the corresponding tree node
+            UpdateTreeNodeSelection(field.DisplayName, true);
         }
-    }
-
-    [RelayCommand]
-    private void RemoveFieldFromGraph(LogFieldInfo? field)
-    {
-        if (field == null) return;
-        field.IsSelected = false;
-        field.Color = null;
-        
-        SelectedGraphFields.Remove(field);
-        
-        // Reassign colors to remaining fields
-        for (int i = 0; i < SelectedGraphFields.Count; i++)
+        finally
         {
-            SelectedGraphFields[i].Color = GraphColors.GetColor(i);
+            _isUpdatingFieldSelection = false;
         }
         
         UpdateGraph();
     }
 
     [RelayCommand]
+    private void RemoveFieldFromGraph(LogFieldInfo? field)
+    {
+        if (field == null) return;
+        
+        _isUpdatingFieldSelection = true;
+        try
+        {
+            // First remove from collection
+            var removed = SelectedGraphFields.Remove(field);
+            
+            if (removed)
+            {
+                field.IsSelected = false;
+                field.Color = null;
+                
+                // Also update the corresponding tree node
+                UpdateTreeNodeSelection(field.DisplayName, false);
+                
+                // Reassign colors to remaining fields
+                for (int i = 0; i < SelectedGraphFields.Count; i++)
+                {
+                    SelectedGraphFields[i].Color = GraphColors.GetColor(i);
+                }
+            }
+        }
+        finally
+        {
+            _isUpdatingFieldSelection = false;
+        }
+        
+        UpdateGraph();
+    }
+    
+    /// <summary>
+    /// Updates the selection state of a tree node to match the field selection.
+    /// This ensures tree checkboxes stay in sync with the selected fields.
+    /// </summary>
+    private void UpdateTreeNodeSelection(string fieldKey, bool isSelected)
+    {
+        // Search in original tree (not filtered) to ensure all nodes are updated
+        foreach (var typeNode in MessageTypesTree)
+        {
+            foreach (var fieldNode in typeNode.Fields)
+            {
+                if (fieldNode.FullKey == fieldKey)
+                {
+                    if (fieldNode.IsSelected != isSelected)
+                    {
+                        fieldNode.IsSelected = isSelected;
+                    }
+                    return; // Found and updated, exit
+                }
+            }
+        }
+    }
+
+    [RelayCommand]
     private void ClearGraph()
     {
-        foreach (var field in SelectedGraphFields)
+        _isUpdatingFieldSelection = true;
+        try
         {
-            field.IsSelected = false;
+            // Clear selection state on all fields
+            foreach (var field in SelectedGraphFields.ToList())
+            {
+                field.IsSelected = false;
+                field.Color = null;
+                UpdateTreeNodeSelection(field.DisplayName, false);
+            }
+            SelectedGraphFields.Clear();
         }
-        SelectedGraphFields.Clear();
+        finally
+        {
+            _isUpdatingFieldSelection = false;
+        }
+        
+        // Explicitly clear graph data
         CurrentGraph = null;
         HasGraphData = false;
+        GraphLegendItems.Clear();
+        OnPropertyChanged(nameof(HasLegendItems));
     }
 
     private void UpdateGraph()
     {
+        // Always clear legend items first to avoid stale data
+        GraphLegendItems.Clear();
+        
         if (SelectedGraphFields.Count == 0)
         {
             CurrentGraph = null;
             HasGraphData = false;
-            _logger.LogDebug("No fields selected for graph");
+            OnPropertyChanged(nameof(HasLegendItems));
+            _logger.LogDebug("No fields selected for graph - cleared graph data");
             return;
         }
 
@@ -2449,24 +2765,64 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
             var fieldKeys = SelectedGraphFields.Select(f => f.DisplayName).ToArray();
             _logger.LogInformation("Updating graph with {Count} fields: {Fields}", fieldKeys.Length, string.Join(", ", fieldKeys));
             
-            CurrentGraph = _logAnalyzerService.GetGraphData(fieldKeys);
+            // Get fresh graph data from service
+            var newGraphData = _logAnalyzerService.GetGraphData(fieldKeys);
             
-            if (CurrentGraph == null)
+            if (newGraphData == null || newGraphData.Series == null || newGraphData.Series.Count == 0)
             {
-                _logger.LogWarning("GetGraphData returned null");
+                _logger.LogWarning("GetGraphData returned null or empty");
+                CurrentGraph = null;
                 HasGraphData = false;
+                OnPropertyChanged(nameof(HasLegendItems));
                 return;
             }
             
-            HasGraphData = CurrentGraph.Series != null && CurrentGraph.Series.Any();
+            // Set the new graph data
+            CurrentGraph = newGraphData;
+            HasGraphData = newGraphData.Series.Any(s => s.Points.Count > 0);
+            
+            // Update the legend items with colors and statistics
+            UpdateGraphLegendItems();
+            
             _logger.LogInformation("Graph updated: HasGraphData={HasData}, SeriesCount={Count}", 
                 HasGraphData, CurrentGraph.Series?.Count ?? 0);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error updating graph");
+            CurrentGraph = null;
             HasGraphData = false;
+            OnPropertyChanged(nameof(HasLegendItems));
         }
+    }
+    
+    /// <summary>
+    /// Updates the legend items based on the current graph series.
+    /// Each item shows the field name, color, and statistics (min/max/avg).
+    /// </summary>
+    private void UpdateGraphLegendItems()
+    {
+        GraphLegendItems.Clear();
+        
+        if (CurrentGraph?.Series == null || CurrentGraph.Series.Count == 0)
+        {
+            OnPropertyChanged(nameof(HasLegendItems));
+            return;
+        }
+        
+        foreach (var series in CurrentGraph.Series.Where(s => s.IsVisible))
+        {
+            GraphLegendItems.Add(new GraphLegendItem
+            {
+                FieldName = series.Name,
+                Color = series.Color,
+                MinValue = series.MinValue,
+                MaxValue = series.MaxValue,
+                MeanValue = series.Average
+            });
+        }
+        
+        OnPropertyChanged(nameof(HasLegendItems));
     }
 
     [RelayCommand]
@@ -2479,8 +2835,23 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
 
     public void OnFieldSelectionChanged(LogFieldInfo field)
     {
-        if (field.IsSelected) AddFieldToGraph(field);
-        else RemoveFieldFromGraph(field);
+        // Prevent recursive calls
+        if (_isUpdatingFieldSelection) return;
+        
+        // Check if field is already in the correct state in SelectedGraphFields
+        var isInSelected = SelectedGraphFields.Any(f => f.DisplayName == field.DisplayName);
+        
+        if (field.IsSelected && !isInSelected)
+        {
+            // Field should be added
+            AddFieldToGraph(field);
+        }
+        else if (!field.IsSelected && isInSelected)
+        {
+            // Field should be removed
+            RemoveFieldFromGraph(field);
+        }
+        // If states already match, no action needed
     }
 
     public bool CanGoToNextPage => CurrentMessagePage < TotalMessagePages - 1;
@@ -2759,4 +3130,20 @@ public class BoolToSuccessColorConverter : Avalonia.Data.Converters.IValueConver
     {
         throw new NotImplementedException();
     }
+}
+
+/// <summary>
+/// Represents a legend item for the graph showing field name, color, and statistics.
+/// </summary>
+public class GraphLegendItem
+{
+    public string FieldName { get; set; } = string.Empty;
+    public string Color { get; set; } = "#FFFFFF";
+    public double MinValue { get; set; }
+    public double MaxValue { get; set; }
+    public double MeanValue { get; set; }
+    
+    public string MinDisplay => MinValue.ToString("F2");
+    public string MaxDisplay => MaxValue.ToString("F2");
+    public string MeanDisplay => MeanValue.ToString("F2");
 }
