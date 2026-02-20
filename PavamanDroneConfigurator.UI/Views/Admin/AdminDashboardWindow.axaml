@@ -13,6 +13,7 @@
         MinWidth="900"
         MinHeight="600"
         WindowStartupLocation="CenterScreen"
+        WindowState="Maximized"
         Icon="avares://PavamanDroneConfigurator.UI/Assets/Images/logo.ico"
         Background="#F9FAFB">
 

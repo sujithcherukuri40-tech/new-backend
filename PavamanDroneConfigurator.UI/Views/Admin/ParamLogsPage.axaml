@@ -381,12 +381,40 @@
                                 Background="#F9FAFB" 
                                 BorderBrush="#E5E7EB" 
                                 BorderThickness="0,0,0,1">
-                            <Grid ColumnDefinitions="150,*,100,80,60">
-                                <TextBlock Grid.Column="0" Text="User" FontWeight="SemiBold" FontSize="12" Foreground="#374151"/>
-                                <TextBlock Grid.Column="1" Text="Drone ID" FontWeight="SemiBold" FontSize="12" Foreground="#374151"/>
-                                <TextBlock Grid.Column="2" Text="Date" FontWeight="SemiBold" FontSize="12" Foreground="#374151"/>
-                                <TextBlock Grid.Column="3" Text="Time" FontWeight="SemiBold" FontSize="12" Foreground="#374151"/>
-                                <TextBlock Grid.Column="4" Text="Size" FontWeight="SemiBold" FontSize="12" Foreground="#374151"/>
+                            <Grid ColumnDefinitions="150,250,110,90,70">
+                                <TextBlock Grid.Column="0" 
+                                           Text="User" 
+                                           FontWeight="SemiBold" 
+                                           FontSize="12" 
+                                           Foreground="#374151"
+                                           VerticalAlignment="Center"/>
+                                <TextBlock Grid.Column="1" 
+                                           Text="Drone ID" 
+                                           FontWeight="SemiBold" 
+                                           FontSize="12" 
+                                           Foreground="#374151"
+                                           VerticalAlignment="Center"/>
+                                <TextBlock Grid.Column="2" 
+                                           Text="Date" 
+                                           FontWeight="SemiBold" 
+                                           FontSize="12" 
+                                           Foreground="#374151"
+                                           TextAlignment="Right"
+                                           VerticalAlignment="Center"/>
+                                <TextBlock Grid.Column="3" 
+                                           Text="Time" 
+                                           FontWeight="SemiBold" 
+                                           FontSize="12" 
+                                           Foreground="#374151"
+                                           TextAlignment="Right"
+                                           VerticalAlignment="Center"/>
+                                <TextBlock Grid.Column="4" 
+                                           Text="Size" 
+                                           FontWeight="SemiBold" 
+                                           FontSize="12" 
+                                           Foreground="#374151"
+                                           TextAlignment="Right"
+                                           VerticalAlignment="Center"/>
                             </Grid>
                         </Border>
                         
@@ -402,7 +430,7 @@
                                         <Button Classes="log-row"
                                                 Command="{Binding $parent[ItemsControl].((vm:ParamLogsViewModel)DataContext).ViewLogCommand}"
                                                 CommandParameter="{Binding}">
-                                            <Grid ColumnDefinitions="150,*,100,80,60">
+                                            <Grid ColumnDefinitions="150,250,110,90,70">
                                                 <TextBlock Grid.Column="0"
                                                            Text="{Binding UserDisplay}"
                                                            FontWeight="Medium"
@@ -419,15 +447,18 @@
                                                 <TextBlock Grid.Column="2"
                                                            Text="{Binding Timestamp, StringFormat='{}{0:yyyy-MM-dd}'}"
                                                            VerticalAlignment="Center"
-                                                           Foreground="#6B7280"/>
+                                                           Foreground="#6B7280"
+                                                           TextAlignment="Right"/>
                                                 <TextBlock Grid.Column="3"
                                                            Text="{Binding Timestamp, StringFormat='{}{0:HH:mm:ss}'}"
                                                            VerticalAlignment="Center"
-                                                           Foreground="#9CA3AF"/>
+                                                           Foreground="#9CA3AF"
+                                                           TextAlignment="Right"/>
                                                 <TextBlock Grid.Column="4"
                                                            Text="{Binding SizeDisplay}"
                                                            VerticalAlignment="Center"
-                                                           Foreground="#9CA3AF"/>
+                                                           Foreground="#9CA3AF"
+                                                           TextAlignment="Right"/>
                                             </Grid>
                                         </Button>
                                     </DataTemplate>

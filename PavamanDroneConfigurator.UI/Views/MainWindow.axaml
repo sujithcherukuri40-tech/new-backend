@@ -16,6 +16,7 @@
         MinHeight="600"
         Icon="avares://PavamanDroneConfigurator.UI/Assets/Images/logo.ico"
         WindowStartupLocation="CenterScreen"
+        WindowState="Maximized"
         Background="{DynamicResource BackgroundBrush}">
 
     <Design.DataContext>

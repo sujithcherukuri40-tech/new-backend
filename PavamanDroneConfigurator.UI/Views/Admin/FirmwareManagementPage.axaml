@@ -182,25 +182,28 @@
                                        Foreground="{DynamicResource TextSecondaryBrush}"/>
                             <Grid ColumnDefinitions="*,Auto">
                                 <TextBox Grid.Column="0"
-                                             Text="{Binding SelectedFirmwareFileName}"
-                                             IsReadOnly="True"
-                                             Watermark="No file selected..."
-                                             Height="52"
-                                             CornerRadius="8,0,0,8"
-                                             Padding="16"
-                                             FontSize="14"/>
-                                    <Button Grid.Column="1"
-                                            Content="Browse Files"
-                                            Background="{DynamicResource SecondaryBrush}"
-                                            Foreground="White"
-                                            Height="52"
-                                            Padding="24,0"
-                                            CornerRadius="0,8,8,0"
-                                            BorderThickness="0"
-                                            FontWeight="Bold"
-                                            Click="BrowseFirmware_Click"/>
-                                </Grid>
-                            </StackPanel>
+                                         Text="{Binding SelectedFirmwareFileName}"
+                                         IsReadOnly="True"
+                                         Watermark="No file selected..."
+                                         Height="52"
+                                         CornerRadius="8,0,0,8"
+                                         Padding="16"
+                                         FontSize="14"
+                                         VerticalContentAlignment="Center"/>
+                                <Button Grid.Column="1"
+                                        Content="Browse Files"
+                                        Background="{DynamicResource SecondaryBrush}"
+                                        Foreground="White"
+                                        Height="52"
+                                        Padding="24,0"
+                                        CornerRadius="0,8,8,0"
+                                        BorderThickness="0"
+                                        FontWeight="Bold"
+                                        VerticalAlignment="Stretch"
+                                        VerticalContentAlignment="Center"
+                                        Click="BrowseFirmware_Click"/>
+                            </Grid>
+                        </StackPanel>
                         
                         <!-- Upload Progress -->
                         <StackPanel Spacing="8" IsVisible="{Binding IsUploading}">
