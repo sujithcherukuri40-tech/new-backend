@@ -25,26 +25,23 @@ public class VehicleTypeToIconConverter : IValueConverter
         ["Copter"] = "avares://PavamanDroneConfigurator.UI/Assets/Images/Vehicle/Quad.png",
         ["Quad"] = "avares://PavamanDroneConfigurator.UI/Assets/Images/Vehicle/Quad.png",
         ["Quadcopter"] = "avares://PavamanDroneConfigurator.UI/Assets/Images/Vehicle/Quad.png",
-        
+        ["Multicopter"] = "avares://PavamanDroneConfigurator.UI/Assets/Images/Vehicle/Quad.png",
         ["Plane"] = "avares://PavamanDroneConfigurator.UI/Assets/Images/Vehicle/QuadPlane.png",
         ["QuadPlane"] = "avares://PavamanDroneConfigurator.UI/Assets/Images/Vehicle/QuadPlane.png",
         ["FixedWing"] = "avares://PavamanDroneConfigurator.UI/Assets/Images/Vehicle/QuadPlane.png",
-        
+        ["Fixed Wing"] = "avares://PavamanDroneConfigurator.UI/Assets/Images/Vehicle/QuadPlane.png",
         ["Rover"] = "avares://PavamanDroneConfigurator.UI/Assets/Images/Vehicle/Rover.png",
         ["Ground"] = "avares://PavamanDroneConfigurator.UI/Assets/Images/Vehicle/Rover.png",
-        
         ["Heli"] = "avares://PavamanDroneConfigurator.UI/Assets/Images/Vehicle/Heli.png",
         ["Helicopter"] = "avares://PavamanDroneConfigurator.UI/Assets/Images/Vehicle/Heli.png",
         ["Copter-heli"] = "avares://PavamanDroneConfigurator.UI/Assets/Images/Vehicle/Heli.png",
-        
         ["Hexa"] = "avares://PavamanDroneConfigurator.UI/Assets/Images/Vehicle/Hexa.png",
         ["Hexacopter"] = "avares://PavamanDroneConfigurator.UI/Assets/Images/Vehicle/Hexa.png",
         ["Octa"] = "avares://PavamanDroneConfigurator.UI/Assets/Images/Vehicle/Hexa.png",
         ["Octocopter"] = "avares://PavamanDroneConfigurator.UI/Assets/Images/Vehicle/Hexa.png",
-        
         ["AntennaTracker"] = "avares://PavamanDroneConfigurator.UI/Assets/Images/Vehicle/Antenna.png",
         ["Tracker"] = "avares://PavamanDroneConfigurator.UI/Assets/Images/Vehicle/Antenna.png",
-        
+        ["Antenna Tracker"] = "avares://PavamanDroneConfigurator.UI/Assets/Images/Vehicle/Antenna.png",
         // Additional frame types (fallback to Quad for now)
         ["Sub"] = "avares://PavamanDroneConfigurator.UI/Assets/Images/Vehicle/Quad.png",
         ["Tri"] = "avares://PavamanDroneConfigurator.UI/Assets/Images/Vehicle/Quad.png",
@@ -68,10 +65,7 @@ public class VehicleTypeToIconConverter : IValueConverter
         if (value is not string vehicleType || string.IsNullOrWhiteSpace(vehicleType))
             return LoadIcon(DefaultIcon);
 
-        // Get icon path from mapping
         var iconPath = GetIconPath(vehicleType);
-        
-        // Load and return the bitmap
         return LoadIcon(iconPath);
     }
 
@@ -92,7 +86,6 @@ public class VehicleTypeToIconConverter : IValueConverter
 
         // Fallback: check if the vehicle type contains known keywords
         var lowerType = vehicleType.ToLowerInvariant();
-        
         if (lowerType.Contains("quad") || lowerType.Contains("copter"))
             return VehicleIconMap["Quad"];
         if (lowerType.Contains("plane"))
@@ -148,31 +141,27 @@ public class VehicleTypeToBadgeColorConverter : IValueConverter
     private static readonly Dictionary<string, string> VehicleColorMap = new(StringComparer.OrdinalIgnoreCase)
     {
         // Primary vehicle types
-        ["Copter"] = "#667EEA",         // Purple/Indigo
+        ["Copter"] = "#667EEA",       // Purple/Indigo
         ["Quad"] = "#667EEA",
         ["Quadcopter"] = "#667EEA",
-        
-        ["Plane"] = "#3B82F6",          // Blue
+        ["Multicopter"] = "#667EEA",
+        ["Plane"] = "#3B82F6",        // Blue
         ["QuadPlane"] = "#3B82F6",
         ["FixedWing"] = "#3B82F6",
-        
-        ["Rover"] = "#10B981",          // Green/Emerald
+        ["Fixed Wing"] = "#3B82F6",
+        ["Rover"] = "#10B981",        // Green/Emerald
         ["Ground"] = "#10B981",
-        
-        ["Heli"] = "#F59E0B",           // Amber/Orange
+        ["Heli"] = "#F59E0B",         // Amber/Orange
         ["Helicopter"] = "#F59E0B",
         ["Copter-heli"] = "#F59E0B",
-        
-        ["Hexa"] = "#8B5CF6",           // Violet
+        ["Hexa"] = "#8B5CF6",         // Violet
         ["Hexacopter"] = "#8B5CF6",
         ["Octa"] = "#8B5CF6",
         ["Octocopter"] = "#8B5CF6",
-        
         ["AntennaTracker"] = "#EC4899", // Pink
         ["Tracker"] = "#EC4899",
-        
-        ["Sub"] = "#06B6D4",            // Cyan
-        
+        ["Antenna Tracker"] = "#06B6D4",
+        ["Sub"] = "#06B6D4",          // Cyan
         // Additional frame types
         ["Tri"] = "#667EEA",
         ["Y6"] = "#8B5CF6",
@@ -210,7 +199,6 @@ public class VehicleTypeToBadgeColorConverter : IValueConverter
 
         // Fallback: check if the vehicle type contains known keywords
         var lowerType = vehicleType.ToLowerInvariant();
-        
         if (lowerType.Contains("quad") || lowerType.Contains("copter"))
             return VehicleColorMap["Copter"];
         if (lowerType.Contains("plane"))

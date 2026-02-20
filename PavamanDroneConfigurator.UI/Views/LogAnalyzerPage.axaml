@@ -329,14 +329,24 @@
                             BorderThickness="0,0,0,1"
                             Padding="12,8"
                             IsVisible="{Binding HasLegendItems}">
-                        <Grid RowDefinitions="Auto,Auto">
-                            <TextBlock Grid.Row="0" 
+                        <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="*,Auto">
+                            <TextBlock Grid.Row="0" Grid.Column="0"
                                        Text="Graph Legend - Selected Fields" 
                                        Foreground="#CCCCCC" 
                                        FontSize="11" 
                                        FontWeight="SemiBold"
                                        Margin="0,0,0,8"/>
-                            <ItemsControl Grid.Row="1" ItemsSource="{Binding GraphLegendItems}">
+                            
+                            <!-- Graph Control Buttons -->
+                            <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" Spacing="6" Margin="0,0,0,8">
+                                <Button Content="? Left" Classes="ToolbarButton" Click="GraphLeft_Click" FontSize="10" Padding="8,4" ToolTip.Tip="Pan left"/>
+                                <Button Content="Right ?" Classes="ToolbarButton" Click="GraphRight_Click" FontSize="10" Padding="8,4" ToolTip.Tip="Pan right"/>
+                                <Button Content="+" Classes="ToolbarButton" Click="ZoomIn_Click" FontSize="10" Padding="8,4" ToolTip.Tip="Zoom in"/>
+                                <Button Content="?" Classes="ToolbarButton" Click="ZoomOut_Click" FontSize="10" Padding="8,4" ToolTip.Tip="Zoom out"/>
+                                <Button Content="? Auto Scale" Classes="ToolbarButton" Click="AutoScale_Click" FontSize="10" Padding="8,4" FontWeight="SemiBold" ToolTip.Tip="Reset zoom to fit all data"/>
+                            </StackPanel>
+                            
+                            <ItemsControl Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" ItemsSource="{Binding GraphLegendItems}">
                                 <ItemsControl.ItemsPanel>
                                     <ItemsPanelTemplate>
                                         <WrapPanel Orientation="Horizontal"/>

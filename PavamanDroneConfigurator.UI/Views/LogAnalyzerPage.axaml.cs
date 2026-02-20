@@ -101,5 +101,30 @@ namespace PavamanDroneConfigurator.UI.Views
                 viewModel.MapCenterLng = lastPoint.Longitude;
             }
         }
+
+        private void AutoScale_Click(object? sender, RoutedEventArgs e)
+        {
+            _graphControl?.ResetZoom();
+        }
+
+        private void GraphLeft_Click(object? sender, RoutedEventArgs e)
+        {
+            _graphControl?.PanLeft();
+        }
+
+        private void GraphRight_Click(object? sender, RoutedEventArgs e)
+        {
+            _graphControl?.PanRight();
+        }
+
+        private void ZoomIn_Click(object? sender, RoutedEventArgs e)
+        {
+            _graphControl?.ZoomIn();
+        }
+
+        private void ZoomOut_Click(object? sender, RoutedEventArgs e)
+        {
+            _graphControl?.ZoomOut();
+        }
     }
 }

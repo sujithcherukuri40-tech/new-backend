@@ -581,24 +581,34 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
                     // Load waypoints/mission from CMD messages
                     LoadWaypointsFromLog();
 
-                    // Detect events in background
+                    // Detect events - try event detector first, then fall back to basic extraction
+                    bool eventsDetected = false;
                     if (_eventDetector != null)
                     {
-                        await DetectEventsAsync();
-                    }
-                    else
-                    {
-                        await Dispatcher.UIThread.InvokeAsync(() =>
+                        try
                         {
-                            IsLogLoaded = false;
-                            IsAnalyzing = false;
-                            StatusMessage = $"Failed to load log: {result.ErrorMessage}";
-                        });
+                            await DetectEventsAsync();
+                            eventsDetected = DetectedEvents.Count > 0;
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogWarning(ex, "Event detector failed, will use fallback");
+                        }
+                    }
+                    
+                    // If no events were detected by the detector, extract basic events from log messages
+                    if (!eventsDetected)
+                    {
+                        _logger.LogInformation("No events from detector, extracting basic events from MSG/EV messages");
+                        await Dispatcher.UIThread.InvokeAsync(ExtractBasicEventsFromLog);
                     }
 
                     // Ensure events are filtered and displayed automatically
                     FilterEvents();
                     UpdateEventDisplaySummary();
+                    
+                    // Populate critical events for map overlay
+                    PopulateCriticalMapEvents();
 
                     // Load parameter changes if available
                     LoadParameterChanges();
@@ -609,12 +619,26 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
                     // Load raw log messages for display
                     LoadRawLogMessages();
 
-                    StatusMessage = $"Log loaded: {result.MessageCount:N0} messages - {DetectedEvents.Count} events detected";
+                    await Dispatcher.UIThread.InvokeAsync(() =>
+                    {
+                        IsAnalyzing = false;
+                        StatusMessage = $"Log loaded: {result.MessageCount:N0} messages - {DetectedEvents.Count} events detected";
 
-                    // Notify all properties changed to ensure UI updates
-                    OnPropertyChanged(nameof(HasGpsData));
-                    OnPropertyChanged(nameof(HasFilteredEvents));
-                    OnPropertyChanged(nameof(ShowNoEventsMessage));
+                        // Notify all properties changed to ensure UI updates
+                        OnPropertyChanged(nameof(HasGpsData));
+                        OnPropertyChanged(nameof(HasFilteredEvents));
+                        OnPropertyChanged(nameof(ShowNoEventsMessage));
+                        OnPropertyChanged(nameof(HasLogParameters));
+                    });
+                }
+                else
+                {
+                    await Dispatcher.UIThread.InvokeAsync(() =>
+                    {
+                        IsLogLoaded = false;
+                        IsAnalyzing = false;
+                        StatusMessage = $"Failed to load log: {result.ErrorMessage}";
+                    });
                 }
             }
             catch (Exception ex)
@@ -1623,6 +1647,7 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
 
             if (!IsLogLoaded)
             {
+                HasGpsData = false;
                 OnPropertyChanged(nameof(HasGpsData));
                 return;
             }
@@ -1631,6 +1656,7 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
             if (gpsData == null || gpsData.Count == 0)
             {
                 _logger.LogInformation("No GPS data found in log");
+                HasGpsData = false;
                 OnPropertyChanged(nameof(HasGpsData));
                 return;
             }
@@ -1641,6 +1667,7 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
             if (lngData == null)
             {
                 _logger.LogWarning("Longitude data missing");
+                HasGpsData = false;
                 OnPropertyChanged(nameof(HasGpsData));
                 return;
             }
@@ -1655,6 +1682,10 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
 
                 // Skip invalid coordinates
                 if (Math.Abs(lat) < 0.001 && Math.Abs(lng) < 0.001)
+                    continue;
+                    
+                // Skip out-of-range coordinates
+                if (Math.Abs(lat) > 90 || Math.Abs(lng) > 180)
                     continue;
 
                 GpsTrack.Add(new GpsPoint
@@ -1678,6 +1709,9 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
             // This will be called again after event detection completes
             PopulateCriticalMapEvents();
 
+            // Set HasGpsData based on actual valid points loaded
+            HasGpsData = GpsTrack.Count > 0;
+
             if (GpsTrack.Count > 0)
             {
                 var firstPoint = GpsTrack.First();
@@ -1685,7 +1719,12 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
                 MapCenterLng = firstPoint.Longitude;
                 MapZoom = 15;
 
-                _logger.LogInformation("GPS track loaded with {Count} points", GpsTrack.Count);
+                _logger.LogInformation("GPS track loaded with {Count} points, center: {Lat}, {Lng}", 
+                    GpsTrack.Count, MapCenterLat, MapCenterLng);
+            }
+            else
+            {
+                _logger.LogWarning("No valid GPS coordinates found in data");
             }
             
             // Notify HasGpsData property changed to update UI bindings
@@ -1694,6 +1733,7 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error loading GPS track");
+            HasGpsData = false;
             OnPropertyChanged(nameof(HasGpsData));
         }
     }
@@ -2320,6 +2360,11 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
 
         var totalCount = _logAnalyzerService.GetMessageCount(SelectedMessageType.Name);
         TotalMessagePages = (totalCount + MessagesPerPage - 1) / MessagesPerPage;
+    }
+
+    partial void OnCurrentMessagePageChanged(int value)
+    {
+        LoadMessages();
     }
 
     [RelayCommand]
