@@ -103,6 +103,22 @@ public class VehicleTypeDetector
     {
         return vehicleType switch
         {
+            VehicleType.Copter => "Copter",
+            VehicleType.Plane => "Plane",
+            VehicleType.Rover => "Rover",
+            VehicleType.Sub => "Sub",
+            VehicleType.Tracker => "Tracker",
+            _ => "Unknown"
+        };
+    }
+
+    /// <summary>
+    /// Gets descriptive text for vehicle type (for detailed display).
+    /// </summary>
+    public string GetVehicleTypeDescription(VehicleType vehicleType)
+    {
+        return vehicleType switch
+        {
             VehicleType.Copter => "ArduCopter (Multicopter)",
             VehicleType.Plane => "ArduPlane (Fixed Wing)",
             VehicleType.Rover => "ArduRover (Ground/Boat)",
@@ -113,19 +129,19 @@ public class VehicleTypeDetector
     }
 
     /// <summary>
-    /// Gets text icon for vehicle type (for UI display).
-    /// Uses simple text characters for Avalonia compatibility.
+    /// Gets asset path for vehicle type image.
+    /// Returns Avalonia asset URI for use in Image controls.
     /// </summary>
-    public string GetVehicleTypeIcon(VehicleType vehicleType)
+    public string GetVehicleTypeImagePath(VehicleType vehicleType)
     {
         return vehicleType switch
         {
-            VehicleType.Copter => "?",      // Diamond (Copter)
-            VehicleType.Plane => "?",       // Right triangle (Plane)
-            VehicleType.Rover => "?",       // Square (Rover)
-            VehicleType.Sub => "?",         // Circle (Sub)
-            VehicleType.Tracker => "?",     // Inverted bullet (Tracker)
-            _ => "?"
+            VehicleType.Copter => "avares://PavamanDroneConfigurator.UI/Assets/Images/Vehicle/Quad.png",
+            VehicleType.Plane => "avares://PavamanDroneConfigurator.UI/Assets/Images/Vehicle/QuadPlane.png",
+            VehicleType.Rover => "avares://PavamanDroneConfigurator.UI/Assets/Images/Vehicle/Rover.png",
+            VehicleType.Sub => "avares://PavamanDroneConfigurator.UI/Assets/Images/Vehicle/Quad.png", // Use Quad as fallback
+            VehicleType.Tracker => "avares://PavamanDroneConfigurator.UI/Assets/Images/Vehicle/Antenna.png",
+            _ => "avares://PavamanDroneConfigurator.UI/Assets/Images/Vehicle/Quad.png"
         };
     }
 }
