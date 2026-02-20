@@ -11,6 +11,125 @@
 </UserControl.Resources>
 
     <UserControl.Styles>
+        <!-- Premium Firmware Card Style -->
+        <Style Selector="Border.firmware-card">
+            <Setter Property="Background" Value="White"/>
+            <Setter Property="BorderBrush" Value="#E5E7EB"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="16"/>
+            <Setter Property="Padding" Value="24"/>
+            <Setter Property="BoxShadow" Value="0 2 8 0 #08000000"/>
+            <Setter Property="Transitions">
+                <Transitions>
+                    <BoxShadowsTransition Property="BoxShadow" Duration="0:0:0.18"/>
+                    <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.18"/>
+                </Transitions>
+            </Setter>
+        </Style>
+        
+        <Style Selector="Border.firmware-card:pointerover">
+            <Setter Property="BoxShadow" Value="0 12 32 0 #15000000"/>
+            <Setter Property="RenderTransform" Value="translateY(-4px)"/>
+            <Setter Property="BorderBrush" Value="#667EEA"/>
+        </Style>
+        
+        <!-- Unicode Logo Container -->
+        <Style Selector="Border.unicode-logo">
+            <Setter Property="Width" Value="64"/>
+            <Setter Property="Height" Value="64"/>
+            <Setter Property="CornerRadius" Value="16"/>
+            <Setter Property="HorizontalAlignment" Value="Left"/>
+            <Setter Property="VerticalAlignment" Value="Top"/>
+        </Style>
+        
+        <!-- Vehicle Type Badge -->
+        <Style Selector="Border.vehicle-type-badge">
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Padding" Value="10,6"/>
+            <Setter Property="HorizontalAlignment" Value="Right"/>
+            <Setter Property="VerticalAlignment" Value="Top"/>
+        </Style>
+        
+        <!-- Metadata Label -->
+        <Style Selector="TextBlock.meta-label">
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="FontWeight" Value="Medium"/>
+            <Setter Property="Foreground" Value="#9CA3AF"/>
+            <Setter Property="LetterSpacing" Value="0.5"/>
+        </Style>
+        
+        <!-- Metadata Value -->
+        <Style Selector="TextBlock.meta-value">
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Foreground" Value="#111827"/>
+        </Style>
+        
+        <!-- Primary Download Button -->
+        <Style Selector="Button.btn-download">
+            <Setter Property="Background">
+                <Setter.Value>
+                    <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,0%">
+                        <GradientStop Color="#10B981" Offset="0"/>
+                        <GradientStop Color="#059669" Offset="1"/>
+                    </LinearGradientBrush>
+                </Setter.Value>
+            </Setter>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Padding" Value="16,12"/>
+            <Setter Property="CornerRadius" Value="10"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="HorizontalAlignment" Value="Stretch"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+        </Style>
+        
+        <Style Selector="Button.btn-download:pointerover">
+            <Setter Property="Background">
+                <Setter.Value>
+                    <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,0%">
+                        <GradientStop Color="#059669" Offset="0"/>
+                        <GradientStop Color="#047857" Offset="1"/>
+                    </LinearGradientBrush>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        
+        <!-- Icon Action Button Base -->
+        <Style Selector="Button.icon-action">
+            <Setter Property="Width" Value="44"/>
+            <Setter Property="Height" Value="44"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="CornerRadius" Value="10"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Transitions">
+                <Transitions>
+                    <BrushTransition Property="Background" Duration="0:0:0.15"/>
+                </Transitions>
+            </Setter>
+        </Style>
+        
+        <!-- Edit Icon Button -->
+        <Style Selector="Button.icon-action.edit">
+            <Setter Property="Background" Value="#3B82F6"/>
+        </Style>
+        
+        <Style Selector="Button.icon-action.edit:pointerover">
+            <Setter Property="Background" Value="#2563EB"/>
+        </Style>
+        
+        <!-- Delete Icon Button -->
+        <Style Selector="Button.icon-action.delete">
+            <Setter Property="Background" Value="#EF4444"/>
+        </Style>
+        
+        <Style Selector="Button.icon-action.delete:pointerover">
+            <Setter Property="Background" Value="#DC2626"/>
+        </Style>
+        
         <!-- Admin Card Style -->
         <Style Selector="Border.admin-card">
             <Setter Property="Background" Value="{DynamicResource CardBrush}"/>
@@ -304,156 +423,166 @@
                             
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
-                                    <!-- Firmware Card -->
-                                    <Border Background="{DynamicResource SurfaceBrush}"
-                                            BorderBrush="{DynamicResource BorderBrush}"
-                                            BorderThickness="1"
-                                            CornerRadius="12"
-                                            Padding="20"
-                                            Margin="0,0,16,16"
-                                            Width="360"
-                                            BoxShadow="0 2 8 0 #10000000">
-                                        <Border.Styles>
-                                            <Style Selector="Border:pointerover">
-                                                <Setter Property="BorderBrush" Value="{DynamicResource PrimaryBrush}"/>
-                                                <Setter Property="BoxShadow" Value="0 4 12 0 #20000000"/>
-                                            </Style>
-                                        </Border.Styles>
-                                        
-                                        <StackPanel Spacing="16">
-                                            <!-- Header with Vehicle Icon and Type -->
-                                            <Grid ColumnDefinitions="Auto,*,Auto">
-                                                <!-- Vehicle Icon based on type -->
-                                                <Border Grid.Column="0"
-                                                        Background="{DynamicResource PrimaryLightBrush}"
-                                                        CornerRadius="12"
-                                                        Padding="10"
-                                                        Width="56"
-                                                        Height="56">
+                                    <!-- Modern Firmware Card -->
+                                    <Border Classes="firmware-card"
+                                            Width="400"
+                                            Height="380"
+                                            Margin="0,0,20,20">
+                                        <Grid RowDefinitions="Auto,Auto,*,Auto,Auto">
+                                            
+                                            <!-- Row 0: Header with Icon and Badge -->
+                                            <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto" Margin="0,0,0,18">
+                                                <!-- Vehicle Icon Container -->
+                                                <Border Width="64" 
+                                                        Height="64"
+                                                        CornerRadius="14"
+                                                        Padding="10">
+                                                    <Border.Background>
+                                                        <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
+                                                            <GradientStop Color="#EEF2FF" Offset="0"/>
+                                                            <GradientStop Color="#E0E7FF" Offset="1"/>
+                                                        </LinearGradientBrush>
+                                                    </Border.Background>
                                                     <Image Source="{Binding VehicleType, Converter={StaticResource VehicleTypeToIconConverter}}"
                                                            Stretch="Uniform"/>
                                                 </Border>
                                                 
                                                 <!-- Vehicle Type Badge -->
                                                 <Border Grid.Column="2"
+                                                        Classes="vehicle-type-badge"
                                                         Background="{Binding VehicleType, Converter={StaticResource VehicleTypeToBadgeColorConverter}}"
-                                                        CornerRadius="8"
-                                                        Padding="12,6"
                                                         VerticalAlignment="Top">
                                                     <TextBlock Text="{Binding VehicleType}"
                                                                FontSize="11"
                                                                FontWeight="Bold"
-                                                               Foreground="White"/>
+                                                               Foreground="White"
+                                                               LetterSpacing="0.5"/>
                                                 </Border>
                                             </Grid>
                                             
-                                            <!-- Firmware Name and Version -->
-                                            <StackPanel Spacing="4">
+                                            <!-- Row 1: Firmware Name and Version -->
+                                            <StackPanel Grid.Row="1" Spacing="6" Margin="0,0,0,16">
                                                 <TextBlock Text="{Binding FirmwareName}"
-                                                           FontSize="18"
+                                                           FontSize="19"
                                                            FontWeight="Bold"
-                                                           Foreground="{DynamicResource TextPrimaryBrush}"
+                                                           Foreground="#111827"
                                                            TextTrimming="CharacterEllipsis"
-                                                           MaxLines="1"/>
-                                                <TextBlock Text="{Binding FirmwareVersion, StringFormat='Version {0}'}"
-                                                           FontSize="13"
-                                                           Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                                           MaxLines="1"
+                                                           ToolTip.Tip="{Binding FirmwareName}"/>
+                                                <TextBlock FontSize="14"
+                                                           Foreground="#6B7280">
+                                                    <Run Text="Version"/>
+                                                    <Run Text="{Binding FirmwareVersion}" FontWeight="SemiBold" Foreground="#374151"/>
+                                                </TextBlock>
                                             </StackPanel>
                                             
-                                            <!-- Description -->
-                                            <TextBlock Text="{Binding FirmwareDescription}"
-                                                       FontSize="12"
-                                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                            <!-- Row 2: Description (flexible height) -->
+                                            <TextBlock Grid.Row="2"
+                                                       Text="{Binding FirmwareDescription}"
+                                                       FontSize="13"
+                                                       LineHeight="20"
+                                                       Foreground="#6B7280"
                                                        TextWrapping="Wrap"
                                                        MaxLines="2"
                                                        TextTrimming="CharacterEllipsis"
+                                                       VerticalAlignment="Top"
+                                                       Margin="0,0,0,16"
                                                        IsVisible="{Binding FirmwareDescription, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
                                             
-                                            <!-- Metadata Grid -->
-                                            <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto" RowSpacing="8" ColumnSpacing="12">
+                                            <!-- Row 3: Metadata Grid with Icons -->
+                                            <Grid Grid.Row="3" 
+                                                  ColumnDefinitions="*,*" 
+                                                  RowDefinitions="Auto,Auto,Auto" 
+                                                  RowSpacing="12" 
+                                                  ColumnSpacing="16"
+                                                  Margin="0,0,0,20">
+                                                
                                                 <!-- File Size -->
-                                                <StackPanel Grid.Column="0" Grid.Row="0" Spacing="2">
-                                                    <TextBlock Text="File Size"
-                                                               FontSize="11"
-                                                               Foreground="{DynamicResource TextSecondaryBrush}"/>
-                                                    <TextBlock Text="{Binding SizeDisplay}"
-                                                               FontSize="14"
-                                                               FontWeight="SemiBold"
-                                                               Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                                <StackPanel Grid.Row="0" Grid.Column="0" Spacing="4">
+                                                    <StackPanel Orientation="Horizontal" Spacing="5">
+                                                        <PathIcon Data="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm4 18H6V4h7v5h5v11z"
+                                                                  Width="13" 
+                                                                  Height="13" 
+                                                                  Foreground="#9CA3AF"/>
+                                                        <TextBlock Text="File Size" Classes="meta-label"/>
+                                                    </StackPanel>
+                                                    <TextBlock Text="{Binding SizeDisplay}" Classes="meta-value"/>
                                                 </StackPanel>
                                                 
                                                 <!-- Upload Date -->
-                                                <StackPanel Grid.Column="1" Grid.Row="0" Spacing="2">
-                                                    <TextBlock Text="Uploaded"
-                                                               FontSize="11"
-                                                               Foreground="{DynamicResource TextSecondaryBrush}"/>
-                                                    <TextBlock Text="{Binding LastModified, StringFormat='{}{0:MMM dd, yyyy}'}"
-                                                               FontSize="14"
-                                                               FontWeight="SemiBold"
-                                                               Foreground="{DynamicResource TextPrimaryBrush}"/>
+                                                <StackPanel Grid.Row="0" Grid.Column="1" Spacing="4">
+                                                    <StackPanel Orientation="Horizontal" Spacing="5">
+                                                        <PathIcon Data="M9 11H7v2h2v-2zm4 0h-2v2h2v-2zm4 0h-2v2h2v-2zm2-7h-1V2h-2v2H8V2H6v2H5c-1.11 0-1.99.9-1.99 2L3 20c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V9h14v11z"
+                                                                  Width="13" 
+                                                                  Height="13" 
+                                                                  Foreground="#9CA3AF"/>
+                                                        <TextBlock Text="Uploaded" Classes="meta-label"/>
+                                                    </StackPanel>
+                                                    <TextBlock Text="{Binding LastModified, StringFormat='{}{0:MMM dd, yyyy}'}" Classes="meta-value"/>
                                                 </StackPanel>
                                                 
                                                 <!-- File Name -->
-                                                <StackPanel Grid.Column="0" Grid.ColumnSpan="2" Grid.Row="1" Spacing="2">
-                                                    <TextBlock Text="File Name"
-                                                               FontSize="11"
-                                                               Foreground="{DynamicResource TextSecondaryBrush}"/>
+                                                <StackPanel Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" Spacing="4">
+                                                    <StackPanel Orientation="Horizontal" Spacing="5">
+                                                        <PathIcon Data="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zM6 20V4h7v5h5v11H6z"
+                                                                  Width="13" 
+                                                                  Height="13" 
+                                                                  Foreground="#9CA3AF"/>
+                                                        <TextBlock Text="File Name" Classes="meta-label"/>
+                                                    </StackPanel>
                                                     <TextBlock Text="{Binding FileName}"
-                                                               FontSize="11"
-                                                               FontFamily="Consolas"
-                                                               Foreground="{DynamicResource TextSecondaryBrush}"
-                                                               TextTrimming="CharacterEllipsis"/>
+                                                               FontSize="12"
+                                                               FontFamily="Consolas, Courier New"
+                                                               Foreground="#374151"
+                                                               FontWeight="Medium"
+                                                               TextTrimming="CharacterEllipsis"
+                                                               ToolTip.Tip="{Binding FileName}"/>
                                                 </StackPanel>
                                             </Grid>
                                             
-                                            <!-- Separator -->
-                                            <Border Height="1" 
-                                                    Background="{DynamicResource BorderBrush}"/>
-                                            
-                                            <!-- Action Buttons -->
-                                            <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
-                                                <!-- Download Button -->
+                                            <!-- Row 4: Action Buttons -->
+                                            <Grid Grid.Row="4" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="10">
+                                                <!-- Download Button (Primary Action) -->
                                                 <Button Grid.Column="0"
-                                                        Classes="action-btn download"
-                                                        Height="36"
-                                                        HorizontalAlignment="Stretch"
+                                                        Classes="btn-download"
                                                         Command="{Binding $parent[UserControl].((vm:FirmwareManagementViewModel)DataContext).DownloadFirmwareCommand}"
                                                         CommandParameter="{Binding}">
-                                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                                    <StackPanel Orientation="Horizontal" Spacing="8">
                                                         <PathIcon Data="M19 12v7H5v-7H3v7c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2v-7h-2zm-6 .67l2.59-2.58L17 11.5l-5 5-5-5 1.41-1.41L11 12.67V3h2v9.67z"
-                                                                  Width="14" Height="14"
+                                                                  Width="16" 
+                                                                  Height="16"
                                                                   Foreground="White"/>
-                                                        <TextBlock Text="Download" FontSize="12"/>
+                                                        <TextBlock Text="Download" 
+                                                                   FontSize="13" 
+                                                                   FontWeight="SemiBold"/>
                                                     </StackPanel>
                                                 </Button>
                                                 
-                                                <!-- Edit Button (Optional) -->
+                                                <!-- Edit Button (Icon) -->
                                                 <Button Grid.Column="1"
-                                                        Width="36"
-                                                        Height="36"
-                                                        Classes="action-btn edit"
+                                                        Classes="icon-action edit"
                                                         ToolTip.Tip="Edit Metadata"
                                                         Command="{Binding $parent[UserControl].((vm:FirmwareManagementViewModel)DataContext).EditFirmwareCommand}"
                                                         CommandParameter="{Binding}">
                                                     <PathIcon Data="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34a.9959.9959 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"
-                                                              Width="16" Height="16"
+                                                              Width="17" 
+                                                              Height="17"
                                                               Foreground="White"/>
                                                 </Button>
                                                 
-                                                <!-- Delete Button -->
+                                                <!-- Delete Button (Icon) -->
                                                 <Button Grid.Column="2"
-                                                        Width="36"
-                                                        Height="36"
-                                                        Classes="action-btn delete"
+                                                        Classes="icon-action delete"
                                                         ToolTip.Tip="Delete Firmware"
                                                         Command="{Binding $parent[UserControl].((vm:FirmwareManagementViewModel)DataContext).DeleteFirmwareCommand}"
                                                         CommandParameter="{Binding}">
                                                     <PathIcon Data="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"
-                                                              Width="16" Height="16"
+                                                              Width="17" 
+                                                              Height="17"
                                                               Foreground="White"/>
                                                 </Button>
                                             </Grid>
-                                        </StackPanel>
+                                        </Grid>
                                     </Border>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>

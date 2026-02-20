@@ -381,7 +381,7 @@
                                 Background="#F9FAFB" 
                                 BorderBrush="#E5E7EB" 
                                 BorderThickness="0,0,0,1">
-                            <Grid ColumnDefinitions="150,250,110,90,70">
+                            <Grid ColumnDefinitions="140,*,120,100,80">
                                 <TextBlock Grid.Column="0" 
                                            Text="User" 
                                            FontWeight="SemiBold" 
@@ -399,21 +399,23 @@
                                            FontWeight="SemiBold" 
                                            FontSize="12" 
                                            Foreground="#374151"
-                                           TextAlignment="Right"
+                                           HorizontalAlignment="Right"
+                                           Margin="0,0,12,0"
                                            VerticalAlignment="Center"/>
                                 <TextBlock Grid.Column="3" 
                                            Text="Time" 
                                            FontWeight="SemiBold" 
                                            FontSize="12" 
                                            Foreground="#374151"
-                                           TextAlignment="Right"
+                                           HorizontalAlignment="Right"
+                                           Margin="0,0,12,0"
                                            VerticalAlignment="Center"/>
                                 <TextBlock Grid.Column="4" 
                                            Text="Size" 
                                            FontWeight="SemiBold" 
                                            FontSize="12" 
                                            Foreground="#374151"
-                                           TextAlignment="Right"
+                                           HorizontalAlignment="Right"
                                            VerticalAlignment="Center"/>
                             </Grid>
                         </Border>
@@ -430,7 +432,7 @@
                                         <Button Classes="log-row"
                                                 Command="{Binding $parent[ItemsControl].((vm:ParamLogsViewModel)DataContext).ViewLogCommand}"
                                                 CommandParameter="{Binding}">
-                                            <Grid ColumnDefinitions="150,250,110,90,70">
+                                            <Grid ColumnDefinitions="140,*,120,100,80">
                                                 <TextBlock Grid.Column="0"
                                                            Text="{Binding UserDisplay}"
                                                            FontWeight="Medium"
@@ -448,17 +450,19 @@
                                                            Text="{Binding Timestamp, StringFormat='{}{0:yyyy-MM-dd}'}"
                                                            VerticalAlignment="Center"
                                                            Foreground="#6B7280"
-                                                           TextAlignment="Right"/>
+                                                           HorizontalAlignment="Right"
+                                                           Margin="0,0,12,0"/>
                                                 <TextBlock Grid.Column="3"
                                                            Text="{Binding Timestamp, StringFormat='{}{0:HH:mm:ss}'}"
                                                            VerticalAlignment="Center"
                                                            Foreground="#9CA3AF"
-                                                           TextAlignment="Right"/>
+                                                           HorizontalAlignment="Right"
+                                                           Margin="0,0,12,0"/>
                                                 <TextBlock Grid.Column="4"
                                                            Text="{Binding SizeDisplay}"
                                                            VerticalAlignment="Center"
                                                            Foreground="#9CA3AF"
-                                                           TextAlignment="Right"/>
+                                                           HorizontalAlignment="Right"/>
                                             </Grid>
                                         </Button>
                                     </DataTemplate>
