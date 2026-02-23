@@ -573,6 +573,9 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
                     // Load available graph fields
                     await Dispatcher.UIThread.InvokeAsync(LoadAvailableFields);
 
+                    // Auto-select common graph fields immediately after loading
+                    await Dispatcher.UIThread.InvokeAsync(AutoSelectDefaultGraphFields);
+
                     // Load GPS track for map FIRST (so map shows immediately)
                     await Dispatcher.UIThread.InvokeAsync(LoadGpsTrack);
 
@@ -1767,6 +1770,10 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
             
             // Notify HasGpsData property changed to update UI bindings
             OnPropertyChanged(nameof(HasGpsData));
+            // Notify GpsTrackPoints changed to trigger map update
+            OnPropertyChanged(nameof(GpsTrackPoints));
+            OnPropertyChanged(nameof(MapCenterLat));
+            OnPropertyChanged(nameof(MapCenterLng));
         }
         catch (Exception ex)
         {

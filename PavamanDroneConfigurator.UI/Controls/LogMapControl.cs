@@ -18,6 +18,7 @@ using Mapsui.UI.Avalonia;
 using NetTopologySuite.Geometries;
 using System;
 using System.Collections.Generic;
+using System.Collections.Specialized;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -387,13 +388,27 @@ public class LogMapControl : UserControl
         TrackPointsProperty.Changed.AddClassHandler<LogMapControl>((control, args) =>
         {
             if (control == this && !_isDisposed)
+            {
+                // Subscribe to collection changes for ObservableCollection
+                if (args.NewValue is INotifyCollectionChanged newCollection)
+                {
+                    newCollection.CollectionChanged += control.OnTrackPointsCollectionChanged;
+                }
                 control.ScheduleRefresh(() => control.UpdateTrack());
+            }
         });
 
         CriticalEventsProperty.Changed.AddClassHandler<LogMapControl>((control, args) =>
         {
             if (control == this && !_isDisposed)
+            {
+                // Subscribe to collection changes for ObservableCollection
+                if (args.NewValue is INotifyCollectionChanged newCollection)
+                {
+                    newCollection.CollectionChanged += control.OnCriticalEventsCollectionChanged;
+                }
                 control.ScheduleRefresh(() => control.UpdateCriticalEvents());
+            }
         });
 
         AllEventsProperty.Changed.AddClassHandler<LogMapControl>((control, args) =>
@@ -1115,43 +1130,29 @@ Crashes:     {_crashSegments.Count}";
 
     public void ClearTrack()
     {
-        if (_isDisposed) return;
-
-        Dispatcher.UIThread.Post(() =>
+        lock (_dataLock)
         {
-            if (_isDisposed) return;
-
-            try
-            {
-                lock (_dataLock)
-                {
-                    SafeClearLayer(_trackLayer);
-                    SafeClearLayer(_crashLayer);
-                    SafeClearLayer(_markerLayer);
-                    SafeClearLayer(_eventLayer);
-                    SafeClearLayer(_currentPositionLayer);
-                    SafeClearLayer(_waypointLayer);
-                    _trackPoints.Clear();
-                    _crashSegments.Clear();
-                    _waypoints.Clear();
-
-                    HideStatsPanel();
-                    if (_legendPanel != null) _legendPanel.IsVisible = false;
-                    if (_crashAlert != null) _crashAlert.IsVisible = false;
-
-                    SafeInvalidateMap();
-                }
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Error clearing track: {ex.Message}");
-            }
-        });
+            _trackPoints.Clear();
+            SafeClearLayer(_trackLayer);
+            SafeInvalidateMap();
+        }
     }
-
-    #endregion
-
-    #region Waypoints Update
+    
+    private void OnTrackPointsCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        if (!_isDisposed)
+        {
+            ScheduleRefresh(() => UpdateTrack());
+        }
+    }
+    
+    private void OnCriticalEventsCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        if (!_isDisposed)
+        {
+            ScheduleRefresh(() => UpdateCriticalEvents());
+        }
+    }
 
     private void UpdateWaypoints()
     {
