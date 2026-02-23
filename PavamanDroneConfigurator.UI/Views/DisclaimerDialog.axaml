@@ -1,0 +1,192 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:PavamanDroneConfigurator.UI.ViewModels"
+        x:Class="PavamanDroneConfigurator.UI.Views.DisclaimerDialog"
+        x:DataType="vm:DisclaimerDialogViewModel"
+        Title="Disclaimer"
+        Width="550"
+        SizeToContent="Height"
+        MinHeight="400"
+        MaxHeight="650"
+        WindowStartupLocation="CenterOwner"
+        CanResize="False"
+        ShowInTaskbar="False"
+        SystemDecorations="None"
+        Background="Transparent"
+        TransparencyLevelHint="Transparent">
+
+    <Window.Styles>
+        <Style Selector="Button.PrimaryButton">
+            <Setter Property="Background" Value="#3B82F6"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Padding" Value="24,12"/>
+            <Setter Property="CornerRadius" Value="6"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="Cursor" Value="Hand"/>
+        </Style>
+        
+        <Style Selector="Button.PrimaryButton:disabled">
+            <Setter Property="Opacity" Value="0.5"/>
+            <Setter Property="Cursor" Value="Arrow"/>
+        </Style>
+        
+        <Style Selector="Button.PrimaryButton:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="#2563EB"/>
+        </Style>
+        
+        <Style Selector="Button.PrimaryButton:pressed /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="#1D4ED8"/>
+        </Style>
+        
+        <Style Selector="Button.SecondaryButton">
+            <Setter Property="Background" Value="#475569"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Padding" Value="24,12"/>
+            <Setter Property="CornerRadius" Value="6"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="Cursor" Value="Hand"/>
+        </Style>
+        
+        <Style Selector="Button.SecondaryButton:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="#64748B"/>
+        </Style>
+        
+        <Style Selector="Button.SecondaryButton:pressed /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="#334155"/>
+        </Style>
+    </Window.Styles>
+
+    <!-- Main container with rounded corners and shadow effect -->
+    <Border Background="#1E293B" 
+            CornerRadius="12" 
+            BorderBrush="#334155"
+            BorderThickness="1"
+            BoxShadow="0 8 32 0 #40000000">
+        <Grid RowDefinitions="Auto,*,Auto,Auto">
+            
+            <!-- Header with icon -->
+            <Border Grid.Row="0" 
+                    Background="#0F172A" 
+                    Padding="24,20"
+                    CornerRadius="12,12,0,0">
+                <StackPanel Orientation="Horizontal" Spacing="12">
+                    <!-- Warning/Settings Icon -->
+                    <Border Background="{Binding IsCalibrationDisclaimer, Converter={x:Static BoolConverters.Not}, ConverterParameter=#DC2626, FallbackValue=#3B82F6}"
+                            Width="40" Height="40"
+                            CornerRadius="20"
+                            IsVisible="{Binding IsParameterDisclaimer}">
+                        <Border.Background>
+                            <SolidColorBrush Color="#DC2626"/>
+                        </Border.Background>
+                        <TextBlock Text="!" 
+                                   FontSize="24" 
+                                   FontWeight="Bold"
+                                   Foreground="White"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center"/>
+                    </Border>
+                    <Border Width="40" Height="40"
+                            CornerRadius="20"
+                            IsVisible="{Binding IsCalibrationDisclaimer}">
+                        <Border.Background>
+                            <SolidColorBrush Color="#3B82F6"/>
+                        </Border.Background>
+                        <TextBlock Text="C" 
+                                   FontSize="20" 
+                                   FontWeight="Bold"
+                                   Foreground="White"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center"/>
+                    </Border>
+                    <TextBlock Text="{Binding Title}" 
+                               FontSize="20" 
+                               FontWeight="Bold" 
+                               Foreground="#F8FAFC"
+                               VerticalAlignment="Center"/>
+                </StackPanel>
+            </Border>
+
+            <!-- Content -->
+            <ScrollViewer Grid.Row="1" 
+                          Padding="24,20"
+                          VerticalScrollBarVisibility="Auto">
+                <StackPanel Spacing="16">
+                    
+                    <!-- Main Message -->
+                    <TextBlock Text="{Binding Message}" 
+                               TextWrapping="Wrap" 
+                               Foreground="#E2E8F0"
+                               FontSize="14"
+                               LineHeight="22"/>
+
+                    <!-- Warning Box -->
+                    <Border Background="#7F1D1D" 
+                            CornerRadius="8" 
+                            Padding="16"
+                            Margin="0,8,0,0">
+                        <Grid ColumnDefinitions="Auto,*">
+                            <!-- Warning triangle icon -->
+                            <Border Grid.Column="0" 
+                                    Background="#DC2626"
+                                    Width="32" Height="32"
+                                    CornerRadius="4"
+                                    Margin="0,0,12,0"
+                                    VerticalAlignment="Top">
+                                <TextBlock Text="!" 
+                                           FontSize="20" 
+                                           FontWeight="Bold"
+                                           Foreground="White"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"/>
+                            </Border>
+                            <TextBlock Grid.Column="1" 
+                                       Text="{Binding WarningText}" 
+                                       TextWrapping="Wrap" 
+                                       Foreground="#FECACA"
+                                       FontSize="13"
+                                       LineHeight="20"/>
+                        </Grid>
+                    </Border>
+                </StackPanel>
+            </ScrollViewer>
+
+            <!-- Acknowledgment Checkbox -->
+            <Border Grid.Row="2" 
+                    Background="#334155" 
+                    Padding="24,16">
+                <CheckBox IsChecked="{Binding UserAcknowledged}"
+                          Foreground="#F8FAFC"
+                          FontSize="14">
+                    <CheckBox.Content>
+                        <TextBlock Text="I have read and understand the above warnings and accept full responsibility for any consequences."
+                                   TextWrapping="Wrap"
+                                   Foreground="#F8FAFC"/>
+                    </CheckBox.Content>
+                </CheckBox>
+            </Border>
+
+            <!-- Buttons -->
+            <Border Grid.Row="3" 
+                    Background="#0F172A" 
+                    Padding="24,16"
+                    CornerRadius="0,0,12,12">
+                <Grid ColumnDefinitions="*,Auto,Auto">
+                    <Button x:Name="CancelButton"
+                            Grid.Column="1"
+                            Classes="SecondaryButton"
+                            Content="{Binding CancelButtonText}"
+                            Click="OnCancelClick"
+                            Margin="0,0,12,0"/>
+                    
+                    <Button x:Name="ConfirmButton"
+                            Grid.Column="2"
+                            Classes="PrimaryButton"
+                            Content="{Binding ConfirmButtonText}"
+                            Click="OnConfirmClick"
+                            IsEnabled="{Binding UserAcknowledged}"/>
+                </Grid>
+            </Border>
+        </Grid>
+    </Border>
+</Window>

@@ -539,7 +539,22 @@ public partial class ParametersPageViewModel : ViewModelBase
             return;
         }
 
-        // User confirmed - apply all pending changes
+        // Show disclaimer dialog before applying changes
+        var disclaimerViewModel = DisclaimerDialogViewModel.CreateForParameterChange(_pendingChanges.Count);
+        var disclaimerDialog = new DisclaimerDialog
+        {
+            DataContext = disclaimerViewModel
+        };
+
+        var disclaimerResult = await disclaimerDialog.ShowDialog<bool>(mainWindow);
+
+        if (!disclaimerResult)
+        {
+            StatusMessage = "Parameter update cancelled - disclaimer not accepted.";
+            return;
+        }
+
+        // User confirmed and accepted disclaimer - apply all pending changes
         await ApplyPendingChangesAsync();
     }
 

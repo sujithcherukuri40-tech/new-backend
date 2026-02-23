@@ -2,6 +2,9 @@
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading.Tasks;
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -10,6 +13,7 @@ using PavamanDroneConfigurator.Core.Enums;
 using PavamanDroneConfigurator.Core.Interfaces;
 using PavamanDroneConfigurator.Core.Models;
 using PavamanDroneConfigurator.Infrastructure.Services;
+using PavamanDroneConfigurator.UI.Views;
 
 // Use explicit namespace for AccelCalPositionRequestedEventArgs to avoid ambiguity
 using AccelCalPositionRequestedEventArgs = PavamanDroneConfigurator.Core.Interfaces.AccelCalPositionRequestedEventArgs;
@@ -1063,6 +1067,47 @@ public partial class SensorsCalibrationPageViewModel : ViewModelBase
         });
     }
 
+    /// <summary>
+    /// Shows the calibration disclaimer dialog and returns whether the user accepted.
+    /// </summary>
+    private async Task<bool> ShowCalibrationDisclaimerAsync(string calibrationType)
+    {
+        try
+        {
+            var mainWindow = GetMainWindow();
+            if (mainWindow == null)
+            {
+                AddDebugLog("Warning: Could not find main window for disclaimer dialog");
+                return true; // Allow calibration to proceed if window not found
+            }
+
+            var disclaimerViewModel = DisclaimerDialogViewModel.CreateForCalibration(calibrationType);
+            var disclaimerDialog = new DisclaimerDialog
+            {
+                DataContext = disclaimerViewModel
+            };
+
+            var result = await disclaimerDialog.ShowDialog<bool>(mainWindow);
+            AddDebugLog($"[Disclaimer] {calibrationType} calibration disclaimer result: {result}");
+            return result;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error showing calibration disclaimer dialog");
+            AddDebugLog($"Error showing disclaimer: {ex.Message}");
+            return true; // Allow calibration to proceed on error
+        }
+    }
+
+    private static Window? GetMainWindow()
+    {
+        if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+        {
+            return desktop.MainWindow;
+        }
+        return null;
+    }
+
     private void InitializeFlowTypeOptions()
     {
         FlowTypeOptions.Add(new FlowTypeOption { Type = FlowType.Disabled, Label = "Disable" });
@@ -1328,6 +1373,18 @@ public partial class SensorsCalibrationPageViewModel : ViewModelBase
 
         AddDebugLog($"[AccelCal] Button clicked - current button text: '{AccelButtonText}'");
 
+        // Only show disclaimer when starting a NEW calibration (not when confirming positions)
+        if (AccelButtonText == "Calibrate Accel")
+        {
+            // Show disclaimer dialog before starting calibration
+            var disclaimerResult = await ShowCalibrationDisclaimerAsync("Accelerometer");
+            if (!disclaimerResult)
+            {
+                StatusMessage = "Calibration cancelled - disclaimer not accepted.";
+                return;
+            }
+        }
+
         // MissionPlanner behavior: If already calibrating, button click confirms position
         // CalibrationService.StartAccelerometerCalibrationAsync handles this internally
         var success = await _calibrationService.StartAccelerometerCalibrationAsync(true);
@@ -1353,6 +1410,14 @@ public partial class SensorsCalibrationPageViewModel : ViewModelBase
         if (!IsCompassAvailable)
         {
             ShowError("No Compass", "No compass sensors detected.");
+            return;
+        }
+
+        // Show disclaimer dialog before starting calibration
+        var disclaimerResult = await ShowCalibrationDisclaimerAsync("Compass");
+        if (!disclaimerResult)
+        {
+            StatusMessage = "Calibration cancelled - disclaimer not accepted.";
             return;
         }
 
@@ -1659,8 +1724,8 @@ public partial class SensorsCalibrationPageViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to update compass priorities");
-            ShowError("Update Failed", $"Failed to update compass priorities: {ex.Message}");
+            _logger.LogError(ex, "Failed to update compass prioridades");
+            ShowError("Update Failed", $"Failed to update compass prioridades: {ex.Message}");
         }
         finally
         {
@@ -1683,6 +1748,14 @@ public partial class SensorsCalibrationPageViewModel : ViewModelBase
         if (!IsAccelerometerAvailable)
         {
             ShowError("Sensor Not Available", "Accelerometer required for level horizon calibration.");
+            return;
+        }
+
+        // Show disclaimer dialog before starting calibration
+        var disclaimerResult = await ShowCalibrationDisclaimerAsync("Level Horizon");
+        if (!disclaimerResult)
+        {
+            StatusMessage = "Calibration cancelled - disclaimer not accepted.";
             return;
         }
 
@@ -1731,6 +1804,14 @@ public partial class SensorsCalibrationPageViewModel : ViewModelBase
         if (!IsBarometerAvailable)
         {
             ShowError("Sensor Not Available", "Barometer sensor not detected.");
+            return;
+        }
+
+        // Show disclaimer dialog before starting calibration
+        var disclaimerResult = await ShowCalibrationDisclaimerAsync("Barometer");
+        if (!disclaimerResult)
+        {
+            StatusMessage = "Calibration cancelled - disclaimer not accepted.";
             return;
         }
 

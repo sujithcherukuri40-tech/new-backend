@@ -4,10 +4,6 @@ using PavamanDroneConfigurator.Infrastructure.MAVLink;
 
 namespace PavamanDroneConfigurator.Infrastructure.Services;
 
-/// <summary>
-/// Detects ArduPilot vehicle type from MAVLink heartbeat messages.
-/// Used to determine which parameter metadata set to load (Copter or Plane).
-/// </summary>
 public class VehicleTypeDetector
 {
     private readonly ILogger<VehicleTypeDetector> _logger;
@@ -33,9 +29,6 @@ public class VehicleTypeDetector
         _logger = logger;
     }
 
-    /// <summary>
-    /// Detects vehicle type from MAVLink heartbeat data.
-    /// </summary>
     public VehicleType DetectFromHeartbeat(HeartbeatData heartbeat)
     {
         // Only detect ArduPilot vehicles
@@ -78,9 +71,7 @@ public class VehicleTypeDetector
         return vehicleType;
     }
 
-    /// <summary>
-    /// Detects vehicle type from raw MAV_TYPE byte value.
-    /// </summary>
+    
     public VehicleType DetectFromMavType(byte mavType)
     {
         return mavType switch
@@ -96,9 +87,7 @@ public class VehicleTypeDetector
         };
     }
 
-    /// <summary>
-    /// Gets friendly name for vehicle type.
-    /// </summary>
+    
     public string GetVehicleTypeName(VehicleType vehicleType)
     {
         return vehicleType switch
@@ -112,9 +101,6 @@ public class VehicleTypeDetector
         };
     }
 
-    /// <summary>
-    /// Gets descriptive text for vehicle type (for detailed display).
-    /// </summary>
     public string GetVehicleTypeDescription(VehicleType vehicleType)
     {
         return vehicleType switch
@@ -128,10 +114,6 @@ public class VehicleTypeDetector
         };
     }
 
-    /// <summary>
-    /// Gets asset path for vehicle type image.
-    /// Returns Avalonia asset URI for use in Image controls.
-    /// </summary>
     public string GetVehicleTypeImagePath(VehicleType vehicleType)
     {
         return vehicleType switch
