@@ -527,12 +527,13 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
 
     private void OnDownloadCompleted(object? sender, (LogFileInfo File, bool Success, String? Error) e)
     {
-        Dispatcher.UIThread.Post(() =>
+        _ = Dispatcher.UIThread.InvokeAsync(async () =>
         {
             if (e.Success)
             {
                 StatusMessage = $"Downloaded: {e.File.FileName}";
                 SelectedFilePath = e.File.LocalPath ?? string.Empty;
+                await LoadLogAsync();
             }
             else
             {
@@ -570,16 +571,13 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
                     });
 
                     // Load available graph fields
-                    LoadAvailableFields();
-
-                    // Auto-select common fields for initial graph display
-                    AutoSelectDefaultGraphFields();
+                    await Dispatcher.UIThread.InvokeAsync(LoadAvailableFields);
 
                     // Load GPS track for map FIRST (so map shows immediately)
-                    LoadGpsTrack();
+                    await Dispatcher.UIThread.InvokeAsync(LoadGpsTrack);
 
                     // Load waypoints/mission from CMD messages
-                    LoadWaypointsFromLog();
+                    await Dispatcher.UIThread.InvokeAsync(LoadWaypointsFromLog);
 
                     // Detect events - try event detector first, then fall back to basic extraction
                     bool eventsDetected = false;
@@ -604,20 +602,20 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
                     }
 
                     // Ensure events are filtered and displayed automatically
-                    FilterEvents();
-                    UpdateEventDisplaySummary();
+                    await Dispatcher.UIThread.InvokeAsync(FilterEvents);
+                    await Dispatcher.UIThread.InvokeAsync(UpdateEventDisplaySummary);
                     
                     // Populate critical events for map overlay
-                    PopulateCriticalMapEvents();
+                    await Dispatcher.UIThread.InvokeAsync(PopulateCriticalMapEvents);
 
                     // Load parameter changes if available
-                    LoadParameterChanges();
+                    await Dispatcher.UIThread.InvokeAsync(LoadParameterChanges);
 
                     // Load log parameters with metadata
                     await LoadLogParametersAsync();
 
                     // Load raw log messages for display
-                    LoadRawLogMessages();
+                    await Dispatcher.UIThread.InvokeAsync(LoadRawLogMessages);
 
                     await Dispatcher.UIThread.InvokeAsync(() =>
                     {
@@ -1455,6 +1453,43 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
         FilterEvents();
         UpdateEventDisplaySummary();
     }
+
+    [RelayCommand]
+    private async Task RefreshEventsAsync()
+    {
+        if (!IsLogLoaded)
+        {
+            StatusMessage = "No log file loaded.";
+            return;
+        }
+
+        StatusMessage = "Refreshing events...";
+        DetectedEvents.Clear();
+
+        bool eventsDetected = false;
+        if (_eventDetector != null)
+        {
+            try
+            {
+                await DetectEventsAsync();
+                eventsDetected = DetectedEvents.Count > 0;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Event detector failed during refresh, will use fallback");
+            }
+        }
+
+        if (!eventsDetected)
+        {
+            ExtractBasicEventsFromLog();
+        }
+
+        PopulateEventFilterDropdowns();
+        FilterEvents();
+        UpdateEventDisplaySummary();
+        StatusMessage = $"Events refreshed: {DetectedEvents.Count} events detected";
+    }
     
     private void UpdateEventDisplaySummary()
     {
@@ -1663,6 +1698,7 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
 
             var lngData = _logAnalyzerService.GetFieldData("GPS", "Lng");
             var altData = _logAnalyzerService.GetFieldData("GPS", "Alt");
+            var spdData = _logAnalyzerService.GetFieldData("GPS", "Spd");
 
             if (lngData == null)
             {
@@ -1678,6 +1714,7 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
                 var lat = gpsData[i].Value;
                 var lng = lngData[i].Value;
                 var alt = altData != null && i < altData.Count ? altData[i].Value : 0;
+                var spd = spdData != null && i < spdData.Count ? spdData[i].Value : 0;
                 var timestamp = gpsData[i].Timestamp / 1_000_000.0; // Convert microseconds to seconds
 
                 // Skip invalid coordinates
@@ -1701,7 +1738,8 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
                     Latitude = lat,
                     Longitude = lng,
                     Altitude = alt,
-                    Timestamp = timestamp
+                    Timestamp = timestamp,
+                    Speed = spd
                 });
             }
 
@@ -2667,19 +2705,28 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
     [RelayCommand]
     private void ClearAllFields()
     {
-        // Clear the selected fields collection first, then update individual field properties
-        // This ensures the graph update (triggered by UpdateGraph) happens only once
-        // Note: Setting IsSelected still triggers individual property notifications, but graph updates are batched
-        var fieldsToDeselect = SelectedGraphFields.ToList();
-        SelectedGraphFields.Clear();
-        
-        // Update IsSelected property on each field
-        foreach (var field in fieldsToDeselect)
+        _isUpdatingFieldSelection = true;
+        try
         {
-            field.IsSelected = false;
+            // Clear selection state on all fields, including tree node checkboxes
+            foreach (var field in SelectedGraphFields.ToList())
+            {
+                field.IsSelected = false;
+                field.Color = null;
+                UpdateTreeNodeSelection(field.DisplayName, false);
+            }
+            SelectedGraphFields.Clear();
         }
-        
-        UpdateGraph();
+        finally
+        {
+            _isUpdatingFieldSelection = false;
+        }
+
+        // Explicitly clear graph data
+        CurrentGraph = null;
+        HasGraphData = false;
+        GraphLegendItems.Clear();
+        OnPropertyChanged(nameof(HasLegendItems));
         _logger.LogInformation("Cleared all selected graph fields");
     }
 
