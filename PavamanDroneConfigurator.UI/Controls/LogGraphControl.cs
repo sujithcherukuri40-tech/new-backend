@@ -6,6 +6,7 @@ using ScottPlot;
 using ScottPlot.Avalonia;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 
 namespace PavamanDroneConfigurator.UI.Controls;
@@ -115,10 +116,13 @@ public class LogGraphControl : UserControl
             return;
         }
 
-        // Track min/max for display
+        // Track min/max for display and axis scaling
         double globalMin = double.MaxValue;
         double globalMax = double.MinValue;
+        double globalXMin = double.MaxValue;
+        double globalXMax = double.MinValue;
         int totalPoints = 0;
+        int seriesAdded = 0;
 
         // Add each data series with Mission Planner styling
         int seriesIndex = 0;
@@ -127,7 +131,26 @@ public class LogGraphControl : UserControl
             var xs = series.Points.Select(p => p.X).ToArray();
             var ys = series.Points.Select(p => p.Y).ToArray();
 
-            if (xs.Length == 0) continue;
+            if (xs.Length == 0)
+            {
+                Debug.WriteLine($"LogGraphControl: Series '{series.Name}' has no X data points");
+                continue;
+            }
+
+            // Log data stats for debugging
+            var xMin = xs.Min();
+            var xMax = xs.Max();
+            var yMin = ys.Min();
+            var yMax = ys.Max();
+            var yAvg = ys.Average();
+            
+            Debug.WriteLine($"LogGraphControl: Series '{series.Name}' - Points:{xs.Length}, X:[{xMin:F2},{xMax:F2}], Y:[{yMin:F2},{yMax:F2}], Avg:{yAvg:F2}");
+
+            // Track global ranges
+            globalXMin = Math.Min(globalXMin, xMin);
+            globalXMax = Math.Max(globalXMax, xMax);
+            globalMin = Math.Min(globalMin, yMin);
+            globalMax = Math.Max(globalMax, yMax);
 
             // Create scatter plot with signal-style rendering for performance
             var scatter = _avaPlot.Plot.Add.Scatter(xs, ys);
@@ -136,27 +159,47 @@ public class LogGraphControl : UserControl
             scatter.MarkerSize = 0; // Line only for performance with large datasets
             
             // Add min/max/avg info to legend
-            if (ys.Length > 0)
-            {
-                var min = ys.Min();
-                var max = ys.Max();
-                var avg = ys.Average();
-                scatter.LegendText = $"{series.Name} (min:{min:F2} max:{max:F2} avg:{avg:F2})";
-                
-                globalMin = Math.Min(globalMin, min);
-                globalMax = Math.Max(globalMax, max);
-                totalPoints += ys.Length;
-            }
-            else
-            {
-                scatter.LegendText = series.Name;
-            }
-
+            scatter.LegendText = $"{series.Name} (min:{yMin:F2} max:{yMax:F2} avg:{yAvg:F2})";
+            
+            totalPoints += ys.Length;
             seriesIndex++;
+            seriesAdded++;
         }
 
-        // Configure axes
-        _avaPlot.Plot.Axes.AutoScale();
+        if (seriesAdded == 0)
+        {
+            _avaPlot.Plot.Title("No Data - Selected fields have no data points");
+            Debug.WriteLine("LogGraphControl: No series had valid data points");
+            _avaPlot.Refresh();
+            return;
+        }
+
+        // Handle edge case where all Y values are the same (constant line)
+        // Add margin to make the line visible
+        if (Math.Abs(globalMax - globalMin) < 0.001)
+        {
+            var margin = Math.Abs(globalMin) * 0.1;
+            if (margin < 1.0) margin = 1.0; // Minimum margin of 1.0
+            globalMin -= margin;
+            globalMax += margin;
+            Debug.WriteLine($"LogGraphControl: Applied Y-axis margin for constant values: [{globalMin:F2}, {globalMax:F2}]");
+        }
+
+        // Handle edge case where all X values are the same
+        if (Math.Abs(globalXMax - globalXMin) < 0.001)
+        {
+            globalXMin -= 1.0;
+            globalXMax += 1.0;
+            Debug.WriteLine($"LogGraphControl: Applied X-axis margin for constant values: [{globalXMin:F2}, {globalXMax:F2}]");
+        }
+
+        // Configure axes with a small margin
+        var yMargin = (globalMax - globalMin) * 0.05;
+        var xMargin = (globalXMax - globalXMin) * 0.02;
+        
+        _avaPlot.Plot.Axes.SetLimits(
+            globalXMin - xMargin, globalXMax + xMargin,
+            globalMin - yMargin, globalMax + yMargin);
         
         // X-axis styling
         _avaPlot.Plot.XLabel("Time (sec)");
@@ -166,11 +209,9 @@ public class LogGraphControl : UserControl
         _avaPlot.Plot.YLabel(yLabel);
         
         // Title with data info
-        if (totalPoints > 0)
-        {
-            var seriesCount = configuration.Series.Count(s => s.IsVisible && s.Points.Count > 0);
-            _avaPlot.Plot.Title($"Flight Data - {seriesCount} series, {totalPoints:N0} points");
-        }
+        _avaPlot.Plot.Title($"Flight Data - {seriesAdded} series, {totalPoints:N0} points");
+        
+        Debug.WriteLine($"LogGraphControl: Rendered {seriesAdded} series with {totalPoints} total points, X:[{globalXMin:F2},{globalXMax:F2}], Y:[{globalMin:F2},{globalMax:F2}]");
 
         // Refresh the plot
         _avaPlot.Refresh();

@@ -421,9 +421,7 @@ public class DataFlashLogParser
             Fields = new Dictionary<string, object>()
         };
 
-        // Get timestamp if available
-        double timestamp = 0;
-        
+        // First pass: Parse all field values
         int fieldIndex = 0;
         foreach (char formatChar in format.FormatString)
         {
@@ -523,31 +521,35 @@ public class DataFlashLogParser
             if (value != null)
             {
                 msg.Fields[fieldName] = value;
-                
-                // Track timestamp
-                if (fieldName == "TimeUS" && value is double ts)
-                {
-                    timestamp = ts;
-                    msg.Timestamp = TimeSpan.FromMicroseconds(ts);
-                }
-
-                // Add numeric values to data series
-                if (value is double numValue && !double.IsNaN(numValue) && !double.IsInfinity(numValue))
-                {
-                    var seriesKey = $"{format.Name}.{fieldName}";
-                    if (!_dataSeries.ContainsKey(seriesKey))
-                        _dataSeries[seriesKey] = new List<LogDataPoint>();
-
-                    _dataSeries[seriesKey].Add(new LogDataPoint
-                    {
-                        Index = index,
-                        Timestamp = timestamp,
-                        Value = numValue
-                    });
-                }
             }
 
             fieldIndex++;
+        }
+
+        // Second pass: Extract timestamp from TimeUS field (must be done AFTER all fields are parsed)
+        double timestamp = 0;
+        if (msg.Fields.TryGetValue("TimeUS", out var timeUsObj) && timeUsObj is double ts)
+        {
+            timestamp = ts;
+            msg.Timestamp = TimeSpan.FromMicroseconds(ts);
+        }
+
+        // Third pass: Add numeric values to data series (now with correct timestamp)
+        foreach (var field in msg.Fields)
+        {
+            if (field.Value is double numValue && !double.IsNaN(numValue) && !double.IsInfinity(numValue))
+            {
+                var seriesKey = $"{format.Name}.{field.Key}";
+                if (!_dataSeries.ContainsKey(seriesKey))
+                    _dataSeries[seriesKey] = new List<LogDataPoint>();
+
+                _dataSeries[seriesKey].Add(new LogDataPoint
+                {
+                    Index = index,
+                    Timestamp = timestamp,
+                    Value = numValue
+                });
+            }
         }
 
         return msg;

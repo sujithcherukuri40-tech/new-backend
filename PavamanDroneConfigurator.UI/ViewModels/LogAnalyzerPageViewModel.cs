@@ -568,6 +568,9 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
                         {
                             MessageTypes.Add(type);
                         }
+                        
+                        // Clear all previous data to prevent stale data from previous logs
+                        ClearPreviousLogData();
                     });
 
                     // Load available graph fields
@@ -655,6 +658,42 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
         });
     }
     
+    /// <summary>
+    /// Clears all data from the previous log file to prevent stale data from being displayed.
+    /// Must be called on UI thread before loading a new log.
+    /// </summary>
+    private void ClearPreviousLogData()
+    {
+        // Clear map data
+        GpsTrack.Clear();
+        GpsTrackPoints.Clear();
+        CriticalMapEvents.Clear();
+        MapWaypoints.Clear();
+        CurrentMapPosition = null;
+        MapCenterLat = 0;
+        MapCenterLng = 0;
+        HasGpsData = false;
+        
+        // Clear events data
+        DetectedEvents.Clear();
+        FilteredEvents.Clear();
+        EventSummary = null;
+        ErrorCount = 0;
+        WarningCount = 0;
+        
+        // Clear parameters data
+        LogParameters.Clear();
+        FilteredLogParameters.Clear();
+        ParameterChanges.Clear();
+        HasLogParameters = false;
+        
+        // Clear raw log messages
+        RawLogMessages.Clear();
+        HasRawLogData = false;
+        
+        _logger.LogInformation("Cleared all previous log data for new log file");
+    }
+
     private void LoadParameterChanges()
     {
         ParameterChanges.Clear();
@@ -1200,10 +1239,14 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
     /// <summary>
     /// Fallback event extraction when event detector is unavailable or returns empty.
     /// Extracts events from MSG, EV, MODE, and ERR message types.
+    /// Enriches events with GPS location data when available.
     /// </summary>
     private void ExtractBasicEventsFromLog()
     {
         var eventId = 1;
+        
+        // Build GPS lookup cache for assigning locations to events
+        var gpsLookup = BuildGpsLookupCache();
         
         try
         {
@@ -1255,6 +1298,9 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
                     title = "Mode Change";
                 }
                 
+                // Get GPS location at event time
+                var location = GetLocationAtEventTime(gpsLookup, timestamp);
+                
                 DetectedEvents.Add(new LogEvent
                 {
                     Id = eventId++,
@@ -1264,7 +1310,10 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
                     Title = title,
                     Description = text,
                     Source = "MSG",
-                    RawMessage = text
+                    RawMessage = text,
+                    Latitude = location.Lat,
+                    Longitude = location.Lng,
+                    Altitude = location.Alt
                 });
             }
             
@@ -1281,6 +1330,9 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
                 var modeName = msg.Fields.GetValueOrDefault("Mode")?.ToString() ?? 
                                msg.Fields.GetValueOrDefault("ModeNum")?.ToString() ?? "Unknown";
                 
+                // Get GPS location at event time
+                var location = GetLocationAtEventTime(gpsLookup, timestamp);
+                
                 DetectedEvents.Add(new LogEvent
                 {
                     Id = eventId++,
@@ -1289,7 +1341,10 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
                     Severity = LogEventSeverity.Info,
                     Title = "Mode Change",
                     Description = $"Flight mode: {modeName}",
-                    Source = "Navigator"
+                    Source = "Navigator",
+                    Latitude = location.Lat,
+                    Longitude = location.Lng,
+                    Altitude = location.Alt
                 });
             }
             
@@ -1322,6 +1377,9 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
                     };
                 }
                 
+                // Get GPS location at event time
+                var location = GetLocationAtEventTime(gpsLookup, timestamp);
+                
                 DetectedEvents.Add(new LogEvent
                 {
                     Id = eventId++,
@@ -1331,7 +1389,10 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
                     Title = title,
                     Description = description,
                     Source = "Autopilot",
-                    EventId = int.TryParse(evId, out var eid) ? eid : null
+                    EventId = int.TryParse(evId, out var eid) ? eid : null,
+                    Latitude = location.Lat,
+                    Longitude = location.Lng,
+                    Altitude = location.Alt
                 });
             }
             
@@ -1348,6 +1409,9 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
                 var subsys = msg.Fields.GetValueOrDefault("Subsys")?.ToString() ?? "Unknown";
                 var errCode = msg.Fields.GetValueOrDefault("ECode")?.ToString() ?? "Unknown";
                 
+                // Get GPS location at event time
+                var location = GetLocationAtEventTime(gpsLookup, timestamp);
+                
                 DetectedEvents.Add(new LogEvent
                 {
                     Id = eventId++,
@@ -1356,7 +1420,10 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
                     Severity = LogEventSeverity.Error,
                     Title = $"Error: {subsys}",
                     Description = $"Subsystem: {subsys}, Error Code: {errCode}",
-                    Source = subsys
+                    Source = subsys,
+                    Latitude = location.Lat,
+                    Longitude = location.Lng,
+                    Altitude = location.Alt
                 });
             }
             
@@ -1392,12 +1459,52 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
             // Update event display summary to refresh UI statistics
             UpdateEventDisplaySummary();
             
-            _logger.LogInformation("Extracted {Count} basic events from log", DetectedEvents.Count);
+            _logger.LogInformation("Extracted {Count} basic events from log ({WithLocation} with GPS location)", 
+                DetectedEvents.Count, DetectedEvents.Count(e => e.HasLocation));
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error extracting basic events from log");
         }
+    }
+    
+    /// <summary>
+    /// Builds a GPS lookup cache from loaded GPS track points for efficient location lookups.
+    /// </summary>
+    private List<(double Timestamp, double Lat, double Lng, double Alt)> BuildGpsLookupCache()
+    {
+        var cache = new List<(double Timestamp, double Lat, double Lng, double Alt)>();
+        
+        foreach (var point in GpsTrack)
+        {
+            cache.Add((point.Timestamp, point.Latitude, point.Longitude, point.Altitude));
+        }
+        
+        _logger.LogDebug("Built GPS lookup cache with {Count} points", cache.Count);
+        return cache;
+    }
+    
+    /// <summary>
+    /// Gets the GPS location at a specific timestamp by finding the closest GPS point.
+    /// Returns null coordinates if no GPS data available or if the closest point is too far away in time.
+    /// </summary>
+    private static (double? Lat, double? Lng, double? Alt) GetLocationAtEventTime(
+        List<(double Timestamp, double Lat, double Lng, double Alt)> gpsCache, 
+        double timestamp)
+    {
+        if (gpsCache.Count == 0)
+            return (null, null, null);
+        
+        // Find the closest GPS point by timestamp
+        var closest = gpsCache.MinBy(g => Math.Abs(g.Timestamp - timestamp));
+        
+        // Only return location if within 5 seconds of the event
+        if (Math.Abs(closest.Timestamp - timestamp) <= 5.0)
+        {
+            return (closest.Lat, closest.Lng, closest.Alt);
+        }
+        
+        return (null, null, null);
     }
 
     #endregion
@@ -2632,63 +2739,79 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
         var selectedCount = 0;
         const int maxAutoSelectFields = 4;
 
-        // Try pattern matching
-        foreach (var pattern in priorityPatterns)
+        _isUpdatingFieldSelection = true;
+        try
         {
-            if (selectedCount >= maxAutoSelectFields)
-                break;
-
-            var msgType = pattern[0];
-            var fieldName = pattern.Length > 1 ? pattern[1] : null;
-
-            // Find matching field
-            LogFieldInfo? field = null;
-            
-            if (fieldName != null)
+            // Try pattern matching
+            foreach (var pattern in priorityPatterns)
             {
-                // Try exact match first: "ATT.Roll"
-                field = AvailableFields.FirstOrDefault(f => 
-                    f.DisplayName.Equals($"{msgType}.{fieldName}", StringComparison.OrdinalIgnoreCase));
+                if (selectedCount >= maxAutoSelectFields)
+                    break;
+
+                var msgType = pattern[0];
+                var fieldName = pattern.Length > 1 ? pattern[1] : null;
+
+                // Find matching field
+                LogFieldInfo? field = null;
                 
-                // Try contains match: field contains both message type and field name
-                if (field == null)
+                if (fieldName != null)
                 {
+                    // Try exact match first: "ATT.Roll"
                     field = AvailableFields.FirstOrDefault(f => 
-                        f.MessageType.Equals(msgType, StringComparison.OrdinalIgnoreCase) &&
-                        f.FieldName.Contains(fieldName, StringComparison.OrdinalIgnoreCase));
+                        f.DisplayName.Equals($"{msgType}.{fieldName}", StringComparison.OrdinalIgnoreCase));
+                    
+                    // Try contains match: field contains both message type and field name
+                    if (field == null)
+                    {
+                        field = AvailableFields.FirstOrDefault(f => 
+                            f.MessageType.Equals(msgType, StringComparison.OrdinalIgnoreCase) &&
+                            f.FieldName.Contains(fieldName, StringComparison.OrdinalIgnoreCase));
+                    }
                 }
-            }
-            else
-            {
-                // Just match by message type
-                field = AvailableFields.FirstOrDefault(f => 
-                    f.MessageType.Equals(msgType, StringComparison.OrdinalIgnoreCase));
-            }
+                else
+                {
+                    // Just match by message type
+                    field = AvailableFields.FirstOrDefault(f => 
+                        f.MessageType.Equals(msgType, StringComparison.OrdinalIgnoreCase));
+                }
 
-            if (field != null && !SelectedGraphFields.Any(f => f.DisplayName == field.DisplayName))
-            {
-                field.IsSelected = true;
-                field.Color = GraphColors.GetColor(selectedCount);
-                SelectedGraphFields.Add(field);
-                selectedCount++;
-                _logger.LogDebug("Auto-selected field: {Field}", field.DisplayName);
-            }
-        }
-
-        // If no priority fields found, select the first few available fields
-        if (selectedCount == 0)
-        {
-            _logger.LogInformation("No priority fields found, selecting first {Count} available fields", maxAutoSelectFields);
-            foreach (var field in AvailableFields.Take(maxAutoSelectFields))
-            {
-                if (!SelectedGraphFields.Any(f => f.DisplayName == field.DisplayName))
+                if (field != null && !SelectedGraphFields.Any(f => f.DisplayName == field.DisplayName))
                 {
                     field.IsSelected = true;
                     field.Color = GraphColors.GetColor(selectedCount);
                     SelectedGraphFields.Add(field);
+                    
+                    // Sync tree node checkbox state
+                    UpdateTreeNodeSelection(field.DisplayName, true);
+                    
                     selectedCount++;
+                    _logger.LogDebug("Auto-selected field: {Field}", field.DisplayName);
                 }
             }
+
+            // If no priority fields found, select the first few available fields
+            if (selectedCount == 0)
+            {
+                _logger.LogInformation("No priority fields found, selecting first {Count} available fields", maxAutoSelectFields);
+                foreach (var field in AvailableFields.Take(maxAutoSelectFields))
+                {
+                    if (!SelectedGraphFields.Any(f => f.DisplayName == field.DisplayName))
+                    {
+                        field.IsSelected = true;
+                        field.Color = GraphColors.GetColor(selectedCount);
+                        SelectedGraphFields.Add(field);
+                        
+                        // Sync tree node checkbox state
+                        UpdateTreeNodeSelection(field.DisplayName, true);
+                        
+                        selectedCount++;
+                    }
+                }
+            }
+        }
+        finally
+        {
+            _isUpdatingFieldSelection = false;
         }
 
         // Update the graph with selected fields
@@ -3246,3 +3369,4 @@ public class GraphLegendItem
     public string MaxDisplay => MaxValue.ToString("F2");
     public string MeanDisplay => MeanValue.ToString("F2");
 }
+
