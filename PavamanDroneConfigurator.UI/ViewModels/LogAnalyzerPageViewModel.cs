@@ -544,91 +544,143 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
 
     private void OnLogParsed(object? sender, LogParseResult result)
     {
-        // Process log data on background thread to avoid blocking UI
+        // Process log data in optimized parallel manner
         _ = Task.Run(async () =>
         {
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            
             try
             {
                 if (result.IsSuccess)
                 {
-                    // Update UI properties on UI thread
+                    // Update UI with initial state
                     await Dispatcher.UIThread.InvokeAsync(() =>
                     {
                         IsLogLoaded = true;
                         IsAnalyzing = true;
                         LoadedLogInfo = $"{result.FileName} - {result.MessageCount:N0} messages, {result.DurationDisplay}";
-                        StatusMessage = "Analyzing log data...";
-
+                        StatusMessage = "Loading log data...";
+                        
                         // Update overview
                         UpdateOverview(result);
-
-                        // Load message types
+                        
+                        // Load message types (fast)
                         MessageTypes.Clear();
                         foreach (var type in result.MessageTypes)
                         {
                             MessageTypes.Add(type);
                         }
                         
-                        // Clear all previous data to prevent stale data from previous logs
+                        // Clear all previous data
                         ClearPreviousLogData();
                     });
 
-                    // Load available graph fields
-                    await Dispatcher.UIThread.InvokeAsync(LoadAvailableFields);
+                    _logger.LogInformation("Starting parallel log analysis...");
 
-                    // Auto-select common graph fields immediately after loading
-                    await Dispatcher.UIThread.InvokeAsync(AutoSelectDefaultGraphFields);
+                    // Run critical data loading in parallel for speed
+                    var gpsTask = Task.Run(() => LoadGpsTrackOptimized());
+                    var fieldsTask = Task.Run(() => LoadAvailableFieldsOptimized());
+                    var eventsTask = Task.Run(() => ExtractEventsOptimized());
+                    var paramsTask = Task.Run(() => ExtractParametersOptimized());
 
-                    // Load GPS track for map FIRST (so map shows immediately)
-                    await Dispatcher.UIThread.InvokeAsync(LoadGpsTrack);
-
-                    // Load waypoints/mission from CMD messages
-                    await Dispatcher.UIThread.InvokeAsync(LoadWaypointsFromLog);
-
-                    // Detect events - try event detector first, then fall back to basic extraction
-                    bool eventsDetected = false;
-                    if (_eventDetector != null)
-                    {
-                        try
-                        {
-                            await DetectEventsAsync();
-                            eventsDetected = DetectedEvents.Count > 0;
-                        }
-                        catch (Exception ex)
-                        {
-                            _logger.LogWarning(ex, "Event detector failed, will use fallback");
-                        }
-                    }
+                    // Wait for GPS data first (needed for map)
+                    var gpsData = await gpsTask;
+                    _logger.LogInformation("GPS track loaded in {Ms}ms: {Count} points", sw.ElapsedMilliseconds, gpsData.Count);
                     
-                    // If no events were detected by the detector, extract basic events from log messages
-                    if (!eventsDetected)
+                    await Dispatcher.UIThread.InvokeAsync(() =>
                     {
-                        _logger.LogInformation("No events from detector, extracting basic events from MSG/EV messages");
-                        await Dispatcher.UIThread.InvokeAsync(ExtractBasicEventsFromLog);
-                    }
+                        StatusMessage = $"GPS loaded ({gpsData.Count} points), loading events...";
+                        
+                        // Update GPS collections
+                        GpsTrack.Clear();
+                        GpsTrackPoints.Clear();
+                        foreach (var pt in gpsData.Take(10000)) // Limit for performance
+                        {
+                            GpsTrack.Add(new GpsPoint { Latitude = pt.Lat, Longitude = pt.Lng, Altitude = pt.Alt, Timestamp = pt.Timestamp });
+                            GpsTrackPoints.Add(new Controls.GpsTrackPoint { Latitude = pt.Lat, Longitude = pt.Lng, Altitude = pt.Alt, Timestamp = pt.Timestamp, Speed = pt.Speed });
+                        }
+                        
+                        HasGpsData = GpsTrack.Count > 0;
+                        if (GpsTrack.Count > 0)
+                        {
+                            MapCenterLat = GpsTrack[0].Latitude;
+                            MapCenterLng = GpsTrack[0].Longitude;
+                        }
+                        
+                        OnPropertyChanged(nameof(HasGpsData));
+                        OnPropertyChanged(nameof(GpsTrackPoints));
+                    });
 
-                    // Ensure events are filtered and displayed automatically
-                    await Dispatcher.UIThread.InvokeAsync(FilterEvents);
-                    await Dispatcher.UIThread.InvokeAsync(UpdateEventDisplaySummary);
+                    // Wait for events
+                    var events = await eventsTask;
+                    _logger.LogInformation("Events extracted in {Ms}ms: {Count} events", sw.ElapsedMilliseconds, events.Count);
                     
-                    // Populate critical events for map overlay
-                    await Dispatcher.UIThread.InvokeAsync(PopulateCriticalMapEvents);
+                    await Dispatcher.UIThread.InvokeAsync(() =>
+                    {
+                        StatusMessage = $"Events loaded ({events.Count}), loading fields...";
+                        
+                        DetectedEvents.Clear();
+                        foreach (var evt in events.Take(1000)) // Limit for performance
+                        {
+                            DetectedEvents.Add(evt);
+                        }
+                        
+                        // Update summary
+                        EventSummary = new EventSummary
+                        {
+                            TotalEvents = DetectedEvents.Count,
+                            InfoCount = DetectedEvents.Count(e => e.Severity == LogEventSeverity.Info || e.Severity == LogEventSeverity.Notice),
+                            WarningCount = DetectedEvents.Count(e => e.Severity == LogEventSeverity.Warning),
+                            ErrorCount = DetectedEvents.Count(e => e.Severity == LogEventSeverity.Error),
+                            CriticalCount = DetectedEvents.Count(e => e.Severity == LogEventSeverity.Critical || e.Severity == LogEventSeverity.Emergency)
+                        };
+                        
+                        ErrorCount = EventSummary.ErrorCount + EventSummary.CriticalCount;
+                        WarningCount = EventSummary.WarningCount;
+                        
+                        PopulateEventFilterDropdowns();
+                        FilterEvents();
+                        UpdateEventDisplaySummary();
+                        PopulateCriticalMapEvents();
+                    });
 
-                    // Load parameter changes if available
-                    await Dispatcher.UIThread.InvokeAsync(LoadParameterChanges);
+                    // Wait for fields
+                    var fields = await fieldsTask;
+                    _logger.LogInformation("Fields loaded in {Ms}ms: {Count} fields", sw.ElapsedMilliseconds, fields.Count);
+                    
+                    await Dispatcher.UIThread.InvokeAsync(() =>
+                    {
+                        StatusMessage = "Building field tree...";
+                        LoadAvailableFieldsFromData(fields);
+                        AutoSelectDefaultGraphFields();
+                    });
 
-                    // Load log parameters with metadata
-                    await LoadLogParametersAsync();
+                    // Wait for parameters (can be slower, user may not need immediately)
+                    var parameters = await paramsTask;
+                    _logger.LogInformation("Parameters loaded in {Ms}ms: {Count} params", sw.ElapsedMilliseconds, parameters.Count);
+                    
+                    await Dispatcher.UIThread.InvokeAsync(() =>
+                    {
+                        LogParameters.Clear();
+                        FilteredLogParameters.Clear();
+                        foreach (var p in parameters)
+                        {
+                            var param = new LogParameter { Name = p.Key, Value = p.Value };
+                            LogParameters.Add(param);
+                            FilteredLogParameters.Add(param);
+                        }
+                        HasLogParameters = LogParameters.Count > 0;
+                    });
 
-                    // Load raw log messages for display
+                    // Load raw messages sample (fast, limited)
                     await Dispatcher.UIThread.InvokeAsync(LoadRawLogMessages);
 
+                    sw.Stop();
                     await Dispatcher.UIThread.InvokeAsync(() =>
                     {
                         IsAnalyzing = false;
-                        StatusMessage = $"Log loaded: {result.MessageCount:N0} messages - {DetectedEvents.Count} events detected";
-
-                        // Notify all properties changed to ensure UI updates
+                        StatusMessage = $"Log loaded in {sw.ElapsedMilliseconds/1000.0:F1}s: {result.MessageCount:N0} msgs, {GpsTrack.Count} GPS pts, {DetectedEvents.Count} events";
+                        
                         OnPropertyChanged(nameof(HasGpsData));
                         OnPropertyChanged(nameof(HasFilteredEvents));
                         OnPropertyChanged(nameof(ShowNoEventsMessage));
@@ -652,299 +704,322 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
                 {
                     IsLogLoaded = false;
                     IsAnalyzing = false;
-                    StatusMessage = $"Error processing log: {ex.Message}";
+                    StatusMessage = $"Error: {ex.Message}";
                 });
             }
         });
     }
     
     /// <summary>
-    /// Clears all data from the previous log file to prevent stale data from being displayed.
-    /// Must be called on UI thread before loading a new log.
+    /// Optimized GPS track loading - runs on background thread
     /// </summary>
-    private void ClearPreviousLogData()
+    private List<(double Lat, double Lng, double Alt, double Timestamp, double Speed)> LoadGpsTrackOptimized()
     {
-        // Clear map data
-        GpsTrack.Clear();
-        GpsTrackPoints.Clear();
-        CriticalMapEvents.Clear();
-        MapWaypoints.Clear();
-        CurrentMapPosition = null;
-        MapCenterLat = 0;
-        MapCenterLng = 0;
-        HasGpsData = false;
+        var results = new List<(double Lat, double Lng, double Alt, double Timestamp, double Speed)>();
         
-        // Clear events data
-        DetectedEvents.Clear();
-        FilteredEvents.Clear();
-        EventSummary = null;
-        ErrorCount = 0;
-        WarningCount = 0;
-        
-        // Clear parameters data
-        LogParameters.Clear();
-        FilteredLogParameters.Clear();
-        ParameterChanges.Clear();
-        HasLogParameters = false;
-        
-        // Clear raw log messages
-        RawLogMessages.Clear();
-        HasRawLogData = false;
-        
-        _logger.LogInformation("Cleared all previous log data for new log file");
-    }
-
-    private void LoadParameterChanges()
-    {
-        ParameterChanges.Clear();
-        
-        // Query for PARM messages or parameter changes
-        var parmData = _logAnalyzerService.GetMessages("PARM", 0, 1000);
-        
-        // For now, just placeholder - would parse actual PARM messages
-        foreach (var msg in parmData)
+        try
         {
-            // Parse parameter change from message
-            // This would extract Name, OldValue, NewValue, Timestamp
-        }
-    }
-    
-    private async Task LoadLogParametersAsync()
-    {
-        LogParameters.Clear();
-        FilteredLogParameters.Clear();
-        
-        // Get parameters from log
-        var logParams = _logAnalyzerService.GetLogParameters();
-        
-        // Fallback: If no parameters from service, try to extract from PARM messages directly
-        if (logParams.Count == 0)
-        {
-            logParams = ExtractParametersFromParmMessages();
-        }
-        
-        HasLogParameters = logParams.Count > 0;
-        
-        if (!HasLogParameters)
-        {
-            StatusMessage = "No parameters found in log file";
-            return;
-        }
-
-        // Load metadata if not already loaded
-        if (_metadataLoader != null && !_metadataLoader.IsLoaded)
-        {
-            try
+            var gpsData = _logAnalyzerService.GetFieldData("GPS", "Lat");
+            if (gpsData == null || gpsData.Count == 0) return results;
+            
+            var lngData = _logAnalyzerService.GetFieldData("GPS", "Lng");
+            if (lngData == null || lngData.Count == 0) return results;
+            
+            var altData = _logAnalyzerService.GetFieldData("GPS", "Alt");
+            var spdData = _logAnalyzerService.GetFieldData("GPS", "Spd");
+            
+            var count = Math.Min(gpsData.Count, lngData.Count);
+            
+            for (int i = 0; i < count; i++)
             {
-                StatusMessage = "Loading parameter metadata...";
-                await _metadataLoader.LoadAllMetadataAsync();
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Failed to load parameter metadata");
-                StatusMessage = "Parameter metadata unavailable - showing values only";
+                var lat = gpsData[i].Value;
+                var lng = lngData[i].Value;
+                
+                // Skip invalid coordinates
+                if (Math.Abs(lat) < 0.001 && Math.Abs(lng) < 0.001) continue;
+                if (Math.Abs(lat) > 90 || Math.Abs(lng) > 180) continue;
+                
+                var alt = altData != null && i < altData.Count ? altData[i].Value : 0;
+                var spd = spdData != null && i < spdData.Count ? spdData[i].Value : 0;
+                var timestamp = gpsData[i].Timestamp / 1_000_000.0;
+                
+                results.Add((lat, lng, alt, timestamp, spd));
             }
         }
-
-        // Enrich parameters with metadata
-        foreach (var kvp in logParams.OrderBy(p => p.Key))
+        catch (Exception ex)
         {
-            var param = new LogParameter
-            {
-                Name = kvp.Key,
-                Value = kvp.Value
-            };
-
-            // Try to get metadata
-            if (_metadataLoader != null)
-            {
-                var meta = _metadataLoader.GetMetadata(kvp.Key);
-                if (meta != null)
-                {
-                    param.Description = meta.Description ?? "No description available";
-                    param.Units = meta.Units;
-                    param.Group = meta.Group ?? "General";
-                    param.Default = meta.Range?.Low ?? "Not specified";
-                    
-                    // Set range display
-                    if (meta.Range != null && !string.IsNullOrEmpty(meta.Range.Low) && !string.IsNullOrEmpty(meta.Range.High))
-                    {
-                        param.Range = $"{meta.Range.Low} to {meta.Range.High}";
-                    }
-
-                    // Add value options if available
-                    if (meta.Values != null && meta.Values.Count > 0)
-                    {
-                        foreach (var valKvp in meta.Values.OrderBy(v => v.Key))
-                        {
-                            param.OptionsDisplay.Add($"{valKvp.Key}: {valKvp.Value}");
-                        }
-                    }
-                }
-            }
-
-            LogParameters.Add(param);
-            FilteredLogParameters.Add(param);
+            _logger.LogError(ex, "Error loading GPS track");
         }
-
-        StatusMessage = $"Loaded {LogParameters.Count} parameters from log";
+        
+        return results;
     }
     
     /// <summary>
-    /// Extracts parameters from PARM messages when GetLogParameters() returns empty.
-    /// This is a fallback mechanism to ensure parameters are displayed.
+    /// Optimized field loading - runs on background thread
     /// </summary>
-    private Dictionary<string, float> ExtractParametersFromParmMessages()
+    private List<LogFieldInfo> LoadAvailableFieldsOptimized()
+    {
+        try
+        {
+            return _logAnalyzerService.GetAvailableGraphFields() ?? new List<LogFieldInfo>();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading available fields");
+            return new List<LogFieldInfo>();
+        }
+    }
+    
+    /// <summary>
+    /// Loads available fields into UI from pre-loaded data
+    /// </summary>
+    private void LoadAvailableFieldsFromData(List<LogFieldInfo> fields)
+    {
+        AvailableFields.Clear();
+        FilteredFields.Clear();
+        SelectedGraphFields.Clear();
+        MessageTypesTree.Clear();
+        FilteredMessageTypesTree.Clear();
+        GraphLegendItems.Clear();
+        
+        if (fields.Count == 0)
+        {
+            HasTreeData = false;
+            return;
+        }
+        
+        var fieldLookup = new Dictionary<string, LogFieldInfo>();
+        
+        foreach (var field in fields)
+        {
+            AvailableFields.Add(field);
+            FilteredFields.Add(field);
+            fieldLookup[field.DisplayName] = field;
+        }
+        
+        var groupedByType = fields.GroupBy(f => f.MessageType).OrderBy(g => g.Key);
+        
+        foreach (var group in groupedByType)
+        {
+            var typeNode = new LogMessageTypeNode { Name = group.Key, IsMessageType = true };
+            var colorIndex = 0;
+            
+            foreach (var field in group.OrderBy(f => f.FieldName))
+            {
+                var fieldNode = new LogFieldNode
+                {
+                    Name = field.FieldName,
+                    FullKey = field.DisplayName,
+                    Color = GraphColors.GetColor(colorIndex++)
+                };
+                
+                var capturedFieldKey = field.DisplayName;
+                fieldNode.PropertyChanged += (s, e) =>
+                {
+                    if (_isUpdatingFieldSelection) return;
+                    if (e.PropertyName == nameof(LogFieldNode.IsSelected) && s is LogFieldNode node)
+                    {
+                        if (node.FullKey == capturedFieldKey && fieldLookup.TryGetValue(capturedFieldKey, out var matchingField))
+                        {
+                            if (node.IsSelected && !SelectedGraphFields.Any(f => f.DisplayName == matchingField.DisplayName))
+                            {
+                                _isUpdatingFieldSelection = true;
+                                try
+                                {
+                                    matchingField.IsSelected = true;
+                                    matchingField.Color = GraphColors.GetColor(SelectedGraphFields.Count);
+                                    SelectedGraphFields.Add(matchingField);
+                                }
+                                finally { _isUpdatingFieldSelection = false; }
+                                UpdateGraph();
+                            }
+                            else if (!node.IsSelected)
+                            {
+                                var existing = SelectedGraphFields.FirstOrDefault(f => f.DisplayName == matchingField.DisplayName);
+                                if (existing != null)
+                                {
+                                    _isUpdatingFieldSelection = true;
+                                    try
+                                    {
+                                        SelectedGraphFields.Remove(existing);
+                                        existing.IsSelected = false;
+                                        existing.Color = null;
+                                        for (int i = 0; i < SelectedGraphFields.Count; i++)
+                                            SelectedGraphFields[i].Color = GraphColors.GetColor(i);
+                                    }
+                                    finally { _isUpdatingFieldSelection = false; }
+                                    UpdateGraph();
+                                }
+                            }
+                        }
+                    }
+                };
+                
+                typeNode.Fields.Add(fieldNode);
+            }
+            
+            MessageTypesTree.Add(typeNode);
+            FilteredMessageTypesTree.Add(typeNode);
+        }
+        
+        HasTreeData = MessageTypesTree.Count > 0;
+        OnPropertyChanged(nameof(HasLegendItems));
+    }
+    
+    /// <summary>
+    /// Optimized event extraction - runs on background thread
+    /// </summary>
+    private List<LogEvent> ExtractEventsOptimized()
+    {
+        var events = new List<LogEvent>();
+        var eventId = 1;
+        
+        try
+        {
+            // Quick extraction from MSG messages - limit to 500 for speed
+            var msgMessages = _logAnalyzerService.GetMessages("MSG", 0, 500);
+            foreach (var msg in msgMessages)
+            {
+                var text = msg.Fields.GetValueOrDefault("Message")?.ToString() ?? 
+                           msg.Fields.GetValueOrDefault("Text")?.ToString() ?? "";
+                if (string.IsNullOrWhiteSpace(text)) continue;
+                
+                double timestamp = 0;
+                if (msg.Fields.TryGetValue("TimeUS", out var timeObj) && double.TryParse(timeObj, out var timeUs))
+                    timestamp = timeUs / 1_000_000.0;
+                
+                var severity = LogEventSeverity.Info;
+                var title = "Message";
+                
+                var textLower = text.ToLowerInvariant();
+                if (textLower.Contains("error") || textLower.Contains("fail"))
+                    { severity = LogEventSeverity.Error; title = "Error"; }
+                else if (textLower.Contains("warning") || textLower.Contains("low"))
+                    { severity = LogEventSeverity.Warning; title = "Warning"; }
+                else if (textLower.Contains("critical") || textLower.Contains("crash") || textLower.Contains("failsafe"))
+                    { severity = LogEventSeverity.Critical; title = "Critical"; }
+                else if (textLower.Contains("arm"))
+                    title = textLower.Contains("disarm") ? "Disarmed" : "Armed";
+                
+                events.Add(new LogEvent
+                {
+                    Id = eventId++,
+                    Timestamp = timestamp,
+                    Type = LogEventType.Custom,
+                    Severity = severity,
+                    Title = title,
+                    Description = text,
+                    Source = "MSG"
+                });
+            }
+            
+            // Extract from EV messages - limit to 200
+            var evMessages = _logAnalyzerService.GetMessages("EV", 0, 200);
+            foreach (var msg in evMessages)
+            {
+                double timestamp = 0;
+                if (msg.Fields.TryGetValue("TimeUS", out var timeObj) && double.TryParse(timeObj, out var timeUs))
+                    timestamp = timeUs / 1_000_000.0;
+                
+                var evId = msg.Fields.GetValueOrDefault("Id")?.ToString() ?? "0";
+                var (title, severity) = int.TryParse(evId, out var evIdNum) ? evIdNum switch
+                {
+                    10 => ("Armed", LogEventSeverity.Notice),
+                    11 => ("Disarmed", LogEventSeverity.Notice),
+                    15 => ("Battery Failsafe", LogEventSeverity.Critical),
+                    17 => ("GPS Failsafe", LogEventSeverity.Error),
+                    28 => ("Radio Failsafe", LogEventSeverity.Error),
+                    _ => ($"Event {evId}", LogEventSeverity.Info)
+                } : ($"Event {evId}", LogEventSeverity.Info);
+                
+                events.Add(new LogEvent
+                {
+                    Id = eventId++,
+                    Timestamp = timestamp,
+                    Type = LogEventType.Custom,
+                    Severity = severity,
+                    Title = title,
+                    Description = $"Event ID: {evId}",
+                    Source = "Autopilot"
+                });
+            }
+            
+            // Extract from ERR messages - limit to 200
+            var errMessages = _logAnalyzerService.GetMessages("ERR", 0, 200);
+            foreach (var msg in errMessages)
+            {
+                double timestamp = 0;
+                if (msg.Fields.TryGetValue("TimeUS", out var timeObj) && double.TryParse(timeObj, out var timeUs))
+                    timestamp = timeUs / 1_000_000.0;
+                
+                var subsys = msg.Fields.GetValueOrDefault("Subsys")?.ToString() ?? "Unknown";
+                var errCode = msg.Fields.GetValueOrDefault("ECode")?.ToString() ?? "0";
+                
+                events.Add(new LogEvent
+                {
+                    Id = eventId++,
+                    Timestamp = timestamp,
+                    Type = LogEventType.Custom,
+                    Severity = LogEventSeverity.Error,
+                    Title = $"Error: {subsys}",
+                    Description = $"Subsystem: {subsys}, Code: {errCode}",
+                    Source = subsys
+                });
+            }
+            
+            // Sort by timestamp
+            events = events.OrderBy(e => e.Timestamp).ToList();
+            for (int i = 0; i < events.Count; i++)
+                events[i].Id = i + 1;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error extracting events");
+        }
+        
+        return events;
+    }
+    
+    /// <summary>
+    /// Optimized parameter extraction - runs on background thread
+    /// </summary>
+    private Dictionary<string, float> ExtractParametersOptimized()
     {
         var parameters = new Dictionary<string, float>();
         
         try
         {
-            var parmMessages = _logAnalyzerService.GetMessages("PARM", 0, 10000);
+            // Try service first
+            var logParams = _logAnalyzerService.GetLogParameters();
+            if (logParams.Count > 0) return logParams;
+            
+            // Fallback to PARM messages - limit to 5000 for speed
+            var parmMessages = _logAnalyzerService.GetMessages("PARM", 0, 5000);
             
             foreach (var msg in parmMessages)
             {
-                // Try to extract parameter name and value
                 string? paramName = null;
-                float? paramValue = null;  // Use nullable to distinguish missing from zero
-                
-                // Try different field name variations for parameter name
                 if (msg.Fields.TryGetValue("Name", out var nameObj))
-                {
-                    paramName = nameObj?.ToString()?.Trim();
-                }
+                    paramName = nameObj?.Trim();
                 else if (msg.Fields.TryGetValue("N", out var nObj))
-                {
-                    paramName = nObj?.ToString()?.Trim();
-                }
+                    paramName = nObj?.Trim();
                 
-                // Try to extract parameter value
-                paramValue = TryExtractParameterValue(msg.Fields, "Value") ?? 
-                             TryExtractParameterValue(msg.Fields, "V");
+                if (string.IsNullOrWhiteSpace(paramName)) continue;
                 
-                // Only store if we have both a valid name and a successfully parsed value
-                if (!string.IsNullOrWhiteSpace(paramName) && paramValue.HasValue)
-                {
-                    // Store last value for each parameter (in case of changes during flight)
-                    parameters[paramName] = paramValue.Value;
-                }
+                if (msg.Fields.TryGetValue("Value", out var valueStr) && float.TryParse(valueStr, out var value))
+                    parameters[paramName] = value;
+                else if (msg.Fields.TryGetValue("V", out var vStr) && float.TryParse(vStr, out var v))
+                    parameters[paramName] = v;
             }
-            
-            _logger.LogInformation("Extracted {Count} parameters from PARM messages", parameters.Count);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error extracting parameters from PARM messages");
+            _logger.LogError(ex, "Error extracting parameters");
         }
         
         return parameters;
     }
     
-    /// <summary>
-    /// Tries to extract a float value from a message field.
-    /// Returns null if the field doesn't exist or can't be parsed.
-    /// </summary>
-    private static float? TryExtractParameterValue(Dictionary<string, string> fields, string fieldName)
-    {
-        if (fields.TryGetValue(fieldName, out var valueStr))
-        {
-            if (float.TryParse(valueStr, out var value))
-            {
-                return value;
-            }
-        }
-        return null;
-    }
-    
-    partial void OnParameterSearchTextChanged(string value)
-    {
-        FilterLogParameters();
-    }
-    
-    private void FilterLogParameters()
-    {
-        FilteredLogParameters.Clear();
-        
-        var filtered = string.IsNullOrWhiteSpace(ParameterSearchText)
-            ? LogParameters
-            : LogParameters.Where(p => 
-                p.Name.Contains(ParameterSearchText, StringComparison.OrdinalIgnoreCase) ||
-                p.Description.Contains(ParameterSearchText, StringComparison.OrdinalIgnoreCase) ||
-                p.Group.Contains(ParameterSearchText, StringComparison.OrdinalIgnoreCase));
-        
-        foreach (var p in filtered)
-        {
-            FilteredLogParameters.Add(p);
-        }
-    }
-    
-    /// <summary>
-    /// Loads raw log messages for display in the Events tab data preview.
-    /// This loads a limited sample of messages to avoid performance issues with large log files.
-    /// The sample is taken from the first few message types to give a representative preview.
-    /// </summary>
-    private void LoadRawLogMessages()
-    {
-        RawLogMessages.Clear();
-        
-        try
-        {
-            // Get a sample of messages from multiple types to show raw data
-            var messageTypes = _logAnalyzerService.GetMessageTypes();
-            int totalLoaded = 0;
-            
-            foreach (var msgType in messageTypes.Take(MaxMessageTypesForRawData))
-            {
-                if (totalLoaded >= MaxRawDataTotalRows) break;
-                
-                var messages = _logAnalyzerService.GetMessages(msgType.Name, 0, MaxRawDataRowsPerType);
-                foreach (var msg in messages)
-                {
-                    if (totalLoaded >= MaxRawDataTotalRows) break;
-                    RawLogMessages.Add(msg);
-                    totalLoaded++;
-                }
-            }
-            
-            HasRawLogData = RawLogMessages.Count > 0;
-            RawDataRowCount = $"{RawLogMessages.Count:N0} rows (sample)";
-            
-            _logger.LogInformation("Loaded {Count} raw log messages for display", RawLogMessages.Count);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error loading raw log messages");
-            HasRawLogData = false;
-            RawDataRowCount = "Error loading data";
-        }
-    }
-
-    private void UpdateOverview(LogParseResult result)
-    {
-        LogFileName = result.FileName;
-        LogFileSize = FormatFileSize(result.FileSize);
-        LogDuration = result.DurationDisplay;
-        LogMessageCount = result.MessageCount.ToString("N0");
-        LogMessageTypes = result.MessageTypes.Count.ToString();
-        
-        // Check for specific data types
-        HasGpsData = result.MessageTypes.Any(t => t.Name == "GPS");
-        HasAttitudeData = result.MessageTypes.Any(t => t.Name == "ATT");
-        HasVibeData = result.MessageTypes.Any(t => t.Name == "VIBE");
-        
-        // Set time range for zoom
-        ZoomStartTime = 0;
-        ZoomEndTime = result.Duration.TotalSeconds;
-    }
-
-    private static string FormatFileSize(long bytes)
-    {
-        if (bytes < 1024) return $"{bytes} B";
-        if (bytes < 1024 * 1024) return $"{bytes / 1024.0:F1} KB";
-        if (bytes < 1024 * 1024 * 1024) return $"{bytes / (1024.0 * 1024.0):F1} MB";
-        return $"{bytes / (1024.0 * 1024.0 * 1024.0):F2} GB";
-    }
-
     partial void OnSelectedMessageTypeChanged(LogMessageTypeGroup? value)
     {
         if (value != null)
@@ -1061,80 +1136,114 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
 
     #endregion
 
-    #region Events Commands
-
-    private async Task DetectEventsAsync()
+    #region Cleanup
+    
+    /// <summary>
+    /// Clears all data from the previous log file to prevent stale data from being displayed.
+    /// Must be called on UI thread before loading a new log.
+    /// </summary>
+    private void ClearPreviousLogData()
     {
-        if (_eventDetector == null) return;
-
-        IsAnalyzing = true;
-        StatusMessage = "Detecting events...";
-
-        try
-        {
-            var progress = new Progress<int>(p => LoadProgress = p);
-            var events = await _eventDetector.DetectEventsAsync(progress);
-
-            DetectedEvents.Clear();
-            foreach (var evt in events)
-            {
-                DetectedEvents.Add(evt);
-            }
-
-            EventSummary = _eventDetector.GetEventSummary();
-            ErrorCount = EventSummary.ErrorCount + EventSummary.CriticalCount + EventSummary.EmergencyCount;
-            WarningCount = EventSummary.WarningCount;
-
-            // Populate filter dropdowns based on detected events
-            PopulateEventFilterDropdowns();
-
-            FilterEvents();
-            UpdateEventDisplaySummary();
-            StatusMessage = $"Detected {events.Count} events";
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error detecting events");
-        }
-        finally
-        {
-            IsAnalyzing = false;
-        }
+        // Clear map data
+        GpsTrack.Clear();
+        GpsTrackPoints.Clear();
+        CriticalMapEvents.Clear();
+        MapWaypoints.Clear();
+        CurrentMapPosition = null;
+        MapCenterLat = 0;
+        MapCenterLng = 0;
+        HasGpsData = false;
+        
+        // Clear events data
+        DetectedEvents.Clear();
+        FilteredEvents.Clear();
+        EventSummary = null;
+        ErrorCount = 0;
+        WarningCount = 0;
+        
+        // Clear parameters data
+        LogParameters.Clear();
+        FilteredLogParameters.Clear();
+        ParameterChanges.Clear();
+        HasLogParameters = false;
+        
+        // Clear raw log messages
+        RawLogMessages.Clear();
+        HasRawLogData = false;
+        
+        _logger.LogInformation("Cleared all previous log data for new log file");
     }
 
-    /// <summary>
-    /// Populates the filter dropdown options based on detected events.
-    /// </summary>
-    private void PopulateEventFilterDropdowns()
+    private void UpdateOverview(LogParseResult result)
     {
-        // Populate severity filter
-        AvailableSeverities.Clear();
-        AvailableSeverities.Add("All");
-        var severities = DetectedEvents.Select(e => e.SeverityDisplay).Distinct().OrderBy(s => s);
-        foreach (var sev in severities)
-        {
-            if (!AvailableSeverities.Contains(sev))
-                AvailableSeverities.Add(sev);
-        }
+        LogFileName = result.FileName;
+        LogFileSize = FormatFileSize(result.FileSize);
+        LogDuration = result.DurationDisplay;
+        LogMessageCount = result.MessageCount.ToString("N0");
+        LogMessageTypes = result.MessageTypes.Count.ToString();
         
-        // Populate event type filter
-        AvailableEventTypes.Clear();
-        AvailableEventTypes.Add("All");
-        var eventTypes = DetectedEvents.Select(e => e.TypeDisplay).Distinct().OrderBy(t => t);
-        foreach (var type in eventTypes)
-        {
-            if (!AvailableEventTypes.Contains(type))
-                AvailableEventTypes.Add(type);
-        }
+        // Check for specific data types
+        HasGpsData = result.MessageTypes.Any(t => t.Name == "GPS");
+        HasAttitudeData = result.MessageTypes.Any(t => t.Name == "ATT");
+        HasVibeData = result.MessageTypes.Any(t => t.Name == "VIBE");
         
-        // Populate source filter
-        AvailableSources.Clear();
-        AvailableSources.Add("All");
-        var sources = DetectedEvents.Select(e => e.Source).Where(s => !string.IsNullOrEmpty(s)).Distinct().OrderBy(s => s);
-        foreach (var source in sources)
+        // Set time range for zoom
+        ZoomStartTime = 0;
+        ZoomEndTime = result.Duration.TotalSeconds;
+    }
+
+    private static string FormatFileSize(long bytes)
+    {
+        if (bytes < 1024) return $"{bytes} B";
+        if (bytes < 1024 * 1024) return $"{bytes / 1024.0:F1} KB";
+        if (bytes < 1024 * 1024 * 1024) return $"{bytes / (1024.0 * 1024.0):F1} MB";
+        return $"{bytes / (1024.0 * 1024.0 * 1024.0):F2} GB";
+    }
+
+    private void LoadMessages()
+    {
+        if (SelectedMessageType == null) return;
+
+        CurrentMessages.Clear();
+        var skip = CurrentMessagePage * MessagesPerPage;
+        var messages = _logAnalyzerService.GetMessages(SelectedMessageType.Name, skip, MessagesPerPage);
+        
+        foreach (var msg in messages)
         {
-            if (!AvailableSources.Contains(source))
-                AvailableSources.Add(source);
+            CurrentMessages.Add(msg);
+        }
+
+        var totalCount = _logAnalyzerService.GetMessageCount(SelectedMessageType.Name);
+        TotalMessagePages = (totalCount + MessagesPerPage - 1) / MessagesPerPage;
+    }
+
+    private void JumpToTime(double timestamp)
+    {
+        CursorTime = timestamp;
+        CursorTimeDisplay = TimeSpan.FromSeconds(timestamp).ToString(@"hh\:mm\:ss\.fff");
+        
+        // Update zoom window to center on this time
+        var windowSize = (ZoomEndTime - ZoomStartTime);
+        var halfWindow = windowSize / 2;
+        ZoomStartTime = Math.Max(0, timestamp - halfWindow);
+        ZoomEndTime = ZoomStartTime + windowSize;
+        
+        // Update map position
+        UpdateMapPosition(timestamp);
+    }
+
+    private void UpdateMapPosition(double timestamp)
+    {
+        // Find GPS position at timestamp
+        if (GpsTrack.Count > 0)
+        {
+            var nearest = GpsTrack.MinBy(p => Math.Abs(p.Timestamp - timestamp));
+            if (nearest != null)
+            {
+                CurrentMapPosition = nearest;
+                MapCenterLat = nearest.Latitude;
+                MapCenterLng = nearest.Longitude;
+            }
         }
     }
 
@@ -1178,429 +1287,30 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
         OnPropertyChanged(nameof(HasFilteredEvents));
     }
 
-    [RelayCommand]
-    private void JumpToEvent(LogEvent? evt)
+    private void PopulateEventFilterDropdowns()
     {
-        if (evt == null) return;
-        JumpToTime(evt.Timestamp);
-        SelectedTabIndex = TAB_PLOT;
+        AvailableSeverities.Clear();
+        AvailableSeverities.Add("All");
+        var severities = DetectedEvents.Select(e => e.SeverityDisplay).Distinct().OrderBy(s => s);
+        foreach (var sev in severities)
+            if (!AvailableSeverities.Contains(sev))
+                AvailableSeverities.Add(sev);
+        
+        AvailableEventTypes.Clear();
+        AvailableEventTypes.Add("All");
+        var eventTypes = DetectedEvents.Select(e => e.TypeDisplay).Distinct().OrderBy(t => t);
+        foreach (var type in eventTypes)
+            if (!AvailableEventTypes.Contains(type))
+                AvailableEventTypes.Add(type);
+        
+        AvailableSources.Clear();
+        AvailableSources.Add("All");
+        var sources = DetectedEvents.Select(e => e.Source).Where(s => !string.IsNullOrEmpty(s)).Distinct().OrderBy(s => s);
+        foreach (var source in sources)
+            if (!AvailableSources.Contains(source))
+                AvailableSources.Add(source);
     }
 
-    private void JumpToTime(double timestamp)
-    {
-        CursorTime = timestamp;
-        CursorTimeDisplay = TimeSpan.FromSeconds(timestamp).ToString(@"hh\:mm\:ss\.fff");
-        
-        // Update zoom window to center on this time
-        var windowSize = (ZoomEndTime - ZoomStartTime);
-        var halfWindow = windowSize / 2;
-        ZoomStartTime = Math.Max(0, timestamp - halfWindow);
-        ZoomEndTime = ZoomStartTime + windowSize;
-        
-        // Update cursor readouts
-        UpdateCursorReadouts();
-        
-        // Update map position
-        UpdateMapPosition(timestamp);
-    }
-
-    private void UpdateCursorReadouts()
-    {
-        CursorReadouts.Clear();
-
-        foreach (var field in SelectedGraphFields)
-        {
-            var stats = _logAnalyzerService.GetFieldStatistics(field.DisplayName);
-            // Would get actual value at cursor time from query engine
-            CursorReadouts.Add(new CursorReadout
-            {
-                FieldName = field.DisplayName,
-                Color = field.Color ?? "#FFFFFF",
-                Value = stats.Average // Placeholder
-            });
-        }
-    }
-
-    private void UpdateMapPosition(double timestamp)
-    {
-        // Find GPS position at timestamp
-        if (GpsTrack.Count > 0)
-        {
-            var nearest = GpsTrack.MinBy(p => Math.Abs(p.Timestamp - timestamp));
-            if (nearest != null)
-            {
-                CurrentMapPosition = nearest;
-                MapCenterLat = nearest.Latitude;
-                MapCenterLng = nearest.Longitude;
-            }
-        }
-    }
-
-    /// <summary>
-    /// Fallback event extraction when event detector is unavailable or returns empty.
-    /// Extracts events from MSG, EV, MODE, and ERR message types.
-    /// Enriches events with GPS location data when available.
-    /// </summary>
-    private void ExtractBasicEventsFromLog()
-    {
-        var eventId = 1;
-        
-        // Build GPS lookup cache for assigning locations to events
-        var gpsLookup = BuildGpsLookupCache();
-        
-        try
-        {
-            // Extract from MSG messages (text messages)
-            var msgMessages = _logAnalyzerService.GetMessages("MSG", 0, 5000);
-            foreach (var msg in msgMessages)
-            {
-                var text = msg.Fields.GetValueOrDefault("Message")?.ToString() ?? 
-                           msg.Fields.GetValueOrDefault("Text")?.ToString() ?? "";
-                
-                if (string.IsNullOrWhiteSpace(text)) continue;
-                
-                // Parse timestamp from message
-                double timestamp = 0;
-                if (msg.Fields.TryGetValue("TimeUS", out var timeObj) && double.TryParse(timeObj?.ToString(), out var timeUs))
-                {
-                    timestamp = timeUs / 1_000_000.0; // Convert microseconds to seconds
-                }
-                
-                // Determine severity from message content
-                var severity = LogEventSeverity.Info;
-                var title = "Message";
-                
-                if (text.Contains("error", StringComparison.OrdinalIgnoreCase) ||
-                    text.Contains("fail", StringComparison.OrdinalIgnoreCase))
-                {
-                    severity = LogEventSeverity.Error;
-                    title = "Error";
-                }
-                else if (text.Contains("warning", StringComparison.OrdinalIgnoreCase) ||
-                         text.Contains("low", StringComparison.OrdinalIgnoreCase))
-                {
-                    severity = LogEventSeverity.Warning;
-                    title = "Warning";
-                }
-                else if (text.Contains("critical", StringComparison.OrdinalIgnoreCase) ||
-                         text.Contains("crash", StringComparison.OrdinalIgnoreCase) ||
-                         text.Contains("failsafe", StringComparison.OrdinalIgnoreCase))
-                {
-                    severity = LogEventSeverity.Critical;
-                    title = "Critical";
-                }
-                else if (text.Contains("arm", StringComparison.OrdinalIgnoreCase))
-                {
-                    title = text.Contains("disarm", StringComparison.OrdinalIgnoreCase) ? "Disarmed" : "Armed";
-                }
-                else if (text.Contains("mode", StringComparison.OrdinalIgnoreCase))
-                {
-                    title = "Mode Change";
-                }
-                
-                // Get GPS location at event time
-                var location = GetLocationAtEventTime(gpsLookup, timestamp);
-                
-                DetectedEvents.Add(new LogEvent
-                {
-                    Id = eventId++,
-                    Timestamp = timestamp,
-                    Type = LogEventType.Custom,
-                    Severity = severity,
-                    Title = title,
-                    Description = text,
-                    Source = "MSG",
-                    RawMessage = text,
-                    Latitude = location.Lat,
-                    Longitude = location.Lng,
-                    Altitude = location.Alt
-                });
-            }
-            
-            // Extract from MODE messages
-            var modeMessages = _logAnalyzerService.GetMessages("MODE", 0, 1000);
-            foreach (var msg in modeMessages)
-            {
-                double timestamp = 0;
-                if (msg.Fields.TryGetValue("TimeUS", out var timeObj) && double.TryParse(timeObj?.ToString(), out var timeUs))
-                {
-                    timestamp = timeUs / 1_000_000.0;
-                }
-                
-                var modeName = msg.Fields.GetValueOrDefault("Mode")?.ToString() ?? 
-                               msg.Fields.GetValueOrDefault("ModeNum")?.ToString() ?? "Unknown";
-                
-                // Get GPS location at event time
-                var location = GetLocationAtEventTime(gpsLookup, timestamp);
-                
-                DetectedEvents.Add(new LogEvent
-                {
-                    Id = eventId++,
-                    Timestamp = timestamp,
-                    Type = LogEventType.ModeChange,
-                    Severity = LogEventSeverity.Info,
-                    Title = "Mode Change",
-                    Description = $"Flight mode: {modeName}",
-                    Source = "Navigator",
-                    Latitude = location.Lat,
-                    Longitude = location.Lng,
-                    Altitude = location.Alt
-                });
-            }
-            
-            // Extract from EV (Event) messages
-            var evMessages = _logAnalyzerService.GetMessages("EV", 0, 1000);
-            foreach (var msg in evMessages)
-            {
-                double timestamp = 0;
-                if (msg.Fields.TryGetValue("TimeUS", out var timeObj) && double.TryParse(timeObj?.ToString(), out var timeUs))
-                {
-                    timestamp = timeUs / 1_000_000.0;
-                }
-                
-                var evId = msg.Fields.GetValueOrDefault("Id")?.ToString() ?? "0";
-                var severity = LogEventSeverity.Info;
-                var title = $"Event {evId}";
-                var description = $"Event ID: {evId}";
-                
-                // Map known ArduPilot event IDs
-                if (int.TryParse(evId, out var eventIdNum))
-                {
-                    (title, severity) = eventIdNum switch
-                    {
-                        10 => ("Armed", LogEventSeverity.Notice),
-                        11 => ("Disarmed", LogEventSeverity.Notice),
-                        15 => ("Battery Failsafe", LogEventSeverity.Critical),
-                        17 => ("GPS Failsafe", LogEventSeverity.Error),
-                        28 => ("Radio Failsafe", LogEventSeverity.Error),
-                        _ => ($"Event {evId}", LogEventSeverity.Info)
-                    };
-                }
-                
-                // Get GPS location at event time
-                var location = GetLocationAtEventTime(gpsLookup, timestamp);
-                
-                DetectedEvents.Add(new LogEvent
-                {
-                    Id = eventId++,
-                    Timestamp = timestamp,
-                    Type = LogEventType.Custom,
-                    Severity = severity,
-                    Title = title,
-                    Description = description,
-                    Source = "Autopilot",
-                    EventId = int.TryParse(evId, out var eid) ? eid : null,
-                    Latitude = location.Lat,
-                    Longitude = location.Lng,
-                    Altitude = location.Alt
-                });
-            }
-            
-            // Extract from ERR (Error) messages
-            var errMessages = _logAnalyzerService.GetMessages("ERR", 0, 1000);
-            foreach (var msg in errMessages)
-            {
-                double timestamp = 0;
-                if (msg.Fields.TryGetValue("TimeUS", out var timeObj) && double.TryParse(timeObj?.ToString(), out var timeUs))
-                {
-                    timestamp = timeUs / 1_000_000.0;
-                }
-                
-                var subsys = msg.Fields.GetValueOrDefault("Subsys")?.ToString() ?? "Unknown";
-                var errCode = msg.Fields.GetValueOrDefault("ECode")?.ToString() ?? "Unknown";
-                
-                // Get GPS location at event time
-                var location = GetLocationAtEventTime(gpsLookup, timestamp);
-                
-                DetectedEvents.Add(new LogEvent
-                {
-                    Id = eventId++,
-                    Timestamp = timestamp,
-                    Type = LogEventType.Custom,
-                    Severity = LogEventSeverity.Error,
-                    Title = $"Error: {subsys}",
-                    Description = $"Subsystem: {subsys}, Error Code: {errCode}",
-                    Source = subsys,
-                    Latitude = location.Lat,
-                    Longitude = location.Lng,
-                    Altitude = location.Alt
-                });
-            }
-            
-            // Sort events by timestamp
-            var sortedEvents = DetectedEvents.OrderBy(e => e.Timestamp).ToList();
-            DetectedEvents.Clear();
-            foreach (var evt in sortedEvents)
-            {
-                evt.Id = DetectedEvents.Count + 1;
-                DetectedEvents.Add(evt);
-            }
-            
-            // Update event summary
-            EventSummary = new EventSummary
-            {
-                TotalEvents = DetectedEvents.Count,
-                InfoCount = DetectedEvents.Count(e => e.Severity == LogEventSeverity.Info || e.Severity == LogEventSeverity.Notice || e.Severity == LogEventSeverity.Debug),
-                WarningCount = DetectedEvents.Count(e => e.Severity == LogEventSeverity.Warning),
-                ErrorCount = DetectedEvents.Count(e => e.Severity == LogEventSeverity.Error),
-                CriticalCount = DetectedEvents.Count(e => e.Severity == LogEventSeverity.Critical || e.Severity == LogEventSeverity.Emergency)
-            };
-            
-            // Update the overview counts for display in other tabs
-            ErrorCount = EventSummary.ErrorCount + EventSummary.CriticalCount;
-            WarningCount = EventSummary.WarningCount;
-            
-            // Populate filter dropdowns
-            PopulateEventFilterDropdowns();
-            
-            // Apply filters to show events
-            FilterEvents();
-            
-            // Update event display summary to refresh UI statistics
-            UpdateEventDisplaySummary();
-            
-            _logger.LogInformation("Extracted {Count} basic events from log ({WithLocation} with GPS location)", 
-                DetectedEvents.Count, DetectedEvents.Count(e => e.HasLocation));
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error extracting basic events from log");
-        }
-    }
-    
-    /// <summary>
-    /// Builds a GPS lookup cache from loaded GPS track points for efficient location lookups.
-    /// </summary>
-    private List<(double Timestamp, double Lat, double Lng, double Alt)> BuildGpsLookupCache()
-    {
-        var cache = new List<(double Timestamp, double Lat, double Lng, double Alt)>();
-        
-        foreach (var point in GpsTrack)
-        {
-            cache.Add((point.Timestamp, point.Latitude, point.Longitude, point.Altitude));
-        }
-        
-        _logger.LogDebug("Built GPS lookup cache with {Count} points", cache.Count);
-        return cache;
-    }
-    
-    /// <summary>
-    /// Gets the GPS location at a specific timestamp by finding the closest GPS point.
-    /// Returns null coordinates if no GPS data available or if the closest point is too far away in time.
-    /// </summary>
-    private static (double? Lat, double? Lng, double? Alt) GetLocationAtEventTime(
-        List<(double Timestamp, double Lat, double Lng, double Alt)> gpsCache, 
-        double timestamp)
-    {
-        if (gpsCache.Count == 0)
-            return (null, null, null);
-        
-        // Find the closest GPS point by timestamp
-        var closest = gpsCache.MinBy(g => Math.Abs(g.Timestamp - timestamp));
-        
-        // Only return location if within 5 seconds of the event
-        if (Math.Abs(closest.Timestamp - timestamp) <= 5.0)
-        {
-            return (closest.Lat, closest.Lng, closest.Alt);
-        }
-        
-        return (null, null, null);
-    }
-
-    #endregion
-
-    #region Enhanced Events Commands
-
-    partial void OnSelectedAutoRefreshIndexChanged(int value)
-    {
-        SetupAutoRefresh(value);
-    }
-    
-    private void SetupAutoRefresh(int index)
-    {
-        _autoRefreshTimer?.Stop();
-        _autoRefreshTimer?.Dispose();
-        _autoRefreshTimer = null;
-        
-        int intervalSeconds = index switch
-        {
-            1 => 5,
-            2 => 10,
-            3 => 30,
-            _ => 0
-        };
-        
-        if (intervalSeconds > 0)
-        {
-            _autoRefreshTimer = new System.Timers.Timer(intervalSeconds * 1000);
-            _autoRefreshTimer.Elapsed += (s, e) =>
-            {
-                Dispatcher.UIThread.Post(FilterEvents);
-            };
-            _autoRefreshTimer.Start();
-        }
-    }
-    
-    [RelayCommand]
-    private void ApplyEventsFilter()
-    {
-        FilterEvents();
-        UpdateEventDisplaySummary();
-    }
-    
-    [RelayCommand]
-    private void ClearEventsFilter()
-    {
-        SelectedTimeRangeIndex = 4; // All
-        SelectedSeverityFilter = "All";
-        SelectedEventTypeFilter = "All";
-        SelectedSourceFilter = "All";
-        EventSearchText = string.Empty;
-        ShowInfoEvents = true;
-        ShowWarningEvents = true;
-        ShowErrorEvents = true;
-        ShowCriticalEvents = true;
-        FilterEvents();
-        UpdateEventDisplaySummary();
-    }
-
-    [RelayCommand]
-    private async Task RefreshEventsAsync()
-    {
-        if (!IsLogLoaded)
-        {
-            StatusMessage = "No log file loaded.";
-            return;
-        }
-
-        StatusMessage = "Refreshing events...";
-        DetectedEvents.Clear();
-
-        bool eventsDetected = false;
-        if (_eventDetector != null)
-        {
-            try
-            {
-                await DetectEventsAsync();
-                eventsDetected = DetectedEvents.Count > 0;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Event detector failed during refresh, will use fallback");
-            }
-        }
-
-        if (!eventsDetected)
-        {
-            ExtractBasicEventsFromLog();
-        }
-
-        PopulateEventFilterDropdowns();
-        FilterEvents();
-        UpdateEventDisplaySummary();
-        StatusMessage = $"Events refreshed: {DetectedEvents.Count} events detected";
-    }
-    
     private void UpdateEventDisplaySummary()
     {
         EventDisplaySummary = new EventDisplaySummary
@@ -1614,286 +1324,12 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
         
         EventPagination.TotalItems = FilteredEvents.Count;
         
-        // Notify UI of property changes
         OnPropertyChanged(nameof(EventDisplaySummary));
         OnPropertyChanged(nameof(EventPagination));
         OnPropertyChanged(nameof(ShowNoEventsMessage));
         OnPropertyChanged(nameof(HasFilteredEvents));
     }
-    
-    [RelayCommand]
-    private void GoToPreviousEventPage()
-    {
-        if (EventPagination.CanGoToPreviousPage)
-        {
-            EventPagination.CurrentPage--;
-            OnPropertyChanged(nameof(EventPagination));
-        }
-    }
-    
-    [RelayCommand]
-    private void GoToNextEventPage()
-    {
-        if (EventPagination.CanGoToNextPage)
-        {
-            EventPagination.CurrentPage++;
-            OnPropertyChanged(nameof(EventPagination));
-        }
-    }
-    
-    [RelayCommand]
-    private async Task ExportEventsToCsvAsync()
-    {
-        if (_parentWindow == null || FilteredEvents.Count == 0)
-        {
-            StatusMessage = "No events to export";
-            return;
-        }
-        
-        try
-        {
-            var file = await _parentWindow.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
-            {
-                Title = "Export Events to CSV",
-                DefaultExtension = "csv",
-                SuggestedFileName = $"events_export_{DateTime.Now:yyyyMMdd_HHmmss}.csv",
-                FileTypeChoices = new[]
-                {
-                    new FilePickerFileType("CSV Files") { Patterns = new[] { "*.csv" } }
-                }
-            });
-            
-            if (file != null)
-            {
-                IsBusy = true;
-                StatusMessage = "Exporting events to CSV...";
-                
-                var filePath = file.Path.LocalPath;
-                
-                // Ensure directory exists
-                var directory = Path.GetDirectoryName(filePath);
-                if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
-                {
-                    Directory.CreateDirectory(directory);
-                }
-                
-                await using var writer = new StreamWriter(filePath, false, System.Text.Encoding.UTF8);
-                
-                // Write header
-                await writer.WriteLineAsync("Timestamp,Severity,Event Type,Source,Message,Details");
-                
-                // Write data
-                foreach (var evt in FilteredEvents)
-                {
-                    var line = $"\"{evt.TimestampDisplay}\",\"{evt.Severity}\",\"{EscapeCsv(evt.Title)}\",\"{evt.Type}\",\"{EscapeCsv(evt.Description)}\",\"{EscapeCsv(evt.Details ?? "")}\"";
-                    await writer.WriteLineAsync(line);
-                }
-                
-                await writer.FlushAsync();
-                StatusMessage = $"Exported {FilteredEvents.Count} events to CSV";
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to export events to CSV");
-            StatusMessage = $"Export failed: {ex.Message}";
-        }
-        finally
-        {
-            IsBusy = false;
-        }
-    }
-    
-    [RelayCommand]
-    private async Task ExportEventsToJsonAsync()
-    {
-        if (_parentWindow == null || FilteredEvents.Count == 0)
-        {
-            StatusMessage = "No events to export";
-            return;
-        }
-        
-        try
-        {
-            var file = await _parentWindow.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
-            {
-                Title = "Export Events to JSON",
-                DefaultExtension = "json",
-                SuggestedFileName = $"events_export_{DateTime.Now:yyyyMMdd_HHmmss}.json",
-                FileTypeChoices = new[]
-                {
-                    new FilePickerFileType("JSON Files") { Patterns = new[] { "*.json" } }
-                }
-            });
-            
-            if (file != null)
-            {
-                IsBusy = true;
-                StatusMessage = "Exporting events to JSON...";
-                
-                var filePath = file.Path.LocalPath;
-                
-                // Ensure directory exists
-                var directory = Path.GetDirectoryName(filePath);
-                if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
-                {
-                    Directory.CreateDirectory(directory);
-                }
-                
-                var exportData = FilteredEvents.Select(e => new
-                {
-                    e.Id,
-                    e.TimestampDisplay,
-                    e.Timestamp,
-                    Severity = e.Severity.ToString(),
-                    EventType = e.Title,
-                    Source = e.Type.ToString(),
-                    e.Description,
-                    e.Details
-                }).ToList();
-                
-                var json = JsonSerializer.Serialize(exportData, new JsonSerializerOptions 
-                { 
-                    WriteIndented = true 
-                });
-                
-                await File.WriteAllTextAsync(filePath, json, System.Text.Encoding.UTF8);
-                
-                StatusMessage = $"Exported {FilteredEvents.Count} events to JSON";
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to export events to JSON");
-            StatusMessage = $"Export failed: {ex.Message}";
-        }
-        finally
-        {
-            IsBusy = false;
-        }
-    }
-    
-    private static string EscapeCsv(string value)
-    {
-        return value.Replace("\"", "\"\"").Replace("\n", " ").Replace("\r", "");
-    }
 
-    #endregion
-
-    #region Map Commands
-
-    private void LoadGpsTrack()
-    {
-        try
-        {
-            GpsTrack.Clear();
-            GpsTrackPoints.Clear();
-            CriticalMapEvents.Clear();
-
-            if (!IsLogLoaded)
-            {
-                HasGpsData = false;
-                OnPropertyChanged(nameof(HasGpsData));
-                return;
-            }
-
-            var gpsData = _logAnalyzerService.GetFieldData("GPS", "Lat");
-            if (gpsData == null || gpsData.Count == 0)
-            {
-                _logger.LogInformation("No GPS data found in log");
-                HasGpsData = false;
-                OnPropertyChanged(nameof(HasGpsData));
-                return;
-            }
-
-            var lngData = _logAnalyzerService.GetFieldData("GPS", "Lng");
-            var altData = _logAnalyzerService.GetFieldData("GPS", "Alt");
-            var spdData = _logAnalyzerService.GetFieldData("GPS", "Spd");
-
-            if (lngData == null)
-            {
-                _logger.LogWarning("Longitude data missing");
-                HasGpsData = false;
-                OnPropertyChanged(nameof(HasGpsData));
-                return;
-            }
-
-            // Build GPS track
-            for (int i = 0; i < Math.Min(gpsData.Count, lngData.Count); i++)
-            {
-                var lat = gpsData[i].Value;
-                var lng = lngData[i].Value;
-                var alt = altData != null && i < altData.Count ? altData[i].Value : 0;
-                var spd = spdData != null && i < spdData.Count ? spdData[i].Value : 0;
-                var timestamp = gpsData[i].Timestamp / 1_000_000.0; // Convert microseconds to seconds
-
-                // Skip invalid coordinates
-                if (Math.Abs(lat) < 0.001 && Math.Abs(lng) < 0.001)
-                    continue;
-                    
-                // Skip out-of-range coordinates
-                if (Math.Abs(lat) > 90 || Math.Abs(lng) > 180)
-                    continue;
-
-                GpsTrack.Add(new GpsPoint
-                {
-                    Latitude = lat,
-                    Longitude = lng,
-                    Altitude = alt,
-                    Timestamp = timestamp
-                });
-
-                GpsTrackPoints.Add(new Controls.GpsTrackPoint
-                {
-                    Latitude = lat,
-                    Longitude = lng,
-                    Altitude = alt,
-                    Timestamp = timestamp,
-                    Speed = spd
-                });
-            }
-
-            // Populate critical events for map display after events are detected
-            // This will be called again after event detection completes
-            PopulateCriticalMapEvents();
-
-            // Set HasGpsData based on actual valid points loaded
-            HasGpsData = GpsTrack.Count > 0;
-
-            if (GpsTrack.Count > 0)
-            {
-                var firstPoint = GpsTrack.First();
-                MapCenterLat = firstPoint.Latitude;
-                MapCenterLng = firstPoint.Longitude;
-                MapZoom = 15;
-
-                _logger.LogInformation("GPS track loaded with {Count} points, center: {Lat}, {Lng}", 
-                    GpsTrack.Count, MapCenterLat, MapCenterLng);
-            }
-            else
-            {
-                _logger.LogWarning("No valid GPS coordinates found in data");
-            }
-            
-            // Notify HasGpsData property changed to update UI bindings
-            OnPropertyChanged(nameof(HasGpsData));
-            // Notify GpsTrackPoints changed to trigger map update
-            OnPropertyChanged(nameof(GpsTrackPoints));
-            OnPropertyChanged(nameof(MapCenterLat));
-            OnPropertyChanged(nameof(MapCenterLng));
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error loading GPS track");
-            HasGpsData = false;
-            OnPropertyChanged(nameof(HasGpsData));
-        }
-    }
-    
-    /// <summary>
-    /// Populates critical events for map display.
-    /// Should be called after both GPS track and events are loaded.
-    /// </summary>
     private void PopulateCriticalMapEvents()
     {
         CriticalMapEvents.Clear();
@@ -1914,388 +1350,183 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
         _logger.LogInformation("Loaded {Count} critical events for map display", CriticalMapEvents.Count);
     }
 
-    /// <summary>
-    /// Fits the map view to include track and displays waypoints.
-    /// Called when user clicks the "Fit" button in the Plot tab.
-    /// Extracts waypoints from CMD messages in the log file.
-    /// </summary>
-    [RelayCommand]
-    private void FitToMapWithWaypoints()
+    private void AutoSelectDefaultGraphFields()
     {
-        if (!IsLogLoaded)
+        _logger.LogInformation("Auto-selecting graph fields. Available fields count: {Count}", AvailableFields.Count);
+        
+        if (AvailableFields.Count == 0) return;
+
+        var priorityPatterns = new[]
         {
-            StatusMessage = "Please load a log file first";
+            new[] { "ATT", "Roll" },
+            new[] { "ATT", "Pitch" },
+            new[] { "GPS", "Alt" },
+            new[] { "BAT", "Volt" },
+        };
+
+        var selectedCount = 0;
+        const int maxAutoSelectFields = 4;
+
+        _isUpdatingFieldSelection = true;
+        try
+        {
+            foreach (var pattern in priorityPatterns)
+            {
+                if (selectedCount >= maxAutoSelectFields) break;
+
+                var msgType = pattern[0];
+                var fieldName = pattern.Length > 1 ? pattern[1] : null;
+
+                LogFieldInfo? field = null;
+                
+                if (fieldName != null)
+                {
+                    field = AvailableFields.FirstOrDefault(f => 
+                        f.DisplayName.Equals($"{msgType}.{fieldName}", StringComparison.OrdinalIgnoreCase));
+                    
+                    if (field == null)
+                    {
+                        field = AvailableFields.FirstOrDefault(f => 
+                            f.MessageType.Equals(msgType, StringComparison.OrdinalIgnoreCase) &&
+                            f.FieldName.Contains(fieldName, StringComparison.OrdinalIgnoreCase));
+                    }
+                }
+
+                if (field != null && !SelectedGraphFields.Any(f => f.DisplayName == field.DisplayName))
+                {
+                    field.IsSelected = true;
+                    field.Color = GraphColors.GetColor(selectedCount);
+                    SelectedGraphFields.Add(field);
+                    UpdateTreeNodeSelection(field.DisplayName, true);
+                    selectedCount++;
+                }
+            }
+
+            if (selectedCount == 0)
+            {
+                foreach (var field in AvailableFields.Take(maxAutoSelectFields))
+                {
+                    if (!SelectedGraphFields.Any(f => f.DisplayName == field.DisplayName))
+                    {
+                        field.IsSelected = true;
+                        field.Color = GraphColors.GetColor(selectedCount);
+                        SelectedGraphFields.Add(field);
+                        UpdateTreeNodeSelection(field.DisplayName, true);
+                        selectedCount++;
+                    }
+                }
+            }
+        }
+        finally
+        {
+            _isUpdatingFieldSelection = false;
+        }
+
+        if (selectedCount > 0)
+        {
+            _logger.LogInformation("Auto-selected {Count} graph fields for display", selectedCount);
+            UpdateGraph();
+        }
+    }
+
+    private void UpdateTreeNodeSelection(string fieldKey, bool isSelected)
+    {
+        foreach (var typeNode in MessageTypesTree)
+        {
+            foreach (var fieldNode in typeNode.Fields)
+            {
+                if (fieldNode.FullKey == fieldKey)
+                {
+                    if (fieldNode.IsSelected != isSelected)
+                        fieldNode.IsSelected = isSelected;
+                    return;
+                }
+            }
+        }
+    }
+
+    private void UpdateGraph()
+    {
+        GraphLegendItems.Clear();
+        
+        if (SelectedGraphFields.Count == 0)
+        {
+            CurrentGraph = null;
+            HasGraphData = false;
+            OnPropertyChanged(nameof(HasLegendItems));
             return;
         }
 
-        // Load waypoints from CMD messages if not already loaded
-        if (MapWaypoints.Count == 0)
-        {
-            LoadWaypointsFromLog();
-        }
-
-        StatusMessage = MapWaypoints.Count > 0
-            ? $"Showing {MapWaypoints.Count} waypoints on map"
-            : "No waypoint data found in log";
-
-        _logger.LogInformation("Fit button clicked: WaypointCount={Count}", MapWaypoints.Count);
-    }
-
-    /// <summary>
-    /// Loads waypoint data from CMD (command/mission) messages in the log file.
-    /// ArduPilot logs mission items in CMD messages with fields like Lat, Lng, Alt.
-    /// </summary>
-    private void LoadWaypointsFromLog()
-    {
-        MapWaypoints.Clear();
-
         try
         {
-            // Try to get CMD messages which contain mission/waypoint data
-            var cmdMessages = _logAnalyzerService.GetMessages("CMD", 0, 1000);
-
-            if (cmdMessages == null || cmdMessages.Count == 0)
+            var fieldKeys = SelectedGraphFields.Select(f => f.DisplayName).ToArray();
+            var newGraphData = _logAnalyzerService.GetGraphData(fieldKeys);
+            
+            if (newGraphData == null || newGraphData.Series == null || newGraphData.Series.Count == 0)
             {
-                _logger.LogInformation("No CMD messages found in log");
+                CurrentGraph = null;
+                HasGraphData = false;
+                OnPropertyChanged(nameof(HasLegendItems));
                 return;
             }
-
-            int waypointIndex = 1;
-            foreach (var msg in cmdMessages)
+            
+            CurrentGraph = newGraphData;
+            HasGraphData = newGraphData.Series.Any(s => s.Points.Count > 0);
+            
+            // Update legend items
+            foreach (var series in CurrentGraph.Series.Where(s => s.IsVisible))
             {
-                // Extract waypoint coordinates from CMD message fields
-                double? lat = null;
-                double? lng = null;
-                string label = $"WP{waypointIndex}";
-
-                // Try different field name variations for latitude
-                if (msg.Fields.TryGetValue("Lat", out var latStr))
+                GraphLegendItems.Add(new GraphLegendItem
                 {
-                    if (double.TryParse(latStr, out var latVal))
-                        lat = latVal;
-                }
-
-                // Try different field name variations for longitude
-                if (msg.Fields.TryGetValue("Lng", out var lngStr))
-                {
-                    if (double.TryParse(lngStr, out var lngVal))
-                        lng = lngVal;
-                }
-
-                // Also try CId (Command ID) for naming
-                if (msg.Fields.TryGetValue("CId", out var cidStr))
-                {
-                    label = cidStr switch
-                    {
-                        "16" => $"WP{waypointIndex}",  // MAV_CMD_NAV_WAYPOINT
-                        "22" => "Takeoff",             // MAV_CMD_NAV_TAKEOFF
-                        "21" => "Land",                // MAV_CMD_NAV_LAND
-                        "20" => "RTL",                 // MAV_CMD_NAV_RETURN_TO_LAUNCH
-                        _ => $"WP{waypointIndex}"
-                    };
-                }
-
-                // Only add if we have valid coordinates
-                if (lat.HasValue && lng.HasValue &&
-                    Math.Abs(lat.Value) > 0.001 && Math.Abs(lng.Value) > 0.001 &&
-                    Math.Abs(lat.Value) <= 90 && Math.Abs(lng.Value) <= 180)
-                {
-                    MapWaypoints.Add(new Controls.WaypointPoint
-                    {
-                        Latitude = lat.Value,
-                        Longitude = lng.Value,
-                        Label = label
-                    });
-                    waypointIndex++;
-                }
+                    FieldName = series.Name,
+                    Color = series.Color,
+                    MinValue = series.MinValue,
+                    MaxValue = series.MaxValue,
+                    MeanValue = series.Average
+                });
             }
-
-            _logger.LogInformation("Loaded {Count} waypoints from CMD messages", MapWaypoints.Count);
+            
+            OnPropertyChanged(nameof(HasLegendItems));
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error loading waypoints from log");
+            _logger.LogError(ex, "Error updating graph");
+            CurrentGraph = null;
+            HasGraphData = false;
+            OnPropertyChanged(nameof(HasLegendItems));
         }
     }
-    
-    #endregion
 
-    #region Export Commands
-
-    [RelayCommand]
-    private async Task ExportToCsvAsync()
+    private void LoadRawLogMessages()
     {
-        if (_parentWindow == null || !IsLogLoaded)
-        {
-            StatusMessage = "Please load a log file first";
-            return;
-        }
-
+        RawLogMessages.Clear();
+        
         try
         {
-            var file = await _parentWindow.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
-            {
-                Title = "Export to CSV",
-                DefaultExtension = "csv",
-                SuggestedFileName = $"log_export_{DateTime.Now:yyyyMMdd_HHmmss}.csv",
-                FileTypeChoices = new[]
-                {
-                    new FilePickerFileType("CSV Files") { Patterns = new[] { "*.csv" } }
-                }
-            });
-
-            if (file != null)
-            {
-                IsBusy = true;
-                StatusMessage = "Exporting to CSV...";
-
-                // If export service is not available, use fallback method
-                if (_exportService != null)
-                {
-                    var seriesKeys = SelectedGraphFields.Select(f => f.DisplayName).ToList();
-                    if (seriesKeys.Count == 0)
-                    {
-                        // Export all available fields if none selected
-                        seriesKeys = AvailableFields.Take(10).Select(f => f.DisplayName).ToList();
-                    }
-
-                    var progress = new Progress<int>(p => LoadProgress = p);
-                    var result = await _exportService.ExportToCsvAsync(
-                        file.Path.LocalPath, seriesKeys, ZoomStartTime, ZoomEndTime, progress);
-
-                    if (result.IsSuccess)
-                    {
-                        StatusMessage = $"Exported {result.RecordCount} records to CSV";
-                    }
-                    else
-                    {
-                        StatusMessage = $"Export failed: {result.ErrorMessage}";
-                    }
-                }
-                else
-                {
-                    // Fallback: Manual CSV export
-                    await ExportToCsvManualAsync(file.Path.LocalPath);
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "CSV export failed");
-            StatusMessage = $"Export failed: {ex.Message}";
-        }
-        finally
-        {
-            IsBusy = false;
-            LoadProgress = 0;
-        }
-    }
-    
-    private async Task ExportToCsvManualAsync(string filePath)
-    {
-        try
-        {
-            // Ensure directory exists
-            var directory = Path.GetDirectoryName(filePath);
-            if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
-            {
-                Directory.CreateDirectory(directory);
-            }
+            var messageTypes = _logAnalyzerService.GetMessageTypes();
+            int totalLoaded = 0;
             
-            await using var writer = new System.IO.StreamWriter(filePath, false, System.Text.Encoding.UTF8);
-            
-            // Write header
-            var fields = SelectedGraphFields.Count > 0 
-                ? SelectedGraphFields 
-                : AvailableFields.Take(10);
+            foreach (var msgType in messageTypes.Take(MaxMessageTypesForRawData))
+            {
+                if (totalLoaded >= MaxRawDataTotalRows) break;
                 
-            await writer.WriteLineAsync("Timestamp," + string.Join(",", fields.Select(f => f.DisplayName)));
-            
-            // Get data for each field
-            var fieldData = new Dictionary<string, List<Core.Models.LogDataPoint>>();
-            foreach (var field in fields)
-            {
-                var parts = field.DisplayName.Split('.');
-                if (parts.Length == 2)
+                var messages = _logAnalyzerService.GetMessages(msgType.Name, 0, MaxRawDataRowsPerType);
+                foreach (var msg in messages)
                 {
-                    var data = _logAnalyzerService.GetFieldData(parts[0], parts[1]);
-                    if (data != null)
-                    {
-                        fieldData[field.DisplayName] = data;
-                    }
+                    if (totalLoaded >= MaxRawDataTotalRows) break;
+                    RawLogMessages.Add(msg);
+                    totalLoaded++;
                 }
             }
             
-            // Write data rows
-            if (fieldData.Count > 0)
-            {
-                var maxLength = fieldData.Values.Max(d => d.Count);
-                for (int i = 0; i < maxLength; i++)
-                {
-                    var row = new List<string>();
-                    var timestamp = fieldData.Values.First().Count > i 
-                        ? (fieldData.Values.First()[i].Timestamp / 1e6).ToString("F6") 
-                        : "";
-                    row.Add(timestamp);
-                    
-                    foreach (var field in fields)
-                    {
-                        if (fieldData.TryGetValue(field.DisplayName, out var data) && data.Count > i)
-                        {
-                            row.Add(data[i].Value.ToString("F6"));
-                        }
-                        else
-                        {
-                            row.Add("");
-                        }
-                    }
-                    
-                    await writer.WriteLineAsync(string.Join(",", row));
-                    
-                    if (i % 1000 == 0)
-                    {
-                        LoadProgress = (int)((double)i / maxLength * 100);
-                    }
-                }
-            }
-            
-            await writer.FlushAsync();
-            StatusMessage = $"Exported to {Path.GetFileName(filePath)}";
+            HasRawLogData = RawLogMessages.Count > 0;
+            RawDataRowCount = $"{RawLogMessages.Count:N0} rows (sample)";
         }
         catch (Exception ex)
         {
-            throw new Exception($"Manual CSV export failed: {ex.Message}", ex);
-        }
-    }
-
-    [RelayCommand]
-    private async Task ExportToKmlAsync()
-    {
-        if (_parentWindow == null || !IsLogLoaded || !HasGpsData)
-        {
-            StatusMessage = "No GPS data available to export";
-            return;
-        }
-
-        try
-        {
-            var file = await _parentWindow.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
-            {
-                Title = "Export to KML",
-                DefaultExtension = "kml",
-                SuggestedFileName = $"flight_track_{DateTime.Now:yyyyMMdd_HHmmss}.kml",
-                FileTypeChoices = new[]
-                {
-                    new FilePickerFileType("KML Files") { Patterns = new[] { "*.kml" } }
-                }
-            });
-
-            if (file != null)
-            {
-                IsBusy = true;
-                StatusMessage = "Exporting to KML...";
-
-                if (_exportService != null)
-                {
-                    var progress = new Progress<int>(p => LoadProgress = p);
-                    var result = await _exportService.ExportToKmlAsync(
-                        file.Path.LocalPath, true, progress);
-
-                    if (result.IsSuccess)
-                    {
-                        StatusMessage = $"Exported GPS track to KML ({result.RecordCount} points)";
-                    }
-                    else
-                    {
-                        StatusMessage = $"Export failed: {result.ErrorMessage}";
-                    }
-                }
-                else
-                {
-                    // Fallback: Manual KML export
-                    await ExportToKmlManualAsync(file.Path.LocalPath);
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "KML export failed");
-            StatusMessage = $"Export failed: {ex.Message}";
-        }
-        finally
-        {
-            IsBusy = false;
-            LoadProgress = 0;
-        }
-    }
-    
-    private async Task ExportToKmlManualAsync(string filePath)
-    {
-        try
-        {
-            if (GpsTrack.Count == 0)
-            {
-                throw new Exception("No GPS data to export");
-            }
-            
-            // Ensure directory exists
-            var directory = Path.GetDirectoryName(filePath);
-            if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
-            {
-                Directory.CreateDirectory(directory);
-            }
-            
-            await using var writer = new System.IO.StreamWriter(filePath, false, System.Text.Encoding.UTF8);
-            
-            // Write KML header
-            await writer.WriteLineAsync("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
-            await writer.WriteLineAsync("<kml xmlns=\"http://www.opengis.net/kml/2.2\">");
-            await writer.WriteLineAsync("  <Document>");
-            await writer.WriteLineAsync($"    <name>Flight Track - {LogFileName}</name>");
-            await writer.WriteLineAsync("    <description>Exported from Pavaman Drone Configurator</description>");
-            
-            // Style for the track
-            await writer.WriteLineAsync("    <Style id=\"flightPath\">");
-            await writer.WriteLineAsync("      <LineStyle>");
-            await writer.WriteLineAsync("        <color>ff0000ff</color>");
-            await writer.WriteLineAsync("        <width>2</width>");
-            await writer.WriteLineAsync("      </LineStyle>");
-            await writer.WriteLineAsync("    </Style>");
-            
-            // Write the track
-            await writer.WriteLineAsync("    <Placemark>");
-            await writer.WriteLineAsync("      <name>Flight Path</name>");
-            await writer.WriteLineAsync("      <styleUrl>#flightPath</styleUrl>");
-            await writer.WriteLineAsync("      <LineString>");
-            await writer.WriteLineAsync("        <extrude>1</extrude>");
-            await writer.WriteLineAsync("        <tessellate>1</tessellate>");
-            await writer.WriteLineAsync("        <altitudeMode>absolute</altitudeMode>");
-            await writer.WriteLineAsync("        <coordinates>");
-            
-            // Write coordinates
-            for (int i = 0; i < GpsTrack.Count; i++)
-            {
-                var point = GpsTrack[i];
-                await writer.WriteLineAsync($"          {point.Longitude:F8},{point.Latitude:F8},{point.Altitude:F2}");
-                
-                if (i % 100 == 0)
-                {
-                    LoadProgress = (int)((double)i / GpsTrack.Count * 100);
-                }
-            }
-            
-            await writer.WriteLineAsync("        </coordinates>");
-            await writer.WriteLineAsync("      </LineString>");
-            await writer.WriteLineAsync("    </Placemark>");
-            await writer.WriteLineAsync("  </Document>");
-            await writer.WriteLineAsync("</kml>");
-            
-            await writer.FlushAsync();
-            StatusMessage = $"Exported {GpsTrack.Count} GPS points to {Path.GetFileName(filePath)}";
-        }
-        catch (Exception ex)
-        {
-            throw new Exception($"Manual KML export failed: {ex.Message}", ex);
+            _logger.LogError(ex, "Error loading raw log messages");
+            HasRawLogData = false;
+            RawDataRowCount = "Error loading data";
         }
     }
 
@@ -2406,21 +1637,267 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
         }
     }
 
-    [RelayCommand]
-    private void CloseDownloadDialog()
+    #endregion
+
+    #region Public Methods
+
+    public void OnFieldSelectionChanged(LogFieldInfo field)
     {
+        if (_isUpdatingFieldSelection) return;
+        
+        var isInSelected = SelectedGraphFields.Any(f => f.DisplayName == field.DisplayName);
+        
+        if (field.IsSelected && !isInSelected)
+        {
+            _isUpdatingFieldSelection = true;
+            try
+            {
+                field.Color = GraphColors.GetColor(SelectedGraphFields.Count);
+                SelectedGraphFields.Add(field);
+                UpdateTreeNodeSelection(field.DisplayName, true);
+            }
+            finally { _isUpdatingFieldSelection = false; }
+            UpdateGraph();
+        }
+        else if (!field.IsSelected && isInSelected)
+        {
+            _isUpdatingFieldSelection = true;
+            try
+            {
+                SelectedGraphFields.Remove(field);
+                field.Color = null;
+                UpdateTreeNodeSelection(field.DisplayName, false);
+                for (int i = 0; i < SelectedGraphFields.Count; i++)
+                    SelectedGraphFields[i].Color = GraphColors.GetColor(i);
+            }
+            finally { _isUpdatingFieldSelection = false; }
+            UpdateGraph();
+        }
+    }
+
+    public void InsertScriptFunction(ScriptFunctionInfo function)
+    {
+        ScriptText = string.IsNullOrEmpty(ScriptText) ? function.Example : ScriptText + $"\n{function.Example}";
+    }
+
+    #endregion
+
+    #region RelayCommands
+
+    [RelayCommand]
+    private void SelectDefaultFields()
+    {
+        AutoSelectDefaultGraphFields();
+    }
+
+    [RelayCommand]
+    private void ClearAllFields()
+    {
+        _isUpdatingFieldSelection = true;
         try
         {
-            if (IsDownloading)
+            foreach (var field in SelectedGraphFields.ToList())
             {
-                _logAnalyzerService.CancelDownload();
-                IsDownloading = false;
+                field.IsSelected = false;
+                field.Color = null;
+                UpdateTreeNodeSelection(field.DisplayName, false);
+            }
+            SelectedGraphFields.Clear();
+        }
+        finally
+        {
+            _isUpdatingFieldSelection = false;
+        }
+        CurrentGraph = null;
+        HasGraphData = false;
+        GraphLegendItems.Clear();
+        OnPropertyChanged(nameof(HasLegendItems));
+    }
+
+    [RelayCommand]
+    private void FitToMapWithWaypoints()
+    {
+        if (!IsLogLoaded)
+        {
+            StatusMessage = "Please load a log file first";
+            return;
+        }
+        StatusMessage = MapWaypoints.Count > 0
+            ? $"Showing {MapWaypoints.Count} waypoints on map"
+            : "No waypoint data found in log";
+    }
+
+    [RelayCommand]
+    private void ApplyEventsFilter()
+    {
+        FilterEvents();
+        UpdateEventDisplaySummary();
+    }
+    
+    [RelayCommand]
+    private void ClearEventsFilter()
+    {
+        SelectedTimeRangeIndex = 4;
+        SelectedSeverityFilter = "All";
+        SelectedEventTypeFilter = "All";
+        SelectedSourceFilter = "All";
+        EventSearchText = string.Empty;
+        ShowInfoEvents = true;
+        ShowWarningEvents = true;
+        ShowErrorEvents = true;
+        ShowCriticalEvents = true;
+        FilterEvents();
+        UpdateEventDisplaySummary();
+    }
+
+    [RelayCommand]
+    private async Task ExportEventsToCsvAsync()
+    {
+        if (_parentWindow == null || FilteredEvents.Count == 0)
+        {
+            StatusMessage = "No events to export";
+            return;
+        }
+        
+        try
+        {
+            var file = await _parentWindow.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+            {
+                Title = "Export Events to CSV",
+                DefaultExtension = "csv",
+                SuggestedFileName = $"events_export_{DateTime.Now:yyyyMMdd_HHmmss}.csv"
+            });
+            
+            if (file != null)
+            {
+                await using var writer = new StreamWriter(file.Path.LocalPath, false, System.Text.Encoding.UTF8);
+                await writer.WriteLineAsync("Timestamp,Severity,Event Type,Source,Message,Details");
+                
+                foreach (var evt in FilteredEvents)
+                {
+                    var line = $"\"{evt.TimestampDisplay}\",\"{evt.Severity}\",\"{evt.Title}\",\"{evt.Type}\",\"{evt.Description}\"";
+                    await writer.WriteLineAsync(line);
+                }
+                
+                StatusMessage = $"Exported {FilteredEvents.Count} events to CSV";
             }
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Error canceling download on dialog close");
+            _logger.LogError(ex, "Failed to export events to CSV");
+            StatusMessage = $"Export failed: {ex.Message}";
         }
+    }
+
+    [RelayCommand]
+    private async Task ExportToKmlAsync()
+    {
+        if (_parentWindow == null || !HasGpsData)
+        {
+            StatusMessage = "No GPS data to export";
+            return;
+        }
+
+        try
+        {
+            var file = await _parentWindow.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+            {
+                Title = "Export to KML",
+                DefaultExtension = "kml",
+                SuggestedFileName = $"flight_track_{DateTime.Now:yyyyMMdd_HHmmss}.kml"
+            });
+
+            if (file != null)
+            {
+                await using var writer = new StreamWriter(file.Path.LocalPath, false, System.Text.Encoding.UTF8);
+                
+                await writer.WriteLineAsync("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
+                await writer.WriteLineAsync("<kml xmlns=\"http://www.opengis.net/kml/2.2\">");
+                await writer.WriteLineAsync("  <Document><name>Flight Track</name>");
+                await writer.WriteLineAsync("    <Placemark><name>Flight Path</name><LineString><coordinates>");
+                
+                foreach (var point in GpsTrack)
+                {
+                    await writer.WriteLineAsync($"      {point.Longitude:F8},{point.Latitude:F8},{point.Altitude:F2}");
+                }
+                
+                await writer.WriteLineAsync("    </coordinates></LineString></Placemark>");
+                await writer.WriteLineAsync("  </Document></kml>");
+                
+                StatusMessage = $"Exported {GpsTrack.Count} GPS points to KML";
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "KML export failed");
+            StatusMessage = $"Export failed: {ex.Message}";
+        }
+    }
+
+    [RelayCommand]
+    private async Task ExportEventsToJsonAsync()
+    {
+        if (_parentWindow == null || FilteredEvents.Count == 0)
+        {
+            StatusMessage = "No events to export";
+            return;
+        }
+        
+        try
+        {
+            var file = await _parentWindow.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+            {
+                Title = "Export Events to JSON",
+                DefaultExtension = "json",
+                SuggestedFileName = $"events_export_{DateTime.Now:yyyyMMdd_HHmmss}.json"
+            });
+            
+            if (file != null)
+            {
+                var exportData = FilteredEvents.Select(e => new { e.Id, e.TimestampDisplay, e.Timestamp, Severity = e.Severity.ToString(), e.Title, e.Description }).ToList();
+                var json = JsonSerializer.Serialize(exportData, new JsonSerializerOptions { WriteIndented = true });
+                await File.WriteAllTextAsync(file.Path.LocalPath, json, System.Text.Encoding.UTF8);
+                StatusMessage = $"Exported {FilteredEvents.Count} events to JSON";
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to export events to JSON");
+            StatusMessage = $"Export failed: {ex.Message}";
+        }
+    }
+
+    [RelayCommand]
+    private void JumpToEvent(LogEvent? evt)
+    {
+        if (evt == null) return;
+        JumpToTime(evt.Timestamp);
+        SelectedTabIndex = TAB_PLOT;
+    }
+
+    [RelayCommand]
+    private void GoToPreviousEventPage()
+    {
+        if (EventPagination.CanGoToPreviousPage)
+        {
+            EventPagination.CurrentPage--;
+            OnPropertyChanged(nameof(EventPagination));
+        }
+    }
+    
+    [RelayCommand]
+    private void GoToNextEventPage()
+    {
+        if (EventPagination.CanGoToNextPage)
+        {
+            EventPagination.CurrentPage++;
+            OnPropertyChanged(nameof(EventPagination));
+        }
+    }
+
+    [RelayCommand]
+    private void CloseDownloadDialog()
+    {
         IsDownloadDialogOpen = false;
     }
 
@@ -2485,764 +1962,7 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
         }
     }
 
-    [RelayCommand]
-    private void CancelDownload()
-    {
-        try { _logAnalyzerService.CancelDownload(); }
-        catch (Exception ex) { _logger.LogWarning(ex, "Error canceling download"); }
-        IsDownloading = false;
-    }
-
     #endregion
-
-    #region Message Browser Commands
-
-    private void LoadMessages()
-    {
-        if (SelectedMessageType == null) return;
-
-        CurrentMessages.Clear();
-        var skip = CurrentMessagePage * MessagesPerPage;
-        var messages = _logAnalyzerService.GetMessages(SelectedMessageType.Name, skip, MessagesPerPage);
-        
-        foreach (var msg in messages)
-        {
-            CurrentMessages.Add(msg);
-        }
-
-        var totalCount = _logAnalyzerService.GetMessageCount(SelectedMessageType.Name);
-        TotalMessagePages = (totalCount + MessagesPerPage - 1) / MessagesPerPage;
-    }
-
-    partial void OnCurrentMessagePageChanged(int value)
-    {
-        LoadMessages();
-    }
-
-    [RelayCommand]
-    private void NextMessagePage()
-    {
-        if (CurrentMessagePage < TotalMessagePages - 1)
-        {
-            CurrentMessagePage++;
-            LoadMessages();
-        }
-    }
-
-    [RelayCommand]
-    private void PreviousMessagePage()
-    {
-        if (CurrentMessagePage > 0)
-        {
-            CurrentMessagePage--;
-            LoadMessages();
-        }
-    }
-
-    [RelayCommand]
-    private void SearchMessages()
-    {
-        if (string.IsNullOrWhiteSpace(MessageSearchText)) return;
-
-        CurrentMessages.Clear();
-        var results = _logAnalyzerService.SearchMessages(MessageSearchText, 100);
-        
-        foreach (var msg in results)
-        {
-            CurrentMessages.Add(msg);
-        }
-
-        StatusMessage = $"Found {results.Count} matching messages";
-    }
-
-    #endregion
-
-    #region Graph Commands
-
-    private void LoadAvailableFields()
-    {
-        AvailableFields.Clear();
-        FilteredFields.Clear();
-        SelectedGraphFields.Clear();
-        MessageTypesTree.Clear();
-        FilteredMessageTypesTree.Clear();
-        GraphLegendItems.Clear();
-
-        var fields = _logAnalyzerService.GetAvailableGraphFields();
-        _logger.LogInformation("GetAvailableGraphFields returned {Count} fields", fields?.Count ?? 0);
-        
-        if (fields == null || fields.Count == 0)
-        {
-            _logger.LogWarning("No graph fields available from log");
-            HasTreeData = false;
-            OnPropertyChanged(nameof(HasLegendItems));
-            return;
-        }
-        
-        // Build dictionary for O(1) lookup performance
-        var fieldLookup = new Dictionary<string, LogFieldInfo>();
-        
-        foreach (var field in fields)
-        {
-            var stats = _logAnalyzerService.GetFieldStatistics(field.DisplayName);
-            field.MinValue = stats.Minimum;
-            field.MaxValue = stats.Maximum;
-            field.MeanValue = stats.Average;
-            
-            AvailableFields.Add(field);
-            FilteredFields.Add(field);
-            fieldLookup[field.DisplayName] = field;
-        }
-
-        var groupedByType = fields.GroupBy(f => f.MessageType).OrderBy(g => g.Key);
-        
-        foreach (var group in groupedByType)
-        {
-            var typeNode = new LogMessageTypeNode
-            {
-                Name = group.Key,
-                IsMessageType = true
-            };
-
-            var colorIndex = 0;
-            foreach (var field in group.OrderBy(f => f.FieldName))
-            {
-                var fieldNode = new LogFieldNode
-                {
-                    Name = field.FieldName,
-                    FullKey = field.DisplayName,
-                    Color = GraphColors.GetColor(colorIndex++),
-                    MinValue = field.MinValue,
-                    MaxValue = field.MaxValue,
-                    MeanValue = field.MeanValue
-                };
-                
-                // Use a closure to capture the specific field key
-                var capturedFieldKey = field.DisplayName;
-                fieldNode.PropertyChanged += (s, e) =>
-                {
-                    // Prevent recursive updates from tree node sync
-                    if (_isUpdatingFieldSelection) return;
-                    
-                    if (e.PropertyName == nameof(LogFieldNode.IsSelected) && s is LogFieldNode node)
-                    {
-                        // Only process if the node's FullKey matches what we expect
-                        if (node.FullKey == capturedFieldKey && fieldLookup.TryGetValue(capturedFieldKey, out var matchingField))
-                        {
-                            // Handle selection change directly (not through OnFieldSelectionChanged which has a guard)
-                            if (node.IsSelected)
-                            {
-                                // Add field to graph if not already present
-                                if (!SelectedGraphFields.Any(f => f.DisplayName == matchingField.DisplayName))
-                                {
-                                    _isUpdatingFieldSelection = true;
-                                    try
-                                    {
-                                        matchingField.IsSelected = true;
-                                        matchingField.Color = GraphColors.GetColor(SelectedGraphFields.Count);
-                                        SelectedGraphFields.Add(matchingField);
-                                    }
-                                    finally
-                                    {
-                                        _isUpdatingFieldSelection = false;
-                                    }
-                                    UpdateGraph();
-                                }
-                            }
-                            else
-                            {
-                                // Remove field from graph if present
-                                var existingField = SelectedGraphFields.FirstOrDefault(f => f.DisplayName == matchingField.DisplayName);
-                                if (existingField != null)
-                                {
-                                    _isUpdatingFieldSelection = true;
-                                    try
-                                    {
-                                        SelectedGraphFields.Remove(existingField);
-                                        existingField.IsSelected = false;
-                                        existingField.Color = null;
-                                        
-                                        // Reassign colors to remaining fields
-                                        for (int i = 0; i < SelectedGraphFields.Count; i++)
-                                        {
-                                            SelectedGraphFields[i].Color = GraphColors.GetColor(i);
-                                        }
-                                    }
-                                    finally
-                                    {
-                                        _isUpdatingFieldSelection = false;
-                                    }
-                                    UpdateGraph();
-                                }
-                            }
-                        }
-                    }
-                };
-                
-                typeNode.Fields.Add(fieldNode);
-            }
-
-            MessageTypesTree.Add(typeNode);
-            FilteredMessageTypesTree.Add(typeNode);
-        }
-
-        HasTreeData = MessageTypesTree.Count > 0;
-        OnPropertyChanged(nameof(HasLegendItems));
-        _logger.LogInformation("Loaded {FieldCount} fields in {TypeCount} message types", 
-            AvailableFields.Count, MessageTypesTree.Count);
-    }
-
-    /// <summary>
-    /// Auto-selects common flight data fields for initial graph display.
-    /// This ensures users see meaningful data immediately after loading a log.
-    /// </summary>
-    private void AutoSelectDefaultGraphFields()
-    {
-        _logger.LogInformation("Auto-selecting graph fields. Available fields count: {Count}", AvailableFields.Count);
-        
-        if (AvailableFields.Count == 0)
-        {
-            _logger.LogWarning("No available fields to auto-select");
-            return;
-        }
-
-        // Priority list of field patterns to auto-select (in order of preference)
-        // Using partial matches for better compatibility with different log formats
-        var priorityPatterns = new[]
-        {
-            // Attitude data (most common)
-            new[] { "ATT", "Roll" },
-            new[] { "ATT", "Pitch" },
-            new[] { "ATT", "Yaw" },
-            // Altitude data
-            new[] { "GPS", "Alt" },
-            new[] { "BARO", "Alt" },
-            new[] { "POS", "Alt" },
-            // Speed data
-            new[] { "GPS", "Spd" },
-            new[] { "ARSP", "Airspeed" },
-            // Battery data
-            new[] { "BAT", "Volt" },
-            new[] { "BAT", "Curr" },
-            // RC inputs
-            new[] { "RCIN", "C1" },
-            new[] { "RCIN", "C3" },
-            // Motor outputs
-            new[] { "RCOU", "C1" },
-            // IMU data
-            new[] { "IMU", "AccX" },
-            new[] { "IMU", "AccZ" },
-            // Vibration
-            new[] { "VIBE", "VibeX" },
-        };
-
-        var selectedCount = 0;
-        const int maxAutoSelectFields = 4;
-
-        _isUpdatingFieldSelection = true;
-        try
-        {
-            // Try pattern matching
-            foreach (var pattern in priorityPatterns)
-            {
-                if (selectedCount >= maxAutoSelectFields)
-                    break;
-
-                var msgType = pattern[0];
-                var fieldName = pattern.Length > 1 ? pattern[1] : null;
-
-                // Find matching field
-                LogFieldInfo? field = null;
-                
-                if (fieldName != null)
-                {
-                    // Try exact match first: "ATT.Roll"
-                    field = AvailableFields.FirstOrDefault(f => 
-                        f.DisplayName.Equals($"{msgType}.{fieldName}", StringComparison.OrdinalIgnoreCase));
-                    
-                    // Try contains match: field contains both message type and field name
-                    if (field == null)
-                    {
-                        field = AvailableFields.FirstOrDefault(f => 
-                            f.MessageType.Equals(msgType, StringComparison.OrdinalIgnoreCase) &&
-                            f.FieldName.Contains(fieldName, StringComparison.OrdinalIgnoreCase));
-                    }
-                }
-                else
-                {
-                    // Just match by message type
-                    field = AvailableFields.FirstOrDefault(f => 
-                        f.MessageType.Equals(msgType, StringComparison.OrdinalIgnoreCase));
-                }
-
-                if (field != null && !SelectedGraphFields.Any(f => f.DisplayName == field.DisplayName))
-                {
-                    field.IsSelected = true;
-                    field.Color = GraphColors.GetColor(selectedCount);
-                    SelectedGraphFields.Add(field);
-                    
-                    // Sync tree node checkbox state
-                    UpdateTreeNodeSelection(field.DisplayName, true);
-                    
-                    selectedCount++;
-                    _logger.LogDebug("Auto-selected field: {Field}", field.DisplayName);
-                }
-            }
-
-            // If no priority fields found, select the first few available fields
-            if (selectedCount == 0)
-            {
-                _logger.LogInformation("No priority fields found, selecting first {Count} available fields", maxAutoSelectFields);
-                foreach (var field in AvailableFields.Take(maxAutoSelectFields))
-                {
-                    if (!SelectedGraphFields.Any(f => f.DisplayName == field.DisplayName))
-                    {
-                        field.IsSelected = true;
-                        field.Color = GraphColors.GetColor(selectedCount);
-                        SelectedGraphFields.Add(field);
-                        
-                        // Sync tree node checkbox state
-                        UpdateTreeNodeSelection(field.DisplayName, true);
-                        
-                        selectedCount++;
-                    }
-                }
-            }
-        }
-        finally
-        {
-            _isUpdatingFieldSelection = false;
-        }
-
-        // Update the graph with selected fields
-        if (selectedCount > 0)
-        {
-            _logger.LogInformation("Auto-selected {Count} graph fields for display", selectedCount);
-            UpdateGraph();
-        }
-        else
-        {
-            _logger.LogWarning("No fields could be auto-selected");
-        }
-    }
-
-    [RelayCommand]
-    private void SelectDefaultFields()
-    {
-        AutoSelectDefaultGraphFields();
-    }
-
-    [RelayCommand]
-    private void ClearAllFields()
-    {
-        _isUpdatingFieldSelection = true;
-        try
-        {
-            // Clear selection state on all fields, including tree node checkboxes
-            foreach (var field in SelectedGraphFields.ToList())
-            {
-                field.IsSelected = false;
-                field.Color = null;
-                UpdateTreeNodeSelection(field.DisplayName, false);
-            }
-            SelectedGraphFields.Clear();
-        }
-        finally
-        {
-            _isUpdatingFieldSelection = false;
-        }
-
-        // Explicitly clear graph data
-        CurrentGraph = null;
-        HasGraphData = false;
-        GraphLegendItems.Clear();
-        OnPropertyChanged(nameof(HasLegendItems));
-        _logger.LogInformation("Cleared all selected graph fields");
-    }
-
-    [RelayCommand]
-    private void AddFieldToGraph(LogFieldInfo? field)
-    {
-        if (field == null) return;
-        if (SelectedGraphFields.Any(f => f.DisplayName == field.DisplayName)) return;
-        
-        _isUpdatingFieldSelection = true;
-        try
-        {
-            field.IsSelected = true;
-            field.Color = GraphColors.GetColor(SelectedGraphFields.Count);
-            SelectedGraphFields.Add(field);
-            
-            // Also update the corresponding tree node
-            UpdateTreeNodeSelection(field.DisplayName, true);
-        }
-        finally
-        {
-            _isUpdatingFieldSelection = false;
-        }
-        
-        UpdateGraph();
-    }
-
-    [RelayCommand]
-    private void RemoveFieldFromGraph(LogFieldInfo? field)
-    {
-        if (field == null) return;
-        
-        _isUpdatingFieldSelection = true;
-        try
-        {
-            // First remove from collection
-            var removed = SelectedGraphFields.Remove(field);
-            
-            if (removed)
-            {
-                field.IsSelected = false;
-                field.Color = null;
-                
-                // Also update the corresponding tree node
-                UpdateTreeNodeSelection(field.DisplayName, false);
-                
-                // Reassign colors to remaining fields
-                for (int i = 0; i < SelectedGraphFields.Count; i++)
-                {
-                    SelectedGraphFields[i].Color = GraphColors.GetColor(i);
-                }
-            }
-        }
-        finally
-        {
-            _isUpdatingFieldSelection = false;
-        }
-        
-        UpdateGraph();
-    }
-    
-    /// <summary>
-    /// Updates the selection state of a tree node to match the field selection.
-    /// This ensures tree checkboxes stay in sync with the selected fields.
-    /// </summary>
-    private void UpdateTreeNodeSelection(string fieldKey, bool isSelected)
-    {
-        // Search in original tree (not filtered) to ensure all nodes are updated
-        foreach (var typeNode in MessageTypesTree)
-        {
-            foreach (var fieldNode in typeNode.Fields)
-            {
-                if (fieldNode.FullKey == fieldKey)
-                {
-                    if (fieldNode.IsSelected != isSelected)
-                    {
-                        fieldNode.IsSelected = isSelected;
-                    }
-                    return; // Found and updated, exit
-                }
-            }
-        }
-    }
-
-    [RelayCommand]
-    private void ClearGraph()
-    {
-        _isUpdatingFieldSelection = true;
-        try
-        {
-            // Clear selection state on all fields
-            foreach (var field in SelectedGraphFields.ToList())
-            {
-                field.IsSelected = false;
-                field.Color = null;
-                UpdateTreeNodeSelection(field.DisplayName, false);
-            }
-            SelectedGraphFields.Clear();
-        }
-        finally
-        {
-            _isUpdatingFieldSelection = false;
-        }
-        
-        // Explicitly clear graph data
-        CurrentGraph = null;
-        HasGraphData = false;
-        GraphLegendItems.Clear();
-        OnPropertyChanged(nameof(HasLegendItems));
-    }
-
-    private void UpdateGraph()
-    {
-        // Always clear legend items first to avoid stale data
-        GraphLegendItems.Clear();
-        
-        if (SelectedGraphFields.Count == 0)
-        {
-            CurrentGraph = null;
-            HasGraphData = false;
-            OnPropertyChanged(nameof(HasLegendItems));
-            _logger.LogDebug("No fields selected for graph - cleared graph data");
-            return;
-        }
-
-        try
-        {
-            var fieldKeys = SelectedGraphFields.Select(f => f.DisplayName).ToArray();
-            _logger.LogInformation("Updating graph with {Count} fields: {Fields}", fieldKeys.Length, string.Join(", ", fieldKeys));
-            
-            // Get fresh graph data from service
-            var newGraphData = _logAnalyzerService.GetGraphData(fieldKeys);
-            
-            if (newGraphData == null || newGraphData.Series == null || newGraphData.Series.Count == 0)
-            {
-                _logger.LogWarning("GetGraphData returned null or empty");
-                CurrentGraph = null;
-                HasGraphData = false;
-                OnPropertyChanged(nameof(HasLegendItems));
-                return;
-            }
-            
-            // Set the new graph data
-            CurrentGraph = newGraphData;
-            HasGraphData = newGraphData.Series.Any(s => s.Points.Count > 0);
-            
-            // Update the legend items with colors and statistics
-            UpdateGraphLegendItems();
-            
-            _logger.LogInformation("Graph updated: HasGraphData={HasData}, SeriesCount={Count}", 
-                HasGraphData, CurrentGraph.Series?.Count ?? 0);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error updating graph");
-            CurrentGraph = null;
-            HasGraphData = false;
-            OnPropertyChanged(nameof(HasLegendItems));
-        }
-    }
-    
-    /// <summary>
-    /// Updates the legend items based on the current graph series.
-    /// Each item shows the field name, color, and statistics (min/max/avg).
-    /// </summary>
-    private void UpdateGraphLegendItems()
-    {
-        GraphLegendItems.Clear();
-        
-        if (CurrentGraph?.Series == null || CurrentGraph.Series.Count == 0)
-        {
-            OnPropertyChanged(nameof(HasLegendItems));
-            return;
-        }
-        
-        foreach (var series in CurrentGraph.Series.Where(s => s.IsVisible))
-        {
-            GraphLegendItems.Add(new GraphLegendItem
-            {
-                FieldName = series.Name,
-                Color = series.Color,
-                MinValue = series.MinValue,
-                MaxValue = series.MaxValue,
-                MeanValue = series.Average
-            });
-        }
-        
-        OnPropertyChanged(nameof(HasLegendItems));
-    }
-
-    [RelayCommand]
-    private void ShowFieldStatistics(LogFieldInfo? field)
-    {
-        if (field == null) return;
-        var stats = _logAnalyzerService.GetFieldStatistics(field.DisplayName);
-        StatusMessage = $"{field.DisplayName}: Min={stats.Minimum:F3}, Max={stats.Maximum:F3}, Avg={stats.Average:F3}";
-    }
-
-    public void OnFieldSelectionChanged(LogFieldInfo field)
-    {
-        // Prevent recursive calls
-        if (_isUpdatingFieldSelection) return;
-        
-        // Check if field is already in the correct state in SelectedGraphFields
-        var isInSelected = SelectedGraphFields.Any(f => f.DisplayName == field.DisplayName);
-        
-        if (field.IsSelected && !isInSelected)
-        {
-            // Field should be added
-            AddFieldToGraph(field);
-        }
-        else if (!field.IsSelected && isInSelected)
-        {
-            // Field should be removed
-            RemoveFieldFromGraph(field);
-        }
-        // If states already match, no action needed
-    }
-
-    public bool CanGoToNextPage => CurrentMessagePage < TotalMessagePages - 1;
-    public bool CanGoToPreviousPage => CurrentMessagePage > 0;
-
-    [RelayCommand]
-    private void ResetZoom()
-    {
-        StatusMessage = "Zoom reset";
-    }
-
-    [RelayCommand]
-    private async Task ExportGraphAsync()
-    {
-        if (!HasGraphData || _parentWindow == null) return;
-
-        try
-        {
-            var file = await _parentWindow.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
-            {
-                Title = "Export Graph",
-                DefaultExtension = "png",
-                SuggestedFileName = $"graph_{DateTime.Now:yyyyMMdd_HHmmss}.png",
-                FileTypeChoices = new[]
-                {
-                    new FilePickerFileType("PNG Image") { Patterns = new[] { "*.png" } }
-                }
-            });
-
-            if (file != null)
-            {
-                StatusMessage = $"Graph exported to {Path.GetFileName(file.Path.LocalPath)}";
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to export graph");
-            StatusMessage = $"Export failed: {ex.Message}";
-        }
-    }
-
-    [RelayCommand]
-    private void GraphLeft() => StatusMessage = "Graph panned left";
-
-    [RelayCommand]
-    private void GraphRight() => StatusMessage = "Graph panned right";
-
-    #endregion
-
-    #region Script Commands
-
-    [RelayCommand]
-    private async Task LoadScriptFileAsync()
-    {
-        if (_parentWindow == null) { StatusMessage = "Cannot open file browser"; return; }
-
-        try
-        {
-            var files = await _parentWindow.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
-            {
-                Title = "Select Lua Script",
-                AllowMultiple = false,
-                FileTypeFilter = new[]
-                {
-                    new FilePickerFileType("Lua Scripts") { Patterns = new[] { "*.lua" } },
-                    new FilePickerFileType("All Files") { Patterns = new[] { "*.*" } }
-                }
-            });
-
-            if (files.Count > 0)
-            {
-                var file = files[0];
-                LoadedScriptPath = file.Path.LocalPath;
-                LoadedScriptName = Path.GetFileName(LoadedScriptPath);
-                ScriptText = await File.ReadAllTextAsync(LoadedScriptPath);
-                ScriptOutput = $"Loaded: {LoadedScriptName}\nFile size: {new FileInfo(LoadedScriptPath).Length} bytes";
-                StatusMessage = $"Script loaded: {LoadedScriptName}";
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to load script file");
-            StatusMessage = $"Failed to load script: {ex.Message}";
-            ScriptOutput = $"Error: {ex.Message}";
-        }
-    }
-
-    [RelayCommand]
-    private async Task SaveScriptFileAsync()
-    {
-        if (_parentWindow == null || string.IsNullOrWhiteSpace(ScriptText)) { StatusMessage = "Nothing to save"; return; }
-
-        try
-        {
-            var file = await _parentWindow.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
-            {
-                Title = "Save Lua Script",
-                DefaultExtension = "lua",
-                SuggestedFileName = !string.IsNullOrEmpty(LoadedScriptName) ? LoadedScriptName : "script.lua",
-                FileTypeChoices = new[] { new FilePickerFileType("Lua Scripts") { Patterns = new[] { "*.lua" } } }
-            });
-
-            if (file != null)
-            {
-                await File.WriteAllTextAsync(file.Path.LocalPath, ScriptText);
-                LoadedScriptPath = file.Path.LocalPath;
-                LoadedScriptName = Path.GetFileName(LoadedScriptPath);
-                StatusMessage = $"Script saved: {LoadedScriptName}";
-                ScriptOutput = $"Saved: {LoadedScriptName}";
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to save script file");
-            StatusMessage = $"Failed to save script: {ex.Message}";
-        }
-    }
-
-    [RelayCommand]
-    private async Task RunScriptAsync()
-    {
-        if (string.IsNullOrWhiteSpace(ScriptText)) { StatusMessage = "No script loaded."; return; }
-        if (!IsLogLoaded) { StatusMessage = "Load a log file first."; return; }
-
-        IsScriptRunning = true;
-        ScriptOutput = "Running script...\n";
-
-        try
-        {
-            var result = await _logAnalyzerService.RunScriptAsync(ScriptText);
-            if (result.IsSuccess)
-            {
-                ScriptOutput = result.Output;
-                if (result.Warnings.Count > 0)
-                    ScriptOutput += "\nWarnings:\n" + string.Join("\n", result.Warnings);
-                ScriptOutput += $"\nCompleted in {result.ExecutionTime.TotalMilliseconds:F0}ms";
-            }
-            else
-            {
-                ScriptOutput = $"Error: {result.ErrorMessage}";
-            }
-        }
-        catch (Exception ex)
-        {
-            ScriptOutput = $"Error: {ex.Message}";
-        }
-        finally
-        {
-            IsScriptRunning = false;
-        }
-    }
-
-    [RelayCommand]
-    private void ClearScript()
-    {
-        ScriptText = "";
-        ScriptOutput = "";
-        LoadedScriptPath = "";
-        LoadedScriptName = "";
-    }
-
-    public void InsertScriptFunction(ScriptFunctionInfo function)
-    {
-        ScriptText = string.IsNullOrEmpty(ScriptText) ? function.Example : ScriptText + $"\n{function.Example}";
-    }
-
-    #endregion
-
-    #region Cleanup
 
     protected override void Dispose(bool disposing)
     {
@@ -3256,8 +1976,6 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
         }
         base.Dispose(disposing);
     }
-
-    #endregion
 }
 
 
