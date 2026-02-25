@@ -25,6 +25,7 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
     private readonly ILogEventDetector? _eventDetector;
     private readonly ILogExportService? _exportService;
     private readonly IArduPilotMetadataLoader? _metadataLoader;
+    private readonly IParameterMetadataService? _parameterMetadataService;
 
     #region Status Properties
 
@@ -448,7 +449,8 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
         ILogQueryEngine? queryEngine = null,
         ILogEventDetector? eventDetector = null,
         ILogExportService? exportService = null,
-        IArduPilotMetadataLoader? metadataLoader = null)
+        IArduPilotMetadataLoader? metadataLoader = null,
+        IParameterMetadataService? parameterMetadataService = null)
     {
         _logger = logger;
         _logAnalyzerService = logAnalyzerService;
@@ -457,6 +459,7 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
         _eventDetector = eventDetector;
         _exportService = exportService;
         _metadataLoader = metadataLoader;
+        _parameterMetadataService = parameterMetadataService;
 
         _downloadFolder = _logAnalyzerService.GetDefaultDownloadFolder();
 
@@ -666,6 +669,32 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
                         foreach (var p in parameters)
                         {
                             var param = new LogParameter { Name = p.Key, Value = p.Value };
+                            
+                            // Enrich with metadata from ParameterMetadata.xml
+                            if (_parameterMetadataService != null)
+                            {
+                                var metadata = _parameterMetadataService.GetMetadata(p.Key);
+                                if (metadata != null)
+                                {
+                                    param.Description = metadata.Description;
+                                    param.Units = metadata.Units;
+                                    param.Range = metadata.Min.HasValue && metadata.Max.HasValue
+                                        ? $"{metadata.Min.Value:G} to {metadata.Max.Value:G}"
+                                        : "Not specified";
+                                    param.Default = metadata.DefaultValue.ToString("G");
+                                    param.Group = !string.IsNullOrEmpty(metadata.Group) ? metadata.Group : "General";
+
+                                    // Add value options if available
+                                    if (metadata.Options != null && metadata.Options.Count > 0)
+                                    {
+                                        foreach (var kvp in metadata.Options.OrderBy(x => x.Key))
+                                        {
+                                            param.OptionsDisplay.Add($"{kvp.Key}: {kvp.Value}");
+                                        }
+                                    }
+                                }
+                            }
+                            
                             LogParameters.Add(param);
                             FilteredLogParameters.Add(param);
                         }
@@ -1055,6 +1084,11 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
         }
     }
 
+    partial void OnParameterSearchTextChanged(string value)
+    {
+        FilterLogParameters();
+    }
+
     partial void OnShowInfoEventsChanged(bool value) => FilterEvents();
     partial void OnShowWarningEventsChanged(bool value) => FilterEvents();
     partial void OnShowErrorEventsChanged(bool value) => FilterEvents();
@@ -1132,6 +1166,27 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
                 FilteredMessageTypesTree.Add(filteredNode);
             }
         }
+    }
+
+    private void FilterLogParameters()
+    {
+        FilteredLogParameters.Clear();
+
+        var search = ParameterSearchText?.ToLowerInvariant()?.Trim() ?? "";
+
+        IEnumerable<LogParameter> filtered = string.IsNullOrEmpty(search)
+            ? LogParameters
+            : LogParameters.Where(p =>
+                p.Name.ToLowerInvariant().Contains(search) ||
+                p.Description.ToLowerInvariant().Contains(search) ||
+                (p.Group?.ToLowerInvariant().Contains(search) ?? false));
+
+        foreach (var param in filtered.OrderBy(p => p.Name))
+        {
+            FilteredLogParameters.Add(param);
+        }
+
+        OnPropertyChanged(nameof(FilteredLogParameters));
     }
 
     #endregion
@@ -1683,6 +1738,55 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
     #endregion
 
     #region RelayCommands
+
+    [RelayCommand]
+    private void RefreshParametersMetadata()
+    {
+        if (!IsLogLoaded || _parameterMetadataService == null)
+        {
+            StatusMessage = "Please load a log file first";
+            return;
+        }
+
+        try
+        {
+            StatusMessage = "Refreshing parameter metadata...";
+            
+            // Re-enrich all parameters with latest metadata
+            foreach (var param in LogParameters)
+            {
+                var metadata = _parameterMetadataService.GetMetadata(param.Name);
+                if (metadata != null)
+                {
+                    param.Description = metadata.Description;
+                    param.Units = metadata.Units;
+                    param.Range = metadata.Min.HasValue && metadata.Max.HasValue
+                        ? $"{metadata.Min.Value:G} to {metadata.Max.Value:G}"
+                        : "Not specified";
+                    param.Default = metadata.DefaultValue.ToString("G");
+                    param.Group = !string.IsNullOrEmpty(metadata.Group) ? metadata.Group : "General";
+
+                    // Clear and re-add value options
+                    param.OptionsDisplay.Clear();
+                    if (metadata.Options != null && metadata.Options.Count > 0)
+                    {
+                        foreach (var kvp in metadata.Options.OrderBy(x => x.Key))
+                        {
+                            param.OptionsDisplay.Add($"{kvp.Key}: {kvp.Value}");
+                        }
+                    }
+                }
+            }
+
+            FilterLogParameters();
+            StatusMessage = $"Refreshed metadata for {LogParameters.Count} parameters";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to refresh parameter metadata");
+            StatusMessage = $"Refresh failed: {ex.Message}";
+        }
+    }
 
     [RelayCommand]
     private void SelectDefaultFields()

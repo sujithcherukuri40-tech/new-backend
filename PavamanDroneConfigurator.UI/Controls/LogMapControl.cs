@@ -301,19 +301,25 @@ public class LogMapControl : UserControl
         {
             ("#3B82F6", "Flight Path"),
             ("#DC2626", "Crash/Emergency"),
-            ("#22C55E", "Start"),
-            ("#EF4444", "End"),
-            ("#FFA500", "Waypoint")
+            ("#22C55E", "Start Point"),
+            ("#EF4444", "End Point"),
+            ("#FFA500", "Waypoint"),
+            ("#F59E0B", "? Warning Event"),
+            ("#DC2626", "?? Critical Event")
         };
 
         foreach (var (color, label) in items)
         {
             var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
+            
+            // Triangle for event markers, circle for others
+            var isEvent = label.Contains("Event");
+            
             row.Children.Add(new Border
             {
                 Width = 12,
                 Height = 12,
-                CornerRadius = new CornerRadius(6),
+                CornerRadius = isEvent ? new CornerRadius(0) : new CornerRadius(6),
                 Background = new SolidColorBrush(AvaloniaColor.Parse(color)),
                 VerticalAlignment = VerticalAlignment.Center
             });
@@ -526,10 +532,19 @@ public class LogMapControl : UserControl
 
         try
         {
+            // Clear ALL layers and data for fresh start (prevents stale data from previous logs)
             SafeClearLayer(_trackLayer);
             SafeClearLayer(_crashLayer);
             SafeClearLayer(_markerLayer);
+            SafeClearLayer(_eventLayer); // Clear events too
+            SafeClearLayer(_currentPositionLayer); // Clear current position
+            
+            // Clear internal data structures
             _crashSegments.Clear();
+            
+            // Hide stats and crash alert from previous file
+            HideStatsPanel();
+            if (_crashAlert != null) _crashAlert.IsVisible = false;
 
             // Get and store track points
             _trackPoints = TrackPoints.Take(MaxTrackPointsStored).ToList();
@@ -544,6 +559,7 @@ public class LogMapControl : UserControl
             if (validPoints.Count == 0)
             {
                 HideStatsPanel();
+                if (_legendPanel != null) _legendPanel.IsVisible = false;
                 return;
             }
 
@@ -572,8 +588,8 @@ public class LogMapControl : UserControl
             }
 
             // Add start/end markers
-            AddMarkerFast(validPoints.First(), new MapsuiColor(34, 197, 94, 255), "S");
-            AddMarkerFast(validPoints.Last(), new MapsuiColor(239, 68, 68, 255), "E");
+            AddMarkerFast(validPoints.First(), new MapsuiColor(34, 197, 94, 255), "START");
+            AddMarkerFast(validPoints.Last(), new MapsuiColor(239, 68, 68, 255), "END");
 
             // Quick crash detection on sampled points
             DetectCrashSegmentsFast(renderPoints);
@@ -809,19 +825,23 @@ Points: {points.Count:N0}";
 
             if (events == null || events.Count == 0) return;
 
+            System.Diagnostics.Debug.WriteLine($"UpdateEventsFast: Adding {events.Count} critical events to map");
+
             foreach (var evt in events)
             {
                 var m = SphericalMercator.FromLonLat(evt.Longitude!.Value, evt.Latitude!.Value);
                 var marker = new GeometryFeature { Geometry = new GeoPoint(m.x, m.y) };
 
+                // Color coding by severity
                 var color = evt.Severity switch
                 {
-                    LogEventSeverity.Emergency or LogEventSeverity.Critical => new MapsuiColor(220, 38, 38, 255),
-                    LogEventSeverity.Error => new MapsuiColor(239, 68, 68, 255),
-                    LogEventSeverity.Warning => new MapsuiColor(245, 158, 11, 255),
-                    _ => new MapsuiColor(59, 130, 246, 255)
+                    LogEventSeverity.Emergency or LogEventSeverity.Critical => new MapsuiColor(220, 38, 38, 255), // Red
+                    LogEventSeverity.Error => new MapsuiColor(239, 68, 68, 255), // Light red
+                    LogEventSeverity.Warning => new MapsuiColor(245, 158, 11, 255), // Amber
+                    _ => new MapsuiColor(59, 130, 246, 255) // Blue
                 };
 
+                // Triangle marker for events
                 marker.Styles.Add(new SymbolStyle
                 {
                     Fill = new MapsuiBrush(color),
@@ -830,10 +850,22 @@ Points: {points.Count:N0}";
                     SymbolScale = 1.2
                 });
 
+                // Add label with event title
+                var label = evt.Title.Length > 12 ? evt.Title.Substring(0, 12) + "..." : evt.Title;
+                marker.Styles.Add(new LabelStyle
+                {
+                    Text = label,
+                    BackColor = new MapsuiBrush(new MapsuiColor(0, 0, 0, 220)),
+                    ForeColor = MapsuiColor.White,
+                    Offset = new Offset(0, -22),
+                    Font = new Font { FontFamily = "Arial", Size = 8, Bold = true }
+                });
+
                 _eventLayer.Add(marker);
             }
 
             _mapControl.InvalidateVisual();
+            System.Diagnostics.Debug.WriteLine($"UpdateEventsFast: Successfully rendered {events.Count} events");
         }
         catch (Exception ex)
         {
@@ -915,6 +947,9 @@ Points: {points.Count:N0}";
 
     #region Public Methods
 
+    /// <summary>
+    /// Zoom to fit all track points and waypoints in view.
+    /// </summary>
     public void ZoomToTrack()
     {
         if (_isDisposed) return;
@@ -945,11 +980,32 @@ Points: {points.Count:N0}";
         _mapControl.InvalidateVisual();
     }
 
+    /// <summary>
+    /// Clear all track data from the map (called when loading a new log).
+    /// Production-ready: Clears all layers to prevent stale data display.
+    /// </summary>
     public void ClearTrack()
     {
+        if (_isDisposed) return;
+        
         _trackPoints.Clear();
+        _crashSegments.Clear();
+        _waypoints.Clear();
+        
         SafeClearLayer(_trackLayer);
+        SafeClearLayer(_crashLayer);
+        SafeClearLayer(_markerLayer);
+        SafeClearLayer(_eventLayer);
+        SafeClearLayer(_currentPositionLayer);
+        SafeClearLayer(_waypointLayer);
+        
+        HideStatsPanel();
+        if (_legendPanel != null) _legendPanel.IsVisible = false;
+        if (_crashAlert != null) _crashAlert.IsVisible = false;
+        
         _mapControl.InvalidateVisual();
+        
+        System.Diagnostics.Debug.WriteLine("LogMapControl: Cleared all track data");
     }
 
     #endregion

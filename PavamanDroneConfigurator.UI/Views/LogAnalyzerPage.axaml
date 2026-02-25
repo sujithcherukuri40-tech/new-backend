@@ -1043,12 +1043,24 @@
                 <Grid RowDefinitions="Auto,*,Auto" Background="White">
                     <!-- Search Header -->
                     <Border Grid.Row="0" Background="#F8F8F8" Padding="12" BorderBrush="#E1E1E1" BorderThickness="0,0,0,1">
-                        <Grid ColumnDefinitions="Auto,*">
+                        <Grid ColumnDefinitions="Auto,*,Auto">
                             <TextBox Grid.Column="0" Text="{Binding ParameterSearchText}" Watermark="&#x1F50D; Search parameters..." 
                                      Width="300" Background="White" Foreground="#333333" BorderThickness="1" 
                                      BorderBrush="#DDDDDD" Padding="8,6" FontSize="12"/>
-                            <TextBlock Grid.Column="1" Text="{Binding LogParameters.Count, StringFormat={}{0} parameters from log}" 
+                            <TextBlock Grid.Column="1" Text="{Binding FilteredLogParameters.Count, StringFormat={}{0} parameters from log}" 
                                        Foreground="#666666" FontSize="11" VerticalAlignment="Center" Margin="12,0,0,0"/>
+                            <Button Grid.Column="2"
+                                    Command="{Binding RefreshParametersMetadataCommand}"
+                                    ToolTip.Tip="Refresh parameter metadata"
+                                    Background="Transparent"
+                                    BorderThickness="0"
+                                    Padding="8"
+                                    VerticalAlignment="Center">
+                                <Path Data="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"
+                                      Fill="#667EEA"
+                                      Width="20" Height="20"
+                                      Stretch="Uniform"/>
+                            </Button>
                         </Grid>
                     </Border>
                     
