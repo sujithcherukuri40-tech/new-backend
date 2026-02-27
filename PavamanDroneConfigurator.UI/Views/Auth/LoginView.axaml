@@ -11,10 +11,10 @@
     <Grid>
         <ScrollViewer VerticalScrollBarVisibility="Auto">
             <StackPanel Spacing="0" 
-                        HorizontalAlignment="Center" 
+                        HorizontalAlignment="Stretch" 
                         VerticalAlignment="Center"
-                        Width="380"
-                        Margin="40">
+                        MaxWidth="380"
+                        Margin="24">
 
                 <!-- ???????????????????????????????????????????????????????????????????????????????????
                      LOGO & BRANDING
@@ -129,9 +129,10 @@
                             <StackPanel Orientation="Horizontal" Spacing="8">
                                 <CheckBox IsChecked="{Binding AcceptedTerms, Mode=TwoWay}"
                                           IsEnabled="{Binding !IsLoading}"
-                                          VerticalAlignment="Center"/>
-                                <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
-                                    <TextBlock Text="I accept the"
+                                          VerticalAlignment="Top"
+                                          Margin="0,2,0,0"/>
+                                <WrapPanel VerticalAlignment="Center">
+                                    <TextBlock Text="I accept the "
                                                FontSize="14"
                                                Foreground="{DynamicResource TextSecondaryBrush}"
                                                VerticalAlignment="Center"/>
@@ -144,14 +145,15 @@
                                             Padding="0"
                                             VerticalAlignment="Center"
                                             Cursor="Hand"/>
-                                </StackPanel>
+                                </WrapPanel>
                             </StackPanel>
                             <!-- Terms Error Message -->
                             <TextBlock Text="{Binding AcceptedTermsError}"
                                        FontSize="12"
                                        Foreground="#EF4444"
+                                       TextWrapping="Wrap"
                                        IsVisible="{Binding AcceptedTermsError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
-                                       Margin="28,0,0,0"/>
+                                       Margin="28,4,0,0"/>
                         </StackPanel>
 
                         <!-- Login Button -->

@@ -10,9 +10,9 @@
         Title="Pavaman Aviation Drone Configurator - Sign In"
         Width="520"
         Height="700"
-        MinWidth="480"
-        MinHeight="600"
-        CanResize="False"
+        MinWidth="360"
+        MinHeight="480"
+        CanResize="True"
         WindowStartupLocation="CenterScreen"
         Icon="avares://PavamanDroneConfigurator.UI/Assets/Images/logo.ico"
         Background="#F9FAFB">

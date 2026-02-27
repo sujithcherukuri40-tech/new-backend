@@ -66,10 +66,10 @@
     <Grid>
         <ScrollViewer VerticalScrollBarVisibility="Auto">
             <StackPanel Spacing="0" 
-                        HorizontalAlignment="Center" 
+                        HorizontalAlignment="Stretch" 
                         VerticalAlignment="Center"
-                        Width="400"
-                        Margin="40">
+                        MaxWidth="420"
+                        Margin="24">
 
                 <!-- Success Icon -->
                 <Border Width="96"
@@ -145,7 +145,8 @@
                                        Text="{Binding UserEmail}" 
                                        FontSize="14"
                                        FontWeight="SemiBold"
-                                       Foreground="#111827"/>
+                                       Foreground="#111827"
+                                       TextWrapping="Wrap"/>
                         </Grid>
                     </StackPanel>
                 </Border>
@@ -226,11 +227,11 @@
                                    Foreground="#92400E"
                                    TextWrapping="Wrap"
                                    LineHeight="18">
-                            <Run Text="• An administrator will review your registration"/>
+                            <Run Text="ï¿½ An administrator will review your registration"/>
                             <LineBreak/>
-                            <Run Text="• You can check your approval status anytime"/>
+                            <Run Text="ï¿½ You can check your approval status anytime"/>
                             <LineBreak/>
-                            <Run Text="• Once approved, you'll have full access to the app"/>
+                            <Run Text="ï¿½ Once approved, you'll have full access to the app"/>
                         </TextBlock>
                     </StackPanel>
                 </Border>
