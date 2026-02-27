@@ -283,17 +283,18 @@
                                       IsEnabled="{Binding !IsLoading}"
                                       VerticalAlignment="Top"
                                       Margin="0,2,0,0"/>
-                            <TextBlock VerticalAlignment="Center" TextWrapping="Wrap">
-                                <Run Text="I accept the " FontSize="14" Foreground="#6B7280"/>
-                            </TextBlock>
+                            <WrapPanel VerticalAlignment="Center">
+                                <TextBlock Text="I accept the "
+                                           FontSize="14"
+                                           Foreground="#6B7280"
+                                           VerticalAlignment="Center"/>
+                                <Button Classes="auth-link"
+                                        Content="Terms and Conditions"
+                                        Command="{Binding ViewTermsCommand}"
+                                        FontWeight="SemiBold"
+                                        VerticalAlignment="Center"/>
+                            </WrapPanel>
                         </StackPanel>
-                        <Button Classes="auth-link"
-                                Content="Terms and Conditions"
-                                Command="{Binding ViewTermsCommand}"
-                                FontWeight="SemiBold"
-                                Margin="28,0,0,0"
-                                HorizontalAlignment="Left"
-                                VerticalAlignment="Center"/>
                         <!-- Terms Error Message -->
                         <TextBlock Classes="field-error"
                                    Text="{Binding AcceptedTermsError}"

@@ -131,20 +131,22 @@
                                           IsEnabled="{Binding !IsLoading}"
                                           VerticalAlignment="Top"
                                           Margin="0,2,0,0"/>
-                                <TextBlock VerticalAlignment="Center" TextWrapping="Wrap">
-                                    <Run Text="I accept the " FontSize="14" Foreground="{DynamicResource TextSecondaryBrush}"/>
-                                </TextBlock>
+                                <WrapPanel VerticalAlignment="Center">
+                                    <TextBlock Text="I accept the "
+                                               FontSize="14"
+                                               Foreground="{DynamicResource TextSecondaryBrush}"
+                                               VerticalAlignment="Center"/>
+                                    <Button Classes="btn-ghost"
+                                            Content="Terms and Conditions"
+                                            Command="{Binding ViewTermsCommand}"
+                                            Foreground="{DynamicResource PrimaryBrush}"
+                                            FontWeight="SemiBold"
+                                            FontSize="14"
+                                            Padding="0"
+                                            VerticalAlignment="Center"
+                                            Cursor="Hand"/>
+                                </WrapPanel>
                             </StackPanel>
-                            <Button Classes="btn-ghost"
-                                    Content="Terms and Conditions"
-                                    Command="{Binding ViewTermsCommand}"
-                                    Foreground="{DynamicResource PrimaryBrush}"
-                                    FontWeight="SemiBold"
-                                    FontSize="14"
-                                    Padding="0"
-                                    Margin="28,0,0,0"
-                                    HorizontalAlignment="Left"
-                                    Cursor="Hand"/>
                             <!-- Terms Error Message -->
                             <TextBlock Text="{Binding AcceptedTermsError}"
                                        FontSize="12"
