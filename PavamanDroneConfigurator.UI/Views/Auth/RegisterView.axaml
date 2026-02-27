@@ -98,16 +98,17 @@
             <Setter Property="FontSize" Value="12"/>
             <Setter Property="Foreground" Value="#EF4444"/>
             <Setter Property="Margin" Value="0,4,0,0"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
         </Style>
     </UserControl.Styles>
 
     <Grid>
         <ScrollViewer VerticalScrollBarVisibility="Auto">
             <StackPanel Spacing="0" 
-                        HorizontalAlignment="Center" 
+                        HorizontalAlignment="Stretch" 
                         VerticalAlignment="Center"
-                        Width="360"
-                        Margin="40">
+                        MaxWidth="380"
+                        Margin="24">
 
                 <!-- Logo & Branding -->
                 <StackPanel Spacing="12" Margin="0,0,0,32" HorizontalAlignment="Center">
@@ -222,6 +223,11 @@
                         <TextBlock Classes="field-error"
                                    Text="{Binding PasswordError}"
                                    IsVisible="{Binding PasswordError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+                        <TextBlock Text="Must be at least 8 characters with uppercase, lowercase, and a number."
+                                   FontSize="11"
+                                   Foreground="#6B7280"
+                                   TextWrapping="Wrap"
+                                   Margin="0,4,0,0"/>
                     </StackPanel>
 
                     <!-- Confirm Password -->
@@ -275,24 +281,24 @@
                         <StackPanel Orientation="Horizontal" Spacing="8">
                             <CheckBox IsChecked="{Binding AcceptedTerms, Mode=TwoWay}"
                                       IsEnabled="{Binding !IsLoading}"
-                                      VerticalAlignment="Center"/>
-                            <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
-                                <TextBlock Text="I accept the"
-                                           FontSize="14"
-                                           Foreground="#6B7280"
-                                           VerticalAlignment="Center"/>
-                                <Button Classes="auth-link"
-                                        Content="Terms and Conditions"
-                                        Command="{Binding ViewTermsCommand}"
-                                        FontWeight="SemiBold"
-                                        VerticalAlignment="Center"/>
-                            </StackPanel>
+                                      VerticalAlignment="Top"
+                                      Margin="0,2,0,0"/>
+                            <TextBlock VerticalAlignment="Center" TextWrapping="Wrap">
+                                <Run Text="I accept the " FontSize="14" Foreground="#6B7280"/>
+                            </TextBlock>
                         </StackPanel>
+                        <Button Classes="auth-link"
+                                Content="Terms and Conditions"
+                                Command="{Binding ViewTermsCommand}"
+                                FontWeight="SemiBold"
+                                Margin="28,0,0,0"
+                                HorizontalAlignment="Left"
+                                VerticalAlignment="Center"/>
                         <!-- Terms Error Message -->
                         <TextBlock Classes="field-error"
                                    Text="{Binding AcceptedTermsError}"
                                    IsVisible="{Binding AcceptedTermsError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
-                                   Margin="28,0,0,0"/>
+                                   Margin="28,4,0,0"/>
                     </StackPanel>
                 </StackPanel>
 
