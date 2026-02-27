@@ -7,6 +7,8 @@
 
 	<UserControl.Resources>
 		<converters:BoolToStringConverter x:Key="BoolToStringConverter"/>
+		<converters:VehicleTypeToIconConverter x:Key="VehicleTypeToIconConverter"/>
+		<converters:VehicleTypeToBadgeColorConverter x:Key="VehicleTypeToBadgeColorConverter"/>
 	</UserControl.Resources>
 
 	<UserControl.Styles>
@@ -637,89 +639,114 @@
 							
 							<ItemsControl.ItemTemplate>
 								<DataTemplate>
-									<!-- Custom Firmware Card -->
+									<!-- Custom Firmware Card - Updated to match Admin UI -->
 									<Button Classes="firmware-card"
 											Classes.firmware-card-selected="{Binding IsSelected}"
 											Command="{Binding $parent[ItemsControl].((vm:FirmwarePageViewModel)DataContext).SelectCustomFirmwareCommand}"
 											CommandParameter="{Binding}"
-											Width="240"
-											Height="280"
+											Width="260"
+											Height="320"
 											Margin="12,8">
-										<Grid RowDefinitions="Auto,Auto,*,Auto,Auto,Auto">
-											<!-- Vehicle Type Badge -->
+										<Grid RowDefinitions="Auto,Auto,Auto,*,Auto,Auto,Auto">
+											<!-- Vehicle Type Badge (top right) -->
 											<Border Grid.Row="0"
-													Background="{DynamicResource PrimaryLightBrush}"
-													CornerRadius="6"
-													Padding="10,6"
+													CornerRadius="8"
+													Padding="12,6"
 													HorizontalAlignment="Right"
-													Margin="0,0,0,12">
+													Margin="0,0,0,12"
+													Background="{Binding VehicleType, Converter={StaticResource VehicleTypeToBadgeColorConverter}}">
 												<TextBlock Text="{Binding VehicleType}"
 														   FontSize="11"
 														   FontWeight="Bold"
-														   Foreground="{DynamicResource PrimaryBrush}"/>
+														   Foreground="White"
+														   LetterSpacing="0.5"/>
 											</Border>
 											
-											<!-- Firmware Icon -->
+											<!-- Vehicle Icon Container -->
 											<Border Grid.Row="1"
-													Background="{DynamicResource SecondaryLightBrush}"
-													CornerRadius="12"
 													Width="80"
 													Height="80"
+													CornerRadius="16"
+													Padding="12"
 													HorizontalAlignment="Center"
 													Margin="0,0,0,16">
-												<TextBlock Text="&#x1F680;"
-														   FontSize="40"
-														   HorizontalAlignment="Center"
-														   VerticalAlignment="Center"/>
+												<Border.Background>
+													<LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
+														<GradientStop Color="#EEF2FF" Offset="0"/>
+														<GradientStop Color="#E0E7FF" Offset="1"/>
+													</LinearGradientBrush>
+												</Border.Background>
+												<Image Source="{Binding VehicleType, Converter={StaticResource VehicleTypeToIconConverter}}"
+													   Stretch="Uniform"/>
 											</Border>
 											
-											<!-- Firmware Name & Version -->
-											<StackPanel Grid.Row="2" Spacing="6">
-												<TextBlock Text="{Binding DisplayName}"
-														   FontSize="16"
-														   FontWeight="Bold"
-														   Foreground="{DynamicResource TextPrimaryBrush}"
-														   TextAlignment="Center"
-														   TextWrapping="Wrap"
-														   MaxLines="2"
-														   TextTrimming="CharacterEllipsis"/>
-												<TextBlock Text="{Binding FirmwareVersion, StringFormat='v{0}'}"
-														   FontSize="13"
-														   Foreground="{DynamicResource TextSecondaryBrush}"
-														   TextAlignment="Center"
-														   IsVisible="{Binding FirmwareVersion, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
-											</StackPanel>
-											
-											<!-- Description -->
-											<TextBlock Grid.Row="3"
-													   Text="{Binding FirmwareDescription}"
-													   FontSize="11"
-													   Foreground="{DynamicResource TextSecondaryBrush}"
+											<!-- Firmware Name -->
+											<TextBlock Grid.Row="2"
+													   Text="{Binding DisplayName}"
+													   FontSize="16"
+													   FontWeight="Bold"
+													   Foreground="{DynamicResource TextPrimaryBrush}"
 													   TextAlignment="Center"
+													   HorizontalAlignment="Center"
 													   TextWrapping="Wrap"
 													   MaxLines="2"
 													   TextTrimming="CharacterEllipsis"
-													   Margin="8,12,8,12"
-													   IsVisible="{Binding FirmwareDescription, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
+													   Margin="8,0,8,4"/>
 											
-											<!-- File Size -->
-											<TextBlock Grid.Row="4"
-													   Text="{Binding SizeDisplay}"
-													   FontSize="12"
+											<!-- Version -->
+											<TextBlock Grid.Row="3"
+													   Text="{Binding FirmwareVersion, StringFormat='Version {0}'}"
+													   FontSize="13"
 													   FontWeight="SemiBold"
-													   Foreground="{DynamicResource SuccessBrush}"
+													   Foreground="{DynamicResource TextSecondaryBrush}"
 													   TextAlignment="Center"
-													   Margin="0,0,0,8"/>
+													   VerticalAlignment="Top"
+													   IsVisible="{Binding FirmwareVersion, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"/>
 											
-											<!-- Last Modified -->
-											<TextBlock Grid.Row="5"
-													   Text="{Binding LastModified, StringFormat='Updated: {0:MMM dd}'}"
+											<!-- File Size with icon -->
+											<StackPanel Grid.Row="4" 
+														Orientation="Horizontal" 
+														Spacing="6" 
+														HorizontalAlignment="Center"
+														Margin="0,12,0,4">
+												<PathIcon Data="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm4 18H6V4h7v5h5v11z"
+														  Width="14" 
+														  Height="14" 
+														  Foreground="{DynamicResource SuccessBrush}"/>
+												<TextBlock Text="{Binding SizeDisplay}"
+														   FontSize="13"
+														   FontWeight="SemiBold"
+														   Foreground="{DynamicResource SuccessBrush}"/>
+											</StackPanel>
+											
+											<!-- Last Modified with icon -->
+											<StackPanel Grid.Row="5" 
+														Orientation="Horizontal" 
+														Spacing="6" 
+														HorizontalAlignment="Center"
+														Margin="0,0,0,8">
+												<PathIcon Data="M9 11H7v2h2v-2zm4 0h-2v2h2v-2zm4 0h-2v2h2v-2zm2-7h-1V2h-2v2H8V2H6v2H5c-1.11 0-1.99.9-1.99 2L3 20c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V9h14v11z"
+														  Width="12" 
+														  Height="12" 
+														  Foreground="{DynamicResource TextMutedBrush}"/>
+												<TextBlock Text="{Binding LastModified, StringFormat='Updated: {0:MMM dd}'}"
+														   FontSize="11"
+														   Foreground="{DynamicResource TextMutedBrush}"/>
+											</StackPanel>
+											
+											<!-- File Name (smaller, at bottom) -->
+											<TextBlock Grid.Row="6"
+													   Text="{Binding FileName}"
 													   FontSize="10"
+													   FontFamily="Consolas, Courier New"
 													   Foreground="{DynamicResource TextMutedBrush}"
-													   TextAlignment="Center"/>
+													   TextAlignment="Center"
+													   TextTrimming="CharacterEllipsis"
+													   ToolTip.Tip="{Binding FileName}"
+													   Margin="4,0"/>
 											
 											<!-- Selected Indicator -->
-											<Border Grid.Row="0" Grid.RowSpan="6"
+											<Border Grid.Row="0" Grid.RowSpan="7"
 													Background="{DynamicResource PrimaryBrush}"
 													CornerRadius="24"
 													Width="32" Height="32"
@@ -1437,7 +1464,7 @@
 					</Border>
 					
 					<!-- Buttons -->
-					<StackPanel Orientation="Horizontal" 
+						<StackPanel Orientation="Horizontal" 
 					            Spacing="12" 
 					            HorizontalAlignment="Center">
 						<Button Classes="dialog-btn-secondary"

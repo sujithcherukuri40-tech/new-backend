@@ -313,14 +313,6 @@
                                   HorizontalScrollBarVisibility="Disabled">
                         <StackPanel x:Name="NavigationMenu" Margin="4,0">
 
-                            <!-- ═══════════ FIRMWARE ═══════════ -->
-                            <TextBlock Text="FIRMWARE" Classes="sidebar-section-title"/>
-                            <Button Content="📦  Firmware Upgrade"
-                                    Classes="sidebar-nav-item"
-                                    Tag="FirmwarePage"
-                                    CommandParameter="{Binding FirmwarePage}"
-                                    Click="NavButton_Click" />
-
                             <!-- ═══════════ HARDWARE ═══════════ -->
                             <TextBlock Text="HARDWARE" Classes="sidebar-section-title"/>
                             <Button Content="✈️  Airframe"
@@ -402,11 +394,6 @@
                                     CommandParameter="{Binding ParametersPage}"
                                     Click="NavButton_Click"
                                     IsEnabled="{Binding CanAccessParameters}" />
-                            <Button Content="📋  Profiles"
-                                    Classes="sidebar-nav-item"
-                                    Tag="ProfilePage"
-                                    CommandParameter="{Binding ProfilePage}"
-                                    Click="NavButton_Click" />
                             <Button Content="📈  Log Analyzer"
                                     Classes="sidebar-nav-item"
                                     Tag="LogAnalyzerPage"
@@ -453,33 +440,51 @@
                             Padding="14,10"
                             CornerRadius="10"
                             Background="#DBEAFE">
-                        <Grid ColumnDefinitions="Auto,*">
-                            <!-- Version Icon -->
-                            <Border Grid.Column="0"
-                                    Width="32" Height="32"
-                                    CornerRadius="8"
-                                    Background="#BFDBFE"
-                                    VerticalAlignment="Center"
-                                    Margin="0,0,10,0">
-                                <TextBlock Text="🛸"
-                                           FontSize="16"
+                        <StackPanel Spacing="8">
+                            <Grid ColumnDefinitions="Auto,*">
+                                <!-- Logo Icon -->
+                                <Border Grid.Column="0"
+                                        Width="32" Height="32"
+                                        CornerRadius="8"
+                                        Background="#BFDBFE"
+                                        VerticalAlignment="Center"
+                                        Margin="0,0,10,0">
+                                    <Image Source="avares://PavamanDroneConfigurator.UI/Assets/Images/logo.ico"
+                                           Width="24" Height="24"
+                                           Stretch="Uniform"
                                            HorizontalAlignment="Center"
                                            VerticalAlignment="Center"/>
-                            </Border>
-                            <!-- Version Text -->
-                            <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
-                                <TextBlock Text="Version 1.0.0"
-                                           FontSize="12"
-                                           Foreground="#1E40AF"
-                                           FontWeight="Bold"
-                                           FontFamily="{DynamicResource PrimaryFont}"/>
-                                <TextBlock Text="© 2025 Pavaman Aviation"
+                                </Border>
+                                <!-- Version Text -->
+                                <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                                    <TextBlock Text="Version 1.0.0"
+                                               FontSize="12"
+                                               Foreground="#1E40AF"
+                                               FontWeight="Bold"
+                                               FontFamily="{DynamicResource PrimaryFont}"/>
+                                    <TextBlock Text="&#x00A9; 2025 Pavaman Aviation"
+                                               FontSize="10"
+                                               Foreground="#3B82F6"
+                                               FontWeight="SemiBold"
+                                               FontFamily="{DynamicResource PrimaryFont}"/>
+                                </StackPanel>
+                            </Grid>
+                            <!-- Privacy Policy Link -->
+                            <Button x:Name="PrivacyPolicyLink"
+                                    Background="Transparent"
+                                    BorderThickness="0"
+                                    Padding="0"
+                                    HorizontalAlignment="Center"
+                                    Cursor="Hand"
+                                    Click="PrivacyPolicyLink_Click">
+                                <!-- U+1F512 Lock symbol -->
+                                <TextBlock Text="&#x1F512; Privacy Policy"
                                            FontSize="10"
-                                           Foreground="#3B82F6"
-                                           FontWeight="SemiBold"
+                                           Foreground="#2563EB"
+                                           TextDecorations="Underline"
                                            FontFamily="{DynamicResource PrimaryFont}"/>
-                            </StackPanel>
-                        </Grid>
+                            </Button>
+                        </StackPanel>
                     </Border>
                 </Grid>
             </Border>

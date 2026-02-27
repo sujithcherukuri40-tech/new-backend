@@ -20,6 +20,37 @@ public partial class MainWindow : Window
     private const string NavItemClass = "sidebar-nav-item";
     private const string NavActiveClass = "sidebar-nav-active";
 
+    // Privacy Policy content
+    private const string PrivacyPolicyContent = @"Pavaman Drone Configurator – Privacy Policy
+
+Pavaman Drone Configurator is a desktop application developed by Pavaman Aviation.
+
+Information We Collect
+• User email address for authentication
+• Flight controller identification (FC ID / Hardware ID)
+• Parameter configuration logs
+• Firmware installation history
+
+How We Use Information
+The collected information is used only for:
+• User authentication
+• Secure cloud backup of drone configuration
+• Firmware delivery
+• Application functionality
+
+Data Storage
+Data is securely stored on Amazon Web Services (AWS) servers. All communications are encrypted using HTTPS.
+
+We Do NOT
+• Sell user data
+• Track location
+• Share personal information with third parties
+
+Contact
+Email: pavaman.official@gmail.com
+
+Publisher: Pavaman Aviation";
+
     public MainWindow()
     {
         InitializeComponent();
@@ -67,6 +98,71 @@ public partial class MainWindow : Window
         {
             ShowNotification("Navigation Error", ex.Message, NotificationType.Error);
         }
+    }
+
+    /// <summary>
+    /// Shows the Privacy Policy dialog when the link is clicked.
+    /// </summary>
+    private async void PrivacyPolicyLink_Click(object? sender, RoutedEventArgs e)
+    {
+        var dialog = new Window
+        {
+            Title = "Privacy Policy - Pavaman Drone Configurator",
+            Width = 550,
+            Height = 500,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            CanResize = false,
+            ShowInTaskbar = false
+        };
+
+        var scrollViewer = new ScrollViewer
+        {
+            Margin = new Avalonia.Thickness(20),
+            VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto
+        };
+
+        var stackPanel = new StackPanel { Spacing = 16 };
+
+        // Header
+        var header = new TextBlock
+        {
+            Text = "\U0001F512 Privacy Policy",
+            FontSize = 20,
+            FontWeight = Avalonia.Media.FontWeight.Bold,
+            Foreground = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#1E40AF")),
+            Margin = new Avalonia.Thickness(0, 0, 0, 8)
+        };
+        stackPanel.Children.Add(header);
+
+        // Content
+        var content = new TextBlock
+        {
+            Text = PrivacyPolicyContent,
+            TextWrapping = Avalonia.Media.TextWrapping.Wrap,
+            FontSize = 13,
+            LineHeight = 20,
+            Foreground = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#374151"))
+        };
+        stackPanel.Children.Add(content);
+
+        // Close button
+        var closeButton = new Button
+        {
+            Content = "Close",
+            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center,
+            Padding = new Avalonia.Thickness(24, 10),
+            Margin = new Avalonia.Thickness(0, 16, 0, 0),
+            Background = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Color.Parse("#3B82F6")),
+            Foreground = Avalonia.Media.Brushes.White,
+            CornerRadius = new Avalonia.CornerRadius(8)
+        };
+        closeButton.Click += (s, args) => dialog.Close();
+        stackPanel.Children.Add(closeButton);
+
+        scrollViewer.Content = stackPanel;
+        dialog.Content = scrollViewer;
+
+        await dialog.ShowDialog(this);
     }
     
     private void NavigateToAdminPage(string pageNameWithFilter)

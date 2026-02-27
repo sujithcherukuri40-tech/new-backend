@@ -1,0 +1,370 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:converters="using:PavamanDroneConfigurator.UI.Converters"
+             xmlns:local="using:PavamanDroneConfigurator.UI.Views"
+             mc:Ignorable="d" d:DesignWidth="1200" d:DesignHeight="800"
+             x:Class="PavamanDroneConfigurator.UI.Views.ResponsiveDemoPage"
+             x:DataType="local:ResponsiveDemoViewModel">
+
+    <UserControl.Resources>
+        <!-- Bool to Color Converter for indicators -->
+        <converters:BoolToColorConverter x:Key="BoolToColorConverter"/>
+        <converters:BoolToColorConverter x:Key="BoolToBackgroundConverter"/>
+        <converters:BoolToStringConverter x:Key="BoolToStringConverter"/>
+    </UserControl.Resources>
+
+    <UserControl.Styles>
+        <!-- Base card style -->
+        <Style Selector="Border.card">
+            <Setter Property="Background" Value="#FFFFFF"/>
+            <Setter Property="CornerRadius" Value="12"/>
+            <Setter Property="BoxShadow" Value="0 4px 16px rgba(0,0,0,0.08)"/>
+        </Style>
+        
+        <!-- Responsive font sizes -->
+        <Style Selector="TextBlock.title">
+            <Setter Property="FontSize" Value="22"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+        </Style>
+        
+        <Style Selector="TextBlock.subtitle">
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="Foreground" Value="#6B7280"/>
+        </Style>
+        
+        <!-- Nav button style -->
+        <Style Selector="Button.nav-item">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="#94A3B8"/>
+            <Setter Property="Padding" Value="12,10"/>
+            <Setter Property="HorizontalAlignment" Value="Stretch"/>
+            <Setter Property="HorizontalContentAlignment" Value="Left"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Cursor" Value="Hand"/>
+        </Style>
+        <Style Selector="Button.nav-item:pointerover">
+            <Setter Property="Background" Value="#1E293B"/>
+            <Setter Property="Foreground" Value="White"/>
+        </Style>
+        
+        <!-- Breakpoint badge styles -->
+        <Style Selector="Border.badge-active">
+            <Setter Property="Background" Value="#DCFCE7"/>
+        </Style>
+        <Style Selector="Border.badge-inactive">
+            <Setter Property="Background" Value="#F3F4F6"/>
+        </Style>
+    </UserControl.Styles>
+
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <!-- Sidebar column - width based on collapsed/expanded state -->
+            <ColumnDefinition Width="Auto"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+
+        <!-- ===== EXPANDED SIDEBAR (Desktop: width >= 800px) ===== -->
+        <Border Grid.Column="0" 
+                Width="240"
+                Background="#0F172A" 
+                IsVisible="{Binding IsSidebarExpanded}">
+            <ScrollViewer>
+                <StackPanel Margin="16">
+                    <!-- Logo & Title -->
+                    <StackPanel Orientation="Horizontal" Spacing="12" Margin="0,0,0,32">
+                        <Border Width="40" Height="40" CornerRadius="8" Background="#3B82F6">
+                            <TextBlock Text="&#x2708;" FontSize="20" 
+                                       HorizontalAlignment="Center" 
+                                       VerticalAlignment="Center"
+                                       Foreground="White"/>
+                        </Border>
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock Text="Pavaman" FontWeight="Bold" Foreground="White"/>
+                            <TextBlock Text="Configurator" FontSize="11" Foreground="#94A3B8"/>
+                        </StackPanel>
+                    </StackPanel>
+
+                    <!-- Navigation Items -->
+                    <StackPanel Spacing="4">
+                        <Button Classes="nav-item">
+                            <StackPanel Orientation="Horizontal" Spacing="12">
+                                <TextBlock Text="&#x2302;" Width="24"/>
+                                <TextBlock Text="Dashboard"/>
+                            </StackPanel>
+                        </Button>
+                        <Button Classes="nav-item">
+                            <StackPanel Orientation="Horizontal" Spacing="12">
+                                <TextBlock Text="&#x2699;" Width="24"/>
+                                <TextBlock Text="Parameters"/>
+                            </StackPanel>
+                        </Button>
+                        <Button Classes="nav-item">
+                            <StackPanel Orientation="Horizontal" Spacing="12">
+                                <TextBlock Text="&#x2261;" Width="24"/>
+                                <TextBlock Text="Log Analyzer"/>
+                            </StackPanel>
+                        </Button>
+                        <Button Classes="nav-item">
+                            <StackPanel Orientation="Horizontal" Spacing="12">
+                                <TextBlock Text="&#x2692;" Width="24"/>
+                                <TextBlock Text="Calibration"/>
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+                </StackPanel>
+            </ScrollViewer>
+        </Border>
+
+        <!-- ===== COLLAPSED SIDEBAR (Mobile/Tablet: width < 800px) ===== -->
+        <Border Grid.Column="0" 
+                Width="60"
+                Background="#0F172A" 
+                IsVisible="{Binding IsSidebarCollapsed}">
+            <StackPanel Margin="0,16" HorizontalAlignment="Center" Spacing="16">
+                <!-- Logo only -->
+                <Border Width="40" Height="40" CornerRadius="8" Background="#3B82F6">
+                    <TextBlock Text="&#x2708;" FontSize="20" 
+                               HorizontalAlignment="Center" 
+                               VerticalAlignment="Center"
+                               Foreground="White"/>
+                </Border>
+                
+                <!-- Icon-only navigation -->
+                <StackPanel Spacing="8">
+                    <Button Width="40" Height="40" ToolTip.Tip="Dashboard" Padding="0">
+                        <TextBlock Text="&#x2302;" HorizontalAlignment="Center"/>
+                    </Button>
+                    <Button Width="40" Height="40" ToolTip.Tip="Parameters" Padding="0">
+                        <TextBlock Text="&#x2699;" HorizontalAlignment="Center"/>
+                    </Button>
+                    <Button Width="40" Height="40" ToolTip.Tip="Log Analyzer" Padding="0">
+                        <TextBlock Text="&#x2261;" HorizontalAlignment="Center"/>
+                    </Button>
+                    <Button Width="40" Height="40" ToolTip.Tip="Calibration" Padding="0">
+                        <TextBlock Text="&#x2692;" HorizontalAlignment="Center"/>
+                    </Button>
+                </StackPanel>
+            </StackPanel>
+        </Border>
+
+        <!-- ===== MAIN CONTENT ===== -->
+        <ScrollViewer Grid.Column="1" Background="#F8FAFC">
+            <StackPanel Margin="{Binding ContentPadding}">
+                
+                <!-- Page Header -->
+                <StackPanel Margin="0,0,0,24">
+                    <TextBlock Classes="title" Text="Responsive Dashboard"/>
+                    <TextBlock Classes="subtitle" 
+                               Text="This page demonstrates responsive layouts that adapt to window size. Resize the window to see changes!"/>
+                </StackPanel>
+
+                <!-- Current Size Display Card -->
+                <Border Classes="card" Padding="16" Margin="0,0,0,24">
+                    <StackPanel Spacing="8">
+                        <TextBlock Text="&#x25A1; Current Window Size" FontWeight="SemiBold" FontSize="16"/>
+                        
+                        <Grid ColumnDefinitions="120,*" RowDefinitions="Auto,Auto,Auto,Auto" Margin="0,8,0,0">
+                            <TextBlock Grid.Row="0" Grid.Column="0" Text="Dimensions:" Foreground="#6B7280"/>
+                            <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding WindowSizeDisplay}" 
+                                       FontWeight="Bold" Foreground="#3B82F6"/>
+                            
+                            <TextBlock Grid.Row="1" Grid.Column="0" Text="Breakpoint:" Foreground="#6B7280" Margin="0,4,0,0"/>
+                            <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding BreakpointName}" 
+                                       FontWeight="Bold" Foreground="#10B981" Margin="0,4,0,0"/>
+                            
+                            <TextBlock Grid.Row="2" Grid.Column="0" Text="Sidebar State:" Foreground="#6B7280" Margin="0,4,0,0"/>
+                            <TextBlock Grid.Row="2" Grid.Column="1" Margin="0,4,0,0" FontWeight="Bold"
+                                       Text="{Binding IsSidebarExpanded, Converter={StaticResource BoolToStringConverter}, ConverterParameter='Expanded|Collapsed'}"
+                                       Foreground="{Binding IsSidebarExpanded, Converter={StaticResource BoolToColorConverter}, ConverterParameter='#10B981|#F59E0B'}"/>
+                            
+                            <TextBlock Grid.Row="3" Grid.Column="0" Text="Form Layout:" Foreground="#6B7280" Margin="0,4,0,0"/>
+                            <TextBlock Grid.Row="3" Grid.Column="1" Margin="0,4,0,0" FontWeight="Bold"
+                                       Text="{Binding IsMobile, Converter={StaticResource BoolToStringConverter}, ConverterParameter='Vertical|Horizontal'}"
+                                       Foreground="#6366F1"/>
+                        </Grid>
+                        
+                        <!-- Breakpoint indicators -->
+                        <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,12,0,0">
+                            <Border Padding="10,6" CornerRadius="6" 
+                                    Background="{Binding IsMobile, Converter={StaticResource BoolToColorConverter}, ConverterParameter='#DCFCE7|#F3F4F6'}">
+                                <TextBlock Text="&#x260E; Mobile" FontSize="12" FontWeight="SemiBold"
+                                           Foreground="{Binding IsMobile, Converter={StaticResource BoolToColorConverter}, ConverterParameter='#059669|#9CA3AF'}"/>
+                            </Border>
+                            <Border Padding="10,6" CornerRadius="6"
+                                    Background="{Binding IsTablet, Converter={StaticResource BoolToColorConverter}, ConverterParameter='#DBEAFE|#F3F4F6'}">
+                                <TextBlock Text="&#x25AD; Tablet" FontSize="12" FontWeight="SemiBold"
+                                           Foreground="{Binding IsTablet, Converter={StaticResource BoolToColorConverter}, ConverterParameter='#2563EB|#9CA3AF'}"/>
+                            </Border>
+                            <Border Padding="10,6" CornerRadius="6"
+                                    Background="{Binding IsDesktop, Converter={StaticResource BoolToColorConverter}, ConverterParameter='#FEF3C7|#F3F4F6'}">
+                                <TextBlock Text="&#x2395; Desktop" FontSize="12" FontWeight="SemiBold"
+                                           Foreground="{Binding IsDesktop, Converter={StaticResource BoolToColorConverter}, ConverterParameter='#D97706|#9CA3AF'}"/>
+                            </Border>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <!-- Responsive Cards Grid using WrapPanel -->
+                <TextBlock Text="Responsive Card Grid" FontWeight="SemiBold" FontSize="16" Margin="0,0,0,12"/>
+                <TextBlock Text="Cards wrap to the next line when window is too narrow" FontSize="12" Foreground="#6B7280" Margin="0,0,0,12"/>
+                <WrapPanel HorizontalAlignment="Stretch">
+                    <!-- Card 1 -->
+                    <Border Classes="card" 
+                            Width="280"
+                            Margin="0,0,16,16" 
+                            Padding="16">
+                        <StackPanel>
+                            <Border Width="48" Height="48" CornerRadius="12" Background="#DBEAFE" 
+                                    HorizontalAlignment="Left" Margin="0,0,0,12">
+                                <TextBlock Text="&#x26D3;" FontSize="24" 
+                                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                            <TextBlock Text="Connection" FontWeight="SemiBold" FontSize="16"/>
+                            <TextBlock Text="Connect to your drone" Foreground="#6B7280" FontSize="13"/>
+                            <TextBlock Text="Connected" Foreground="#10B981" FontWeight="Bold" Margin="0,8,0,0"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Card 2 -->
+                    <Border Classes="card" 
+                            Width="280"
+                            Margin="0,0,16,16" 
+                            Padding="16">
+                        <StackPanel>
+                            <Border Width="48" Height="48" CornerRadius="12" Background="#FEF3C7" 
+                                    HorizontalAlignment="Left" Margin="0,0,0,12">
+                                <TextBlock Text="&#x2699;" FontSize="24" 
+                                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                            <TextBlock Text="Parameters" FontWeight="SemiBold" FontSize="16"/>
+                            <TextBlock Text="Configure flight parameters" Foreground="#6B7280" FontSize="13"/>
+                            <TextBlock Text="1,247 params" Foreground="#3B82F6" FontWeight="Bold" Margin="0,8,0,0"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Card 3 -->
+                    <Border Classes="card" 
+                            Width="280"
+                            Margin="0,0,16,16" 
+                            Padding="16">
+                        <StackPanel>
+                            <Border Width="48" Height="48" CornerRadius="12" Background="#DCFCE7" 
+                                    HorizontalAlignment="Left" Margin="0,0,0,12">
+                                <TextBlock Text="&#x2637;" FontSize="24" 
+                                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                            <TextBlock Text="Log Analyzer" FontWeight="SemiBold" FontSize="16"/>
+                            <TextBlock Text="Analyze flight logs" Foreground="#6B7280" FontSize="13"/>
+                            <TextBlock Text="3 logs available" Foreground="#3B82F6" FontWeight="Bold" Margin="0,8,0,0"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Card 4 -->
+                    <Border Classes="card" 
+                            Width="280"
+                            Margin="0,0,16,16" 
+                            Padding="16">
+                        <StackPanel>
+                            <Border Width="48" Height="48" CornerRadius="12" Background="#FEE2E2" 
+                                    HorizontalAlignment="Left" Margin="0,0,0,12">
+                                <TextBlock Text="&#x26A1;" FontSize="24" 
+                                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                            <TextBlock Text="Safety" FontWeight="SemiBold" FontSize="16"/>
+                            <TextBlock Text="Configure failsafes" Foreground="#6B7280" FontSize="13"/>
+                            <TextBlock Text="All configured" Foreground="#10B981" FontWeight="Bold" Margin="0,8,0,0"/>
+                        </StackPanel>
+                    </Border>
+                </WrapPanel>
+
+                <!-- Responsive Form Layout -->
+                <TextBlock Text="Responsive Form Layout" FontWeight="SemiBold" FontSize="16" Margin="0,24,0,8"/>
+                <TextBlock Text="Form switches from horizontal to vertical layout on narrow screens" FontSize="12" Foreground="#6B7280" Margin="0,0,0,12"/>
+                <Border Classes="card" Padding="20">
+                    <!-- Horizontal on desktop, vertical on mobile -->
+                    <StackPanel Orientation="{Binding FormStackOrientation}" Spacing="16">
+                        <StackPanel MinWidth="200">
+                            <TextBlock Text="Parameter Name" FontWeight="SemiBold" Margin="0,0,0,4"/>
+                            <TextBox Watermark="Enter parameter name..." Padding="12,8"/>
+                        </StackPanel>
+                        
+                        <StackPanel MinWidth="150">
+                            <TextBlock Text="Value" FontWeight="SemiBold" Margin="0,0,0,4"/>
+                            <TextBox Watermark="Enter value..." Padding="12,8"/>
+                        </StackPanel>
+                        
+                        <StackPanel MinWidth="120" VerticalAlignment="Bottom">
+                            <Button Content="Save Parameter" 
+                                    Background="#3B82F6" 
+                                    Foreground="White"
+                                    Padding="16,10"
+                                    CornerRadius="8"
+                                    HorizontalAlignment="Stretch"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <!-- Desktop-only section (visible when width >= 1024px) -->
+                <Border Classes="card" 
+                        Padding="20" 
+                        Margin="0,24,0,0"
+                        Background="#EFF6FF"
+                        IsVisible="{Binding IsDesktopOnly}">
+                    <StackPanel>
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <TextBlock Text="&#x2395;" FontSize="20"/>
+                            <TextBlock Text="Desktop-Only Section" FontWeight="Bold" FontSize="16"/>
+                        </StackPanel>
+                        <TextBlock Text="This section is only visible on screens wider than 1024px." 
+                                   Foreground="#1E40AF" Margin="0,8,0,0"/>
+                        <TextBlock Text="Resize the window narrower to see it disappear."
+                                   Foreground="#3B82F6" FontSize="13"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Mobile-only section (visible when width < 600px) -->
+                <Border Classes="card" 
+                        Padding="20" 
+                        Margin="0,24,0,0"
+                        Background="#FEF3C7"
+                        IsVisible="{Binding IsMobileOnly}">
+                    <StackPanel>
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <TextBlock Text="&#x260E;" FontSize="20"/>
+                            <TextBlock Text="Mobile-Only Section" FontWeight="Bold" FontSize="16"/>
+                        </StackPanel>
+                        <TextBlock Text="This section is only visible on screens narrower than 600px." 
+                                   Foreground="#92400E" Margin="0,8,0,0"/>
+                        <TextBlock Text="Make the window very narrow to see this appear."
+                                   Foreground="#B45309" FontSize="13"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Instructions Card -->
+                <Border Classes="card" 
+                        Padding="20" 
+                        Margin="0,24,0,0"
+                        Background="#F0FDF4">
+                    <StackPanel>
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <TextBlock Text="&#x2139;" FontSize="20"/>
+                            <TextBlock Text="How to Test Responsiveness" FontWeight="Bold" FontSize="16"/>
+                        </StackPanel>
+                        <StackPanel Margin="0,12,0,0" Spacing="6">
+                            <TextBlock Text="&#x2022; Resize the window width to see the sidebar collapse/expand at 800px" Foreground="#166534"/>
+                            <TextBlock Text="&#x2022; Watch the cards wrap to new lines as width decreases" Foreground="#166534"/>
+                            <TextBlock Text="&#x2022; See the form layout change from horizontal to vertical at 600px" Foreground="#166534"/>
+                            <TextBlock Text="&#x2022; Desktop section disappears below 1024px" Foreground="#166534"/>
+                            <TextBlock Text="&#x2022; Mobile section appears below 600px" Foreground="#166534"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <!-- Bottom padding -->
+                <Border Height="32"/>
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</UserControl>

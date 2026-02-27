@@ -23,7 +23,7 @@ public sealed class TokenAuthenticationHandler : DelegatingHandler
         _tokenStorage = tokenStorage;
         _logger = logger;
     }
-
+    
     protected override async Task<HttpResponseMessage> SendAsync(
         HttpRequestMessage request,
         CancellationToken cancellationToken)

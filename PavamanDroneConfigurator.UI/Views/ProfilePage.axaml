@@ -76,96 +76,19 @@
                 </StackPanel>
             </Border>
 
-            <!-- CONFIGURATION PROFILES CARD -->
-            <Border Classes="card">
-                <StackPanel Spacing="20">
-                    <Grid ColumnDefinitions="*,Auto">
-                        <StackPanel Grid.Column="0" Spacing="4">
-                            <TextBlock Text="Configuration Profiles" Classes="section-title" Margin="0"/>
-                            <TextBlock Text="Save and load drone configuration profiles" Classes="caption"/>
-                        </StackPanel>
-                        <Button Grid.Column="1"
-                                Content="Refresh"
-                                Classes="btn-secondary"
-                                Padding="16,10"
-                                Command="{Binding LoadProfilesCommand}"/>
-                    </Grid>
-                    
-                    <!-- Status Message -->
-                    <Border Classes="alert-info" IsVisible="{Binding StatusMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
-                        <TextBlock Text="{Binding StatusMessage}" 
-                                   FontSize="{DynamicResource FontSizeBase}"
-                                   Foreground="{DynamicResource TextSecondaryBrush}"/>
-                    </Border>
-                    
-                    <!-- Empty State -->
-                    <Border Background="{DynamicResource SecondaryLightBrush}"
-                            CornerRadius="{DynamicResource RadiusBase}"
-                            Padding="32"
-                            HorizontalAlignment="Stretch">
-                        <StackPanel Spacing="12" HorizontalAlignment="Center">
-                            <Border Width="48" Height="48" 
-                                    CornerRadius="24" 
-                                    Background="{DynamicResource PrimaryLightBrush}"
-                                    HorizontalAlignment="Center">
-                                <TextBlock Text="-" 
-                                           FontSize="24" 
-                                           FontWeight="Bold"
-                                           Foreground="{DynamicResource PrimaryBrush}"
-                                           HorizontalAlignment="Center" 
-                                           VerticalAlignment="Center"/>
-                            </Border>
-                            <TextBlock Text="No profiles found" 
-                                       FontSize="{DynamicResource FontSizeMD}"
-                                       FontWeight="SemiBold"
-                                       Foreground="{DynamicResource TextSecondaryBrush}"
-                                       HorizontalAlignment="Center"/>
-                            <TextBlock Text="Connect to a drone to save configuration profiles" 
-                                       FontSize="{DynamicResource FontSizeSM}"
-                                       Foreground="{DynamicResource TextMutedBrush}"
-                                       HorizontalAlignment="Center"/>
-                        </StackPanel>
-                    </Border>
-                </StackPanel>
-            </Border>
-
             <!-- APPLICATION SETTINGS CARD -->
             <Border Classes="card">
                 <StackPanel Spacing="16">
                     <TextBlock Text="Application Settings" Classes="section-title"/>
                     
-                    <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto" RowSpacing="16">
-                        <!-- Theme Setting -->
-                        <StackPanel Grid.Row="0" Grid.Column="0" Spacing="2">
-                            <TextBlock Text="Theme" Classes="body" FontWeight="SemiBold"/>
-                            <TextBlock Text="Choose your preferred color theme" Classes="caption"/>
-                        </StackPanel>
-                        <ComboBox Grid.Row="0" Grid.Column="1" 
-                                  Classes="input"
-                                  Width="160"
-                                  SelectedIndex="0">
-                            <ComboBoxItem>Light</ComboBoxItem>
-                            <ComboBoxItem>Dark</ComboBoxItem>
-                            <ComboBoxItem>System</ComboBoxItem>
-                        </ComboBox>
-                        
+                    <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto" RowSpacing="16">
                         <!-- Auto-connect Setting -->
-                        <StackPanel Grid.Row="1" Grid.Column="0" Spacing="2">
+                        <StackPanel Grid.Row="0" Grid.Column="0" Spacing="2">
                             <TextBlock Text="Auto-connect" Classes="body" FontWeight="SemiBold"/>
                             <TextBlock Text="Automatically connect to last used drone" Classes="caption"/>
                         </StackPanel>
-                        <ToggleSwitch Grid.Row="1" Grid.Column="1" 
+                        <ToggleSwitch Grid.Row="0" Grid.Column="1" 
                                       IsChecked="{Binding EnableAutoConnect}"
-                                      OnContent="On" 
-                                      OffContent="Off"/>
-                        
-                        <!-- Telemetry Logging -->
-                        <StackPanel Grid.Row="2" Grid.Column="0" Spacing="2">
-                            <TextBlock Text="Telemetry Logging" Classes="body" FontWeight="SemiBold"/>
-                            <TextBlock Text="Save telemetry data for analysis" Classes="caption"/>
-                        </StackPanel>
-                        <ToggleSwitch Grid.Row="2" Grid.Column="1" 
-                                      IsChecked="{Binding EnableTelemetryLogging}"
                                       OnContent="On" 
                                       OffContent="Off"/>
                     </Grid>
