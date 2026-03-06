@@ -111,12 +111,18 @@ public class CalibrationService : ICalibrationService
             var lower = e.Text.ToLowerInvariant();
             
             // Check for successful calibration completion
-            // Barometer: "Barometer calibration complete" or "Updating barometer calibration"
-            // Level: "Level calibration complete" or similar
+            // ArduPilot sends various messages depending on version and calibration type:
+            // Barometer: "Barometer calibration complete", "Updating barometer calibration", "Ground pressure calibration"
+            // Level: "Level calibration complete", "Calibration successful"
+            // Gyro: "Gyro calibration complete"
             if (lower.Contains("calibration successful") || 
                 lower.Contains("calibration complete") ||
+                lower.Contains("calibration done") ||
                 lower.Contains("updating barometer calibration") ||
-                lower.Contains("baro calibration complete"))
+                lower.Contains("baro calibration complete") ||
+                lower.Contains("ground pressure calibrated") ||
+                lower.Contains("level complete") ||
+                lower.Contains("trim saved"))
             {
                 _logger.LogInformation("[CalibService] Calibration SUCCESS detected via STATUSTEXT: {Text}", e.Text);
                 _isCalibrating = false;
@@ -205,7 +211,25 @@ public class CalibrationService : ICalibrationService
                             Progress = 0
                         });
                     }
-                    // For Level and Barometer calibration, success ACK means calibration is proceeding
+                    else if (_activeCalibrationType == CalibrationType.Barometer ||
+                             _activeCalibrationType == CalibrationType.Level ||
+                             _activeCalibrationType == CalibrationType.Gyroscope)
+                    {
+                        // For barometer, level, and gyroscope calibration, COMMAND_ACK result=0 
+                        // means the calibration completed successfully. ArduPilot may not send 
+                        // a separate STATUSTEXT for these simple calibrations.
+                        _logger.LogInformation("[CalibService] Simple calibration completed via COMMAND_ACK for {Type}", 
+                            _activeCalibrationType);
+                        _isCalibrating = false;
+                        UpdateState(new CalibrationStateModel
+                        {
+                            Type = _activeCalibrationType,
+                            State = CalibrationState.Completed,
+                            Progress = 100,
+                            Message = $"{_activeCalibrationType} calibration completed successfully"
+                        });
+                    }
+                    // For other calibration types, success ACK means calibration is proceeding
                     // The actual completion will come via STATUSTEXT messages
                 }
                 else
@@ -604,19 +628,8 @@ public class CalibrationService : ICalibrationService
 
         _logger.LogInformation("[AccelCal] Starting full 6-position accelerometer calibration (GCS-driven)");
 
-        // Disable arming checks for bench testing
-        try
-        {
-            await _parameterService.SetParameterAsync("ARMING_CHECK", 0);
-            await Task.Delay(100);
-            await _parameterService.SetParameterAsync("BRD_SAFETY_DEFLT", 0);
-            await Task.Delay(100);
-            _logger.LogInformation("[AccelCal] Arming checks disabled successfully");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "[AccelCal] Failed to disable arming checks - continuing anyway");
-        }
+        // Reset any stale state from previously interrupted calibrations
+        ResetStaleCalibrationState();
 
         // Reset state for GCS-driven sequence
         _currentPositionIndex = 0;
@@ -672,6 +685,7 @@ public class CalibrationService : ICalibrationService
     {
         if (!_connectionService.IsConnected) return Task.FromResult(false);
         
+        ResetStaleCalibrationState();
         _activeCalibrationType = CalibrationType.Gyroscope;
         _isCalibrating = true;
         
@@ -690,6 +704,7 @@ public class CalibrationService : ICalibrationService
     {
         if (!_connectionService.IsConnected) return Task.FromResult(false);
         
+        ResetStaleCalibrationState();
         _activeCalibrationType = CalibrationType.Level;
         _isCalibrating = true;
         
@@ -715,6 +730,7 @@ public class CalibrationService : ICalibrationService
     {
         if (!_connectionService.IsConnected) return Task.FromResult(false);
         
+        ResetStaleCalibrationState();
         _activeCalibrationType = CalibrationType.Barometer;
         _isCalibrating = true;
         
@@ -740,6 +756,7 @@ public class CalibrationService : ICalibrationService
     {
         if (!_connectionService.IsConnected) return Task.FromResult(false);
         
+        ResetStaleCalibrationState();
         _activeCalibrationType = CalibrationType.Airspeed;
         _isCalibrating = true;
         
@@ -766,6 +783,32 @@ public class CalibrationService : ICalibrationService
     #endregion
 
     #region Helpers
+
+    /// <summary>
+    /// Resets stale calibration flags from any previously interrupted calibration.
+    /// Must be called at the start of each new calibration to prevent state leakage.
+    /// Without this, a previously interrupted accel calibration would leave _inAccelCalibrate=true,
+    /// causing STATUSTEXT messages for subsequent calibrations to be routed to the wrong handler.
+    /// </summary>
+    private void ResetStaleCalibrationState()
+    {
+        if (_inAccelCalibrate)
+        {
+            _logger.LogInformation("[CalibService] Resetting stale accel calibration state");
+            _inAccelCalibrate = false;
+            _currentPositionIndex = 0;
+            _completedPositions.Clear();
+            _waitingForUserConfirmation = false;
+            _waitingForFcAck = false;
+        }
+
+        if (_inCompassCalibrate)
+        {
+            _logger.LogInformation("[CalibService] Resetting stale compass calibration state");
+            _inCompassCalibrate = false;
+            StopCompassUiTimer();
+        }
+    }
 
     private void CompleteAccelCalibration(bool success, string message)
     {
@@ -992,7 +1035,10 @@ public class CalibrationService : ICalibrationService
         _logger.LogInformation("[CompassCal] Starting onboard compass calibration: mask={Mask} retry={Retry} autosave={Autosave}",
             magMask, retryOnFailure, autosave);
 
-        // Reset state
+        // Reset any stale calibration state from previously interrupted calibrations
+        ResetStaleCalibrationState();
+
+        // Reset compass state
         lock (_compassLock)
         {
             _compassCalState = new CompassCalibrationStateModel
@@ -1006,7 +1052,11 @@ public class CalibrationService : ICalibrationService
             _compassCalState.CompassProgress[2] = 0;
         }
 
+        // Set flags BEFORE sending command to avoid race condition where
+        // FC's COMMAND_ACK arrives before flags are set
         _activeCalibrationType = CalibrationType.Compass;
+        _inCompassCalibrate = true;
+        _isCalibrating = true;
         NotifyCompassStateChanged();
 
         try
@@ -1021,10 +1071,6 @@ public class CalibrationService : ICalibrationService
                 0,  // no delay
                 0   // no autoreboot
             );
-
-            // Mark as calibrating - the FC will send progress messages
-            _inCompassCalibrate = true;
-            _isCalibrating = true;
 
             // Start UI update timer (like MissionPlanner's timer1)
             StartCompassUiTimer();
