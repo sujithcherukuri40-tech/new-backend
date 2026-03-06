@@ -807,6 +807,10 @@ public class CalibrationService : ICalibrationService
             _logger.LogInformation("[CalibService] Resetting stale compass calibration state");
             _inCompassCalibrate = false;
             StopCompassUiTimer();
+            lock (_compassLock)
+            {
+                _compassCalState = new CompassCalibrationStateModel();
+            }
         }
     }
 
