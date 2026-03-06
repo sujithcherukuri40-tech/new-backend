@@ -53,6 +53,12 @@ public interface IConnectionService
     void SendPreflightCalibration(int gyro, int mag, int groundPressure, int airspeed, int accel);
     
     /// <summary>
+    /// Send MAV_CMD_PREFLIGHT_CALIBRATION and await the COMMAND_ACK from the FC.
+    /// Use this for calibrations (like level horizon) that need to confirm the command was accepted.
+    /// </summary>
+    Task SendPreflightCalibrationAsync(int gyro, int mag, int groundPressure, int airspeed, int accel);
+    
+    /// <summary>
     /// Cancel any ongoing preflight calibration by sending MAV_CMD_PREFLIGHT_CALIBRATION with all zeros.
     /// This is the standard way to abort calibration in ArduPilot.
     /// </summary>
