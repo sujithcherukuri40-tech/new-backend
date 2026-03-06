@@ -215,14 +215,39 @@ public class CalibrationService : ICalibrationService
                             Progress = 0
                         });
                     }
-                    // For barometer, level, gyroscope and other calibration types,
+                    else if (_activeCalibrationType == CalibrationType.Level)
+                    {
+                        // Level horizon calibration is a fast, synchronous operation on the FC.
+                        // ArduPilot performs the calibration before sending the COMMAND_ACK,
+                        // so result=0 means the calibration is DONE (not just accepted).
+                        // Some firmware versions don't send a separate STATUSTEXT for level,
+                        // which would leave the calibration stuck in "InProgress" forever.
+                        _logger.LogInformation("[CalibService] Level calibration COMPLETED via COMMAND_ACK");
+                        _isCalibrating = false;
+                        UpdateState(new CalibrationStateModel
+                        {
+                            Type = CalibrationType.Level,
+                            State = CalibrationState.Completed,
+                            Progress = 100,
+                            Message = "Level calibration complete"
+                        });
+                    }
+                    // For barometer, gyroscope and other calibration types,
                     // COMMAND_ACK result=0 (MAV_RESULT_ACCEPTED) only means the FC accepted
                     // the command — not that the calibration is complete. The actual completion
                     // is signalled via STATUSTEXT messages (e.g. "Calibration successful").
                     // Keep _isCalibrating = true so OnStatusTextReceived can detect completion.
                 }
+                else if (e.Result == 5) // MAV_RESULT_IN_PROGRESS
+                {
+                    // IN_PROGRESS means the FC accepted the command and calibration is running.
+                    // This is NOT a failure — keep _isCalibrating = true and wait for completion
+                    // via STATUSTEXT or a subsequent COMMAND_ACK.
+                    _logger.LogInformation("[CalibService] PREFLIGHT_CALIBRATION IN_PROGRESS for {Type}", _activeCalibrationType);
+                }
                 else
                 {
+<<<<<<< HEAD
                     // Check for MAV_RESULT_IN_PROGRESS (5) - this is not a failure, just means calibration is ongoing
                     // ArduPilot may send result=5 while calibration is in progress
                     if (e.Result == 5)
@@ -232,6 +257,8 @@ public class CalibrationService : ICalibrationService
                         return;
                     }
                     
+=======
+>>>>>>> f10789228278e7249e4e7b7304ce5529b07643b6
                     // For accelerometer calibration, a rejected ACK is a hard failure
                     if (_inAccelCalibrate)
                     {
@@ -251,7 +278,11 @@ public class CalibrationService : ICalibrationService
                     }
                     else
                     {
+<<<<<<< HEAD
                         // For level/baro/gyro calibration, treat rejection as failure
+=======
+                        // For all non-accel calibration types, treat rejection as failure.
+>>>>>>> f10789228278e7249e4e7b7304ce5529b07643b6
                         _logger.LogWarning("[CalibService] PREFLIGHT_CALIBRATION REJECTED for {Type}: result={Result}", 
                             _activeCalibrationType, e.Result);
                         
@@ -676,9 +707,9 @@ public class CalibrationService : ICalibrationService
         return Task.FromResult(true);
     }
 
-    public Task<bool> StartLevelHorizonCalibrationAsync()
+    public async Task<bool> StartLevelHorizonCalibrationAsync()
     {
-        if (!_connectionService.IsConnected) return Task.FromResult(false);
+        if (!_connectionService.IsConnected) return false;
         
         ResetStaleCalibrationState();
         _activeCalibrationType = CalibrationType.Level;
@@ -695,11 +726,27 @@ public class CalibrationService : ICalibrationService
         
         // MAV_CMD_PREFLIGHT_CALIBRATION with param5=2 triggers level horizon calibration
         // As per MissionPlanner: param1=0, param2=0, param3=0, param4=0, param5=2, param6=0, param7=0
-        _connectionService.SendPreflightCalibration(0, 0, 0, 0, 2);
-        
-        // The calibration result will be received via STATUSTEXT or COMMAND_ACK
-        // OnStatusTextReceived and OnCommandAckReceived will handle the completion
-        return Task.FromResult(true);
+        // Level calibration must use the async path (SendCommandLongAsync) to properly
+        // await the COMMAND_ACK. The ACK result=0 signals completion since level is
+        // a fast, synchronous operation on the FC.
+        try
+        {
+            await _connectionService.SendPreflightCalibrationAsync(0, 0, 0, 0, 2);
+            // COMMAND_ACK handling (including completion) is done in OnCommandAckReceived
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "[CalibService] Failed to send level horizon calibration command");
+            _isCalibrating = false;
+            UpdateState(new CalibrationStateModel
+            {
+                Type = CalibrationType.Level,
+                State = CalibrationState.Failed,
+                Message = $"Failed to send calibration command: {ex.Message}"
+            });
+            return false;
+        }
     }
 
     public Task<bool> StartBarometerCalibrationAsync()
@@ -1202,14 +1249,3 @@ public class CalibrationService : ICalibrationService
                 State = _compassCalState.State,
                 Message = _compassCalState.Message,
                 // Use same dictionary references for speed when not modified
-                CompassProgress = new Dictionary<byte, int>(_compassCalState.CompassProgress),
-                CompassReports = new Dictionary<byte, MagCalReportData>(_compassCalState.CompassReports)
-            };
-        }
-        
-        // Fire event on background thread - let ViewModel handle UI thread dispatch
-        CompassCalibrationStateChanged?.Invoke(this, state);
-    }
-
-    #endregion
-}

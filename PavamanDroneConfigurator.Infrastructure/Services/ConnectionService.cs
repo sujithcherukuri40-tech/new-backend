@@ -974,6 +974,23 @@ public sealed class ConnectionService : IConnectionService, IDisposable
         _ = _mavlink.SendPreflightCalibrationAsync(gyro, mag, groundPressure, airspeed, accel);
     }
 
+    public async Task SendPreflightCalibrationAsync(int gyro, int mag, int groundPressure, int airspeed, int accel)
+    {
+        if (_currentConnectionType == ConnectionType.Bluetooth && _bluetoothConnection != null)
+        {
+            await _bluetoothConnection.SendPreflightCalibrationAsync(gyro, mag, groundPressure, airspeed, accel);
+            return;
+        }
+
+        if (_mavlink == null)
+        {
+            _logger.LogWarning("Cannot send MAV_CMD_PREFLIGHT_CALIBRATION - not connected");
+            throw new InvalidOperationException("Not connected");
+        }
+
+        await _mavlink.SendPreflightCalibrationAsync(gyro, mag, groundPressure, airspeed, accel);
+    }
+
     public void SendCancelPreflightCalibration()
     {
         _logger.LogInformation("Sending cancel preflight calibration command");
