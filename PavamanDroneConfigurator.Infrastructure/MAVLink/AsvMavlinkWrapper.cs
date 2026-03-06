@@ -932,9 +932,14 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
             _mavLinkLogger?.LogOutgoing("COMMAND_LONG",
                 $"cmd=MAV_CMD_PREFLIGHT_CALIBRATION(241), param1(gyro)={gyro}, param2(mag)={mag}, param3(baro)={groundPressure}, param4(airspeed)={airspeed}, param5(accel)={accel}");
 
-            if (accel >= 1)
+            // Only full 6-axis accelerometer calibration (param5=1) uses fire-and-forget
+            // because it is a multi-step process where the FC drives the flow via
+            // STATUSTEXT and COMMAND_LONG messages. Level horizon (param5=2) and other
+            // simple calibrations must use SendCommandLongAsync so they get retries and
+            // the COMMAND_ACK is properly awaited.
+            if (accel == 1)
             {
-                _logger.LogInformation("[PREFLIGHT_CAL] Accel calibration - sending fire-and-forget (per MissionPlanner)");
+                _logger.LogInformation("[PREFLIGHT_CAL] Full 6-axis accel calibration - sending fire-and-forget (per MissionPlanner)");
                 await SendCommandLongFireAndForgetAsync(MAV_CMD_PREFLIGHT_CALIBRATION,
                     gyro, mag, groundPressure, airspeed, accel, 0, 0, ct);
                 return;
@@ -1090,13 +1095,8 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
             _mavLinkLogger?.LogOutgoing("COMMAND_LONG",
                 $"cmd=MAV_CMD_DO_START_MAG_CAL(42424), param1(mask)={magMask}, param2(retry)={retryOnFailure}, param3(autosave)={autosave}, param4(delay)={delay}, param5(autoreboot)={autoreboot}");
 
-            // Use fire-and-forget similar to accelerometer calibration
-            // The FC will send MAG_CAL_PROGRESS and MAG_CAL_REPORT messages
-            // Using SendCommandLongAsync can cause timeout issues if FC is slow to ACK
-            await SendCommandLongFireAndForgetAsync(MAV_CMD_DO_START_MAG_CAL,
+            return await SendCommandLongAsync(MAV_CMD_DO_START_MAG_CAL,
                 magMask, retryOnFailure, autosave, delay, autoreboot, 0, 0, ct);
-
-            return CommandResult.Accepted;
         }
 
         public async Task<CommandResult> SendAcceptMagCalAsync(int magMask = 0, CancellationToken ct = default)
