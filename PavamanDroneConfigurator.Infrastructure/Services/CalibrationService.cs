@@ -113,7 +113,7 @@ public class CalibrationService : ICalibrationService
             // Check for successful calibration completion
             // ArduPilot sends various messages depending on version and calibration type:
             // Barometer: "Barometer calibration complete", "Updating barometer calibration", "Ground pressure calibration"
-            // Level: "Level calibration complete", "Calibration successful"
+            // Level: "Level calibration complete", "Calibration successful", "level complete", "AHRS: trim saved"
             // Gyro: "Gyro calibration complete"
             if (lower.Contains("calibration successful") || 
                 lower.Contains("calibration complete") ||
@@ -122,7 +122,11 @@ public class CalibrationService : ICalibrationService
                 lower.Contains("baro calibration complete") ||
                 lower.Contains("ground pressure calibrated") ||
                 lower.Contains("level complete") ||
-                lower.Contains("trim saved"))
+                lower.Contains("trim saved") ||
+                lower.Contains("ins: level") ||  // ArduPilot 4.x sends "INS: Level" for level horizon cal
+                lower.Contains("calibration ok") ||
+                lower.Contains("ahrs trim saved") ||
+                lower.Contains("simple accel cal")) // Simple accelerometer cal complete
             {
                 _logger.LogInformation("[CalibService] Calibration SUCCESS detected via STATUSTEXT: {Text}", e.Text);
                 _isCalibrating = false;
@@ -219,11 +223,16 @@ public class CalibrationService : ICalibrationService
                 }
                 else
                 {
-                    // For accelerometer calibration, a rejected ACK is a hard failure
-                    // For barometer and level calibration, result != 0 might not mean failure
-                    // ArduPilot may send result=5 (MAV_RESULT_IN_PROGRESS) which means it's working
-                    // The actual result comes via STATUSTEXT messages
+                    // Check for MAV_RESULT_IN_PROGRESS (5) - this is not a failure, just means calibration is ongoing
+                    // ArduPilot may send result=5 while calibration is in progress
+                    if (e.Result == 5)
+                    {
+                        _logger.LogInformation("[CalibService] PREFLIGHT_CALIBRATION IN_PROGRESS (result=5) - calibration is ongoing");
+                        // Don't treat IN_PROGRESS as failure - just keep waiting for STATUSTEXT
+                        return;
+                    }
                     
+                    // For accelerometer calibration, a rejected ACK is a hard failure
                     if (_inAccelCalibrate)
                     {
                         _logger.LogWarning("[CalibService] PREFLIGHT_CALIBRATION REJECTED for accel: result={Result}", e.Result);
@@ -242,9 +251,7 @@ public class CalibrationService : ICalibrationService
                     }
                     else
                     {
-                        // For all non-accel calibration types, treat rejection as failure.
-                        // This matches the original behavior that relied on STATUSTEXT for
-                        // completion and only used COMMAND_ACK to detect rejection.
+                        // For level/baro/gyro calibration, treat rejection as failure
                         _logger.LogWarning("[CalibService] PREFLIGHT_CALIBRATION REJECTED for {Type}: result={Result}", 
                             _activeCalibrationType, e.Result);
                         
