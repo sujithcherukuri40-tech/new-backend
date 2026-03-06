@@ -211,26 +211,11 @@ public class CalibrationService : ICalibrationService
                             Progress = 0
                         });
                     }
-                    else if (_activeCalibrationType == CalibrationType.Barometer ||
-                             _activeCalibrationType == CalibrationType.Level ||
-                             _activeCalibrationType == CalibrationType.Gyroscope)
-                    {
-                        // For barometer, level, and gyroscope calibration, COMMAND_ACK result=0 
-                        // means the calibration completed successfully. ArduPilot may not send 
-                        // a separate STATUSTEXT for these simple calibrations.
-                        _logger.LogInformation("[CalibService] Simple calibration completed via COMMAND_ACK for {Type}", 
-                            _activeCalibrationType);
-                        _isCalibrating = false;
-                        UpdateState(new CalibrationStateModel
-                        {
-                            Type = _activeCalibrationType,
-                            State = CalibrationState.Completed,
-                            Progress = 100,
-                            Message = $"{_activeCalibrationType} calibration completed successfully"
-                        });
-                    }
-                    // For other calibration types, success ACK means calibration is proceeding
-                    // The actual completion will come via STATUSTEXT messages
+                    // For barometer, level, gyroscope and other calibration types,
+                    // COMMAND_ACK result=0 (MAV_RESULT_ACCEPTED) only means the FC accepted
+                    // the command — not that the calibration is complete. The actual completion
+                    // is signalled via STATUSTEXT messages (e.g. "Calibration successful").
+                    // Keep _isCalibrating = true so OnStatusTextReceived can detect completion.
                 }
                 else
                 {
@@ -255,27 +240,11 @@ public class CalibrationService : ICalibrationService
                             CanConfirmPosition = false
                         });
                     }
-                    else if (_activeCalibrationType == CalibrationType.Barometer || 
-                             _activeCalibrationType == CalibrationType.Level)
-                    {
-                        // For barometer and level calibrations, don't treat non-zero result as failure
-                        // Result 5 = MAV_RESULT_IN_PROGRESS means calibration is running
-                        // Wait for STATUSTEXT messages for the actual result
-                        if (e.Result == 5) // MAV_RESULT_IN_PROGRESS
-                        {
-                            _logger.LogInformation("[CalibService] PREFLIGHT_CALIBRATION in progress (result=5) for {Type}", 
-                                _activeCalibrationType);
-                        }
-                        else
-                        {
-                            _logger.LogWarning("[CalibService] PREFLIGHT_CALIBRATION result={Result} for {Type} - waiting for STATUSTEXT", 
-                                e.Result, _activeCalibrationType);
-                        }
-                        // Don't fail here - wait for STATUSTEXT messages to confirm success/failure
-                    }
                     else
                     {
-                        // For other calibration types (gyro, airspeed), treat rejection as failure
+                        // For all non-accel calibration types, treat rejection as failure.
+                        // This matches the original behavior that relied on STATUSTEXT for
+                        // completion and only used COMMAND_ACK to detect rejection.
                         _logger.LogWarning("[CalibService] PREFLIGHT_CALIBRATION REJECTED for {Type}: result={Result}", 
                             _activeCalibrationType, e.Result);
                         
@@ -1066,8 +1035,8 @@ public class CalibrationService : ICalibrationService
         try
         {
             // Send MAV_CMD_DO_START_MAG_CAL
-            // Note: This call uses fire-and-forget style - we don't wait for ACK here
-            // The FC will send MAG_CAL_PROGRESS messages when calibration starts
+            // Uses SendCommandLongAsync which waits for COMMAND_ACK with retries.
+            // The FC will then send MAG_CAL_PROGRESS and MAG_CAL_REPORT messages.
             await _connectionService.SendStartMagCalAsync(
                 magMask,
                 retryOnFailure ? 1 : 0,
