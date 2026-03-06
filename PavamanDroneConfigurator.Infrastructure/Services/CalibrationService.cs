@@ -21,7 +21,7 @@ public class CalibrationService : ICalibrationService
     private readonly ILogger<CalibrationService> _logger;
     private readonly IConnectionService _connectionService;
     private readonly IParameterService _parameterService;
-    
+
     // State machine variables
     private CalibrationStateModel? _currentState;
     private CalibrationDiagnostics? _currentDiagnostics;
@@ -109,13 +109,14 @@ public class CalibrationService : ICalibrationService
         if (_isCalibrating)
         {
             var lower = e.Text.ToLowerInvariant();
-            
+
             // Check for successful calibration completion
             // ArduPilot sends various messages depending on version and calibration type:
             // Barometer: "Barometer calibration complete", "Updating barometer calibration", "Ground pressure calibration"
+            // Level: "Level calibration complete", "Calibration successful"
             // Level: "Level calibration complete", "Calibration successful", "level complete", "AHRS: trim saved"
             // Gyro: "Gyro calibration complete"
-            if (lower.Contains("calibration successful") || 
+            if (lower.Contains("calibration successful") ||
                 lower.Contains("calibration complete") ||
                 lower.Contains("calibration done") ||
                 lower.Contains("updating barometer calibration") ||
@@ -202,7 +203,7 @@ public class CalibrationService : ICalibrationService
                 if (e.IsSuccess)
                 {
                     _logger.LogInformation("[CalibService] PREFLIGHT_CALIBRATION ACCEPTED by FC");
-                    
+
                     if (_inAccelCalibrate)
                     {
                         UpdateState(new CalibrationStateModel
@@ -215,6 +216,7 @@ public class CalibrationService : ICalibrationService
                             Progress = 0
                         });
                     }
+                    // For barometer, level, gyroscope and other calibration types,
                     else if (_activeCalibrationType == CalibrationType.Level)
                     {
                         // Level horizon calibration is a fast, synchronous operation on the FC.
@@ -247,26 +249,18 @@ public class CalibrationService : ICalibrationService
                 }
                 else
                 {
-<<<<<<< HEAD
-                    // Check for MAV_RESULT_IN_PROGRESS (5) - this is not a failure, just means calibration is ongoing
-                    // ArduPilot may send result=5 while calibration is in progress
-                    if (e.Result == 5)
-                    {
-                        _logger.LogInformation("[CalibService] PREFLIGHT_CALIBRATION IN_PROGRESS (result=5) - calibration is ongoing");
-                        // Don't treat IN_PROGRESS as failure - just keep waiting for STATUSTEXT
-                        return;
-                    }
-                    
-=======
->>>>>>> f10789228278e7249e4e7b7304ce5529b07643b6
-                    // For accelerometer calibration, a rejected ACK is a hard failure
+                    // For accelerometer calibration, a rejected ACK is a hard failure.
+                    // For barometer and level calibration, result != 0 might not mean failure;
+                    // ArduPilot may send result=5 (MAV_RESULT_IN_PROGRESS) which means it's working.
+                    // The actual result comes via STATUSTEXT messages.
+
                     if (_inAccelCalibrate)
                     {
                         _logger.LogWarning("[CalibService] PREFLIGHT_CALIBRATION REJECTED for accel: result={Result}", e.Result);
-                        
+
                         _isCalibrating = false;
                         _inAccelCalibrate = false;
-                        
+
                         UpdateState(new CalibrationStateModel
                         {
                             Type = CalibrationType.Accelerometer,
@@ -278,16 +272,14 @@ public class CalibrationService : ICalibrationService
                     }
                     else
                     {
-<<<<<<< HEAD
-                        // For level/baro/gyro calibration, treat rejection as failure
-=======
                         // For all non-accel calibration types, treat rejection as failure.
->>>>>>> f10789228278e7249e4e7b7304ce5529b07643b6
-                        _logger.LogWarning("[CalibService] PREFLIGHT_CALIBRATION REJECTED for {Type}: result={Result}", 
+                        // This matches the original behavior that relied on STATUSTEXT for
+                        // completion and only used COMMAND_ACK to detect rejection.
+                        _logger.LogWarning("[CalibService] PREFLIGHT_CALIBRATION REJECTED for {Type}: result={Result}",
                             _activeCalibrationType, e.Result);
-                        
+
                         _isCalibrating = false;
-                        
+
                         UpdateState(new CalibrationStateModel
                         {
                             Type = _activeCalibrationType,
@@ -300,7 +292,7 @@ public class CalibrationService : ICalibrationService
                 }
                 return;
             }
-            
+
             // MAV_CMD_DO_START_MAG_CAL = 42424
             if (e.Command == 42424)
             {
@@ -329,7 +321,7 @@ public class CalibrationService : ICalibrationService
                 }
                 return;
             }
-            
+
             // MAV_CMD_DO_ACCEPT_MAG_CAL = 42425
             if (e.Command == 42425)
             {
@@ -345,7 +337,7 @@ public class CalibrationService : ICalibrationService
                 NotifyCompassStateChanged();
                 return;
             }
-            
+
             // MAV_CMD_DO_CANCEL_MAG_CAL = 42426
             if (e.Command == 42426)
             {
@@ -361,23 +353,23 @@ public class CalibrationService : ICalibrationService
                 NotifyCompassStateChanged();
                 return;
             }
-            
+
             // MAV_CMD_ACCELCAL_VEHICLE_POS = 42429
             if (e.Command == 42429 && _inAccelCalibrate && _waitingForFcAck)
             {
                 _waitingForFcAck = false;
-                
+
                 if (e.IsSuccess)
                 {
                     var completedPosition = PositionSequence[_currentPositionIndex];
                     _completedPositions.Add(completedPosition);
-                    
-                    _logger.LogInformation("[AccelCal] Position {Position} (index {Index}) ACK ACCEPTED. Completed: {Count}/6", 
+
+                    _logger.LogInformation("[AccelCal] Position {Position} (index {Index}) ACK ACCEPTED. Completed: {Count}/6",
                         completedPosition, _currentPositionIndex, _completedPositions.Count);
-                    
+
                     // Move to next position
                     _currentPositionIndex++;
-                    
+
                     if (_currentPositionIndex < 6)
                     {
                         // GCS DRIVES THE SEQUENCE: Prompt for next position immediately
@@ -404,9 +396,9 @@ public class CalibrationService : ICalibrationService
                 {
                     // Position REJECTED by FC - allow retry
                     var rejectedPosition = PositionSequence[_currentPositionIndex];
-                    _logger.LogWarning("[AccelCal] Position {Position} ACK REJECTED (result={Result}). Allow retry.", 
+                    _logger.LogWarning("[AccelCal] Position {Position} ACK REJECTED (result={Result}). Allow retry.",
                         rejectedPosition, e.Result);
-                    
+
                     // Stay on current position, re-prompt user
                     PromptForPosition(_currentPositionIndex, $"Position rejected (result: {e.Result}). Reposition and try again.");
                 }
@@ -416,14 +408,14 @@ public class CalibrationService : ICalibrationService
 
     private void OnCommandLongReceived(object? sender, CommandLongEventArgs e)
     {
-        _logger.LogInformation("[CalibService] COMMAND_LONG received: cmd={Command} param1={Param1}", 
+        _logger.LogInformation("[CalibService] COMMAND_LONG received: cmd={Command} param1={Param1}",
             e.Command, e.Param1);
-        
+
         // MAV_CMD_ACCELCAL_VEHICLE_POS = 42429 from FC (terminal states)
         if (e.Command == 42429 && _inAccelCalibrate)
         {
             var position = (AccelCalVehiclePosition)(int)e.Param1;
-            
+
             if (position == AccelCalVehiclePosition.Success)
             {
                 _logger.LogInformation("[AccelCal] FC sent SUCCESS via COMMAND_LONG");
@@ -458,8 +450,8 @@ public class CalibrationService : ICalibrationService
 
         var position = PositionSequence[positionIndex];
         var positionName = GetPositionName(position);
-        
-        _logger.LogInformation("[AccelCal] GCS prompting for position {Index}: {Position} ({Name})", 
+
+        _logger.LogInformation("[AccelCal] GCS prompting for position {Index}: {Position} ({Name})",
             positionIndex, position, positionName);
 
         _waitingForUserConfirmation = true;
@@ -516,14 +508,14 @@ public class CalibrationService : ICalibrationService
     public Task<bool> CancelCalibrationAsync()
     {
         _logger.LogInformation("[CalibService] Cancelling calibration");
-        
+
         // Send cancel command to the flight controller
         if (_connectionService.IsConnected)
         {
             _logger.LogInformation("[CalibService] Sending MAV_CMD_PREFLIGHT_CALIBRATION cancel to FC");
             _connectionService.SendCancelPreflightCalibration();
         }
-        
+
         // Also stop compass calibration if active
         if (_inCompassCalibrate)
         {
@@ -531,7 +523,7 @@ public class CalibrationService : ICalibrationService
             StopCompassUiTimer();
             _ = _connectionService.SendCancelMagCalAsync(0);
         }
-        
+
         // Reset all local state
         _isCalibrating = false;
         _inAccelCalibrate = false;
@@ -540,7 +532,7 @@ public class CalibrationService : ICalibrationService
         _completedPositions.Clear();
         _waitingForUserConfirmation = false;
         _waitingForFcAck = false;
-        
+
         // Reset compass state
         lock (_compassLock)
         {
@@ -550,7 +542,7 @@ public class CalibrationService : ICalibrationService
                 Message = "Calibration cancelled"
             };
         }
-        
+
         UpdateState(new CalibrationStateModel
         {
             Type = _activeCalibrationType,
@@ -559,7 +551,7 @@ public class CalibrationService : ICalibrationService
             Message = "Cancelled",
             CanConfirmPosition = false
         });
-        
+
         return Task.FromResult(true);
     }
 
@@ -595,8 +587,8 @@ public class CalibrationService : ICalibrationService
 
         var position = PositionSequence[_currentPositionIndex];
         int positionParam = (int)position; // 1-6 enum value
-        
-        _logger.LogInformation("[AccelCal] User confirmed position {Index}: {Position}, sending param1={Value}", 
+
+        _logger.LogInformation("[AccelCal] User confirmed position {Index}: {Position}, sending param1={Value}",
             _currentPositionIndex, position, positionParam);
 
         _waitingForUserConfirmation = false;
@@ -649,7 +641,7 @@ public class CalibrationService : ICalibrationService
 
         // Send MAV_CMD_PREFLIGHT_CALIBRATION
         int accelParam = fullSixAxis ? 1 : 4;
-        
+
         _logger.LogInformation("[AccelCal] Sending MAV_CMD_PREFLIGHT_CALIBRATION with param5={Accel}", accelParam);
         _connectionService.SendPreflightCalibration(0, 0, 0, 0, accelParam);
 
@@ -691,18 +683,18 @@ public class CalibrationService : ICalibrationService
     public Task<bool> StartGyroscopeCalibrationAsync()
     {
         if (!_connectionService.IsConnected) return Task.FromResult(false);
-        
+
         ResetStaleCalibrationState();
         _activeCalibrationType = CalibrationType.Gyroscope;
         _isCalibrating = true;
-        
-        UpdateState(new CalibrationStateModel 
-        { 
-            Type = CalibrationType.Gyroscope, 
-            State = CalibrationState.InProgress, 
-            Message = "Keep still - calibrating gyro..." 
+
+        UpdateState(new CalibrationStateModel
+        {
+            Type = CalibrationType.Gyroscope,
+            State = CalibrationState.InProgress,
+            Message = "Keep still - calibrating gyro..."
         });
-        
+
         _connectionService.SendPreflightCalibration(1, 0, 0, 0, 0);
         return Task.FromResult(true);
     }
@@ -710,25 +702,25 @@ public class CalibrationService : ICalibrationService
     public async Task<bool> StartLevelHorizonCalibrationAsync()
     {
         if (!_connectionService.IsConnected) return false;
-        
+
         ResetStaleCalibrationState();
         _activeCalibrationType = CalibrationType.Level;
         _isCalibrating = true;
-        
+
         _logger.LogInformation("[CalibService] Starting level horizon calibration (param5=2)");
-        
-        UpdateState(new CalibrationStateModel 
-        { 
-            Type = CalibrationType.Level, 
-            State = CalibrationState.InProgress, 
-            Message = "Level calibration in progress - keep vehicle level..." 
+
+        UpdateState(new CalibrationStateModel
+        {
+            Type = CalibrationType.Level,
+            State = CalibrationState.InProgress,
+            Message = "Level calibration in progress - keep vehicle level..."
         });
-        
-        // MAV_CMD_PREFLIGHT_CALIBRATION with param5=2 triggers level horizon calibration
-        // As per MissionPlanner: param1=0, param2=0, param3=0, param4=0, param5=2, param6=0, param7=0
-        // Level calibration must use the async path (SendCommandLongAsync) to properly
+
+        // Level calibration uses the async path (SendCommandLongAsync) to properly
         // await the COMMAND_ACK. The ACK result=0 signals completion since level is
         // a fast, synchronous operation on the FC.
+        // MAV_CMD_PREFLIGHT_CALIBRATION with param5=2 triggers level horizon calibration.
+        // As per MissionPlanner: param1=0, param2=0, param3=0, param4=0, param5=2, param6=0, param7=0
         try
         {
             await _connectionService.SendPreflightCalibrationAsync(0, 0, 0, 0, 2);
@@ -752,24 +744,24 @@ public class CalibrationService : ICalibrationService
     public Task<bool> StartBarometerCalibrationAsync()
     {
         if (!_connectionService.IsConnected) return Task.FromResult(false);
-        
+
         ResetStaleCalibrationState();
         _activeCalibrationType = CalibrationType.Barometer;
         _isCalibrating = true;
-        
+
         _logger.LogInformation("[CalibService] Starting barometer calibration (param3=1)");
-        
-        UpdateState(new CalibrationStateModel 
-        { 
-            Type = CalibrationType.Barometer, 
-            State = CalibrationState.InProgress, 
-            Message = "Barometer calibration in progress - keep vehicle still..." 
+
+        UpdateState(new CalibrationStateModel
+        {
+            Type = CalibrationType.Barometer,
+            State = CalibrationState.InProgress,
+            Message = "Barometer calibration in progress - keep vehicle still..."
         });
-        
+
         // MAV_CMD_PREFLIGHT_CALIBRATION with param3=1 triggers ground pressure/barometer calibration
         // As per MissionPlanner: param1=0 (or 1 for gyro), param2=0, param3=1, param4=0, param5=0, param6=0, param7=0
         _connectionService.SendPreflightCalibration(0, 0, 1, 0, 0);
-        
+
         // The calibration result will be received via STATUSTEXT or COMMAND_ACK
         // OnStatusTextReceived and OnCommandAckReceived will handle the completion
         return Task.FromResult(true);
@@ -778,18 +770,18 @@ public class CalibrationService : ICalibrationService
     public Task<bool> StartAirspeedCalibrationAsync()
     {
         if (!_connectionService.IsConnected) return Task.FromResult(false);
-        
+
         ResetStaleCalibrationState();
         _activeCalibrationType = CalibrationType.Airspeed;
         _isCalibrating = true;
-        
-        UpdateState(new CalibrationStateModel 
-        { 
-            Type = CalibrationType.Airspeed, 
-            State = CalibrationState.InProgress, 
-            Message = "Airspeed calibration in progress..." 
+
+        UpdateState(new CalibrationStateModel
+        {
+            Type = CalibrationType.Airspeed,
+            State = CalibrationState.InProgress,
+            Message = "Airspeed calibration in progress..."
         });
-        
+
         _connectionService.SendPreflightCalibration(0, 0, 0, 1, 0);
         return Task.FromResult(true);
     }
@@ -797,7 +789,7 @@ public class CalibrationService : ICalibrationService
     public Task<bool> RebootFlightControllerAsync()
     {
         if (!_connectionService.IsConnected) return Task.FromResult(false);
-        
+
         _logger.LogInformation("[CalibService] Sending reboot command");
         _connectionService.SendPreflightReboot(1, 0);
         return Task.FromResult(true);
@@ -863,13 +855,13 @@ public class CalibrationService : ICalibrationService
     {
         // Include completed positions for UI to show green indicators
         state.CompletedPositions = _completedPositions.Select(p => (int)p).ToList();
-        
+
         _currentState = state;
         _stateMachineState = state.StateMachine;
-        
+
         _logger.LogDebug("[CalibService] State update: Type={Type} State={State} SM={SM} Msg={Msg} Completed={Completed}",
             state.Type, state.State, state.StateMachine, state.Message, string.Join(",", state.CompletedPositions));
-        
+
         CalibrationStateChanged?.Invoke(this, state);
 
         CalibrationProgressChanged?.Invoke(this, new CalibrationProgressEventArgs
@@ -931,7 +923,7 @@ public class CalibrationService : ICalibrationService
         {
             // Update progress for this compass
             _compassCalState.CompassProgress[e.CompassId] = e.CompletionPct;
-            
+
             // Update overall state based on status
             var status = (MagCalStatus)e.CalStatus;
             if (status == MagCalStatus.RunningStepOne)
@@ -1155,13 +1147,13 @@ public class CalibrationService : ICalibrationService
         try
         {
             await _connectionService.SendAcceptMagCalAsync(0);
-            
+
             lock (_compassLock)
             {
                 _compassCalState.State = Core.Enums.CompassCalibrationState.Accepted;
                 _compassCalState.Message = "Calibration accepted. Please reboot the autopilot.";
             }
-            
+
             _inCompassCalibrate = false;
             _isCalibrating = false;
             StopCompassUiTimer();
@@ -1188,13 +1180,13 @@ public class CalibrationService : ICalibrationService
         try
         {
             await _connectionService.SendCancelMagCalAsync(0);
-            
+
             lock (_compassLock)
             {
                 _compassCalState.State = Core.Enums.CompassCalibrationState.Cancelled;
                 _compassCalState.Message = "Calibration cancelled";
             }
-            
+
             _inCompassCalibrate = false;
             _isCalibrating = false;
             StopCompassUiTimer();
@@ -1213,7 +1205,7 @@ public class CalibrationService : ICalibrationService
         StopCompassUiTimer();
         // Use 50ms interval for smoother UI updates (20 FPS)
         _compassUiTimer = new System.Timers.Timer(50);
-        _compassUiTimer.Elapsed += (_, _) => 
+        _compassUiTimer.Elapsed += (_, _) =>
         {
             // Only notify if calibration is active to reduce overhead
             if (_inCompassCalibrate)
@@ -1249,3 +1241,14 @@ public class CalibrationService : ICalibrationService
                 State = _compassCalState.State,
                 Message = _compassCalState.Message,
                 // Use same dictionary references for speed when not modified
+                CompassProgress = new Dictionary<byte, int>(_compassCalState.CompassProgress),
+                CompassReports = new Dictionary<byte, MagCalReportData>(_compassCalState.CompassReports)
+            };
+        }
+
+        // Fire event on background thread - let ViewModel handle UI thread dispatch
+        CompassCalibrationStateChanged?.Invoke(this, state);
+    }
+
+    #endregion
+}
