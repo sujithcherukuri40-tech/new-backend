@@ -965,7 +965,12 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
             _logger.LogInformation("Sending MAV_CMD_PREFLIGHT_REBOOT_SHUTDOWN: autopilot={Autopilot} companion={Companion}",
                 autopilot, companion);
 
-            await SendCommandLongAsync(MAV_CMD_PREFLIGHT_REBOOT_SHUTDOWN, autopilot, companion, 0, 0, 0, 0, 0, ct);
+            _mavLinkLogger?.LogOutgoing("COMMAND_LONG",
+                $"cmd=MAV_CMD_PREFLIGHT_REBOOT_SHUTDOWN(246), param1(autopilot)={autopilot}, param2(companion)={companion} [FIRE-AND-FORGET]");
+
+            // Use fire-and-forget since the drone will reboot immediately and cannot send ACK
+            // This ensures immediate reboot without waiting for a response that will never come
+            await SendCommandLongFireAndForgetAsync(MAV_CMD_PREFLIGHT_REBOOT_SHUTDOWN, autopilot, companion, 0, 0, 0, 0, 0, ct);
         }
 
         public async Task SendArmDisarmAsync(bool arm, bool force = false, CancellationToken ct = default)
@@ -1495,7 +1500,8 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
             if (FlightSwVersion > 0)
             {
                 var gitPrefix = FlightCustomVersion != null && FlightCustomVersion.Length >= 4
-                    ? BitConverter.ToString(FlightCustomVersion, 0, 4).Replace("-", "").ToUpperInvariant()
+                    ? BitConverter.ToString(FlightCustomVersion, 0, Math.Min(4, FlightCustomVersion.Length))
+                        .Replace("-", "").ToUpperInvariant()
                     : "0000";
                 
                 return $"FW-{FlightSwVersion:X8}-{gitPrefix}";

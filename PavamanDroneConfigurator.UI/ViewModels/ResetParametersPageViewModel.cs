@@ -235,7 +235,7 @@ public sealed partial class ResetParametersPageViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    private void RebootDrone()
+    private async Task RebootDroneAsync()
     {
         if (!IsConnected || IsRebooting)
             return;
@@ -243,11 +243,20 @@ public sealed partial class ResetParametersPageViewModel : ViewModelBase
         IsRebooting = true;
         StatusMessage = "Sending reboot command to drone...";
         
-        // Send reboot command - drone will disconnect immediately
+        // Send reboot command
         _connectionService.SendPreflightReboot(1, 0);
         
-        // No timeout monitoring - drone disconnects and user reconnects manually
-        StatusMessage = "Reboot command sent. Drone is rebooting... Please reconnect manually when ready.";
+        StatusMessage = "Reboot command sent. Waiting 3 seconds before disconnecting...";
+        
+        // Wait 3 seconds for the reboot command to be processed
+        await Task.Delay(3000);
+        
+        // Disconnect from the drone - this will trigger navigation to Connection page
+        StatusMessage = "Disconnecting...";
+        await _connectionService.DisconnectAsync();
+        
+        IsRebooting = false;
+        StatusMessage = "Disconnected. Drone is rebooting. Please reconnect when ready.";
     }
 
     [RelayCommand]

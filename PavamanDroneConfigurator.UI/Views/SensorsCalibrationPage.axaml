@@ -9,6 +9,7 @@
 		<converters:BoolToSensorStatusColorConverter x:Key="SensorStatusColorConverter"/>
 		<converters:DirectionToColorConverter x:Key="DirectionToColorConverter"/>
 		<converters:DirectionToPrefixConverter x:Key="DirectionToPrefixConverter"/>
+		<converters:CalibrationImageConverter x:Key="CalibrationImageConverter"/>
 	</UserControl.Resources>
 
 	<UserControl.Styles>
@@ -285,16 +286,25 @@
 						<!-- Current Calibration Image - Large display during calibration -->
 						<Border Background="#F8FAFC" CornerRadius="12" Padding="20" Margin="0,0,0,16"
                                 HorizontalAlignment="Center" IsVisible="{Binding IsAccelCalibrationActive}"
-                                BorderBrush="#E2E8F0" BorderThickness="2">
+                                BorderBrush="#E2E8F0" BorderThickness="2"
+                                MinWidth="300" MinHeight="280">
 							<StackPanel HorizontalAlignment="Center" Spacing="12">
 								<TextBlock Text="CURRENT POSITION" FontSize="12" FontWeight="Bold" Foreground="#64748B" HorizontalAlignment="Center"/>
-								<Image Source="{Binding CurrentCalibrationImage}"
-                                       Width="240" Height="180"
-                                       Stretch="Uniform"/>
+								
+								<!-- Image container with fixed size to ensure visibility -->
+								<Border Background="White" CornerRadius="8" Padding="8" 
+								        Width="260" Height="200"
+								        BorderBrush="#E2E8F0" BorderThickness="1">
+									<Image Source="{Binding CurrentCalibrationImage, Converter={StaticResource CalibrationImageConverter}}"
+									       Stretch="Uniform"
+									       HorizontalAlignment="Center"
+									       VerticalAlignment="Center"/>
+								</Border>
+								
 								<TextBlock Text="{Binding AccelCurrentStep}"
                                            HorizontalAlignment="Center"
                                            FontWeight="Bold"
-                                           FontSize="18"
+                                           FontSize="20"
                                            Foreground="#0EA5E9"/>
 							</StackPanel>
 						</Border>

@@ -116,7 +116,7 @@ public partial class App : Application
             client.DefaultRequestHeaders.Add("Accept", "application/json");
             client.Timeout = TimeSpan.FromSeconds(30);
         })
-        .AddHttpMessageHandler<TokenAuthenticationHandler>(); // ? Add JWT token handler
+        .AddHttpMessageHandler<TokenAuthenticationHandler>();
 
         services.AddHttpClient<FirmwareApiService>(client =>
         {
@@ -124,7 +124,7 @@ public partial class App : Application
             client.DefaultRequestHeaders.Add("Accept", "application/json");
             client.Timeout = TimeSpan.FromMinutes(5);
         })
-        .AddHttpMessageHandler<TokenAuthenticationHandler>(); // ? Add JWT token handler
+        .AddHttpMessageHandler<TokenAuthenticationHandler>();
 
         services.AddSingleton<AuthSessionViewModel>();
 
@@ -573,9 +573,9 @@ public partial class App : Application
                 {
                     try
                     {
-                        Console.WriteLine("Disconnect requested - returning to entry page");
+                        Console.WriteLine("Disconnect requested - returning to connection page");
                         var oldWindow = desktop.MainWindow;
-                        ShowEntryPage(desktop);
+                        ShowConnectionShell(desktop);
                         oldWindow?.Close();
                     }
                     catch (Exception ex)

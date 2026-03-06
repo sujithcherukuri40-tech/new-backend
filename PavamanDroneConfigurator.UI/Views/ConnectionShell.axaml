@@ -300,32 +300,6 @@
                     </StackPanel>
                 </Border>
 
-                <!-- Parameter Download Progress -->
-                <Border Background="#E0F2FE"
-                        CornerRadius="12"
-                        Padding="20"
-                        IsVisible="{Binding IsDownloadingParameters}">
-                    <StackPanel Spacing="12">
-                        <StackPanel Orientation="Horizontal" Spacing="10">
-                            <TextBlock Text="&#x1F4E5;" FontSize="16"/>
-                            <TextBlock Text="Downloading Parameters" 
-                                       FontWeight="SemiBold" 
-                                       FontSize="14" 
-                                       Foreground="#0F172A"/>
-                            <TextBlock Text="{Binding ParameterProgressText}" 
-                                       FontWeight="Bold" 
-                                       FontSize="14" 
-                                       Foreground="#0EA5E9"/>
-                        </StackPanel>
-                        <ProgressBar Value="{Binding ParameterProgressPercentage}" 
-                                     Maximum="100" 
-                                     Height="8"
-                                     CornerRadius="4"
-                                     Foreground="#38BDF8"
-                                     Background="#BFDBFE"/>
-                    </StackPanel>
-                </Border>
-
                 <!-- Auto-Connect Option -->
                 <Border Classes="conn-card">
                     <StackPanel Spacing="12">
@@ -342,6 +316,32 @@
                                            TextWrapping="Wrap"/>
                             </StackPanel>
                         </CheckBox>
+                    </StackPanel>
+                </Border>
+
+                <!-- Parameter Download Progress (inline, shown when downloading) -->
+                <Border Background="#E0F2FE"
+                        CornerRadius="12"
+                        Padding="20"
+                        IsVisible="{Binding IsDownloadingParameters}">
+                    <StackPanel Spacing="12">
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <TextBlock Text="??" FontSize="16"/>
+                            <TextBlock Text="Downloading Parameters" 
+                                       FontWeight="SemiBold" 
+                                       FontSize="14" 
+                                       Foreground="#0F172A"/>
+                            <TextBlock Text="{Binding ParameterProgressText}" 
+                                       FontWeight="Bold" 
+                                       FontSize="14" 
+                                       Foreground="#0EA5E9"/>
+                        </StackPanel>
+                        <ProgressBar Value="{Binding ParameterProgressPercentage}" 
+                                     Maximum="100" 
+                                     Height="8"
+                                     CornerRadius="4"
+                                     Foreground="#38BDF8"
+                                     Background="#BFDBFE"/>
                     </StackPanel>
                 </Border>
 

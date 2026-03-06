@@ -24,6 +24,7 @@ public partial class ConnectionShellViewModel : ViewModelBase
     private readonly IParameterService _parameterService;
     private readonly ConnectionSettingsStorage? _settingsStorage;
     private bool _hasNavigatedToMain;
+    private readonly bool _skipAutoConnect;
 
     /// <summary>
     /// Event raised when connection is successful and parameters are downloaded.
@@ -126,6 +127,10 @@ public partial class ConnectionShellViewModel : ViewModelBase
         _connectionService = connectionService;
         _parameterService = parameterService;
         _settingsStorage = settingsStorage;
+        
+        // Check if we're returning from a disconnection - skip auto-connect in this case
+        // The parameter service will have data if we were previously connected
+        _skipAutoConnect = _parameterService.ReceivedParameterCount > 0 || _parameterService.IsParameterDownloadInProgress;
 
         _connectionService.ConnectionStateChanged += OnConnectionStateChanged;
         _connectionService.AvailableSerialPortsChanged += OnAvailableSerialPortsChanged;
@@ -182,10 +187,19 @@ public partial class ConnectionShellViewModel : ViewModelBase
                         break;
                 }
 
-                StatusMessage = "Last connection settings loaded";
+                // Show appropriate status message based on whether we're returning from disconnection
+                if (_skipAutoConnect)
+                {
+                    StatusMessage = "Disconnected. Click Connect to reconnect.";
+                }
+                else
+                {
+                    StatusMessage = "Last connection settings loaded";
+                }
                 
-                // Trigger auto-connect if enabled
-                if (autoConnect)
+                // Trigger auto-connect if enabled AND we're not returning from a disconnection
+                // Skip auto-connect when drone disconnected/rebooted to avoid spinning up background threads
+                if (autoConnect && !_skipAutoConnect)
                 {
                     _ = Task.Run(async () =>
                     {
@@ -240,23 +254,9 @@ public partial class ConnectionShellViewModel : ViewModelBase
                 // Save connection settings for auto-connect
                 SaveConnectionSettings();
 
-                // Trigger parameter download
-                _ = Task.Run(async () =>
-                {
-                    try
-                    {
-                        Console.WriteLine("[ConnectionShell] Starting parameter download...");
-                        await _parameterService.RefreshParametersAsync();
-                        Console.WriteLine("[ConnectionShell] Parameter download completed via RefreshParametersAsync");
-                    }
-                    catch (Exception ex)
-                    {
-                        Console.WriteLine($"[ConnectionShell] Parameter download error: {ex.Message}");
-                        // Navigate anyway after a timeout if parameters fail
-                        await Task.Delay(3000);
-                        Dispatcher.UIThread.Post(() => NavigateToMainIfConnected());
-                    }
-                });
+                // Trigger parameter download using async/await (not Task.Run background thread)
+                // This ensures proper synchronization and avoids issues with disconnection/reconnection
+                _ = DownloadParametersAsync();
             }
             else
             {
@@ -265,6 +265,30 @@ public partial class ConnectionShellViewModel : ViewModelBase
                 _hasNavigatedToMain = false;
             }
         });
+    }
+
+    /// <summary>
+    /// Download parameters from the connected drone.
+    /// Uses async/await to avoid creating separate background threads that can cause issues during disconnection.
+    /// </summary>
+    private async Task DownloadParametersAsync()
+    {
+        try
+        {
+            Console.WriteLine("[ConnectionShell] Starting parameter download...");
+            await _parameterService.RefreshParametersAsync();
+            Console.WriteLine("[ConnectionShell] Parameter download completed via RefreshParametersAsync");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[ConnectionShell] Parameter download error: {ex.Message}");
+            // Show error message and let user retry
+            Dispatcher.UIThread.Post(() =>
+            {
+                IsDownloadingParameters = false;
+                StatusMessage = $"Parameter download failed: {ex.Message}. Please reconnect.";
+            });
+        }
     }
 
     /// <summary>
@@ -316,7 +340,7 @@ public partial class ConnectionShellViewModel : ViewModelBase
 
     private void OnParameterDownloadCompleted(object? sender, bool completedSuccessfully)
     {
-        Console.WriteLine($"[ConnectionShell] Parameter download completed: {completedSuccessfully}");
+        Console.WriteLine($"[ConnectionShell] Parameter download completed: {completedSuccessfully}, IsParameterDownloadComplete: {_parameterService.IsParameterDownloadComplete}");
         
         Dispatcher.UIThread.Post(() =>
         {
@@ -324,11 +348,24 @@ public partial class ConnectionShellViewModel : ViewModelBase
 
             if (IsConnected)
             {
-                StatusMessage = completedSuccessfully
-                    ? "Connection successful! Opening configurator..."
-                    : "Connected (parameters incomplete). Opening configurator...";
-
-                NavigateToMainIfConnected();
+                // IMPORTANT: Only navigate to main when parameters are FULLY downloaded
+                // This ensures auto-connect waits for all parameters before opening the app
+                if (completedSuccessfully && _parameterService.IsParameterDownloadComplete)
+                {
+                    StatusMessage = "Connection successful! Opening configurator...";
+                    NavigateToMainIfConnected();
+                }
+                else
+                {
+                    // Parameters not fully downloaded - stay on connection page and show status
+                    var received = _parameterService.ReceivedParameterCount;
+                    var expected = _parameterService.ExpectedParameterCount ?? 0;
+                    StatusMessage = $"Parameter download incomplete ({received}/{expected}). Retrying...";
+                    Console.WriteLine($"[ConnectionShell] Parameters incomplete - NOT navigating. Received: {received}, Expected: {expected}");
+                    
+                    // Do NOT navigate - user stays on connection page
+                    // They can manually disconnect and reconnect if needed
+                }
             }
         });
     }
@@ -344,6 +381,14 @@ public partial class ConnectionShellViewModel : ViewModelBase
         if (!IsConnected)
         {
             Console.WriteLine("[ConnectionShell] Not connected, skipping navigation");
+            return;
+        }
+        
+        // Double-check parameters are downloaded before navigating
+        if (!_parameterService.IsParameterDownloadComplete)
+        {
+            Console.WriteLine("[ConnectionShell] Parameters not fully downloaded, skipping navigation");
+            StatusMessage = "Waiting for parameters to download...";
             return;
         }
 
