@@ -6,14 +6,14 @@
         mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="550"
         x:Class="PavamanDroneConfigurator.UI.Views.ConnectionShell"
         x:DataType="vm:ConnectionShellViewModel"
-        Title="Pavaman Aviation Drone Configurator - Connect"
+        Title="Kapil Future Tech Drone Configurator - Connect"
         Width="800"
         Height="550"
         MinWidth="600"
         MinHeight="450"
         CanResize="True"
         WindowStartupLocation="CenterScreen"
-        Icon="avares://PavamanDroneConfigurator.UI/Assets/Images/logo.ico"
+        Icon="avares://PavamanDroneConfigurator.UI/Assets/Images/KFT Logo.ico"
         Background="#F8FAFC">
 
     <Window.Styles>
@@ -152,7 +152,7 @@
                             Height="36"
                             CornerRadius="10"
                             Background="#E0F2FE">
-                        <Image Source="avares://PavamanDroneConfigurator.UI/Assets/Images/logo.ico"
+                        <Image Source="avares://PavamanDroneConfigurator.UI/Assets/Images/KFT Logo.png"
                                Stretch="Uniform"
                                Margin="6"/>
                     </Border>

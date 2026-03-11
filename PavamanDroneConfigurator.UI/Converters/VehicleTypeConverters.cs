@@ -57,9 +57,11 @@ public class VehicleTypeToIconConverter : IValueConverter
         ["Helicopter"] = "avares://PavamanDroneConfigurator.UI/Assets/Images/Vehicle/Heli.png",
         ["Copter-heli"] = "avares://PavamanDroneConfigurator.UI/Assets/Images/Vehicle/Heli.png",
         
-        // Multi-rotor types
+        // Multi-rotor types - Hexa
         ["Hexa"] = "avares://PavamanDroneConfigurator.UI/Assets/Images/Vehicle/Hexa.png",
         ["Hexacopter"] = "avares://PavamanDroneConfigurator.UI/Assets/Images/Vehicle/Hexa.png",
+        
+        // Multi-rotor types - Octa
         ["Octa"] = "avares://PavamanDroneConfigurator.UI/Assets/Images/Vehicle/Hexa.png",
         ["Octocopter"] = "avares://PavamanDroneConfigurator.UI/Assets/Images/Vehicle/Hexa.png",
         
@@ -104,8 +106,6 @@ public class VehicleTypeToIconConverter : IValueConverter
     /// Gets the icon path for a given vehicle type.
     /// Supports case-insensitive lookup with fallback to default.
     /// </summary>
-    /// <param name="vehicleType">Vehicle/firmware type string</param>
-    /// <returns>Asset URI path to the icon</returns>
     public static string GetIconPath(string vehicleType)
     {
         if (string.IsNullOrWhiteSpace(vehicleType))
@@ -118,7 +118,6 @@ public class VehicleTypeToIconConverter : IValueConverter
         // Fallback: check if the vehicle type contains known keywords
         var lowerType = vehicleType.ToLowerInvariant();
         
-        // Check for ArduPilot naming patterns first (e.g., arducopter-heli, arduplane)
         if (lowerType.Contains("heli"))
             return VehicleIconMap["Heli"];
         if (lowerType.Contains("plane") || lowerType.Contains("arduplane"))
@@ -136,14 +135,13 @@ public class VehicleTypeToIconConverter : IValueConverter
         if (lowerType.Contains("blimp"))
             return VehicleIconMap["blimp"];
 
-        // Ultimate fallback
         return DefaultIcon;
     }
 
     /// <summary>
     /// Gets a cached bitmap or loads it if not cached
     /// </summary>
-    private static Bitmap? GetCachedBitmap(string assetPath)
+    public static Bitmap? GetCachedBitmap(string assetPath)
     {
         return BitmapCache.GetOrAdd(assetPath, path =>
         {
@@ -155,7 +153,7 @@ public class VehicleTypeToIconConverter : IValueConverter
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Failed to load icon from {path}: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine("Failed to load icon from " + path + ": " + ex.Message);
                 return null;
             }
         });
@@ -180,24 +178,117 @@ public class VehicleTypeToIconConverter : IValueConverter
 }
 
 /// <summary>
+/// Converts frame class and frame type to appropriate icon bitmap for airframe configuration.
+/// Uses specific frame configuration images (quad-x, quad-plus, hexa-x, etc.)
+/// </summary>
+public class FrameConfigToIconConverter : IMultiValueConverter
+{
+    /// <summary>
+    /// Frame class values to base names
+    /// </summary>
+    private static readonly Dictionary<int, string> FrameClassNames = new()
+    {
+        [0] = "quad",
+        [1] = "quad",
+        [2] = "hexa",
+        [3] = "octa",
+        [4] = "octaquad",
+        [5] = "hexa",
+        [7] = "quad",
+        [10] = "quad",
+        [13] = "quad",
+    };
+    
+    /// <summary>
+    /// Frame type values to suffix names
+    /// </summary>
+    private static readonly Dictionary<int, string> FrameTypeNames = new()
+    {
+        [0] = "plus",
+        [1] = "x",
+        [2] = "v",
+        [3] = "h",
+        [4] = "vtail",
+        [5] = "atail",
+    };
+
+    /// <summary>
+    /// Known existing file combinations
+    /// </summary>
+    private static readonly HashSet<string> KnownFiles = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "quad-plus", "quad-x", "quad-v", "quad-h", "quad-vtail", "quad-atail",
+        "hexa-plus", "hexa-x", "hexa-v", "hexa-h",
+        "octa-plus", "octa-x", "octa-v", "octa-h",
+        "octaquad-plus", "octaquad-x", "octaquad-v",
+    };
+
+    private const string DefaultIcon = "avares://PavamanDroneConfigurator.UI/Assets/Images/Vehicle/Quad.png";
+
+    public object? Convert(IList<object?> values, Type targetType, object? parameter, CultureInfo culture)
+    {
+        if (values == null || values.Count < 2)
+        {
+            return VehicleTypeToIconConverter.GetCachedBitmap(DefaultIcon);
+        }
+
+        int frameClass = 1;
+        int frameType = 1;
+        
+        if (values[0] is int fc)
+            frameClass = fc;
+        else if (values[0] is double dfc)
+            frameClass = (int)dfc;
+        else if (values[0] is float ffc)
+            frameClass = (int)ffc;
+            
+        if (values[1] is int ft)
+            frameType = ft;
+        else if (values[1] is double dft)
+            frameType = (int)dft;
+        else if (values[1] is float fft)
+            frameType = (int)fft;
+
+        var iconPath = GetFrameIconPath(frameClass, frameType);
+        return VehicleTypeToIconConverter.GetCachedBitmap(iconPath);
+    }
+
+    /// <summary>
+    /// Gets the icon path for a specific frame class and type combination.
+    /// </summary>
+    public static string GetFrameIconPath(int frameClass, int frameType)
+    {
+        var className = FrameClassNames.GetValueOrDefault(frameClass, "quad");
+        var typeName = FrameTypeNames.GetValueOrDefault(frameType, "x");
+        var fileName = className + "-" + typeName;
+        
+        if (KnownFiles.Contains(fileName))
+        {
+            return "avares://PavamanDroneConfigurator.UI/Assets/Images/Vehicle/" + fileName + ".png";
+        }
+        
+        return className switch
+        {
+            "quad" => "avares://PavamanDroneConfigurator.UI/Assets/Images/Vehicle/Quad.png",
+            "hexa" => "avares://PavamanDroneConfigurator.UI/Assets/Images/Vehicle/Hexa.png",
+            "octa" => "avares://PavamanDroneConfigurator.UI/Assets/Images/Vehicle/Hexa.png",
+            "octaquad" => "avares://PavamanDroneConfigurator.UI/Assets/Images/Vehicle/Hexa.png",
+            _ => DefaultIcon
+        };
+    }
+}
+
+/// <summary>
 /// Converts vehicle type to badge background color.
-/// Provides distinct, professional colors for each vehicle type.
 /// </summary>
 public class VehicleTypeToBadgeColorConverter : IValueConverter
 {
-    /// <summary>
-    /// Vehicle type to color mapping.
-    /// Uses soft, modern colors suitable for badges.
-    /// </summary>
     private static readonly Dictionary<string, string> VehicleColorMap = new(StringComparer.OrdinalIgnoreCase)
     {
-        // Primary vehicle types
-        ["Copter"] = "#667EEA",       // Purple/Indigo
+        ["Copter"] = "#667EEA",
         ["Quad"] = "#667EEA",
         ["Quadcopter"] = "#667EEA",
         ["Multicopter"] = "#667EEA",
-        
-        // ArduPilot firmware naming patterns
         ["arducopter"] = "#667EEA",
         ["arducopter-heli"] = "#F59E0B",
         ["arduplane"] = "#3B82F6",
@@ -205,51 +296,32 @@ public class VehicleTypeToBadgeColorConverter : IValueConverter
         ["ardusub"] = "#06B6D4",
         ["antennatracker"] = "#EC4899",
         ["blimp"] = "#9CA3AF",
-        
-        // Plane types
-        ["Plane"] = "#3B82F6",        // Blue
+        ["Plane"] = "#3B82F6",
         ["QuadPlane"] = "#3B82F6",
         ["FixedWing"] = "#3B82F6",
         ["Fixed Wing"] = "#3B82F6",
-        
-        // Rover/Ground types
-        ["Rover"] = "#10B981",        // Green/Emerald
+        ["Rover"] = "#10B981",
         ["Ground"] = "#10B981",
-        
-        // Helicopter types
-        ["Heli"] = "#F59E0B",         // Amber/Orange
+        ["Heli"] = "#F59E0B",
         ["Helicopter"] = "#F59E0B",
         ["Copter-heli"] = "#F59E0B",
-        
-        // Multi-rotor types
-        ["Hexa"] = "#8B5CF6",         // Violet
+        ["Hexa"] = "#8B5CF6",
         ["Hexacopter"] = "#8B5CF6",
         ["Octa"] = "#8B5CF6",
         ["Octocopter"] = "#8B5CF6",
-        
-        // Antenna tracker
-        ["AntennaTracker"] = "#EC4899", // Pink
+        ["AntennaTracker"] = "#EC4899",
         ["Tracker"] = "#EC4899",
         ["Antenna Tracker"] = "#EC4899",
-        
-        // Submarine/ROV
-        ["Sub"] = "#06B6D4",          // Cyan
-        
-        // Additional frame types
+        ["Sub"] = "#06B6D4",
         ["Tri"] = "#667EEA",
         ["Y6"] = "#8B5CF6",
         ["OctaQuad"] = "#8B5CF6",
         ["Single"] = "#667EEA",
         ["Coax"] = "#667EEA",
         ["Deca"] = "#8B5CF6",
-        
-        // Unknown/fallback
-        ["Unknown"] = "#9CA3AF",       // Gray
+        ["Unknown"] = "#9CA3AF",
     };
 
-    /// <summary>
-    /// Default fallback color
-    /// </summary>
     private const string DefaultColor = "#667EEA";
 
     public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
@@ -261,22 +333,16 @@ public class VehicleTypeToBadgeColorConverter : IValueConverter
         return new SolidColorBrush(Color.Parse(colorHex));
     }
 
-    /// <summary>
-    /// Gets the badge color for a given vehicle type
-    /// </summary>
     public static string GetBadgeColor(string vehicleType)
     {
         if (string.IsNullOrWhiteSpace(vehicleType))
             return DefaultColor;
 
-        // Direct lookup
         if (VehicleColorMap.TryGetValue(vehicleType, out var color))
             return color;
 
-        // Fallback: check if the vehicle type contains known keywords
         var lowerType = vehicleType.ToLowerInvariant();
         
-        // Check for ArduPilot naming patterns first
         if (lowerType.Contains("heli"))
             return VehicleColorMap["Heli"];
         if (lowerType.Contains("plane") || lowerType.Contains("arduplane"))

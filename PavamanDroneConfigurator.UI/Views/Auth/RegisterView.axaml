@@ -110,16 +110,16 @@
                         MaxWidth="380"
                         Margin="24">
 
-                <!-- Logo & Branding -->
+                <!-- Logo & Branding - Increased logo size -->
                 <StackPanel Spacing="12" Margin="0,0,0,32" HorizontalAlignment="Center">
-                    <Border Width="72"
-                            Height="72"
-                            CornerRadius="18"
+                    <Border Width="100"
+                            Height="100"
+                            CornerRadius="24"
                             Background="#EEF2FF"
                             HorizontalAlignment="Center">
-                        <Image Source="avares://PavamanDroneConfigurator.UI/Assets/Images/logo.ico"
+                        <Image Source="avares://PavamanDroneConfigurator.UI/Assets/Images/KFT Logo.png"
                                Stretch="Uniform"
-                               Margin="12"/>
+                               Margin="16"/>
                     </Border>
                     
                     <TextBlock Text="Create your account"
@@ -128,7 +128,7 @@
                                Foreground="#111827"
                                HorizontalAlignment="Center"/>
                     
-                    <TextBlock Text="Register to access Pavaman Drone Configurator"
+                    <TextBlock Text="Register to access KFT Drone Configurator"
                                FontSize="15"
                                Foreground="#6B7280"
                                HorizontalAlignment="Center"

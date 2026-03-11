@@ -1229,7 +1229,7 @@ public class CalibrationService : ICalibrationService
             _logger.LogDebug("[CompassCal] UI timer stopped");
         }
     }
-
+    /// <summary>
     private void NotifyCompassStateChanged()
     {
         // Create a lightweight copy for the event

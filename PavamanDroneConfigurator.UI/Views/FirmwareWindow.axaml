@@ -7,14 +7,14 @@
         mc:Ignorable="d" d:DesignWidth="1100" d:DesignHeight="750"
         x:Class="PavamanDroneConfigurator.UI.Views.FirmwareWindow"
         x:DataType="vm:FirmwarePageViewModel"
-        Title="Pavaman Aviation Drone Configurator - Firmware"
+        Title="Kapil Future Tech Drone Configurator - Firmware"
         Width="1100"
         Height="750"
         MinWidth="900"
         MinHeight="600"
         WindowStartupLocation="CenterScreen"
         WindowState="Maximized"
-        Icon="avares://PavamanDroneConfigurator.UI/Assets/Images/logo.ico"
+        Icon="avares://PavamanDroneConfigurator.UI/Assets/Images/KFT Logo.ico"
         Background="#F5F6F7">
 
     <Window.Styles>
@@ -84,7 +84,7 @@
                         Height="40"
                         CornerRadius="10"
                         Background="#F0F9FF">
-                    <Image Source="avares://PavamanDroneConfigurator.UI/Assets/Images/logo.ico"
+                    <Image Source="avares://PavamanDroneConfigurator.UI/Assets/Images/KFT Logo.png"
                            Stretch="Uniform"
                            Margin="6"/>
                 </Border>

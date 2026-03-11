@@ -32,6 +32,13 @@ public partial class App : Application
     public static IConfiguration? Configuration { get; private set; }
     private static bool _isShuttingDown;
     private static IConnectionService? _connectionService;
+    private static IParameterService? _parameterService;
+    private static IClassicDesktopStyleApplicationLifetime? _desktop;
+    
+    // Track if we're already handling a disconnection to prevent duplicate navigation
+    private static bool _isHandlingDisconnection;
+    // Track the current connection state handler to avoid multiple subscriptions
+    private static EventHandler<bool>? _currentConnectionHandler;
 
     // EMBEDDED API URL - No external config file needed
     private const string EMBEDDED_API_URL = "http://43.205.128.248:5000";
@@ -48,6 +55,439 @@ public partial class App : Application
 
         BuildConfiguration();
         ConfigureServices();
+        
+        // Subscribe to session expiration event to redirect to login
+        TokenAuthenticationHandler.SessionExpired += OnSessionExpired;
+    }
+
+    /// <summary>
+    /// Handles session expiration by redirecting user to login screen.
+    /// Called when a 401 Unauthorized response is received from the API.
+    /// </summary>
+    private static void OnSessionExpired(object? sender, EventArgs e)
+    {
+        if (_isShuttingDown || _desktop == null) return;
+        
+        Console.WriteLine("Session expired - redirecting to login screen");
+        
+        Dispatcher.UIThread.Post(() =>
+        {
+            try
+            {
+                if (_isShuttingDown || _desktop == null || Services == null) return;
+                
+                // Get the auth session and clear the state
+                var authSession = Services.GetService<AuthSessionViewModel>();
+                if (authSession != null)
+                {
+                    // Force logout to clear state
+                    _ = authSession.LogoutAsync();
+                }
+                
+                // Close current window and show auth shell for re-login
+                var oldWindow = _desktop.MainWindow;
+                ShowAuthShellStatic(_desktop);
+                oldWindow?.Close();
+                
+                Console.WriteLine("Navigated to login screen due to session expiration");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error handling session expiration: {ex.Message}");
+            }
+        });
+    }
+    
+    /// <summary>
+    /// Static method to show auth shell for re-login after session expiration.
+    /// </summary>
+    private static void ShowAuthShellStatic(IClassicDesktopStyleApplicationLifetime desktop)
+    {
+        if (_isShuttingDown || Services == null) return;
+
+        try
+        {
+            // Unsubscribe from previous connection handler if any
+            UnsubscribeConnectionHandler();
+            
+            var authShellViewModel = Services.GetRequiredService<AuthShellViewModel>();
+
+            authShellViewModel.AuthenticationCompleted += (_, _) =>
+            {
+                if (_isShuttingDown) return;
+
+                Dispatcher.UIThread.Post(() =>
+                {
+                    try
+                    {
+                        var oldWindow = desktop.MainWindow;
+                        ShowEntryPageStatic(desktop);
+                        oldWindow?.Close();
+                    }
+                    catch
+                    {
+                        ShowEntryPageStatic(desktop);
+                    }
+                });
+            };
+
+            authShellViewModel.AuthenticationCancelled += (_, _) =>
+            {
+                _isShuttingDown = true;
+                Dispatcher.UIThread.Post(() => desktop.Shutdown());
+            };
+
+            var authShell = new AuthShell { DataContext = authShellViewModel };
+            desktop.MainWindow = authShell;
+            authShell.Show();
+
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await authShellViewModel.InitializeAsync();
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Auth initialization error: {ex.Message}");
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Failed to show auth shell: {ex.Message}");
+        }
+    }
+    
+    /// <summary>
+    /// Static method to show entry page after re-authentication.
+    /// </summary>
+    private static void ShowEntryPageStatic(IClassicDesktopStyleApplicationLifetime desktop)
+    {
+        if (_isShuttingDown || Services == null) return;
+
+        try
+        {
+            // Unsubscribe from previous connection handler if any
+            UnsubscribeConnectionHandler();
+            
+            var entryPageViewModel = Services.GetRequiredService<EntryPageViewModel>();
+
+            entryPageViewModel.FirmwareRequested += (_, _) =>
+            {
+                if (_isShuttingDown) return;
+                Dispatcher.UIThread.Post(() => ShowFirmwareWindowStatic(desktop));
+            };
+
+            entryPageViewModel.ConnectRequested += (_, _) =>
+            {
+                if (_isShuttingDown) return;
+                Dispatcher.UIThread.Post(() =>
+                {
+                    try
+                    {
+                        var oldWindow = desktop.MainWindow;
+                        ShowConnectionShellStatic(desktop);
+                        oldWindow?.Close();
+                    }
+                    catch
+                    {
+                        ShowConnectionShellStatic(desktop);
+                    }
+                });
+            };
+
+            entryPageViewModel.AdminDashboardRequested += (_, _) =>
+            {
+                if (_isShuttingDown) return;
+                Dispatcher.UIThread.Post(() => ShowAdminDashboardWindowStatic(desktop));
+            };
+
+            entryPageViewModel.ExitRequested += (_, _) =>
+            {
+                _isShuttingDown = true;
+                Dispatcher.UIThread.Post(() => desktop.Shutdown());
+            };
+
+            var entryPage = new EntryPage { DataContext = entryPageViewModel };
+            desktop.MainWindow = entryPage;
+            entryPage.Show();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Failed to show entry page: {ex.Message}");
+            ShowConnectionShellStatic(desktop);
+        }
+    }
+    
+    private static void ShowAdminDashboardWindowStatic(IClassicDesktopStyleApplicationLifetime desktop)
+    {
+        if (_isShuttingDown || Services == null) return;
+
+        try
+        {
+            var adminDashboardViewModel = Services.GetRequiredService<ViewModels.Admin.AdminDashboardViewModel>();
+            var adminDashboardWindow = new AdminDashboardWindow { DataContext = adminDashboardViewModel };
+            bool backRequested = false;
+
+            adminDashboardWindow.BackRequested += (_, _) =>
+            {
+                if (_isShuttingDown) return;
+                backRequested = true;
+                var oldWindow = desktop.MainWindow;
+                ShowEntryPageStatic(desktop);
+                oldWindow?.Close();
+            };
+
+            adminDashboardWindow.Closed += (_, _) =>
+            {
+                if (_isShuttingDown || backRequested) return;
+                Dispatcher.UIThread.Post(() =>
+                {
+                    if (desktop.MainWindow == null || !desktop.MainWindow.IsVisible)
+                    {
+                        ShowEntryPageStatic(desktop);
+                    }
+                });
+            };
+
+            var oldWindow = desktop.MainWindow;
+            desktop.MainWindow = adminDashboardWindow;
+            adminDashboardWindow.Show();
+            oldWindow?.Close();
+
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await adminDashboardViewModel.InitializeAsync();
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Admin dashboard initialization error: {ex.Message}");
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Failed to show admin dashboard window: {ex.Message}");
+        }
+    }
+
+    private static void ShowFirmwareWindowStatic(IClassicDesktopStyleApplicationLifetime desktop)
+    {
+        if (_isShuttingDown || Services == null) return;
+
+        try
+        {
+            var firmwareViewModel = Services.GetRequiredService<FirmwarePageViewModel>();
+            var firmwareWindow = new FirmwareWindow { DataContext = firmwareViewModel };
+            bool backRequested = false;
+
+            firmwareWindow.BackRequested += (_, _) =>
+            {
+                if (_isShuttingDown) return;
+                backRequested = true;
+                var oldWindow = desktop.MainWindow;
+                ShowEntryPageStatic(desktop);
+                oldWindow?.Close();
+            };
+
+            firmwareWindow.Closed += (_, _) =>
+            {
+                if (_isShuttingDown || backRequested) return;
+                Dispatcher.UIThread.Post(() =>
+                {
+                    if (desktop.MainWindow == null || !desktop.MainWindow.IsVisible)
+                    {
+                        ShowEntryPageStatic(desktop);
+                    }
+                });
+            };
+
+            var oldWindow = desktop.MainWindow;
+            desktop.MainWindow = firmwareWindow;
+            firmwareWindow.Show();
+            oldWindow?.Close();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Failed to show firmware window: {ex.Message}");
+        }
+    }
+
+    private static void ShowConnectionShellStatic(IClassicDesktopStyleApplicationLifetime desktop)
+    {
+        if (_isShuttingDown || Services == null) return;
+
+        try
+        {
+            // Unsubscribe from previous connection handler
+            UnsubscribeConnectionHandler();
+            
+            // Reset disconnection handling flag
+            _isHandlingDisconnection = false;
+            
+            // Clear parameter state to ensure fresh download on reconnect
+            if (_parameterService != null)
+            {
+                Console.WriteLine("[App] Clearing parameter state for fresh reconnection");
+                _parameterService.ClearParameters();
+            }
+            
+            var connectionShellViewModel = Services.GetRequiredService<ConnectionShellViewModel>();
+
+            connectionShellViewModel.ConnectionCompleted += (_, _) =>
+            {
+                if (_isShuttingDown) return;
+                Dispatcher.UIThread.Post(() =>
+                {
+                    try
+                    {
+                        var oldWindow = desktop.MainWindow;
+                        ShowMainWindowStatic(desktop);
+                        oldWindow?.Close();
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"Error during navigation: {ex.Message}");
+                        ShowMainWindowStatic(desktop);
+                    }
+                });
+            };
+
+            connectionShellViewModel.ConnectionCancelled += (_, _) =>
+            {
+                Dispatcher.UIThread.Post(() =>
+                {
+                    try
+                    {
+                        var oldWindow = desktop.MainWindow;
+                        ShowEntryPageStatic(desktop);
+                        oldWindow?.Close();
+                    }
+                    catch
+                    {
+                        ShowEntryPageStatic(desktop);
+                    }
+                });
+            };
+
+            var connectionShell = new ConnectionShell { DataContext = connectionShellViewModel };
+            desktop.MainWindow = connectionShell;
+            connectionShell.Show();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Failed to show connection shell: {ex.Message}");
+        }
+    }
+    
+    /// <summary>
+    /// Unsubscribe from the connection state changed event to prevent duplicate handlers
+    /// </summary>
+    private static void UnsubscribeConnectionHandler()
+    {
+        if (_connectionService != null && _currentConnectionHandler != null)
+        {
+            _connectionService.ConnectionStateChanged -= _currentConnectionHandler;
+            _currentConnectionHandler = null;
+            Console.WriteLine("[App] Unsubscribed from connection state handler");
+        }
+    }
+
+    private static void ShowMainWindowStatic(IClassicDesktopStyleApplicationLifetime desktop)
+    {
+        if (_isShuttingDown || Services == null) return;
+
+        try
+        {
+            // Unsubscribe from any previous connection handler first
+            UnsubscribeConnectionHandler();
+            
+            var mainViewModel = Services.GetRequiredService<MainWindowViewModel>();
+
+            if (mainViewModel.ProfilePage != null)
+            {
+                mainViewModel.ProfilePage.LogoutRequested += (_, _) =>
+                {
+                    Dispatcher.UIThread.Post(() =>
+                    {
+                        try
+                        {
+                            var oldWindow = desktop.MainWindow;
+                            ShowAuthShellStatic(desktop);
+                            oldWindow?.Close();
+                        }
+                        catch { }
+                    });
+                };
+            }
+
+            // Create a single connection handler and store reference for later cleanup
+            if (_connectionService != null)
+            {
+                _currentConnectionHandler = (sender, isConnected) =>
+                {
+                    // Only handle disconnection once, and only if not already handling
+                    if (!isConnected && !_isShuttingDown && !_isHandlingDisconnection)
+                    {
+                        _isHandlingDisconnection = true;
+                        
+                        Dispatcher.UIThread.Post(() =>
+                        {
+                            try
+                            {
+                                Console.WriteLine("[App] Drone disconnected - returning to connection page");
+                                var oldWindow = desktop.MainWindow;
+                                ShowConnectionShellStatic(desktop);
+                                oldWindow?.Close();
+                            }
+                            catch (Exception ex)
+                            {
+                                Console.WriteLine($"Error handling disconnection: {ex.Message}");
+                                _isHandlingDisconnection = false;
+                            }
+                        });
+                    }
+                };
+                
+                _connectionService.ConnectionStateChanged += _currentConnectionHandler;
+                Console.WriteLine("[App] Subscribed to connection state handler");
+            }
+
+            // Subscribe to disconnect request from MainWindow navbar button
+            mainViewModel.DisconnectRequested += (_, _) =>
+            {
+                if (_isShuttingDown || _isHandlingDisconnection) return;
+                _isHandlingDisconnection = true;
+                
+                Dispatcher.UIThread.Post(() =>
+                {
+                    try
+                    {
+                        Console.WriteLine("[App] Disconnect requested - returning to connection page");
+                        var oldWindow = desktop.MainWindow;
+                        ShowConnectionShellStatic(desktop);
+                        oldWindow?.Close();
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"Error handling disconnect: {ex.Message}");
+                        _isHandlingDisconnection = false;
+                    }
+                });
+            };
+
+            var mainWindow = new MainWindow { DataContext = mainViewModel };
+            desktop.MainWindow = mainWindow;
+            mainWindow.Show();
+        }
+        catch
+        {
+            _isShuttingDown = true;
+            desktop.Shutdown();
+        }
     }
 
     private void BuildConfiguration()
@@ -210,14 +650,16 @@ public partial class App : Application
 
         Services = services.BuildServiceProvider();
         
-        // Get connection service and monitor for disconnections
+        // Get connection service and parameter service for state management
         _connectionService = Services.GetService<IConnectionService>();
+        _parameterService = Services.GetService<IParameterService>();
     }
 
     public override void OnFrameworkInitializationCompleted()
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
+            _desktop = desktop;  // Store reference for session expiration handling
             DisableAvaloniaDataAnnotationValidation();
             ShowSplashScreen(desktop);
         }
@@ -256,344 +698,32 @@ public partial class App : Application
 
     private void ShowAuthShell(IClassicDesktopStyleApplicationLifetime desktop)
     {
-        if (_isShuttingDown || Services == null) return;
-
-        try
-        {
-            var authShellViewModel = Services.GetRequiredService<AuthShellViewModel>();
-
-            authShellViewModel.AuthenticationCompleted += (_, _) =>
-            {
-                if (_isShuttingDown) return;
-
-                Dispatcher.UIThread.Post(() =>
-                {
-                    try
-                    {
-                        var oldWindow = desktop.MainWindow;
-                        ShowEntryPage(desktop);
-                        oldWindow?.Close();
-                    }
-                    catch
-                    {
-                        ShowEntryPage(desktop);
-                    }
-                });
-            };
-
-            authShellViewModel.AuthenticationCancelled += (_, _) =>
-            {
-                _isShuttingDown = true;
-                Dispatcher.UIThread.Post(() => desktop.Shutdown());
-            };
-
-            var authShell = new AuthShell { DataContext = authShellViewModel };
-            desktop.MainWindow = authShell;
-            authShell.Show();
-
-            _ = Task.Run(async () =>
-            {
-                try
-                {
-                    await authShellViewModel.InitializeAsync();
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"Auth initialization error: {ex.Message}");
-                }
-            });
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Failed to show auth shell: {ex.Message}");
-        }
+        ShowAuthShellStatic(desktop);
     }
 
     private void ShowEntryPage(IClassicDesktopStyleApplicationLifetime desktop)
     {
-        if (_isShuttingDown || Services == null) return;
-
-        try
-        {
-            var entryPageViewModel = Services.GetRequiredService<EntryPageViewModel>();
-
-            entryPageViewModel.FirmwareRequested += (_, _) =>
-            {
-                if (_isShuttingDown) return;
-                Dispatcher.UIThread.Post(() => ShowFirmwareWindow(desktop));
-            };
-
-            entryPageViewModel.ConnectRequested += (_, _) =>
-            {
-                if (_isShuttingDown) return;
-                Dispatcher.UIThread.Post(() =>
-                {
-                    try
-                    {
-                        var oldWindow = desktop.MainWindow;
-                        ShowConnectionShell(desktop);
-                        oldWindow?.Close();
-                    }
-                    catch
-                    {
-                        ShowConnectionShell(desktop);
-                    }
-                });
-            };
-
-            entryPageViewModel.AdminDashboardRequested += (_, _) =>
-            {
-                if (_isShuttingDown) return;
-                Dispatcher.UIThread.Post(() => ShowAdminDashboardWindow(desktop));
-            };
-
-            entryPageViewModel.ExitRequested += (_, _) =>
-            {
-                _isShuttingDown = true;
-                Dispatcher.UIThread.Post(() => desktop.Shutdown());
-            };
-
-            var entryPage = new EntryPage { DataContext = entryPageViewModel };
-            desktop.MainWindow = entryPage;
-            entryPage.Show();
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Failed to show entry page: {ex.Message}");
-            ShowConnectionShell(desktop);
-        }
+        ShowEntryPageStatic(desktop);
     }
 
     private void ShowAdminDashboardWindow(IClassicDesktopStyleApplicationLifetime desktop)
     {
-        if (_isShuttingDown || Services == null) return;
-
-        try
-        {
-            var adminDashboardViewModel = Services.GetRequiredService<ViewModels.Admin.AdminDashboardViewModel>();
-            var adminDashboardWindow = new AdminDashboardWindow { DataContext = adminDashboardViewModel };
-            bool backRequested = false;
-
-            adminDashboardWindow.BackRequested += (_, _) =>
-            {
-                if (_isShuttingDown) return;
-                backRequested = true;
-                var oldWindow = desktop.MainWindow;
-                ShowEntryPage(desktop);
-                oldWindow?.Close();
-            };
-
-            adminDashboardWindow.Closed += (_, _) =>
-            {
-                if (_isShuttingDown || backRequested) return;
-                Dispatcher.UIThread.Post(() =>
-                {
-                    if (desktop.MainWindow == null || !desktop.MainWindow.IsVisible)
-                    {
-                        ShowEntryPage(desktop);
-                    }
-                });
-            };
-
-            var oldWindow = desktop.MainWindow;
-            desktop.MainWindow = adminDashboardWindow;
-            adminDashboardWindow.Show();
-            oldWindow?.Close();
-
-            // Initialize the dashboard data
-            _ = Task.Run(async () =>
-            {
-                try
-                {
-                    await adminDashboardViewModel.InitializeAsync();
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"Admin dashboard initialization error: {ex.Message}");
-                }
-            });
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Failed to show admin dashboard window: {ex.Message}");
-        }
+        ShowAdminDashboardWindowStatic(desktop);
     }
 
     private void ShowFirmwareWindow(IClassicDesktopStyleApplicationLifetime desktop)
     {
-        if (_isShuttingDown || Services == null) return;
-
-        try
-        {
-            var firmwareViewModel = Services.GetRequiredService<FirmwarePageViewModel>();
-            var firmwareWindow = new FirmwareWindow { DataContext = firmwareViewModel };
-            bool backRequested = false;
-
-            firmwareWindow.BackRequested += (_, _) =>
-            {
-                if (_isShuttingDown) return;
-                backRequested = true;
-                var oldWindow = desktop.MainWindow;
-                ShowEntryPage(desktop);
-                oldWindow?.Close();
-            };
-
-            firmwareWindow.Closed += (_, _) =>
-            {
-                if (_isShuttingDown || backRequested) return;
-                Dispatcher.UIThread.Post(() =>
-                {
-                    if (desktop.MainWindow == null || !desktop.MainWindow.IsVisible)
-                    {
-                        ShowEntryPage(desktop);
-                    }
-                });
-            };
-
-            var oldWindow = desktop.MainWindow;
-            desktop.MainWindow = firmwareWindow;
-            firmwareWindow.Show();
-            oldWindow?.Close();
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Failed to show firmware window: {ex.Message}");
-        }
+        ShowFirmwareWindowStatic(desktop);
     }
 
     private void ShowConnectionShell(IClassicDesktopStyleApplicationLifetime desktop)
     {
-        if (_isShuttingDown || Services == null) return;
-
-        try
-        {
-            var connectionShellViewModel = Services.GetRequiredService<ConnectionShellViewModel>();
-
-            connectionShellViewModel.ConnectionCompleted += (_, _) =>
-            {
-                if (_isShuttingDown) return;
-                Dispatcher.UIThread.Post(() =>
-                {
-                    try
-                    {
-                        var oldWindow = desktop.MainWindow;
-                        ShowMainWindow(desktop);
-                        oldWindow?.Close();
-                    }
-                    catch (Exception ex)
-                    {
-                        Console.WriteLine($"Error during navigation: {ex.Message}");
-                        ShowMainWindow(desktop);
-                    }
-                });
-            };
-
-            connectionShellViewModel.ConnectionCancelled += (_, _) =>
-            {
-                Dispatcher.UIThread.Post(() =>
-                {
-                    try
-                    {
-                        var oldWindow = desktop.MainWindow;
-                        ShowEntryPage(desktop);
-                        oldWindow?.Close();
-                    }
-                    catch
-                    {
-                        ShowEntryPage(desktop);
-                    }
-                });
-            };
-
-            var connectionShell = new ConnectionShell { DataContext = connectionShellViewModel };
-            desktop.MainWindow = connectionShell;
-            connectionShell.Show();
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Failed to show connection shell: {ex.Message}");
-        }
+        ShowConnectionShellStatic(desktop);
     }
 
     private void ShowMainWindow(IClassicDesktopStyleApplicationLifetime desktop)
     {
-        if (_isShuttingDown || Services == null) return;
-
-        try
-        {
-            var mainViewModel = Services.GetRequiredService<MainWindowViewModel>();
-
-            if (mainViewModel.ProfilePage != null)
-            {
-                mainViewModel.ProfilePage.LogoutRequested += (_, _) =>
-                {
-                    Dispatcher.UIThread.Post(() =>
-                    {
-                        try
-                        {
-                            var oldWindow = desktop.MainWindow;
-                            ShowAuthShell(desktop);
-                            oldWindow?.Close();
-                        }
-                        catch { }
-                    });
-                };
-            }
-
-            // Subscribe to disconnection events to automatically return to ConnectionShell
-            if (_connectionService != null)
-            {
-                _connectionService.ConnectionStateChanged += (sender, isConnected) =>
-                {
-                    if (!isConnected && !_isShuttingDown)
-                    {
-                        Dispatcher.UIThread.Post(() =>
-                        {
-                            try
-                            {
-                                Console.WriteLine("Drone disconnected - returning to connection page");
-                                var oldWindow = desktop.MainWindow;
-                                ShowConnectionShell(desktop);
-                                oldWindow?.Close();
-                            }
-                            catch (Exception ex)
-                            {
-                                Console.WriteLine($"Error handling disconnection: {ex.Message}");
-                            }
-                        });
-                    }
-                };
-            }
-
-            // Subscribe to disconnect request from MainWindow navbar button
-            mainViewModel.DisconnectRequested += (_, _) =>
-            {
-                if (_isShuttingDown) return;
-                Dispatcher.UIThread.Post(() =>
-                {
-                    try
-                    {
-                        Console.WriteLine("Disconnect requested - returning to connection page");
-                        var oldWindow = desktop.MainWindow;
-                        ShowConnectionShell(desktop);
-                        oldWindow?.Close();
-                    }
-                    catch (Exception ex)
-                    {
-                        Console.WriteLine($"Error handling disconnect: {ex.Message}");
-                    }
-                });
-            };
-
-            var mainWindow = new MainWindow { DataContext = mainViewModel };
-            desktop.MainWindow = mainWindow;
-            mainWindow.Show();
-        }
-        catch
-        {
-            _isShuttingDown = true;
-            desktop.Shutdown();
-        }
+        ShowMainWindowStatic(desktop);
     }
 
     private void DisableAvaloniaDataAnnotationValidation()

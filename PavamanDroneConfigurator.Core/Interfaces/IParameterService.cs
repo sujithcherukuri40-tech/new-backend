@@ -19,4 +19,10 @@ public interface IParameterService
     int? ExpectedParameterCount { get; }
     event EventHandler? ParameterDownloadProgressChanged;
     void Reset();
+    
+    /// <summary>
+    /// Clears all cached parameters and resets download state.
+    /// Should be called when preparing for a fresh connection/reconnection.
+    /// </summary>
+    void ClearParameters();
 }

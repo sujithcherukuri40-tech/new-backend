@@ -1,11 +1,11 @@
 namespace PavamanDroneConfigurator.Core.Models;
 
 /// <summary>
-/// Static class containing Terms and Conditions content for Pavaman Drone Configurator.
+/// Static class containing Terms and Conditions content for Kapil Future Tech Drone Configurator.
 /// </summary>
 public static class TermsAndConditions
 {
-    public const string Copyright = "© 2025 Pavaman Aviation - Kapil group";
+    public const string Copyright = "© 2025 Kapil Future Tech";
     
     public const string Title = "Terms and Conditions";
     
@@ -14,17 +14,17 @@ public static class TermsAndConditions
     public const string FullText = @"TERMS AND CONDITIONS
 Last Updated: January 2025
 
-IMPORTANT: PLEASE READ THESE TERMS AND CONDITIONS CAREFULLY BEFORE USING PAVAMAN DRONE CONFIGURATOR.
+IMPORTANT: PLEASE READ THESE TERMS AND CONDITIONS CAREFULLY BEFORE USING KAPIL FUTURE TECH DRONE CONFIGURATOR.
 
 1. ACCEPTANCE OF TERMS
 
-By downloading, installing, or using Pavaman Drone Configurator (""the Software""), you acknowledge that you have read, understood, and agree to be bound by these Terms and Conditions. If you do not agree to these terms, do not use the Software.
+By downloading, installing, or using Kapil Future Tech Drone Configurator (""the Software""), you acknowledge that you have read, understood, and agree to be bound by these Terms and Conditions. If you do not agree to these terms, do not use the Software.
 
-Your use of the Software constitutes acceptance of these terms and creates a binding legal agreement between you and Pavaman Aviation (""the Company"", ""we"", ""us"", or ""our"").
+Your use of the Software constitutes acceptance of these terms and creates a binding legal agreement between you and Kapil Future Tech (""the Company"", ""we"", ""us"", or ""our"").
 
 2. LICENSE GRANT
 
-Subject to your compliance with these Terms and Conditions, Pavaman Aviation grants you a limited, non-exclusive, non-transferable, revocable license to:
+Subject to your compliance with these Terms and Conditions, Kapil Future Tech grants you a limited, non-exclusive, non-transferable, revocable license to:
 
 • Download, install, and use the Software on devices you own or control
 • Use the Software for configuring, calibrating, and managing compatible drone systems
@@ -103,7 +103,7 @@ You acknowledge that:
 
 TO THE MAXIMUM EXTENT PERMITTED BY LAW:
 
-PAVAMAN AVIATION SHALL NOT BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES, INCLUDING BUT NOT LIMITED TO:
+KAPIL FUTURE TECH SHALL NOT BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES, INCLUDING BUT NOT LIMITED TO:
 • Loss of profits, revenue, or data
 • Property damage or personal injury
 • Business interruption
@@ -114,7 +114,7 @@ IN NO EVENT SHALL OUR TOTAL LIABILITY EXCEED THE AMOUNT PAID BY YOU, IF ANY, FOR
 
 7. INDEMNIFICATION
 
-You agree to indemnify, defend, and hold harmless Pavaman Aviation, its officers, directors, employees, agents, and affiliates from and against any and all claims, damages, losses, costs, and expenses (including reasonable attorneys' fees) arising from:
+You agree to indemnify, defend, and hold harmless Kapil Future Tech, its officers, directors, employees, agents, and affiliates from and against any and all claims, damages, losses, costs, and expenses (including reasonable attorneys' fees) arising from:
 
 • Your use or misuse of the Software
 • Your violation of these Terms and Conditions
@@ -155,7 +155,7 @@ All intellectual property rights in the Software, including but not limited to:
 • Documentation and training materials
 • Trademarks, logos, and branding
 
-Are and shall remain the exclusive property of Pavaman Aviation or its licensors.
+Are and shall remain the exclusive property of Kapil Future Tech or its licensors.
 
 11. EXPORT COMPLIANCE
 
@@ -179,24 +179,24 @@ If any provision of these Terms is found to be unenforceable or invalid, that pr
 
 14. ENTIRE AGREEMENT
 
-These Terms, together with our Privacy Policy and any additional terms for specific features, constitute the entire agreement between you and Pavaman Aviation regarding the Software and supersede all prior agreements and understandings.
+These Terms, together with our Privacy Policy and any additional terms for specific features, constitute the entire agreement between you and Kapil Future Tech regarding the Software and supersede all prior agreements and understandings.
 
 15. CONTACT INFORMATION
 
 For questions about these Terms and Conditions, please contact:
 
-Pavaman Aviation
-Email: support@pavaman.com
-Website: www.pavaman.in
+Kapil Future Tech
+Email: support@kapilfuturetech.com
+Website: www.kapilfuturetech.com
 
-By using Pavaman Drone Configurator, you acknowledge that you have read, understood, and agree to be bound by these Terms and Conditions.
+By using Kapil Future Tech Drone Configurator, you acknowledge that you have read, understood, and agree to be bound by these Terms and Conditions.
 
-© 2025 Pavaman Aviation. All rights reserved.";
+© 2025 Kapil Future Tech. All rights reserved.";
 
     /// <summary>
     /// Short summary for display in compact areas
     /// </summary>
-    public const string ShortSummary = @"By using Pavaman Drone Configurator, you agree to:
+    public const string ShortSummary = @"By using Kapil Future Tech Drone Configurator, you agree to:
 • Follow all applicable aviation laws and regulations
 • Use the Software responsibly and safely
 • Accept that drone operation involves inherent risks

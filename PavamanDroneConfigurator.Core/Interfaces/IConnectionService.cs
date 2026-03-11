@@ -41,6 +41,12 @@ public interface IConnectionService
     /// </summary>
     event EventHandler<AutopilotVersionDataEventArgs>? AutopilotVersionReceived;
     
+    /// <summary>
+    /// Event raised when a reboot is about to be initiated.
+    /// Components should stop all timers and cleanup resources.
+    /// </summary>
+    event EventHandler? RebootInitiated;
+    
     // MAVLink send methods for ParameterService to call
     void SendParamRequestList();
     void SendParamRequestRead(ushort paramIndex);
@@ -70,6 +76,12 @@ public interface IConnectionService
     
     // Reboot command (MAV_CMD_PREFLIGHT_REBOOT_SHUTDOWN = 246)
     void SendPreflightReboot(int autopilot, int companion);
+    
+    /// <summary>
+    /// Prepares for a flight controller reboot by stopping all timers and cleaning up resources.
+    /// Should be called before sending the reboot command.
+    /// </summary>
+    void PrepareForReboot();
     
     // Flash bootloader command (MAV_CMD_FLASH_BOOTLOADER = 42650)
     // Magic value 290876 confirms the operation

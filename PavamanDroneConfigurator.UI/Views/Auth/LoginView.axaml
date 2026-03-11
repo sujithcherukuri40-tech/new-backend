@@ -20,15 +20,15 @@
                      LOGO & BRANDING
                 ??????????????????????????????????????????????????????????????????????????????????? -->
                 <StackPanel Spacing="16" Margin="0,0,0,48" HorizontalAlignment="Center">
-                    <Border Width="80"
-                            Height="80"
-                            CornerRadius="{DynamicResource RadiusXL}"
+                    <Border Width="120"
+                            Height="120"
+                            CornerRadius="24"
                             Background="{DynamicResource PrimaryLightBrush}"
                             BoxShadow="{DynamicResource ShadowMD}"
                             HorizontalAlignment="Center">
-                        <Image Source="avares://PavamanDroneConfigurator.UI/Assets/Images/logo.ico"
+                        <Image Source="avares://PavamanDroneConfigurator.UI/Assets/Images/KFT Logo.png"
                                Stretch="Uniform"
-                               Margin="14"/>
+                               Margin="16"/>
                     </Border>
                     
                     <TextBlock Text="Welcome back"
@@ -38,7 +38,7 @@
                                FontFamily="{DynamicResource PrimaryFont}"
                                HorizontalAlignment="Center"/>
                     
-                    <TextBlock Text="Sign in to Pavaman Drone Configurator"
+                    <TextBlock Text="Sign in to Kapil Future Tech Drone Configurator"
                                FontSize="{DynamicResource FontSizeMD}"
                                Foreground="{DynamicResource TextSecondaryBrush}"
                                FontFamily="{DynamicResource PrimaryFont}"

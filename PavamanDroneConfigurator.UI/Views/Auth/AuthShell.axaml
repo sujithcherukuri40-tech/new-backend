@@ -7,14 +7,14 @@
         mc:Ignorable="d" d:DesignWidth="520" d:DesignHeight="700"
         x:Class="PavamanDroneConfigurator.UI.Views.Auth.AuthShell"
         x:DataType="vm:AuthShellViewModel"
-        Title="Pavaman Aviation Drone Configurator - Sign In"
+        Title="Kapil Future Tech Drone Configurator - Sign In"
         Width="520"
         Height="700"
         MinWidth="360"
         MinHeight="480"
         CanResize="True"
         WindowStartupLocation="CenterScreen"
-        Icon="avares://PavamanDroneConfigurator.UI/Assets/Images/logo.ico"
+        Icon="avares://PavamanDroneConfigurator.UI/Assets/Images/KFT Logo.ico"
         Background="#F9FAFB">
 
     <Window.Styles>

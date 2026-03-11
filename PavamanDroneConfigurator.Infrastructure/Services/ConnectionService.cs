@@ -50,8 +50,8 @@ public sealed class ConnectionService : IConnectionService, IDisposable
 
     private List<SerialPortInfo> _cachedPorts = new();
     private DateTime _lastDataReceivedTime;
-    private const int CONNECTION_MONITOR_INTERVAL_MS = 5000;
-    private const int CONNECTION_TIMEOUT_SECONDS = 30;
+    private const int CONNECTION_MONITOR_INTERVAL_MS = 1000;
+    private const int CONNECTION_TIMEOUT_SECONDS = 1;
 
     public bool IsConnected => _isConnected;
     public bool IsArmed => _isArmed;
@@ -69,6 +69,7 @@ public sealed class ConnectionService : IConnectionService, IDisposable
     public event EventHandler<MagCalProgressEventArgs>? MagCalProgressReceived;
     public event EventHandler<MagCalReportEventArgs>? MagCalReportReceived;
     public event EventHandler<AutopilotVersionDataEventArgs>? AutopilotVersionReceived;
+    public event EventHandler? RebootInitiated;
 
     public ConnectionService(ILogger<ConnectionService> logger, IMavLinkMessageLogger mavLinkLogger)
     {
@@ -246,8 +247,8 @@ public sealed class ConnectionService : IConnectionService, IDisposable
 
         _serialPort = new SerialPort(settings.PortName, settings.BaudRate)
         {
-            ReadTimeout = 5000,
-            WriteTimeout = 5000,
+            ReadTimeout = 2000,
+            WriteTimeout = 2000,
             DtrEnable = true,
             RtsEnable = true
         };
@@ -257,7 +258,7 @@ public sealed class ConnectionService : IConnectionService, IDisposable
         _inputStream = _serialPort.BaseStream;
         _outputStream = _serialPort.BaseStream;
 
-        var heartbeatTask = WaitForHeartbeatAsync(TimeSpan.FromSeconds(10));
+        var heartbeatTask = WaitForHeartbeatAsync(TimeSpan.FromSeconds(5));
         InitializeMavlink();
         var heartbeatReceived = await heartbeatTask;
 
@@ -284,14 +285,14 @@ public sealed class ConnectionService : IConnectionService, IDisposable
             _tcpClient = new TcpClient
             {
                 NoDelay = true,
-                ReceiveTimeout = 30000,
-                SendTimeout = 5000,
+                ReceiveTimeout = 5000,
+                SendTimeout = 2000,
                 ReceiveBufferSize = 8192,
                 SendBufferSize = 8192
             };
 
             var connectTask = _tcpClient.ConnectAsync(settings.IpAddress ?? "127.0.0.1", settings.Port);
-            var timeoutTask = Task.Delay(10000);
+            var timeoutTask = Task.Delay(5000);
 
             var completedTask = await Task.WhenAny(connectTask, timeoutTask);
 
@@ -300,7 +301,7 @@ public sealed class ConnectionService : IConnectionService, IDisposable
                 _tcpClient?.Close();
                 _tcpClient?.Dispose();
                 _tcpClient = null;
-                throw new TimeoutException("TCP connection timed out after 10 seconds");
+                throw new TimeoutException("TCP connection timed out after 5 seconds");
             }
 
             if (!_tcpClient.Connected)
@@ -320,15 +321,15 @@ public sealed class ConnectionService : IConnectionService, IDisposable
                 throw new IOException("Failed to get network stream from TCP client");
             }
 
-            _networkStream.ReadTimeout = 30000;
-            _networkStream.WriteTimeout = 5000;
+            _networkStream.ReadTimeout = 5000;
+            _networkStream.WriteTimeout = 2000;
 
             _inputStream = _networkStream;
             _outputStream = _networkStream;
 
             _logger.LogInformation("TCP socket connected, initializing MAVLink");
 
-            var heartbeatTask = WaitForHeartbeatAsync(TimeSpan.FromSeconds(15));
+            var heartbeatTask = WaitForHeartbeatAsync(TimeSpan.FromSeconds(5));
             InitializeMavlink();
             var heartbeatReceived = await heartbeatTask;
 
@@ -340,7 +341,7 @@ public sealed class ConnectionService : IConnectionService, IDisposable
                 return true;
             }
 
-            _logger.LogWarning("No heartbeat received on TCP connection within 15 seconds");
+            _logger.LogWarning("No heartbeat received on TCP connection within 5 seconds");
             await DisconnectAsync();
             return false;
         }
@@ -382,7 +383,7 @@ public sealed class ConnectionService : IConnectionService, IDisposable
             _bluetoothConnection.MagCalProgressReceived += OnBluetoothMagCalProgress;
             _bluetoothConnection.MagCalReportReceived += OnBluetoothMagCalReport;
 
-            var heartbeatReceived = await WaitForHeartbeatAsync(TimeSpan.FromSeconds(15));
+            var heartbeatReceived = await WaitForHeartbeatAsync(TimeSpan.FromSeconds(5));
 
             if (heartbeatReceived)
             {
@@ -1031,8 +1032,28 @@ public sealed class ConnectionService : IConnectionService, IDisposable
         _mavlink.SendAccelCalVehiclePosRaw(position);
     }
 
+    /// <summary>
+    /// Prepares for a flight controller reboot by stopping all timers and cleaning up resources.
+    /// Should be called before sending the reboot command.
+    /// </summary>
+    public void PrepareForReboot()
+    {
+        _logger.LogInformation("Preparing for reboot - stopping all timers and notifying components");
+        
+        // Stop connection monitor timer to prevent false disconnect detection during reboot
+        _connectionMonitorTimer.Stop();
+        
+        // Notify all components to stop their timers and cleanup
+        // This allows CalibrationService, DroneInfoService, and other components 
+        // to stop their internal timers before the reboot
+        RebootInitiated?.Invoke(this, EventArgs.Empty);
+    }
+
     public void SendPreflightReboot(int autopilot, int companion)
     {
+        // Notify all components to stop timers and cleanup before reboot
+        PrepareForReboot();
+        
         if (_currentConnectionType == ConnectionType.Bluetooth && _bluetoothConnection != null)
         {
             _ = _bluetoothConnection.SendPreflightRebootAsync(autopilot, companion);
@@ -1220,7 +1241,7 @@ public sealed class ConnectionService : IConnectionService, IDisposable
                 _ = Task.Run(async () =>
                 {
                     // Wait a bit for the connection to stabilize
-                    await Task.Delay(500);
+                    await Task.Delay(300);
                     
                     if (_isConnected && !_isDisconnecting)
                     {

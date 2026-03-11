@@ -309,4 +309,38 @@ public class ParameterService : IParameterService
 
         ParameterDownloadProgressChanged?.Invoke(this, EventArgs.Empty);
     }
+    
+    /// <inheritdoc/>
+    public void ClearParameters()
+    {
+        _logger.LogInformation("ParameterService ClearParameters called - preparing for fresh connection");
+        
+        // Cancel any ongoing download
+        _downloadCts?.Cancel();
+        
+        // Clear all cached parameters
+        _parameters.Clear();
+        
+        lock (_lock)
+        {
+            _receivedIndices.Clear();
+            _expectedCount = null;
+        }
+        
+        _received = 0;
+        _downloading = false;
+        _downloadDone = false;
+        _downloadComplete?.TrySetCanceled();
+        _downloadComplete = null;
+
+        // Clear pending writes
+        foreach (var tcs in _pendingWrites.Values)
+            tcs.TrySetCanceled();
+        _pendingWrites.Clear();
+
+        // Notify listeners that state has been cleared
+        ParameterDownloadProgressChanged?.Invoke(this, EventArgs.Empty);
+        
+        _logger.LogInformation("ParameterService state cleared - ready for fresh parameter download");
+    }
 }

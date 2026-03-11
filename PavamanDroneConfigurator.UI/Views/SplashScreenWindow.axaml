@@ -6,7 +6,7 @@
         mc:Ignorable="d" d:DesignWidth="900" d:DesignHeight="600"
         x:Class="PavamanDroneConfigurator.UI.Views.SplashScreenWindow"
         x:DataType="vm:SplashScreenViewModel"
-        Title="Pavaman Aviation Drone Configurator"
+        Title="Kapil Future Tech Drone Configurator"
         Width="900"
         Height="600"
         WindowStartupLocation="CenterScreen"
@@ -51,7 +51,7 @@
 
     <Border Classes="splash-container" ClipToBounds="True">
         <Grid>
-            <Image Source="avares://PavamanDroneConfigurator.UI/Assets/Images/splash.png" 
+            <Image Source="avares://PavamanDroneConfigurator.UI/Assets/Images/kft-splash.jpeg" 
                    Stretch="UniformToFill"
                    HorizontalAlignment="Center"
                    VerticalAlignment="Center"/>
@@ -86,7 +86,7 @@
                                     HorizontalAlignment="Center">
                             <TextBlock Text="{Binding VersionText}" 
                                        Classes="version-text"/>
-                            <TextBlock Text="Pavaman Aviation 2025" 
+                            <TextBlock Text="Kapil Future Tech 2025" 
                                        Classes="version-text"/>
                         </StackPanel>
                     </StackPanel>

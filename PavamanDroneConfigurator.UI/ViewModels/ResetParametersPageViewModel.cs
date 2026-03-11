@@ -246,10 +246,10 @@ public sealed partial class ResetParametersPageViewModel : ViewModelBase
         // Send reboot command
         _connectionService.SendPreflightReboot(1, 0);
         
-        StatusMessage = "Reboot command sent. Waiting 3 seconds before disconnecting...";
+        StatusMessage = "Reboot command sent. Waiting 1 second before disconnecting...";
         
-        // Wait 3 seconds for the reboot command to be processed
-        await Task.Delay(3000);
+        // Wait 1 second for the reboot command to be processed
+        await Task.Delay(1000);
         
         // Disconnect from the drone - this will trigger navigation to Connection page
         StatusMessage = "Disconnecting...";
