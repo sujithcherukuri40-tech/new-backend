@@ -136,7 +136,7 @@
                                TextAlignment="Center"/>
                 </StackPanel>
 
-                <!-- General Error Message -->
+                <!-- General Error Message - Fixed Unicode -->
                 <Border Classes="auth-error"
                         IsVisible="{Binding HasError}"
                         Margin="0,0,0,20">
@@ -341,7 +341,7 @@
                             IsEnabled="{Binding !IsLoading}"/>
                 </StackPanel>
 
-                <!-- Approval Notice -->
+                <!-- Approval Notice - Fixed Unicode -->
                 <Border Background="#FEF3C7"
                         BorderBrush="#FCD34D"
                         BorderThickness="1"

@@ -439,8 +439,14 @@ public partial class App : Application
                             try
                             {
                                 Console.WriteLine("[App] Drone disconnected - returning to connection page");
+                                // First show the new window, THEN close the old one
+                                // This prevents app from closing due to no windows being open
                                 var oldWindow = desktop.MainWindow;
+                                
+                                // Create and show connection shell FIRST
                                 ShowConnectionShellStatic(desktop);
+                                
+                                // Now close the old window
                                 oldWindow?.Close();
                             }
                             catch (Exception ex)
@@ -467,8 +473,13 @@ public partial class App : Application
                     try
                     {
                         Console.WriteLine("[App] Disconnect requested - returning to connection page");
+                        // First show the new window, THEN close the old one
                         var oldWindow = desktop.MainWindow;
+                        
+                        // Create and show connection shell FIRST
                         ShowConnectionShellStatic(desktop);
+                        
+                        // Now close the old window
                         oldWindow?.Close();
                     }
                     catch (Exception ex)
@@ -483,10 +494,19 @@ public partial class App : Application
             desktop.MainWindow = mainWindow;
             mainWindow.Show();
         }
-        catch
+        catch (Exception ex)
         {
-            _isShuttingDown = true;
-            desktop.Shutdown();
+            Console.WriteLine($"Error showing main window: {ex.Message}");
+            // Don't shutdown on error, try to recover
+            try
+            {
+                ShowConnectionShellStatic(desktop);
+            }
+            catch
+            {
+                _isShuttingDown = true;
+                desktop.Shutdown();
+            }
         }
     }
 

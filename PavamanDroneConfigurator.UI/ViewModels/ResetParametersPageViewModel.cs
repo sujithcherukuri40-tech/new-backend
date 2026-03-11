@@ -12,6 +12,7 @@ public sealed partial class ResetParametersPageViewModel : ViewModelBase
     private readonly IConnectionService _connectionService;
     private readonly IParameterService _parameterService;
     private bool _disposed;
+    private bool _expectingRebootDisconnect;
 
     [ObservableProperty]
     private bool _isConnected;
@@ -54,18 +55,23 @@ public sealed partial class ResetParametersPageViewModel : ViewModelBase
             var wasConnected = IsConnected;
             IsConnected = connected;
             
-            if (!connected && wasConnected && IsRebooting)
+            if (!connected && wasConnected)
             {
-                // Drone disconnected during reboot - this is expected
-                IsRebooting = false;
-                StatusMessage = "Drone is rebooting. Please reconnect manually using the Connection page when ready.";
-            }
-            else if (!connected)
-            {
-                ResetComplete = false;
-                ResetFailed = false;
-                IsRebooting = false;
-                UpdateStatusMessage();
+                if (_expectingRebootDisconnect)
+                {
+                    // Expected disconnect due to reboot - just update state
+                    _expectingRebootDisconnect = false;
+                    IsRebooting = false;
+                    StatusMessage = "Drone is rebooting. Please reconnect manually using the Connection page when ready.";
+                }
+                else
+                {
+                    // Unexpected disconnect
+                    ResetComplete = false;
+                    ResetFailed = false;
+                    IsRebooting = false;
+                    UpdateStatusMessage();
+                }
             }
         });
     }
@@ -96,11 +102,12 @@ public sealed partial class ResetParametersPageViewModel : ViewModelBase
             {
                 if (e.IsSuccess)
                 {
-                    IsRebooting = true;
-                    StatusMessage = "Reboot command accepted. Drone is rebooting... Please reconnect manually when ready.";
+                    StatusMessage = "Reboot command accepted. Drone is rebooting...";
                 }
                 else
                 {
+                    IsRebooting = false;
+                    _expectingRebootDisconnect = false;
                     StatusMessage = $"Reboot command failed with result code: {e.Result}";
                 }
             }
@@ -241,22 +248,32 @@ public sealed partial class ResetParametersPageViewModel : ViewModelBase
             return;
 
         IsRebooting = true;
+        _expectingRebootDisconnect = true;
         StatusMessage = "Sending reboot command to drone...";
         
-        // Send reboot command
-        _connectionService.SendPreflightReboot(1, 0);
-        
-        StatusMessage = "Reboot command sent. Waiting 1 second before disconnecting...";
-        
-        // Wait 1 second for the reboot command to be processed
-        await Task.Delay(1000);
-        
-        // Disconnect from the drone - this will trigger navigation to Connection page
-        StatusMessage = "Disconnecting...";
-        await _connectionService.DisconnectAsync();
-        
-        IsRebooting = false;
-        StatusMessage = "Disconnected. Drone is rebooting. Please reconnect when ready.";
+        try
+        {
+            // Send reboot command - this calls PrepareForReboot() internally
+            // which stops all timers and notifies components
+            _connectionService.SendPreflightReboot(1, 0);
+            
+            StatusMessage = "Reboot command sent. Disconnecting...";
+            
+            // Small delay to let the command be processed, then disconnect
+            // The disconnect will be handled by App.axaml.cs which will navigate to ConnectionShell
+            await Task.Delay(500);
+            
+            // Disconnect - this will trigger ConnectionStateChanged which App.axaml.cs handles
+            await _connectionService.DisconnectAsync();
+            
+            // State will be updated by OnConnectionStateChanged
+        }
+        catch (Exception ex)
+        {
+            IsRebooting = false;
+            _expectingRebootDisconnect = false;
+            StatusMessage = $"Reboot failed: {ex.Message}";
+        }
     }
 
     [RelayCommand]

@@ -1196,6 +1196,9 @@ public partial class SensorsCalibrationPageViewModel : ViewModelBase
     [RelayCommand]
     private void CloseRebootPrompt() => ShowRebootPrompt = false;
 
+    /// <summary>
+    /// Reboot from reboot prompt dialog
+    /// </summary>
     [RelayCommand]
     private async Task RebootFromPromptAsync()
     {
@@ -1546,7 +1549,9 @@ public partial class SensorsCalibrationPageViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// Reboot the flight controller
+    /// Reboot the flight controller.
+    /// Similar to ResetParametersPageViewModel.RebootDroneAsync - sends reboot command
+    /// then disconnects so App.axaml.cs can navigate to ConnectionShell.
     /// </summary>
     [RelayCommand]
     private async Task RebootAsync()
@@ -1558,17 +1563,31 @@ public partial class SensorsCalibrationPageViewModel : ViewModelBase
         }
 
         AddDebugLog("Sending reboot command...");
+        StatusMessage = "Sending reboot command to drone...";
         
         try
         {
+            // Send reboot command - this calls PrepareForReboot() internally
+            // which stops all timers and notifies components
             _connectionService.SendPreflightReboot(1, 0);
-            StatusMessage = "Reboot command sent";
-            AddDebugLog("Reboot command sent successfully");
-            await Task.CompletedTask;
+            
+            StatusMessage = "Reboot command sent. Disconnecting...";
+            AddDebugLog("Reboot command sent, waiting before disconnect...");
+            
+            // Small delay to let the command be processed, then disconnect
+            // The disconnect will be handled by App.axaml.cs which will navigate to ConnectionShell
+            await Task.Delay(500);
+            
+            // Disconnect - this will trigger ConnectionStateChanged which App.axaml.cs handles
+            await _connectionService.DisconnectAsync();
+            
+            AddDebugLog("Disconnected after reboot command");
+            // Note: Navigation to ConnectionShell is handled by App.axaml.cs
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to send reboot command");
+            StatusMessage = $"Reboot failed: {ex.Message}";
             ShowError("Reboot Failed", ex.Message);
         }
     }
