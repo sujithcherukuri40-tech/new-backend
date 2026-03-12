@@ -337,13 +337,34 @@ public partial class App : Application
             
             var connectionShellViewModel = Services.GetRequiredService<ConnectionShellViewModel>();
 
-            connectionShellViewModel.ConnectionCompleted += (_, _) =>
+            connectionShellViewModel.ConnectionCompleted += async (_, _) =>
             {
                 if (_isShuttingDown) return;
+                
+                // IMPORTANT: Wait a moment to ensure parameters are fully loaded
+                // This prevents flickering when showing MainWindow
+                await Task.Delay(100);
+                
+                // Double-check parameters are actually complete before showing MainWindow
+                if (_parameterService != null && !_parameterService.IsParameterDownloadComplete)
+                {
+                    Console.WriteLine("[App] Parameters not fully complete, waiting...");
+                    // Wait a bit longer and check again
+                    await Task.Delay(500);
+                }
+                
                 Dispatcher.UIThread.Post(() =>
                 {
                     try
                     {
+                        // Final check before navigation
+                        if (_parameterService != null && !_parameterService.IsParameterDownloadComplete)
+                        {
+                            Console.WriteLine("[App] Parameters still not ready, aborting navigation");
+                            return;
+                        }
+                        
+                        Console.WriteLine("[App] Parameters fully loaded, showing MainWindow");
                         var oldWindow = desktop.MainWindow;
                         ShowMainWindowStatic(desktop);
                         oldWindow?.Close();

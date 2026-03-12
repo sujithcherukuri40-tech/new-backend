@@ -190,7 +190,7 @@
                         </StackPanel>
                     </StackPanel>
                     
-                    <!-- Center: Connection Status Pill -->
+                    <!-- Center: Connection Status Pill / Parameter Download Progress -->
                     <Border Grid.Column="1" 
                             HorizontalAlignment="Center" 
                             VerticalAlignment="Center"
@@ -199,7 +199,9 @@
                         <Border.Background>
                             <SolidColorBrush Color="{Binding IsConnected, Converter={StaticResource BoolToColorConverter}, ConverterParameter='#E8F5E9|#FFEBEE'}"/>
                         </Border.Background>
-                        <StackPanel Orientation="Horizontal" Spacing="10">
+                        
+                        <!-- Connection Status (when not downloading parameters) -->
+                        <StackPanel Orientation="Horizontal" Spacing="10" IsVisible="{Binding !IsParameterDownloadInProgress}">
                             <!-- Status Dot -->
                             <Border Width="10" Height="10" CornerRadius="5"
                                     VerticalAlignment="Center">
@@ -218,6 +220,31 @@
                                     <SolidColorBrush Color="{Binding IsConnected, Converter={StaticResource BoolToColorConverter}, ConverterParameter='#2E7D32|#C62828'}"/>
                                 </TextBlock.Foreground>
                             </TextBlock>
+                        </StackPanel>
+                    </Border>
+                    
+                    <!-- Parameter Download Progress Overlay (shown when downloading) -->
+                    <Border Grid.Column="1" 
+                            HorizontalAlignment="Center" 
+                            VerticalAlignment="Center"
+                            CornerRadius="18"
+                            Padding="16,8"
+                            Background="#E0F2FE"
+                            IsVisible="{Binding IsParameterDownloadInProgress}">
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <TextBlock Text="&#x1F4E5;" FontSize="14" VerticalAlignment="Center"/>
+                            <TextBlock Text="Downloading Parameters" 
+                                       FontSize="14"
+                                       FontWeight="SemiBold"
+                                       VerticalAlignment="Center"
+                                       FontFamily="{DynamicResource PrimaryFont}"
+                                       Foreground="#0EA5E9"/>
+                            <TextBlock Text="{Binding ParameterDownloadStatusText}" 
+                                       FontSize="14"
+                                       FontWeight="Bold"
+                                       VerticalAlignment="Center"
+                                       FontFamily="{DynamicResource PrimaryFont}"
+                                       Foreground="#0EA5E9"/>
                         </StackPanel>
                     </Border>
                     

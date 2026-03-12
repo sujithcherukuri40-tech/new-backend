@@ -25,6 +25,7 @@ public partial class ConnectionShellViewModel : ViewModelBase
     private readonly ConnectionSettingsStorage? _settingsStorage;
     private bool _hasNavigatedToMain;
     private readonly bool _skipAutoConnect;
+    private bool _isManualDisconnect; // Track if disconnect was initiated by user
 
     /// <summary>
     /// Event raised when connection is successful and parameters are downloaded.
@@ -243,6 +244,7 @@ public partial class ConnectionShellViewModel : ViewModelBase
         
         Dispatcher.UIThread.Post(() =>
         {
+            var wasConnected = IsConnected;
             IsConnected = connected;
             IsConnecting = false;
 
@@ -250,6 +252,7 @@ public partial class ConnectionShellViewModel : ViewModelBase
             {
                 IsDownloadingParameters = true;
                 StatusMessage = "Connected - Downloading parameters...";
+                _isManualDisconnect = false; // Reset flag on new connection
 
                 // Save connection settings for auto-connect
                 SaveConnectionSettings();
@@ -263,6 +266,29 @@ public partial class ConnectionShellViewModel : ViewModelBase
                 IsDownloadingParameters = false;
                 StatusMessage = "Disconnected";
                 _hasNavigatedToMain = false;
+                
+                // If disconnection was NOT manual (drone lost connection or rebooted),
+                // disable auto-connect to prevent unwanted reconnection on next app start
+                if (wasConnected && !_isManualDisconnect && _settingsStorage != null)
+                {
+                    try
+                    {
+                        var (settings, _) = _settingsStorage.LoadSettings();
+                        if (settings != null)
+                        {
+                            _settingsStorage.SaveSettings(settings, enableAutoConnect: false);
+                            EnableAutoConnect = false;
+                            Console.WriteLine("[ConnectionShell] Auto-connect disabled after unexpected disconnect");
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"[ConnectionShell] Failed to disable auto-connect: {ex.Message}");
+                    }
+                }
+                
+                // Reset the manual disconnect flag for next connection
+                _isManualDisconnect = false;
             }
         });
     }
@@ -384,20 +410,28 @@ public partial class ConnectionShellViewModel : ViewModelBase
             return;
         }
         
-        // Double-check parameters are downloaded before navigating
+        // Triple-check parameters are downloaded before navigating
         if (!_parameterService.IsParameterDownloadComplete)
         {
             Console.WriteLine("[ConnectionShell] Parameters not fully downloaded, skipping navigation");
             StatusMessage = "Waiting for parameters to download...";
             return;
         }
+        
+        // Additional check: Ensure we have received parameters
+        if (_parameterService.ReceivedParameterCount == 0)
+        {
+            Console.WriteLine("[ConnectionShell] No parameters received yet, skipping navigation");
+            StatusMessage = "Waiting for parameters to download...";
+            return;
+        }
 
         _hasNavigatedToMain = true;
-        Console.WriteLine("[ConnectionShell] Navigating to main window...");
+        Console.WriteLine($"[ConnectionShell] Navigating to main window with {_parameterService.ReceivedParameterCount} parameters downloaded");
 
-        StatusMessage = "Opening configurator...";
+        StatusMessage = "Parameters loaded! Opening configurator...";
         
-        // Fire the connection completed event immediately
+        // Fire the connection completed event - App.axaml.cs will handle the actual window transition
         ConnectionCompleted?.Invoke(this, EventArgs.Empty);
     }
 
@@ -437,12 +471,39 @@ public partial class ConnectionShellViewModel : ViewModelBase
     [RelayCommand]
     private async Task DisconnectAsync()
     {
+        // Mark this as a manual disconnect to distinguish from unexpected disconnections
+        _isManualDisconnect = true;
+        
+        // Disable auto-connect when user manually disconnects
+        if (_settingsStorage != null)
+        {
+            try
+            {
+                // Load existing settings
+                var (settings, _) = _settingsStorage.LoadSettings();
+                
+                if (settings != null)
+                {
+                    // Save settings with auto-connect disabled
+                    _settingsStorage.SaveSettings(settings, enableAutoConnect: false);
+                    Console.WriteLine("[ConnectionShell] Auto-connect disabled after manual disconnect");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[ConnectionShell] Failed to disable auto-connect: {ex.Message}");
+            }
+        }
+        
         await _connectionService.DisconnectAsync();
         IsDownloadingParameters = false;
         ParameterProgressPercentage = 0;
         ParameterProgressText = "0/0";
         StatusMessage = "Disconnected";
         _hasNavigatedToMain = false;
+        
+        // Also update the UI checkbox state
+        EnableAutoConnect = false;
     }
 
     [RelayCommand]

@@ -1229,7 +1229,11 @@ public class CalibrationService : ICalibrationService
             _logger.LogDebug("[CompassCal] UI timer stopped");
         }
     }
+
     /// <summary>
+    /// Notifies subscribers that compass calibration state has changed.
+    /// Creates a thread-safe copy of the current state for event dispatch.
+    /// </summary>
     private void NotifyCompassStateChanged()
     {
         // Create a lightweight copy for the event
