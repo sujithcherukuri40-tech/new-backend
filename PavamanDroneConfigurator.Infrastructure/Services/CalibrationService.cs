@@ -106,6 +106,13 @@ public class CalibrationService : ICalibrationService
             return;
         }
 
+        // Compass calibration uses MAG_CAL_PROGRESS and MAG_CAL_REPORT messages
+        // for its lifecycle, not generic STATUSTEXT. Skip the generic success/failure
+        // detection to avoid prematurely ending compass calibration when the FC sends
+        // an unrelated STATUSTEXT matching one of the patterns below.
+        if (_inCompassCalibrate)
+            return;
+
         if (_isCalibrating)
         {
             var lower = e.Text.ToLowerInvariant();
@@ -1087,16 +1094,18 @@ public class CalibrationService : ICalibrationService
 
         // Set flags BEFORE sending command to avoid race condition where
         // FC's COMMAND_ACK arrives before flags are set
-        _activeCalibrationType = CalibrationType.Compass;
         _inCompassCalibrate = true;
         _isCalibrating = true;
+        _activeCalibrationType = CalibrationType.Compass;
+
+        // Start UI update timer BEFORE sending command (like MissionPlanner's timer1)
+        // so that progress updates are captured even if FC responds very quickly
+        StartCompassUiTimer();
         NotifyCompassStateChanged();
 
         try
         {
             // Send MAV_CMD_DO_START_MAG_CAL
-            // Uses SendCommandLongAsync which waits for COMMAND_ACK with retries.
-            // The FC will then send MAG_CAL_PROGRESS and MAG_CAL_REPORT messages.
             await _connectionService.SendStartMagCalAsync(
                 magMask,
                 retryOnFailure ? 1 : 0,
@@ -1105,16 +1114,10 @@ public class CalibrationService : ICalibrationService
                 0   // no autoreboot
             );
 
-            // Start UI update timer (like MissionPlanner's timer1)
-            StartCompassUiTimer();
-
-            lock (_compassLock)
-            {
-                _compassCalState.State = Core.Enums.CompassCalibrationState.RunningSphereFit;
-                _compassCalState.Message = "Rotate the vehicle in all directions...";
-            }
+            // Don't override compass state here - the OnCommandAckReceived handler
+            // for cmd 42424 already sets the state based on the ACK result.
+            // Just notify so UI picks up the current state.
             NotifyCompassStateChanged();
-
             _logger.LogInformation("[CompassCal] Calibration command sent successfully - waiting for FC progress updates");
             return true;
         }
