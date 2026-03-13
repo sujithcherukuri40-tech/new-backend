@@ -45,7 +45,7 @@
                         <Border Grid.Column="2" 
                                 Classes="badge-success"
                                 IsVisible="{Binding IsConnected}">
-                            <TextBlock Text="? Active" 
+                            <TextBlock Text="&#x2713; Active" 
                                        FontSize="{DynamicResource FontSizeSM}" 
                                        FontWeight="SemiBold"
                                        Foreground="{DynamicResource SuccessDarkBrush}"/>
@@ -56,7 +56,7 @@
                     <Border Classes="alert-info" IsVisible="{Binding IsDownloadingParameters}">
                         <StackPanel Spacing="12">
                             <StackPanel Orientation="Horizontal" Spacing="8">
-                                <TextBlock Text="??" FontSize="16"/>
+                                <TextBlock Text="&#x2193;" FontSize="16"/>
                                 <TextBlock Text="Downloading Parameters" 
                                            FontWeight="SemiBold"
                                            Foreground="{DynamicResource TextPrimaryBrush}"/>
@@ -99,7 +99,7 @@
                                                 Padding="20,10"
                                                 Cursor="Hand">
                                             <StackPanel Orientation="Horizontal" Spacing="8">
-                                                <TextBlock Text="??" FontSize="14"/>
+                                                <TextBlock Text="&#x25B8;" FontSize="14"/>
                                                 <TextBlock Text="Serial (USB)" 
                                                            FontWeight="{TemplateBinding FontWeight}"
                                                            Foreground="{TemplateBinding Foreground}"/>
@@ -137,7 +137,7 @@
                                                 Padding="20,10"
                                                 Cursor="Hand">
                                             <StackPanel Orientation="Horizontal" Spacing="8">
-                                                <TextBlock Text="??" FontSize="14"/>
+                                                <TextBlock Text="&#x25CB;" FontSize="14"/>
                                                 <TextBlock Text="TCP (Network)" 
                                                            FontWeight="{TemplateBinding FontWeight}"
                                                            Foreground="{TemplateBinding Foreground}"/>
@@ -175,7 +175,7 @@
                                                 Padding="20,10"
                                                 Cursor="Hand">
                                             <StackPanel Orientation="Horizontal" Spacing="8">
-                                                <TextBlock Text="??" FontSize="14"/>
+                                                <TextBlock Text="&#x25CF;" FontSize="14"/>
                                                 <TextBlock Text="Bluetooth" 
                                                            FontWeight="{TemplateBinding FontWeight}"
                                                            Foreground="{TemplateBinding Foreground}"/>
@@ -331,7 +331,7 @@
                         </ComboBox>
                     </StackPanel>
 
-                    <TextBlock Text="?? Ensure your Bluetooth device is powered on and in pairing mode" 
+                    <TextBlock Text="&#x26A0; Ensure your Bluetooth device is powered on and in pairing mode" 
                                Classes="caption"
                                FontStyle="Italic"/>
                 </StackPanel>
@@ -353,7 +353,7 @@
             <Border Classes="card-muted" IsVisible="{Binding IsConnected}">
                 <StackPanel Spacing="16">
                     <StackPanel Orientation="Horizontal" Spacing="8">
-                        <TextBlock Text="?" FontSize="16" Foreground="{DynamicResource SuccessBrush}"/>
+                        <TextBlock Text="&#x2713;" FontSize="16" Foreground="{DynamicResource SuccessBrush}"/>
                         <TextBlock Text="Connection Information" Classes="section-title" Margin="0"/>
                     </StackPanel>
                     

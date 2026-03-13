@@ -1058,6 +1058,9 @@ public class CalibrationService : ICalibrationService
         _logger.LogInformation("[CompassCal] Starting onboard compass calibration: mask={Mask} retry={Retry} autosave={Autosave}",
             magMask, retryOnFailure, autosave);
 
+        // Reset any stale calibration state from previous sessions
+        ResetStaleCalibrationState();
+
         // Reset state
         lock (_compassLock)
         {
@@ -1071,6 +1074,9 @@ public class CalibrationService : ICalibrationService
         _inCompassCalibrate = true;
         _isCalibrating = true;
         _activeCalibrationType = CalibrationType.Compass;
+
+        // Immediately notify UI so it updates without waiting for timer tick
+        NotifyCompassStateChanged();
 
         // Start UI update timer (like MissionPlanner's timer1)
         StartCompassUiTimer();

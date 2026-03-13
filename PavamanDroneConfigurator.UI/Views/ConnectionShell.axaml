@@ -346,7 +346,7 @@
                         IsVisible="{Binding IsDownloadingParameters}">
                     <StackPanel Spacing="12">
                         <StackPanel Orientation="Horizontal" Spacing="10">
-                            <TextBlock Text="??" FontSize="16"/>
+                            <TextBlock Text="&#x2193;" FontSize="16"/>
                             <TextBlock Text="Downloading Parameters" 
                                        FontWeight="SemiBold" 
                                        FontSize="14" 
