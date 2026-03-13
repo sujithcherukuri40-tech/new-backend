@@ -1101,6 +1101,7 @@ public class CalibrationService : ICalibrationService
         // Start UI update timer BEFORE sending command (like MissionPlanner's timer1)
         // so that progress updates are captured even if FC responds very quickly
         StartCompassUiTimer();
+        NotifyCompassStateChanged();
 
         try
         {
@@ -1117,6 +1118,7 @@ public class CalibrationService : ICalibrationService
             // for cmd 42424 already sets the state based on the ACK result.
             // Just notify so UI picks up the current state.
             NotifyCompassStateChanged();
+            _logger.LogInformation("[CompassCal] Calibration command sent successfully - waiting for FC progress updates");
             return true;
         }
         catch (TimeoutException ex)
