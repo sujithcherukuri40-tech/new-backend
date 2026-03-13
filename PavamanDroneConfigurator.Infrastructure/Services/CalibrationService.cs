@@ -926,45 +926,28 @@ public class CalibrationService : ICalibrationService
 
     private void OnMagCalProgressReceived(object? sender, MagCalProgressEventArgs e)
     {
-        // Accept progress updates even if we didn't think calibration was active
-        // This handles cases where the FC started calibration before we updated state
         if (!_inCompassCalibrate)
-        {
-            _logger.LogInformation("[CompassCal] Received progress but _inCompassCalibrate=false - auto-activating");
-            _inCompassCalibrate = true;
-            _isCalibrating = true;
-            _activeCalibrationType = CalibrationType.Compass;
-            StartCompassUiTimer();
-        }
+            return;
 
-        _logger.LogInformation("[CompassCal] Progress: compass={CompassId} status={Status} pct={Pct}%",
+        _logger.LogDebug("[CompassCal] Progress: compass={CompassId} status={Status} pct={Pct}%",
             e.CompassId, e.CalStatus, e.CompletionPct);
 
         lock (_compassLock)
         {
             // Update progress for this compass
             _compassCalState.CompassProgress[e.CompassId] = e.CompletionPct;
-
+            
             // Update overall state based on status
             var status = (MagCalStatus)e.CalStatus;
             if (status == MagCalStatus.RunningStepOne)
-            {
                 _compassCalState.State = Core.Enums.CompassCalibrationState.RunningSphereFit;
-                _compassCalState.Message = $"Calibrating... Rotate vehicle in all directions";
-            }
             else if (status == MagCalStatus.RunningStepTwo)
-            {
                 _compassCalState.State = Core.Enums.CompassCalibrationState.RunningEllipsoidFit;
-                _compassCalState.Message = $"Compass Calibration in progress...";
-            }
-            else if (status == MagCalStatus.WaitingToStart)
-            {
-                _compassCalState.State = Core.Enums.CompassCalibrationState.Starting;
-                _compassCalState.Message = "Waiting to start...";
-            }
+            
+            _compassCalState.Message = $"Calibrating compass {e.CompassId}: {e.CompletionPct}%";
         }
 
-        // Immediately raise the progress event (don't rely only on timer)
+        // Raise event
         CompassCalProgressReceived?.Invoke(this, new CompassCalProgressEventArgs
         {
             CompassId = e.CompassId,
@@ -1075,10 +1058,7 @@ public class CalibrationService : ICalibrationService
         _logger.LogInformation("[CompassCal] Starting onboard compass calibration: mask={Mask} retry={Retry} autosave={Autosave}",
             magMask, retryOnFailure, autosave);
 
-        // Reset any stale calibration state from previously interrupted calibrations
-        ResetStaleCalibrationState();
-
-        // Reset compass state
+        // Reset state
         lock (_compassLock)
         {
             _compassCalState = new CompassCalibrationStateModel
@@ -1086,23 +1066,14 @@ public class CalibrationService : ICalibrationService
                 State = Core.Enums.CompassCalibrationState.Starting,
                 Message = "Starting compass calibration..."
             };
-            // Do NOT pre-initialize CompassProgress entries here.
-            // CompassCount is derived from CompassProgress.Count, and the completion
-            // check (CompletedCount == CompassCount) requires both to reflect only
-            // the compasses that actually reported. Pre-populating all 3 entries would
-            // cause CompassCount=3 on single-compass drones, preventing completion.
         }
 
-        // Set flags BEFORE sending command to avoid race condition where
-        // FC's COMMAND_ACK arrives before flags are set
         _inCompassCalibrate = true;
         _isCalibrating = true;
         _activeCalibrationType = CalibrationType.Compass;
 
-        // Start UI update timer BEFORE sending command (like MissionPlanner's timer1)
-        // so that progress updates are captured even if FC responds very quickly
+        // Start UI update timer (like MissionPlanner's timer1)
         StartCompassUiTimer();
-        NotifyCompassStateChanged();
 
         try
         {
@@ -1115,26 +1086,8 @@ public class CalibrationService : ICalibrationService
                 0   // no autoreboot
             );
 
-            // Don't override compass state here - the OnCommandAckReceived handler
-            // for cmd 42424 already sets the state based on the ACK result.
-            // Just notify so UI picks up the current state.
             NotifyCompassStateChanged();
-            _logger.LogInformation("[CompassCal] Calibration command sent successfully - waiting for FC progress updates");
             return true;
-        }
-        catch (TimeoutException ex)
-        {
-            _logger.LogWarning(ex, "[CompassCal] Compass calibration command timed out - FC may not have responded");
-            lock (_compassLock)
-            {
-                _compassCalState.State = Core.Enums.CompassCalibrationState.Failed;
-                _compassCalState.Message = "Command timed out. Check connection and try again.";
-            }
-            _inCompassCalibrate = false;
-            _isCalibrating = false;
-            StopCompassUiTimer();
-            NotifyCompassStateChanged();
-            return false;
         }
         catch (Exception ex)
         {
@@ -1221,54 +1174,31 @@ public class CalibrationService : ICalibrationService
     private void StartCompassUiTimer()
     {
         StopCompassUiTimer();
-        // Use 50ms interval for smoother UI updates (20 FPS)
-        _compassUiTimer = new System.Timers.Timer(50);
-        _compassUiTimer.Elapsed += (_, _) =>
-        {
-            // Only notify if calibration is active to reduce overhead
-            if (_inCompassCalibrate)
-            {
-                NotifyCompassStateChanged();
-            }
-        };
-        _compassUiTimer.AutoReset = true;
+        _compassUiTimer = new System.Timers.Timer(100); // 100ms like MissionPlanner
+        _compassUiTimer.Elapsed += (_, _) => NotifyCompassStateChanged();
         _compassUiTimer.Start();
-        _logger.LogDebug("[CompassCal] UI timer started (50ms interval)");
     }
 
     private void StopCompassUiTimer()
     {
-        if (_compassUiTimer != null)
-        {
-            _compassUiTimer.Stop();
-            _compassUiTimer.Elapsed -= null!;
-            _compassUiTimer.Dispose();
-            _compassUiTimer = null;
-            _logger.LogDebug("[CompassCal] UI timer stopped");
-        }
+        _compassUiTimer?.Stop();
+        _compassUiTimer?.Dispose();
+        _compassUiTimer = null;
     }
 
-    /// <summary>
-    /// Notifies subscribers that compass calibration state has changed.
-    /// Creates a thread-safe copy of the current state for event dispatch.
-    /// </summary>
     private void NotifyCompassStateChanged()
     {
-        // Create a lightweight copy for the event
-        CompassCalibrationStateModel state;
+        CompassCalibrationStateModel? state;
         lock (_compassLock)
         {
             state = new CompassCalibrationStateModel
             {
                 State = _compassCalState.State,
                 Message = _compassCalState.Message,
-                // Use same dictionary references for speed when not modified
                 CompassProgress = new Dictionary<byte, int>(_compassCalState.CompassProgress),
                 CompassReports = new Dictionary<byte, MagCalReportData>(_compassCalState.CompassReports)
             };
         }
-
-        // Fire event on background thread - let ViewModel handle UI thread dispatch
         CompassCalibrationStateChanged?.Invoke(this, state);
     }
 
