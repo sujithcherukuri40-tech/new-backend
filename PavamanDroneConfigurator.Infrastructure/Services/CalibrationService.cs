@@ -306,6 +306,20 @@ public class CalibrationService : ICalibrationService
                     }
                     NotifyCompassStateChanged();
                 }
+                else if (e.Result == 5) // MAV_RESULT_IN_PROGRESS
+                {
+                    // IN_PROGRESS means the FC accepted the command and calibration is running.
+                    // ArduPilot commonly returns IN_PROGRESS for DO_START_MAG_CAL because the
+                    // calibration is an ongoing process. This is NOT a failure - keep flags set
+                    // and wait for MAG_CAL_PROGRESS and MAG_CAL_REPORT messages.
+                    _logger.LogInformation("[CompassCal] MAV_CMD_DO_START_MAG_CAL IN_PROGRESS - calibration running");
+                    lock (_compassLock)
+                    {
+                        _compassCalState.State = Core.Enums.CompassCalibrationState.RunningSphereFit;
+                        _compassCalState.Message = "Calibration started - rotate vehicle in all directions...";
+                    }
+                    NotifyCompassStateChanged();
+                }
                 else
                 {
                     _logger.LogWarning("[CompassCal] MAV_CMD_DO_START_MAG_CAL REJECTED by FC: result={Result}", e.Result);
