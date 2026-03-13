@@ -1086,10 +1086,11 @@ public class CalibrationService : ICalibrationService
                 State = Core.Enums.CompassCalibrationState.Starting,
                 Message = "Starting compass calibration..."
             };
-            // Initialize progress for all possible compasses
-            _compassCalState.CompassProgress[0] = 0;
-            _compassCalState.CompassProgress[1] = 0;
-            _compassCalState.CompassProgress[2] = 0;
+            // Do NOT pre-initialize CompassProgress entries here.
+            // CompassCount is derived from CompassProgress.Count, and the completion
+            // check (CompletedCount == CompassCount) requires both to reflect only
+            // the compasses that actually reported. Pre-populating all 3 entries would
+            // cause CompassCount=3 on single-compass drones, preventing completion.
         }
 
         // Set flags BEFORE sending command to avoid race condition where
