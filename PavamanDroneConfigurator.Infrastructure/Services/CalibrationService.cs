@@ -956,6 +956,9 @@ public class CalibrationService : ICalibrationService
             CompletionPercent = e.CompletionPct,
             Direction = (e.DirectionX, e.DirectionY, e.DirectionZ)
         });
+        
+        // CRITICAL: Immediately notify UI so progress bars update!
+        NotifyCompassStateChanged();
     }
 
     private void OnMagCalReportReceived(object? sender, MagCalReportEventArgs e)
