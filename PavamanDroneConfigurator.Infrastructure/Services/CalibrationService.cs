@@ -329,16 +329,18 @@ public class CalibrationService : ICalibrationService
                 }
                 else
                 {
-                    _logger.LogWarning("[CompassCal] MAV_CMD_DO_START_MAG_CAL REJECTED by FC: result={Result}", e.Result);
-                    lock (_compassLock)
-                    {
-                        _compassCalState.State = Core.Enums.CompassCalibrationState.Failed;
-                        _compassCalState.Message = $"Calibration rejected (result: {e.Result}). Vehicle may need to be disarmed.";
-                    }
-                    _inCompassCalibrate = false;
-                    _isCalibrating = false;
-                    StopCompassUiTimer();
-                    NotifyCompassStateChanged();
+                    // Log the unexpected result but do NOT abort active calibration.
+                    // ArduPilot may send a second or late COMMAND_ACK with an unexpected
+                    // result code (e.g. result=1 TEMPORARILY_REJECTED) after the initial
+                    // IN_PROGRESS ACK has already been processed and calibration is running.
+                    // Aborting here would set _inCompassCalibrate=false, stop all
+                    // MAG_CAL_PROGRESS processing, and freeze the UI at 0%.
+                    // MAG_CAL_PROGRESS and MAG_CAL_REPORT are the authoritative source
+                    // of calibration state; let them drive the outcome.
+                    _logger.LogWarning(
+                        "[CompassCal] MAV_CMD_DO_START_MAG_CAL unexpected result={Result}. " +
+                        "Calibration continues - MAG_CAL_PROGRESS/REPORT messages will determine final result.",
+                        e.Result);
                 }
                 return;
             }
@@ -947,7 +949,7 @@ public class CalibrationService : ICalibrationService
             _compassCalState.Message = $"Calibrating compass {e.CompassId}: {e.CompletionPct}%";
         }
 
-        // Raise event
+        // Raise event for direct UI update path
         CompassCalProgressReceived?.Invoke(this, new CompassCalProgressEventArgs
         {
             CompassId = e.CompassId,
@@ -956,6 +958,10 @@ public class CalibrationService : ICalibrationService
             CompletionPercent = e.CompletionPct,
             Direction = (e.DirectionX, e.DirectionY, e.DirectionZ)
         });
+
+        // Also push an immediate state-change notification so the timer-based UI path
+        // reflects the live progress without waiting for the next 100 ms tick.
+        NotifyCompassStateChanged();
     }
 
     private void OnMagCalReportReceived(object? sender, MagCalReportEventArgs e)

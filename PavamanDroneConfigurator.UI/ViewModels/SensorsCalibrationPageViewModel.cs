@@ -1415,14 +1415,6 @@ public partial class SensorsCalibrationPageViewModel : ViewModelBase
             return;
         }
 
-        // Show disclaimer dialog before starting calibration
-        var disclaimerResult = await ShowCalibrationDisclaimerAsync("Compass");
-        if (!disclaimerResult)
-        {
-            StatusMessage = "Calibration cancelled - disclaimer not accepted.";
-            return;
-        }
-
         AddDebugLog("[CompassCal] Starting onboard compass calibration...");
         
         // Reset progress and UI
