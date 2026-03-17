@@ -500,6 +500,8 @@ public partial class SensorsCalibrationPageViewModel : ViewModelBase
                     PressureInstructions = "Barometer calibration complete!";
                     PressureCalibrationProgress = 100;
                     StatusMessage = "Barometer calibration completed successfully";
+                    // Show reboot prompt like we do for other calibrations
+                    ShowRebootPromptDialog("Barometer calibration complete! Please reboot the autopilot to apply changes.");
                 }
                 else if (e.State == CalibrationState.Failed)
                 {
