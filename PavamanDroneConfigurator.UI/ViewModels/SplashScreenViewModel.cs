@@ -19,7 +19,7 @@ public partial class SplashScreenViewModel : ViewModelBase
     private bool _isIndeterminate = true;
 
     [ObservableProperty]
-    private string _versionText = "Version 1.0.0";
+    private string _versionText = "Version 2.0.0";
 
     [ObservableProperty]
     private bool _hasLogo = false;

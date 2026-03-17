@@ -106,3 +106,14 @@ appsettings.*.LOCAL.json
 *.LOCAL.json
 .env.local
 .env.*.local
+
+# MSIX packaging outputs
+**/AppPackages/
+**/*.msix
+**/*.msixbundle
+**/*.msixupload
+**/*.appx
+**/*.appxbundle
+**/*.appxsym
+**/*.cer
+**/BundleArtifacts/
