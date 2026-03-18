@@ -11,19 +11,16 @@ public interface IConnectionService
     Task<bool> ConnectAsync(ConnectionSettings settings);
     Task DisconnectAsync();
     bool IsConnected { get; }
-    bool IsArmed { get; } // Added: Track armed status from HEARTBEAT
+    bool IsArmed { get; }
     event EventHandler<bool>? ConnectionStateChanged;
     
-    // Serial port methods
     IEnumerable<SerialPortInfo> GetAvailableSerialPorts();
     event EventHandler<IEnumerable<SerialPortInfo>>? AvailableSerialPortsChanged;
     
-    // Bluetooth methods
     Task<IEnumerable<BluetoothDeviceInfo>> GetAvailableBluetoothDevicesAsync();
     
     Stream? GetTransportStream();
     
-    // MAVLink message events
     event EventHandler<MavlinkParamValueEventArgs>? ParamValueReceived;
     event EventHandler? HeartbeatReceived;
     event EventHandler<HeartbeatDataEventArgs>? HeartbeatDataReceived;
@@ -34,86 +31,35 @@ public interface IConnectionService
     event EventHandler<RawImuEventArgs>? RawImuReceived;
     event EventHandler<MagCalProgressEventArgs>? MagCalProgressReceived;
     event EventHandler<MagCalReportEventArgs>? MagCalReportReceived;
-    
-    /// <summary>
-    /// Event raised when AUTOPILOT_VERSION message is received.
-    /// Contains firmware version, capabilities, and unique hardware identifiers (UID/UID2).
-    /// </summary>
     event EventHandler<AutopilotVersionDataEventArgs>? AutopilotVersionReceived;
-    
-    /// <summary>
-    /// Event raised when a reboot is about to be initiated.
-    /// Components should stop all timers and cleanup resources.
-    /// </summary>
+    event EventHandler<GlobalPositionIntEventArgs>? GlobalPositionIntReceived;
+    event EventHandler<AttitudeEventArgs>? AttitudeReceived;
+    event EventHandler<VfrHudEventArgs>? VfrHudReceived;
+    event EventHandler<GpsRawIntEventArgs>? GpsRawIntReceived;
+    event EventHandler<SysStatusEventArgs>? SysStatusReceived;
     event EventHandler? RebootInitiated;
     
-    // MAVLink send methods for ParameterService to call
     void SendParamRequestList();
     void SendParamRequestRead(ushort paramIndex);
     void SendParamSet(ParameterWriteRequest request);
-    
-    // Motor test command (DO_MOTOR_TEST MAV_CMD = 209)
     void SendMotorTest(int motorInstance, int throttleType, float throttleValue, float timeout, int motorCount = 0, int testOrder = 0);
-    
-    // Calibration command (MAV_CMD_PREFLIGHT_CALIBRATION = 241)
     void SendPreflightCalibration(int gyro, int mag, int groundPressure, int airspeed, int accel);
-    
-    /// <summary>
-    /// Send MAV_CMD_PREFLIGHT_CALIBRATION and await the COMMAND_ACK from the FC.
-    /// Use this for calibrations (like level horizon) that need to confirm the command was accepted.
-    /// </summary>
     Task SendPreflightCalibrationAsync(int gyro, int mag, int groundPressure, int airspeed, int accel);
-    
-    /// <summary>
-    /// Cancel any ongoing preflight calibration by sending MAV_CMD_PREFLIGHT_CALIBRATION with all zeros.
-    /// This is the standard way to abort calibration in ArduPilot.
-    /// </summary>
     void SendCancelPreflightCalibration();
-    
-    // Accelerometer calibration position acknowledgment (MAV_CMD_ACCELCAL_VEHICLE_POS = 42429)
-    // This tells the FC that the vehicle is in position and ready for sampling
     void SendAccelCalVehiclePos(int position);
-    
-    // Reboot command (MAV_CMD_PREFLIGHT_REBOOT_SHUTDOWN = 246)
     void SendPreflightReboot(int autopilot, int companion);
-    
-    /// <summary>
-    /// Prepares for a flight controller reboot by stopping all timers and cleaning up resources.
-    /// Should be called before sending the reboot command.
-    /// </summary>
     void PrepareForReboot();
-    
-    // Flash bootloader command (MAV_CMD_FLASH_BOOTLOADER = 42650)
-    // Magic value 290876 confirms the operation
     void SendFlashBootloaderCommand(int magicValue);
-    
-    // Arm/Disarm command (MAV_CMD_COMPONENT_ARM_DISARM = 400)
     void SendArmDisarm(bool arm, bool force = false);
-    
-    // Reset all parameters to default (MAV_CMD_PREFLIGHT_STORAGE = 245, param1 = 2)
     void SendResetParameters();
-    
-    // Set message interval for specific MAVLink message (MAV_CMD_SET_MESSAGE_INTERVAL = 511)
-    // Used to force IMU messages at 50Hz during accelerometer calibration
     void SendSetMessageInterval(int messageId, int intervalUs);
-    
-    // Request data stream (legacy fallback for older firmware)
-    // streamId: 1=RAW_SENSORS (includes IMU), rateHz: desired rate, startStop: 1=start, 0=stop
     void SendRequestDataStream(int streamId, int rateHz, int startStop);
-    
-    // Compass calibration commands (MAV_CMD_DO_START/ACCEPT/CANCEL_MAG_CAL = 42424/42425/42426)
     Task SendStartMagCalAsync(int magMask = 0, int retryOnFailure = 1, int autosave = 1, float delay = 0, int autoreboot = 0);
     Task SendAcceptMagCalAsync(int magMask = 0);
     Task SendCancelMagCalAsync(int magMask = 0);
-    
-    /// <summary>
-    /// Request AUTOPILOT_VERSION message from the flight controller.
-    /// This must be called to get the FC's unique identifier (UID/UID2) and firmware version.
-    /// </summary>
     void SendRequestAutopilotVersion();
 }
 
-// Event args for PARAM_VALUE messages
 public class MavlinkParamValueEventArgs : EventArgs
 {
     public DroneParameter Parameter { get; }
@@ -128,7 +74,6 @@ public class MavlinkParamValueEventArgs : EventArgs
     }
 }
 
-// Event args for HEARTBEAT data
 public class HeartbeatDataEventArgs : EventArgs
 {
     public byte SystemId { get; set; }
@@ -140,14 +85,12 @@ public class HeartbeatDataEventArgs : EventArgs
     public bool IsArmed { get; set; }
 }
 
-// Event args for STATUSTEXT messages
 public class StatusTextEventArgs : EventArgs
 {
     public byte Severity { get; set; }
     public string Text { get; set; } = string.Empty;
 }
 
-// Event args for RC_CHANNELS messages
 public class RcChannelsEventArgs : EventArgs
 {
     public ushort Channel1 { get; set; }
@@ -163,40 +106,31 @@ public class RcChannelsEventArgs : EventArgs
     
     public ushort GetChannel(int number) => number switch
     {
-        1 => Channel1,
-        2 => Channel2,
-        3 => Channel3,
-        4 => Channel4,
-        5 => Channel5,
-        6 => Channel6,
-        7 => Channel7,
-        8 => Channel8,
+        1 => Channel1, 2 => Channel2, 3 => Channel3, 4 => Channel4,
+        5 => Channel5, 6 => Channel6, 7 => Channel7, 8 => Channel8,
         _ => 0
     };
 }
 
-// Event args for COMMAND_ACK messages
 public class CommandAckEventArgs : EventArgs
 {
     public ushort Command { get; set; }
     public byte Result { get; set; }
-    public bool IsSuccess => Result == 0; // MAV_RESULT_ACCEPTED
+    public bool IsSuccess => Result == 0;
 }
 
-// Event args for RAW_IMU messages
 public class RawImuEventArgs : EventArgs
 {
-    public double AccelX { get; set; } // m/s²
-    public double AccelY { get; set; } // m/s²
-    public double AccelZ { get; set; } // m/s²
-    public double GyroX { get; set; }  // rad/s
-    public double GyroY { get; set; }  // rad/s
-    public double GyroZ { get; set; }  // rad/s
+    public double AccelX { get; set; }
+    public double AccelY { get; set; }
+    public double AccelZ { get; set; }
+    public double GyroX { get; set; }
+    public double GyroY { get; set; }
+    public double GyroZ { get; set; }
     public ulong TimeUsec { get; set; }
-    public double Temperature { get; set; } // °C
+    public double Temperature { get; set; }
 }
 
-// Event args for COMMAND_LONG messages
 public class CommandLongEventArgs : EventArgs
 {
     public byte SystemId { get; set; }
@@ -214,7 +148,6 @@ public class CommandLongEventArgs : EventArgs
     public byte Confirmation { get; set; }
 }
 
-// Event args for MAG_CAL_PROGRESS messages
 public class MagCalProgressEventArgs : EventArgs
 {
     public byte CompassId { get; set; }
@@ -228,7 +161,6 @@ public class MagCalProgressEventArgs : EventArgs
     public float DirectionZ { get; set; }
 }
 
-// Event args for MAG_CAL_REPORT messages
 public class MagCalReportEventArgs : EventArgs
 {
     public byte CompassId { get; set; }
@@ -254,10 +186,6 @@ public class MagCalReportEventArgs : EventArgs
     public float GetMaxAbsOffset() => Math.Max(Math.Max(Math.Abs(OfsX), Math.Abs(OfsY)), Math.Abs(OfsZ));
 }
 
-/// <summary>
-/// Event args for AUTOPILOT_VERSION messages.
-/// Contains firmware version, capabilities, and unique hardware identifiers.
-/// </summary>
 public class AutopilotVersionDataEventArgs : EventArgs
 {
     public byte SystemId { get; set; }
@@ -270,72 +198,36 @@ public class AutopilotVersionDataEventArgs : EventArgs
     public byte[]? FlightCustomVersion { get; set; }
     public ushort VendorId { get; set; }
     public ushort ProductId { get; set; }
-    
-    /// <summary>
-    /// 8-byte unique hardware identifier (UID)
-    /// </summary>
     public byte[]? Uid { get; set; }
-    
-    /// <summary>
-    /// 18-byte unique hardware identifier (UID2) - more reliable for FC identification
-    /// </summary>
     public byte[]? Uid2 { get; set; }
-    
     public byte FirmwareMajor { get; set; }
     public byte FirmwareMinor { get; set; }
     public byte FirmwarePatch { get; set; }
     public byte FirmwareType { get; set; }
     public string FirmwareVersionString { get; set; } = "N/A";
     
-    /// <summary>
-    /// Gets the Flight Controller ID using the best available identifier.
-    /// Priority: UID2 > UID > FlightSwVersion + GitHash
-    /// </summary>
     public string GetFcId()
     {
-        // Priority 1: Use UID2 if available (18-byte hardware unique ID - most reliable)
         if (Uid2 != null && Uid2.Length > 0)
         {
             bool allZeros = true;
-            foreach (byte b in Uid2)
-            {
-                if (b != 0)
-                {
-                    allZeros = false;
-                    break;
-                }
-            }
-            
+            foreach (byte b in Uid2) { if (b != 0) { allZeros = false; break; } }
             if (!allZeros)
             {
-                // Use first 10 bytes of UID2 for a readable ID
-                var hex = BitConverter.ToString(Uid2, 0, Math.Min(10, Uid2.Length))
-                    .Replace("-", "").ToUpperInvariant();
+                var hex = BitConverter.ToString(Uid2, 0, Math.Min(10, Uid2.Length)).Replace("-", "").ToUpperInvariant();
                 return $"FC-{hex}";
             }
         }
-        
-        // Priority 2: Use UID if available (8-byte hardware ID)
         if (Uid != null && Uid.Length > 0)
         {
             bool allZeros = true;
-            foreach (byte b in Uid)
-            {
-                if (b != 0)
-                {
-                    allZeros = false;
-                    break;
-                }
-            }
-            
+            foreach (byte b in Uid) { if (b != 0) { allZeros = false; break; } }
             if (!allZeros)
             {
                 var hex = BitConverter.ToString(Uid).Replace("-", "").ToUpperInvariant();
                 return $"FC-{hex}";
             }
         }
-        
-        // Priority 3: Use firmware version + git hash
         if (FlightSwVersion > 0)
         {
             var gitPrefix = FlightCustomVersion != null && FlightCustomVersion.Length >= 4
@@ -343,32 +235,76 @@ public class AutopilotVersionDataEventArgs : EventArgs
                 : "0000";
             return $"FW-{FlightSwVersion:X8}-{gitPrefix}";
         }
-        
         return "FW-UNAVAILABLE";
     }
     
-    /// <summary>
-    /// Gets the git hash from FlightCustomVersion
-    /// </summary>
     public string GetGitHash()
     {
-        if (FlightCustomVersion == null || FlightCustomVersion.Length == 0)
-            return "N/A";
-
+        if (FlightCustomVersion == null || FlightCustomVersion.Length == 0) return "N/A";
         bool allZeros = true;
-        foreach (byte b in FlightCustomVersion)
-        {
-            if (b != 0)
-            {
-                allZeros = false;
-                break;
-            }
-        }
-
-        if (allZeros)
-            return "N/A";
-
-        var hex = BitConverter.ToString(FlightCustomVersion).Replace("-", "").ToLowerInvariant();
-        return hex;
+        foreach (byte b in FlightCustomVersion) { if (b != 0) { allZeros = false; break; } }
+        if (allZeros) return "N/A";
+        return BitConverter.ToString(FlightCustomVersion).Replace("-", "").ToLowerInvariant();
     }
+}
+
+public class GlobalPositionIntEventArgs : EventArgs
+{
+    public uint TimeBootMs { get; set; }
+    public double Latitude { get; set; }
+    public double Longitude { get; set; }
+    public double AltitudeMsl { get; set; }
+    public double AltitudeRelative { get; set; }
+    public double VelocityX { get; set; }
+    public double VelocityY { get; set; }
+    public double VelocityZ { get; set; }
+    public double Heading { get; set; }
+}
+
+public class AttitudeEventArgs : EventArgs
+{
+    public uint TimeBootMs { get; set; }
+    public double Roll { get; set; }
+    public double Pitch { get; set; }
+    public double Yaw { get; set; }
+    public double RollSpeed { get; set; }
+    public double PitchSpeed { get; set; }
+    public double YawSpeed { get; set; }
+}
+
+public class VfrHudEventArgs : EventArgs
+{
+    public double Airspeed { get; set; }
+    public double GroundSpeed { get; set; }
+    public double Heading { get; set; }
+    public int Throttle { get; set; }
+    public double Altitude { get; set; }
+    public double ClimbRate { get; set; }
+}
+
+public class GpsRawIntEventArgs : EventArgs
+{
+    public ulong TimeUsec { get; set; }
+    public byte FixType { get; set; }
+    public double Latitude { get; set; }
+    public double Longitude { get; set; }
+    public double Altitude { get; set; }
+    public double Hdop { get; set; }
+    public double Vdop { get; set; }
+    public double GroundSpeed { get; set; }
+    public double CourseOverGround { get; set; }
+    public byte SatellitesVisible { get; set; }
+}
+
+public class SysStatusEventArgs : EventArgs
+{
+    public uint SensorsPresent { get; set; }
+    public uint SensorsEnabled { get; set; }
+    public uint SensorsHealth { get; set; }
+    public ushort Load { get; set; }
+    public double BatteryVoltage { get; set; }
+    public double BatteryCurrent { get; set; }
+    public sbyte BatteryRemaining { get; set; }
+    public ushort DropRateComm { get; set; }
+    public ushort ErrorsComm { get; set; }
 }

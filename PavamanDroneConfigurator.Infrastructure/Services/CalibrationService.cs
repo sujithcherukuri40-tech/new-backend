@@ -52,6 +52,8 @@ public class CalibrationService : ICalibrationService
     private CompassCalibrationStateModel _compassCalState = new();
     private readonly object _compassLock = new();
     private System.Timers.Timer? _compassUiTimer;
+    private DateTime _lastCompassProgressTime;
+    private const int COMPASS_PROGRESS_TIMEOUT_SECONDS = 10;
 
     public CalibrationStateModel? CurrentState => _currentState;
     public bool IsCalibrating => _isCalibrating;
@@ -131,10 +133,10 @@ public class CalibrationService : ICalibrationService
                 lower.Contains("ground pressure calibrated") ||
                 lower.Contains("level complete") ||
                 lower.Contains("trim saved") ||
-                lower.Contains("ins: level") ||  // ArduPilot 4.x sends "INS: Level" for level horizon cal
+                lower.Contains("ins: level") || 
                 lower.Contains("calibration ok") ||
                 lower.Contains("ahrs trim saved") ||
-                lower.Contains("simple accel cal")) // Simple accelerometer cal complete
+                lower.Contains("simple accel cal"))
             {
                 _logger.LogInformation("[CalibService] Calibration SUCCESS detected via STATUSTEXT: {Text}", e.Text);
                 _isCalibrating = false;
@@ -327,20 +329,46 @@ public class CalibrationService : ICalibrationService
                     }
                     NotifyCompassStateChanged();
                 }
+                else if (e.Result == 1) // MAV_RESULT_TEMPORARILY_REJECTED
+                {
+                    // TEMPORARILY_REJECTED often means the calibration is still initializing.
+                    // Wait for MAG_CAL_PROGRESS messages - if they arrive, calibration is actually running.
+                    _logger.LogInformation("[CompassCal] MAV_CMD_DO_START_MAG_CAL TEMPORARILY_REJECTED - waiting for MAG_CAL_PROGRESS");
+                    lock (_compassLock)
+                    {
+                        _compassCalState.State = Core.Enums.CompassCalibrationState.Starting;
+                        _compassCalState.Message = "Initializing calibration - please wait...";
+                    }
+                    NotifyCompassStateChanged();
+                }
+                else if (e.Result == 4) // MAV_RESULT_DENIED
+                {
+                    // DENIED means calibration cannot start (e.g., PreArm check failed, already calibrating)
+                    _logger.LogWarning("[CompassCal] MAV_CMD_DO_START_MAG_CAL DENIED by FC (result={Result})", e.Result);
+                    lock (_compassLock)
+                    {
+                        _compassCalState.State = Core.Enums.CompassCalibrationState.Failed;
+                        _compassCalState.Message = "Calibration denied by FC. Check PreArm conditions and ensure compass is enabled.";
+                    }
+                    _inCompassCalibrate = false;
+                    _isCalibrating = false;
+                    StopCompassUiTimer();
+                    NotifyCompassStateChanged();
+                }
                 else
                 {
-                    // Log the unexpected result but do NOT abort active calibration.
-                    // ArduPilot may send a second or late COMMAND_ACK with an unexpected
-                    // result code (e.g. result=1 TEMPORARILY_REJECTED) after the initial
-                    // IN_PROGRESS ACK has already been processed and calibration is running.
-                    // Aborting here would set _inCompassCalibrate=false, stop all
-                    // MAG_CAL_PROGRESS processing, and freeze the UI at 0%.
-                    // MAG_CAL_PROGRESS and MAG_CAL_REPORT are the authoritative source
-                    // of calibration state; let them drive the outcome.
+                    // For any other unexpected result, log but continue waiting for MAG_CAL_PROGRESS
+                    // If no progress messages arrive within reasonable time, the UI timer will timeout
                     _logger.LogWarning(
                         "[CompassCal] MAV_CMD_DO_START_MAG_CAL unexpected result={Result}. " +
-                        "Calibration continues - MAG_CAL_PROGRESS/REPORT messages will determine final result.",
+                        "Waiting for MAG_CAL_PROGRESS to determine if calibration is actually running.",
                         e.Result);
+                    lock (_compassLock)
+                    {
+                        _compassCalState.State = Core.Enums.CompassCalibrationState.Starting;
+                        _compassCalState.Message = $"Waiting for calibration to start (ACK result: {e.Result})...";
+                    }
+                    NotifyCompassStateChanged();
                 }
                 return;
             }
@@ -818,305 +846,6 @@ public class CalibrationService : ICalibrationService
         return Task.FromResult(true);
     }
 
-    #endregion
-
-    #region Helpers
-
-    /// <summary>
-    /// Resets stale calibration flags from any previously interrupted calibration.
-    /// Must be called at the start of each new calibration to prevent state leakage.
-    /// Without this, a previously interrupted accel calibration would leave _inAccelCalibrate=true,
-    /// causing STATUSTEXT messages for subsequent calibrations to be routed to the wrong handler.
-    /// </summary>
-    private void ResetStaleCalibrationState()
-    {
-        if (_inAccelCalibrate)
-        {
-            _logger.LogInformation("[CalibService] Resetting stale accel calibration state");
-            _inAccelCalibrate = false;
-            _currentPositionIndex = 0;
-            _completedPositions.Clear();
-            _waitingForUserConfirmation = false;
-            _waitingForFcAck = false;
-        }
-
-        if (_inCompassCalibrate)
-        {
-            _logger.LogInformation("[CalibService] Resetting stale compass calibration state");
-            _inCompassCalibrate = false;
-            StopCompassUiTimer();
-            lock (_compassLock)
-            {
-                _compassCalState = new CompassCalibrationStateModel();
-            }
-        }
-    }
-
-    private void CompleteAccelCalibration(bool success, string message)
-    {
-        _logger.LogInformation("[AccelCal] Completing calibration: success={Success} message={Message}",
-            success, message);
-
-        _isCalibrating = false;
-        _inAccelCalibrate = false;
-        _currentPositionIndex = 0;
-        _waitingForUserConfirmation = false;
-        _waitingForFcAck = false;
-
-        UpdateState(new CalibrationStateModel
-        {
-            Type = CalibrationType.Accelerometer,
-            State = success ? CalibrationState.Completed : CalibrationState.Failed,
-            StateMachine = success ? CalibrationStateMachine.Completed : CalibrationStateMachine.Failed,
-            Message = message,
-            Progress = success ? 100 : 0,
-            CanConfirmPosition = false
-        });
-    }
-
-    private void UpdateState(CalibrationStateModel state)
-    {
-        // Include completed positions for UI to show green indicators
-        state.CompletedPositions = _completedPositions.Select(p => (int)p).ToList();
-
-        _currentState = state;
-        _stateMachineState = state.StateMachine;
-
-        _logger.LogDebug("[CalibService] State update: Type={Type} State={State} SM={SM} Msg={Msg} Completed={Completed}",
-            state.Type, state.State, state.StateMachine, state.Message, string.Join(",", state.CompletedPositions));
-
-        CalibrationStateChanged?.Invoke(this, state);
-
-        CalibrationProgressChanged?.Invoke(this, new CalibrationProgressEventArgs
-        {
-            Type = state.Type,
-            ProgressPercent = state.Progress,
-            StatusText = state.Message,
-            CurrentStep = state.CurrentPosition,
-            TotalSteps = 6,
-            StateMachine = state.StateMachine
-        });
-    }
-
-    private static string GetPositionName(AccelCalVehiclePosition position) => position switch
-    {
-        AccelCalVehiclePosition.Level => "LEVEL",
-        AccelCalVehiclePosition.Left => "on its LEFT side",
-        AccelCalVehiclePosition.Right => "on its RIGHT side",
-        AccelCalVehiclePosition.NoseDown => "NOSE DOWN",
-        AccelCalVehiclePosition.NoseUp => "NOSE UP",
-        AccelCalVehiclePosition.Back => "on its BACK (upside down)",
-        AccelCalVehiclePosition.Success => "SUCCESS",
-        AccelCalVehiclePosition.Failed => "FAILED",
-        _ => position.ToString()
-    };
-
-    private static CalibrationStep MapPositionToCalibrationStep(AccelCalVehiclePosition position) => position switch
-    {
-        AccelCalVehiclePosition.Level => CalibrationStep.Level,
-        AccelCalVehiclePosition.Left => CalibrationStep.LeftSide,
-        AccelCalVehiclePosition.Right => CalibrationStep.RightSide,
-        AccelCalVehiclePosition.NoseDown => CalibrationStep.NoseDown,
-        AccelCalVehiclePosition.NoseUp => CalibrationStep.NoseUp,
-        AccelCalVehiclePosition.Back => CalibrationStep.Back,
-        _ => CalibrationStep.Level
-    };
-
-    #endregion
-
-    #region Compass Calibration
-
-    private void OnMagCalProgressReceived(object? sender, MagCalProgressEventArgs e)
-    {
-        if (!_inCompassCalibrate)
-            return;
-
-        _logger.LogDebug("[CompassCal] Progress: compass={CompassId} status={Status} pct={Pct}%",
-            e.CompassId, e.CalStatus, e.CompletionPct);
-
-        lock (_compassLock)
-        {
-            // Update progress for this compass
-            _compassCalState.CompassProgress[e.CompassId] = e.CompletionPct;
-
-            // Update overall state based on status
-            var status = (MagCalStatus)e.CalStatus;
-            if (status == MagCalStatus.RunningStepOne)
-                _compassCalState.State = Core.Enums.CompassCalibrationState.RunningSphereFit;
-            else if (status == MagCalStatus.RunningStepTwo)
-                _compassCalState.State = Core.Enums.CompassCalibrationState.RunningEllipsoidFit;
-
-            _compassCalState.Message = $"Calibrating compass {e.CompassId}: {e.CompletionPct}%";
-        }
-
-        // Raise event for direct UI update path
-        CompassCalProgressReceived?.Invoke(this, new CompassCalProgressEventArgs
-        {
-            CompassId = e.CompassId,
-            Status = (MagCalStatus)e.CalStatus,
-            Attempt = e.Attempt,
-            CompletionPercent = e.CompletionPct,
-            Direction = (e.DirectionX, e.DirectionY, e.DirectionZ)
-        });
-
-        // Also push an immediate state-change notification so the timer-based UI path
-        // reflects the live progress without waiting for the next 100 ms tick.
-        NotifyCompassStateChanged();
-    }
-
-    private void OnMagCalReportReceived(object? sender, MagCalReportEventArgs e)
-    {
-        if (!_inCompassCalibrate)
-            return;
-
-        _logger.LogInformation("[CompassCal] Report: compass={CompassId} status={Status} fitness={Fitness} autosaved={Autosaved}",
-            e.CompassId, e.CalStatus, e.Fitness, e.Autosaved);
-
-        // Skip reports with zero offsets (invalid)
-        if (e.CompassId == 0 && e.OfsX == 0 && e.OfsY == 0 && e.OfsZ == 0)
-        {
-            _logger.LogDebug("[CompassCal] Ignoring report with zero offsets");
-            return;
-        }
-
-        var status = (MagCalStatus)e.CalStatus;
-        var isAcceptable = status == MagCalStatus.Success && e.Fitness < 50.0f;
-
-        lock (_compassLock)
-        {
-            // Store report for this compass - cast CalStatus to MagCalStatus
-            _compassCalState.CompassReports[e.CompassId] = new MagCalReportData
-            {
-                CompassId = e.CompassId,
-                CalMask = e.CalMask,
-                CalStatus = status,  // Cast byte to MagCalStatus
-                Autosaved = e.Autosaved,
-                Fitness = e.Fitness,
-                OfsX = e.OfsX,
-                OfsY = e.OfsY,
-                OfsZ = e.OfsZ,
-                DiagX = e.DiagX,
-                DiagY = e.DiagY,
-                DiagZ = e.DiagZ,
-                OffdiagX = e.OffdiagX,
-                OffdiagY = e.OffdiagY,
-                OffdiagZ = e.OffdiagZ,
-                OrientationConfidence = e.OrientationConfidence,
-                OldOrientation = e.OldOrientation,
-                NewOrientation = e.NewOrientation,
-                ScaleFactor = e.ScaleFactor
-            };
-
-            // Set progress to 100% for this compass
-            _compassCalState.CompassProgress[e.CompassId] = 100;
-
-            // Check if calibration is complete
-            if (e.Autosaved == 1)
-            {
-                // Check if all compasses are complete
-                if (_compassCalState.CompletedCount == _compassCalState.CompassCount &&
-                    _compassCalState.CompassCount > 0)
-                {
-                    _compassCalState.State = Core.Enums.CompassCalibrationState.Accepted;
-                    _compassCalState.Message = "Calibration complete! Please reboot the autopilot.";
-                    _inCompassCalibrate = false;
-                    _isCalibrating = false;
-                    StopCompassUiTimer();
-                }
-            }
-            else if (status == MagCalStatus.Success)
-            {
-                _compassCalState.State = Core.Enums.CompassCalibrationState.WaitingForAccept;
-                _compassCalState.Message = "Calibration successful. Accept or cancel.";
-            }
-            else if (status == MagCalStatus.Failed)
-            {
-                _compassCalState.State = Core.Enums.CompassCalibrationState.Failed;
-                _compassCalState.Message = $"Calibration failed for compass {e.CompassId}";
-                _inCompassCalibrate = false;
-                _isCalibrating = false;
-                StopCompassUiTimer();
-            }
-        }
-
-        // Raise events
-        CompassCalReportReceived?.Invoke(this, new CompassCalReportEventArgs
-        {
-            CompassId = e.CompassId,
-            Status = status,
-            IsAutosaved = e.Autosaved == 1,
-            Fitness = e.Fitness,
-            Offsets = (e.OfsX, e.OfsY, e.OfsZ),
-            IsAcceptable = isAcceptable
-        });
-
-        NotifyCompassStateChanged();
-    }
-
-    public async Task<bool> StartOnboardCompassCalibrationAsync(int magMask = 0, bool retryOnFailure = true, bool autosave = true)
-    {
-        if (!_connectionService.IsConnected)
-        {
-            _logger.LogWarning("[CompassCal] Not connected - cannot start calibration");
-            return false;
-        }
-
-        _logger.LogInformation("[CompassCal] Starting onboard compass calibration: mask={Mask} retry={Retry} autosave={Autosave}",
-            magMask, retryOnFailure, autosave);
-
-        // Reset any stale calibration state from previous sessions
-        ResetStaleCalibrationState();
-
-        // Reset state
-        lock (_compassLock)
-        {
-            _compassCalState = new CompassCalibrationStateModel
-            {
-                State = Core.Enums.CompassCalibrationState.Starting,
-                Message = "Starting compass calibration..."
-            };
-        }
-
-        _inCompassCalibrate = true;
-        _isCalibrating = true;
-        _activeCalibrationType = CalibrationType.Compass;
-
-        // Immediately notify UI so it updates without waiting for timer tick
-        NotifyCompassStateChanged();
-
-        // Start UI update timer (like MissionPlanner's timer1)
-        StartCompassUiTimer();
-
-        try
-        {
-            // Send MAV_CMD_DO_START_MAG_CAL
-            await _connectionService.SendStartMagCalAsync(
-                magMask,
-                retryOnFailure ? 1 : 0,
-                autosave ? 1 : 0,
-                0,  // no delay
-                0   // no autoreboot
-            );
-
-            NotifyCompassStateChanged();
-            return true;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "[CompassCal] Failed to start calibration");
-            lock (_compassLock)
-            {
-                _compassCalState.State = Core.Enums.CompassCalibrationState.Failed;
-                _compassCalState.Message = $"Failed to start: {ex.Message}";
-            }
-            _inCompassCalibrate = false;
-            _isCalibrating = false;
-            StopCompassUiTimer();
-            NotifyCompassStateChanged();
-            return false;
-        }
-    }
-
     public async Task<bool> AcceptCompassCalibrationAsync()
     {
         if (!_connectionService.IsConnected)
@@ -1187,7 +916,35 @@ public class CalibrationService : ICalibrationService
     {
         StopCompassUiTimer();
         _compassUiTimer = new System.Timers.Timer(100); // 100ms like MissionPlanner
-        _compassUiTimer.Elapsed += (_, _) => NotifyCompassStateChanged();
+        _compassUiTimer.Elapsed += (_, _) => 
+        {
+            // Check for timeout - no progress messages received
+            if (_inCompassCalibrate)
+            {
+                var timeSinceLastProgress = (DateTime.UtcNow - _lastCompassProgressTime).TotalSeconds;
+                
+                if (timeSinceLastProgress > COMPASS_PROGRESS_TIMEOUT_SECONDS)
+                {
+                    _logger.LogWarning("[CompassCal] Timeout: No MAG_CAL_PROGRESS messages received for {Seconds}s", 
+                        (int)timeSinceLastProgress);
+                    
+                    lock (_compassLock)
+                    {
+                        // Only timeout if we're still in Starting state (never got progress)
+                        if (_compassCalState.State == Core.Enums.CompassCalibrationState.Starting)
+                        {
+                            _compassCalState.State = Core.Enums.CompassCalibrationState.Failed;
+                            _compassCalState.Message = "Calibration failed to start. Check that compass is enabled and connected.";
+                            _inCompassCalibrate = false;
+                            _isCalibrating = false;
+                            StopCompassUiTimer();
+                        }
+                    }
+                }
+            }
+            
+            NotifyCompassStateChanged();
+        };
         _compassUiTimer.Start();
     }
 
@@ -1200,19 +957,266 @@ public class CalibrationService : ICalibrationService
 
     private void NotifyCompassStateChanged()
     {
-        CompassCalibrationStateModel? state;
+        CompassCalibrationStateChanged?.Invoke(this, _compassCalState);
+    }
+
+    private void OnMagCalProgressReceived(object? sender, MagCalProgressEventArgs e)
+    {
+        if (!_inCompassCalibrate)
+            return;
+
+        _lastCompassProgressTime = DateTime.UtcNow;
+
+        _logger.LogDebug("[CompassCal] Progress: compass={CompassId} status={Status} pct={Pct}%",
+            e.CompassId, e.CalStatus, e.CompletionPct);
+
         lock (_compassLock)
         {
-            state = new CompassCalibrationStateModel
+            _compassCalState.CompassProgress[e.CompassId] = e.CompletionPct;
+
+            var status = (MagCalStatus)e.CalStatus;
+            if (status == MagCalStatus.RunningStepOne)
+                _compassCalState.State = Core.Enums.CompassCalibrationState.RunningSphereFit;
+            else if (status == MagCalStatus.RunningStepTwo)
+                _compassCalState.State = Core.Enums.CompassCalibrationState.RunningEllipsoidFit;
+
+            _compassCalState.Message = $"Calibrating compass {e.CompassId}: {e.CompletionPct}%";
+        }
+
+        CompassCalProgressReceived?.Invoke(this, new CompassCalProgressEventArgs
+        {
+            CompassId = e.CompassId,
+            Status = (MagCalStatus)e.CalStatus,
+            Attempt = e.Attempt,
+            CompletionPercent = e.CompletionPct,
+            Direction = (e.DirectionX, e.DirectionY, e.DirectionZ)
+        });
+
+        NotifyCompassStateChanged();
+    }
+
+    private void OnMagCalReportReceived(object? sender, MagCalReportEventArgs e)
+    {
+        if (!_inCompassCalibrate)
+            return;
+
+        _logger.LogInformation("[CompassCal] Report: compass={CompassId} status={Status} fitness={Fitness}",
+            e.CompassId, e.CalStatus, e.Fitness);
+
+        if (e.CompassId == 0 && e.OfsX == 0 && e.OfsY == 0 && e.OfsZ == 0)
+        {
+            _logger.LogDebug("[CompassCal] Ignoring report with zero offsets");
+            return;
+        }
+
+        var status = (MagCalStatus)e.CalStatus;
+        var isAcceptable = status == MagCalStatus.Success && e.Fitness < 50.0f;
+
+        lock (_compassLock)
+        {
+            _compassCalState.CompassReports[e.CompassId] = new MagCalReportData
             {
-                State = _compassCalState.State,
-                Message = _compassCalState.Message,
-                CompassProgress = new Dictionary<byte, int>(_compassCalState.CompassProgress),
-                CompassReports = new Dictionary<byte, MagCalReportData>(_compassCalState.CompassReports)
+                CompassId = e.CompassId,
+                CalMask = e.CalMask,
+                CalStatus = status,
+                Autosaved = e.Autosaved,
+                Fitness = e.Fitness,
+                OfsX = e.OfsX,
+                OfsY = e.OfsY,
+                OfsZ = e.OfsZ,
+                DiagX = e.DiagX,
+                DiagY = e.DiagY,
+                DiagZ = e.DiagZ,
+                OffdiagX = e.OffdiagX,
+                OffdiagY = e.OffdiagY,
+                OffdiagZ = e.OffdiagZ,
+                OrientationConfidence = e.OrientationConfidence,
+                OldOrientation = e.OldOrientation,
+                NewOrientation = e.NewOrientation,
+                ScaleFactor = e.ScaleFactor
+            };
+
+            _compassCalState.CompassProgress[e.CompassId] = 100;
+
+            if (e.Autosaved == 1)
+            {
+                if (_compassCalState.CompletedCount == _compassCalState.CompassCount &&
+                    _compassCalState.CompassCount > 0)
+                {
+                    _compassCalState.State = Core.Enums.CompassCalibrationState.Accepted;
+                    _compassCalState.Message = "Calibration complete! Please reboot the autopilot.";
+                    _inCompassCalibrate = false;
+                    _isCalibrating = false;
+                    StopCompassUiTimer();
+                }
+            }
+            else if (status == MagCalStatus.Success)
+            {
+                _compassCalState.State = Core.Enums.CompassCalibrationState.WaitingForAccept;
+                _compassCalState.Message = "Calibration successful. Accept or cancel.";
+            }
+            else if (status == MagCalStatus.Failed)
+            {
+                _compassCalState.State = Core.Enums.CompassCalibrationState.Failed;
+                _compassCalState.Message = $"Calibration failed for compass {e.CompassId}";
+                _inCompassCalibrate = false;
+                _isCalibrating = false;
+                StopCompassUiTimer();
+            }
+        }
+
+        CompassCalReportReceived?.Invoke(this, new CompassCalReportEventArgs
+        {
+            CompassId = e.CompassId,
+            Status = status,
+            IsAutosaved = e.Autosaved == 1,
+            Fitness = e.Fitness,
+            Offsets = (e.OfsX, e.OfsY, e.OfsZ),
+            IsAcceptable = isAcceptable
+        });
+
+        NotifyCompassStateChanged();
+    }
+
+    private void ResetStaleCalibrationState()
+    {
+        if (_inAccelCalibrate)
+        {
+            _logger.LogInformation("[CalibService] Resetting stale accel calibration state");
+            _inAccelCalibrate = false;
+            _currentPositionIndex = 0;
+            _completedPositions.Clear();
+            _waitingForUserConfirmation = false;
+            _waitingForFcAck = false;
+        }
+
+        if (_inCompassCalibrate)
+        {
+            _logger.LogInformation("[CalibService] Resetting stale compass calibration state");
+            _inCompassCalibrate = false;
+            StopCompassUiTimer();
+            lock (_compassLock)
+            {
+                _compassCalState = new CompassCalibrationStateModel();
+            }
+        }
+    }
+
+    public async Task<bool> StartOnboardCompassCalibrationAsync(int magMask = 0, bool retryOnFailure = true, bool autosave = true)
+    {
+        if (!_connectionService.IsConnected)
+        {
+            _logger.LogWarning("[CompassCal] Not connected - cannot start calibration");
+            return false;
+        }
+
+        _logger.LogInformation("[CompassCal] Starting onboard compass calibration: mask={Mask}, retry={Retry}, autosave={Autosave}", magMask, retryOnFailure, autosave);
+
+        ResetStaleCalibrationState();
+
+        _lastCompassProgressTime = DateTime.UtcNow;
+        lock (_compassLock)
+        {
+            _compassCalState = new CompassCalibrationStateModel
+            {
+                State = Core.Enums.CompassCalibrationState.Starting,
+                Message = "Starting compass calibration..."
             };
         }
-        CompassCalibrationStateChanged?.Invoke(this, state);
+
+        _activeCalibrationType = CalibrationType.Compass;
+        _isCalibrating = true;
+        _inCompassCalibrate = true;
+
+        StartCompassUiTimer();
+
+        try
+        {
+            await _connectionService.SendStartMagCalAsync(magMask, retryOnFailure ? 1 : 0, autosave ? 1 : 0, 0, 0);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "[CompassCal] Failed to send start mag cal command");
+            _isCalibrating = false;
+            _inCompassCalibrate = false;
+            StopCompassUiTimer();
+            lock (_compassLock)
+            {
+                _compassCalState.State = Core.Enums.CompassCalibrationState.Failed;
+                _compassCalState.Message = "Failed to start calibration: " + ex.Message;
+            }
+            NotifyCompassStateChanged();
+            return false;
+        }
     }
+
+    private void CompleteAccelCalibration(bool success, string message)
+    {
+        _logger.LogInformation("[AccelCal] Completing calibration: success={Success}", success);
+
+        _isCalibrating = false;
+        _inAccelCalibrate = false;
+        _currentPositionIndex = 0;
+        _waitingForUserConfirmation = false;
+        _waitingForFcAck = false;
+
+        UpdateState(new CalibrationStateModel
+        {
+            Type = CalibrationType.Accelerometer,
+            State = success ? CalibrationState.Completed : CalibrationState.Failed,
+            StateMachine = success ? CalibrationStateMachine.Completed : CalibrationStateMachine.Failed,
+            Message = message,
+            Progress = success ? 100 : 0,
+            CanConfirmPosition = false
+        });
+    }
+
+    private void UpdateState(CalibrationStateModel state)
+    {
+        state.CompletedPositions = _completedPositions.Select(p => (int)p).ToList();
+
+        _currentState = state;
+        _stateMachineState = state.StateMachine;
+
+        _logger.LogDebug("[CalibService] State update: Type={Type}, State={State}", state.Type, state.State);
+
+        CalibrationStateChanged?.Invoke(this, state);
+
+        CalibrationProgressChanged?.Invoke(this, new CalibrationProgressEventArgs
+        {
+            Type = state.Type,
+            ProgressPercent = state.Progress,
+            StatusText = state.Message,
+            CurrentStep = state.CurrentPosition,
+            TotalSteps = 6,
+            StateMachine = state.StateMachine
+        });
+    }
+
+    private static string GetPositionName(AccelCalVehiclePosition position) => position switch
+    {
+        AccelCalVehiclePosition.Level => "LEVEL",
+        AccelCalVehiclePosition.Left => "on its LEFT side",
+        AccelCalVehiclePosition.Right => "on its RIGHT side",
+        AccelCalVehiclePosition.NoseDown => "NOSE DOWN",
+        AccelCalVehiclePosition.NoseUp => "NOSE UP",
+        AccelCalVehiclePosition.Back => "on its BACK (upside down)",
+        AccelCalVehiclePosition.Success => "SUCCESS",
+        AccelCalVehiclePosition.Failed => "FAILED",
+        _ => position.ToString()
+    };
+
+    private static CalibrationStep MapPositionToCalibrationStep(AccelCalVehiclePosition position) => position switch
+    {
+        AccelCalVehiclePosition.Level => CalibrationStep.Level,
+        AccelCalVehiclePosition.Left => CalibrationStep.LeftSide,
+        AccelCalVehiclePosition.Right => CalibrationStep.RightSide,
+        AccelCalVehiclePosition.NoseDown => CalibrationStep.NoseDown,
+        AccelCalVehiclePosition.NoseUp => CalibrationStep.NoseUp,
+        AccelCalVehiclePosition.Back => CalibrationStep.Back,
+        _ => CalibrationStep.Level
+    };
 
     #endregion
 }

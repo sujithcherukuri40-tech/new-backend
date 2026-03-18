@@ -66,6 +66,13 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
         private const byte MAVLINK_MSG_ID_MAG_CAL_PROGRESS = 191;
         private const byte MAVLINK_MSG_ID_MAG_CAL_REPORT = 192;
 
+        // Telemetry message IDs
+        private const byte MAVLINK_MSG_ID_SYS_STATUS = 1;
+        private const byte MAVLINK_MSG_ID_GPS_RAW_INT = 24;
+        private const byte MAVLINK_MSG_ID_ATTITUDE = 30;
+        private const byte MAVLINK_MSG_ID_GLOBAL_POSITION_INT = 33;
+        private const byte MAVLINK_MSG_ID_VFR_HUD = 74;
+
         // MAV_CMD IDs
         private const ushort MAV_CMD_DO_MOTOR_TEST = 209;
         private const ushort MAV_CMD_PREFLIGHT_CALIBRATION = 241;
@@ -105,6 +112,13 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
         public event EventHandler? ConnectionLost;
         public event EventHandler<MagCalProgressData>? MagCalProgressReceived;
         public event EventHandler<MagCalReportData>? MagCalReportReceived;
+
+        // Telemetry events
+        public event EventHandler<GlobalPositionIntData>? GlobalPositionIntReceived;
+        public event EventHandler<AttitudeData>? AttitudeReceived;
+        public event EventHandler<VfrHudData>? VfrHudReceived;
+        public event EventHandler<GpsRawIntData>? GpsRawIntReceived;
+        public event EventHandler<SysStatusData>? SysStatusReceived;
 
         public AsvMavlinkWrapper(ILogger logger, IMavLinkMessageLogger? mavLinkLogger = null)
         {
@@ -410,8 +424,23 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
                 case MAVLINK_MSG_ID_HEARTBEAT:
                     HandleHeartbeat(sysId, compId, payload);
                     break;
+                case MAVLINK_MSG_ID_SYS_STATUS:
+                    HandleSysStatus(payload);
+                    break;
                 case MAVLINK_MSG_ID_PARAM_VALUE:
                     HandleParamValue(payload);
+                    break;
+                case MAVLINK_MSG_ID_GPS_RAW_INT:
+                    HandleGpsRawInt(payload);
+                    break;
+                case MAVLINK_MSG_ID_ATTITUDE:
+                    HandleAttitude(payload);
+                    break;
+                case MAVLINK_MSG_ID_GLOBAL_POSITION_INT:
+                    HandleGlobalPositionInt(payload);
+                    break;
+                case MAVLINK_MSG_ID_VFR_HUD:
+                    HandleVfrHud(payload);
                     break;
                 case (byte)MAVLINK_MSG_ID_COMMAND_ACK:
                     HandleCommandAck(payload);
@@ -746,7 +775,27 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
                 Array.Copy(payload, 60, versionData.Uid2, 0, 18);
             }
 
-            DecodeArduPilotVersion(versionData);
+            // Decode ArduPilot firmware version from FlightSwVersion
+            // Format: (major << 24) | (minor << 16) | (patch << 8) | type
+            uint ver = versionData.FlightSwVersion;
+            versionData.FirmwareMajor = (byte)((ver >> 24) & 0xFF);
+            versionData.FirmwareMinor = (byte)((ver >> 16) & 0xFF);
+            versionData.FirmwarePatch = (byte)((ver >> 8) & 0xFF);
+            versionData.FirmwareType = (byte)(ver & 0xFF);
+            
+            string typeStr = versionData.FirmwareType switch
+            {
+                0 => "dev",
+                64 => "alpha",
+                128 => "beta",
+                192 => "rc",
+                255 => "",
+                _ => $"t{versionData.FirmwareType}"
+            };
+            
+            versionData.FirmwareVersionString = string.IsNullOrEmpty(typeStr) 
+                ? $"{versionData.FirmwareMajor}.{versionData.FirmwareMinor}.{versionData.FirmwarePatch}"
+                : $"{versionData.FirmwareMajor}.{versionData.FirmwareMinor}.{versionData.FirmwarePatch}-{typeStr}";
 
             _logger.LogInformation("AUTOPILOT_VERSION: FW={Fw}, Board=0x{Board:X8}, FC_ID={FcId}",
                 versionData.FirmwareVersionString, versionData.BoardVersion, versionData.GetFcId());
@@ -796,12 +845,12 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
             // [4-7]   ofs_x (float)
             // [8-11]  ofs_y (float)
             // [12-15] ofs_z (float)
-            // [16-19] diag_x (float)
-            // [20-23] diag_y (float)
-            // [24-27] diag_z (float)
-            // [28-31] offdiag_x (float)
-            // [32-35] offdiag_y (float)
-            // [36-39] offdiag_z (float)
+            // [16-19]  diag_x (float)
+            // [20-23]  diag_y (float)
+            // [24-27]  diag_z (float)
+            // [28-31]  offdiag_x (float)
+            // [32-35]  offdiag_y (float)
+            // [36-39]  offdiag_z (float)
             // [40]    compass_id (uint8)
             // [41]    cal_mask (uint8)
             // [42]    cal_status (uint8)
@@ -850,27 +899,157 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
             MagCalReportReceived?.Invoke(this, reportData);
         }
 
-        private void DecodeArduPilotVersion(AutopilotVersionData data)
+        private void HandleGlobalPositionInt(byte[] payload)
         {
-            byte patch = (byte)(data.FlightSwVersion & 0xFF);
-            byte minor = (byte)((data.FlightSwVersion >> 8) & 0xFF);
-            byte major = (byte)((data.FlightSwVersion >> 16) & 0xFF);
-            byte firmwareType = (byte)((data.FlightSwVersion >> 24) & 0xFF);
+            // GLOBAL_POSITION_INT message (28 bytes):
+            // [0-3]   time_boot_ms (uint32)
+            // [4-7]   lat (int32, degE7)
+            // [8-11]  lon (int32, degE7)
+            // [12-15] alt (int32, mm MSL)
+            // [16-19] relative_alt (int32, mm above ground)
+            // [20-21] vx (int16, cm/s north)
+            // [22-23] vy (int16, cm/s east)
+            // [24-25] vz (int16, cm/s down)
+            // [26-27] hdg (uint16, cdeg)
+            if (payload.Length < 28)
+                return;
 
-            data.FirmwareMajor = major;
-            data.FirmwareMinor = minor;
-            data.FirmwarePatch = patch;
-            data.FirmwareType = firmwareType;
-
-            string releaseType = firmwareType switch
+            var data = new GlobalPositionIntData
             {
-                0 => "Stable",
-                64 => "Beta",
-                255 => "Dev",
-                _ => $"Type{firmwareType}"
+                TimeBootMs = BitConverter.ToUInt32(payload, 0),
+                Latitude = BitConverter.ToInt32(payload, 4) / 1e7,
+                Longitude = BitConverter.ToInt32(payload, 8) / 1e7,
+                AltitudeMsl = BitConverter.ToInt32(payload, 12) / 1000.0,
+                AltitudeRelative = BitConverter.ToInt32(payload, 16) / 1000.0,
+                VelocityX = BitConverter.ToInt16(payload, 20) / 100.0,
+                VelocityY = BitConverter.ToInt16(payload, 22) / 100.0,
+                VelocityZ = BitConverter.ToInt16(payload, 24) / 100.0,
+                Heading = BitConverter.ToUInt16(payload, 26) / 100.0
             };
 
-            data.FirmwareVersionString = $"{major}.{minor}.{patch} ({releaseType})";
+            GlobalPositionIntReceived?.Invoke(this, data);
+        }
+
+        private void HandleAttitude(byte[] payload)
+        {
+            // ATTITUDE message (28 bytes):
+            // [0-3]   time_boot_ms (uint32)
+            // [4-7]   roll (float, rad)
+            // [8-11]  pitch (float, rad)
+            // [12-15] yaw (float, rad)
+            // [16-19] rollspeed (float, rad/s)
+            // [20-23] pitchspeed (float, rad/s)
+            // [24-27] yawspeed (float, rad/s)
+            if (payload.Length < 28)
+                return;
+
+            const double RadToDeg = 180.0 / Math.PI;
+
+            var data = new AttitudeData
+            {
+                TimeBootMs = BitConverter.ToUInt32(payload, 0),
+                Roll = BitConverter.ToSingle(payload, 4) * RadToDeg,
+                Pitch = BitConverter.ToSingle(payload, 8) * RadToDeg,
+                Yaw = BitConverter.ToSingle(payload, 12) * RadToDeg,
+                RollSpeed = BitConverter.ToSingle(payload, 16) * RadToDeg,
+                PitchSpeed = BitConverter.ToSingle(payload, 20) * RadToDeg,
+                YawSpeed = BitConverter.ToSingle(payload, 24) * RadToDeg
+            };
+
+            // Normalize yaw to 0-360
+            if (data.Yaw < 0) data.Yaw += 360;
+
+            AttitudeReceived?.Invoke(this, data);
+        }
+
+        private void HandleVfrHud(byte[] payload)
+        {
+            // VFR_HUD message (20 bytes):
+            // [0-3]   airspeed (float, m/s)
+            // [4-7]   groundspeed (float, m/s)
+            // [8-9]   heading (int16, deg)
+            // [10-11] throttle (uint16, %)
+            // [12-15] alt (float, m MSL)
+            // [16-19] climb (float, m/s)
+            if (payload.Length < 20)
+                return;
+
+            var data = new VfrHudData
+            {
+                Airspeed = BitConverter.ToSingle(payload, 0),
+                GroundSpeed = BitConverter.ToSingle(payload, 4),
+                Heading = BitConverter.ToInt16(payload, 8),
+                Throttle = BitConverter.ToUInt16(payload, 10),
+                Altitude = BitConverter.ToSingle(payload, 12),
+                ClimbRate = BitConverter.ToSingle(payload, 16)
+            };
+
+            VfrHudReceived?.Invoke(this, data);
+        }
+
+        private void HandleGpsRawInt(byte[] payload)
+        {
+            // GPS_RAW_INT message (30+ bytes):
+            // [0-7]   time_usec (uint64)
+            // [8-11]  lat (int32, degE7)
+            // [12-15] lon (int32, degE7)
+            // [16-19] alt (int32, mm MSL)
+            // [20-21] eph (uint16, HDOP * 100)
+            // [22-23] epv (uint16, VDOP * 100)
+            // [24-25] vel (uint16, cm/s)
+            // [26-27] cog (uint16, cdeg)
+            // [28]    fix_type (uint8)
+            // [29]    satellites_visible (uint8)
+            if (payload.Length < 30)
+                return;
+
+            var data = new GpsRawIntData
+            {
+                TimeUsec = BitConverter.ToUInt64(payload, 0),
+                Latitude = BitConverter.ToInt32(payload, 8) / 1e7,
+                Longitude = BitConverter.ToInt32(payload, 12) / 1e7,
+                Altitude = BitConverter.ToInt32(payload, 16) / 1000.0,
+                Hdop = BitConverter.ToUInt16(payload, 20) / 100.0,
+                Vdop = BitConverter.ToUInt16(payload, 22) / 100.0,
+                GroundSpeed = BitConverter.ToUInt16(payload, 24) / 100.0,
+                CourseOverGround = BitConverter.ToUInt16(payload, 26) / 100.0,
+                FixType = payload[28],
+                SatellitesVisible = payload[29]
+            };
+
+            GpsRawIntReceived?.Invoke(this, data);
+        }
+
+        private void HandleSysStatus(byte[] payload)
+        {
+            // SYS_STATUS message (31 bytes):
+            // [0-3]   onboard_control_sensors_present (uint32)
+            // [4-7]   onboard_control_sensors_enabled (uint32)
+            // [8-11]  onboard_control_sensors_health (uint32)
+            // [12-13] load (uint16, %)
+            // [14-15] voltage_battery (uint16, mV)
+            // [16-17] current_battery (int16, cA, -1 if not available)
+            // [18]    battery_remaining (int8, %, -1 if not available)
+            // [19-20] drop_rate_comm (uint16)
+            // [21-22] errors_comm (uint16)
+            // ... more fields
+            if (payload.Length < 23)
+                return;
+
+            var data = new SysStatusData
+            {
+                SensorsPresent = BitConverter.ToUInt32(payload, 0),
+                SensorsEnabled = BitConverter.ToUInt32(payload, 4),
+                SensorsHealth = BitConverter.ToUInt32(payload, 8),
+                Load = BitConverter.ToUInt16(payload, 12),
+                BatteryVoltage = BitConverter.ToUInt16(payload, 14) / 1000.0,
+                BatteryCurrent = BitConverter.ToInt16(payload, 16) / 100.0,
+                BatteryRemaining = (sbyte)payload[18],
+                DropRateComm = BitConverter.ToUInt16(payload, 19),
+                ErrorsComm = BitConverter.ToUInt16(payload, 21)
+            };
+
+            SysStatusReceived?.Invoke(this, data);
         }
 
         #region Send Methods
@@ -1595,5 +1774,81 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
         public byte OldOrientation { get; set; }
         public byte NewOrientation { get; set; }
         public float ScaleFactor { get; set; }
+    }
+
+    /// <summary>
+    /// GLOBAL_POSITION_INT data
+    /// </summary>
+    public class GlobalPositionIntData
+    {
+        public uint TimeBootMs { get; set; }
+        public double Latitude { get; set; }
+        public double Longitude { get; set; }
+        public double AltitudeMsl { get; set; }
+        public double AltitudeRelative { get; set; }
+        public double VelocityX { get; set; }
+        public double VelocityY { get; set; }
+        public double VelocityZ { get; set; }
+        public double Heading { get; set; }
+    }
+
+    /// <summary>
+    /// ATTITUDE data
+    /// </summary>
+    public class AttitudeData
+    {
+        public uint TimeBootMs { get; set; }
+        public double Roll { get; set; }
+        public double Pitch { get; set; }
+        public double Yaw { get; set; }
+        public double RollSpeed { get; set; }
+        public double PitchSpeed { get; set; }
+        public double YawSpeed { get; set; }
+    }
+
+    /// <summary>
+    /// VFR_HUD data
+    /// </summary>
+    public class VfrHudData
+    {
+        public double Airspeed { get; set; }
+        public double GroundSpeed { get; set; }
+        public int Heading { get; set; }
+        public int Throttle { get; set; }
+        public double Altitude { get; set; }
+        public double ClimbRate { get; set; }
+    }
+
+    /// <summary>
+    /// GPS_RAW_INT data
+    /// </summary>
+    public class GpsRawIntData
+    {
+        public ulong TimeUsec { get; set; }
+        public byte FixType { get; set; }
+        public double Latitude { get; set; }
+        public double Longitude { get; set; }
+        public double Altitude { get; set; }
+        public double Hdop { get; set; }
+        public double Vdop { get; set; }
+        public double GroundSpeed { get; set; }
+        public double CourseOverGround { get; set; }
+        public byte SatellitesVisible { get; set; }
+    }
+
+    /// <summary>
+    /// SYS_STATUS data
+    /// </summary>
+    public class SysStatusData
+    {
+        public uint SensorsPresent { get; set; }
+        public uint SensorsEnabled { get; set; }
+        public uint SensorsHealth { get; set; }
+        public ushort Load { get; set; }
+        public double BatteryVoltage { get; set; }
+        public double BatteryCurrent { get; set; }
+        public sbyte BatteryRemaining { get; set; }
+        public ushort DropRateComm { get; set; }
+        public ushort ErrorsComm { get; set; }
     }
 }

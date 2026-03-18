@@ -1,0 +1,687 @@
+using System;
+using System.Collections.Generic;
+using System.Globalization;
+using System.Linq;
+using Avalonia.Threading;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using PavamanDroneConfigurator.Core.Interfaces;
+using PavamanDroneConfigurator.Core.Models;
+
+namespace PavamanDroneConfigurator.UI.ViewModels;
+
+/// <summary>
+/// ViewModel for the Live Map page - Real-time drone telemetry visualization.
+/// Supports multiple view modes: Top-Down, 3D Chase, Free Roam
+/// Integrates with TelemetryService for live data updates.
+/// </summary>
+public partial class LiveMapPageViewModel : ViewModelBase
+{
+    private readonly IConnectionService _connectionService;
+    private readonly ITelemetryService _telemetryService;
+    private readonly List<(double Lat, double Lon)> _flightPath = new();
+
+    #region Observable Properties - Connection Status
+
+    [ObservableProperty]
+    private bool _isConnected;
+
+    [ObservableProperty]
+    private string _connectionStatus = "Disconnected";
+
+    #endregion
+
+    #region Observable Properties - GPS & Position
+
+    [ObservableProperty]
+    private double _latitude;
+
+    [ObservableProperty]
+    private double _longitude;
+
+    [ObservableProperty]
+    private double _altitude;
+
+    [ObservableProperty]
+    private double _heading;
+
+    [ObservableProperty]
+    private int _satelliteCount;
+
+    [ObservableProperty]
+    private double _hdop;
+
+    [ObservableProperty]
+    private string _gpsFixType = "No GPS";
+
+    [ObservableProperty]
+    private bool _hasValidPosition;
+
+    [ObservableProperty]
+    private string _positionString = "N/A";
+
+    #endregion
+
+    #region Observable Properties - Flight Data
+
+    [ObservableProperty]
+    private double _groundSpeed;
+
+    [ObservableProperty]
+    private double _airspeed;
+
+    [ObservableProperty]
+    private double _climbRate;
+
+    [ObservableProperty]
+    private double _verticalSpeed;
+
+    [ObservableProperty]
+    private int _throttle;
+
+    [ObservableProperty]
+    private string _flightMode = "Unknown";
+
+    [ObservableProperty]
+    private bool _isArmed;
+
+    [ObservableProperty]
+    private string _armedStatus = "Disarmed";
+
+    #endregion
+
+    #region Observable Properties - Battery
+
+    [ObservableProperty]
+    private double _batteryVoltage;
+
+    [ObservableProperty]
+    private double _batteryCurrent;
+
+    [ObservableProperty]
+    private int _batteryRemaining = -1;
+
+    [ObservableProperty]
+    private string _batteryStatus = "N/A";
+
+    #endregion
+
+    #region Observable Properties - Attitude
+
+    [ObservableProperty]
+    private double _roll;
+
+    [ObservableProperty]
+    private double _pitch;
+
+    [ObservableProperty]
+    private double _yaw;
+
+    #endregion
+
+    #region Observable Properties - Spray System
+
+    [ObservableProperty]
+    private bool _isSprayEnabled;
+
+    [ObservableProperty]
+    private double _flowRate;
+
+    [ObservableProperty]
+    private string _flowRateStatus = "OFF";
+
+    [ObservableProperty]
+    private double _tankLevel = 100;
+
+    [ObservableProperty]
+    private double _areaSprayedAcres;
+
+    [ObservableProperty]
+    private double _totalConsumedLiters;
+
+    #endregion
+
+    #region Observable Properties - Camera System
+
+    [ObservableProperty]
+    private bool _isCameraConnected;
+
+    [ObservableProperty]
+    private bool _isRecording;
+
+    [ObservableProperty]
+    private string _cameraStatus = "N/A";
+
+    [ObservableProperty]
+    private int _photoCount;
+
+    [ObservableProperty]
+    private string _recordingTime = "00:00";
+
+    #endregion
+
+    #region Observable Properties - Mission Data
+
+    [ObservableProperty]
+    private string _waypointStatus = "N/A";
+
+    [ObservableProperty]
+    private double _distanceToHome;
+
+    [ObservableProperty]
+    private double _distanceToWaypoint;
+
+    [ObservableProperty]
+    private string _etaToWaypoint = "N/A";
+
+    [ObservableProperty]
+    private double _totalFlightDistance;
+
+    [ObservableProperty]
+    private string _flightTime = "00:00:00";
+
+    #endregion
+
+    #region Observable Properties - UI State
+
+    [ObservableProperty]
+    private bool _isReceivingTelemetry;
+
+    [ObservableProperty]
+    private bool _followDrone = true;
+
+    [ObservableProperty]
+    private int _selectedMapTypeIndex;
+
+    [ObservableProperty]
+    private bool _showFlightPath = true;
+
+    [ObservableProperty]
+    private bool _showSprayOverlay;
+
+    [ObservableProperty]
+    private string _mapTypeLabel = "Satellite";
+
+    [ObservableProperty]
+    private bool _isCameraViewOpen;
+
+    [ObservableProperty]
+    private int _selectedViewModeIndex;
+
+    [ObservableProperty]
+    private string _viewModeLabel = "Top-Down";
+
+    [ObservableProperty]
+    private bool _isTopDownView = true;
+
+    [ObservableProperty]
+    private bool _isChase3DView;
+
+    [ObservableProperty]
+    private bool _isFreeRoamView;
+
+    #endregion
+
+    // Flight path for map display
+    public IReadOnlyList<(double Lat, double Lon)> FlightPath => _flightPath;
+
+    // Events to notify view of updates
+    public event EventHandler<DronePositionUpdateEventArgs>? PositionUpdated;
+    public event EventHandler? FlightPathCleared;
+    public event EventHandler? RecenterRequested;
+    public event EventHandler<ViewModeChangedEventArgs>? ViewModeChanged;
+
+    // Default center (India)
+    private const double DEFAULT_LAT = 20.5937;
+    private const double DEFAULT_LNG = 78.9629;
+
+    private DateTime _flightStartTime;
+    private double _lastLat, _lastLon;
+    private (double Lat, double Lon)? _homePosition;
+
+    public LiveMapPageViewModel(
+        IConnectionService connectionService,
+        ITelemetryService telemetryService)
+    {
+        _connectionService = connectionService;
+        _telemetryService = telemetryService;
+
+        // Subscribe to connection events
+        _connectionService.ConnectionStateChanged += OnConnectionStateChanged;
+        
+        // Subscribe to telemetry events
+        _telemetryService.TelemetryUpdated += OnTelemetryUpdated;
+        _telemetryService.PositionChanged += OnPositionChanged;
+        _telemetryService.BatteryStatusChanged += OnBatteryStatusChanged;
+        _telemetryService.GpsStatusChanged += OnGpsStatusChanged;
+        _telemetryService.TelemetryAvailabilityChanged += OnTelemetryAvailabilityChanged;
+
+        // Initialize state
+        IsConnected = _connectionService.IsConnected;
+        ConnectionStatus = IsConnected ? "Connected" : "Disconnected";
+        
+        // Start telemetry service if already connected
+        if (IsConnected)
+        {
+            _telemetryService.Start();
+            _flightStartTime = DateTime.Now;
+        }
+    }
+
+    #region Event Handlers
+
+    private void OnConnectionStateChanged(object? sender, bool connected)
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            IsConnected = connected;
+            ConnectionStatus = connected ? "Connected" : "Disconnected";
+            
+            if (connected)
+            {
+                _telemetryService.Start();
+                _flightStartTime = DateTime.Now;
+            }
+            else
+            {
+                _telemetryService.Stop();
+                ResetTelemetryDisplay();
+            }
+        });
+    }
+
+    private void OnTelemetryUpdated(object? sender, TelemetryModel telemetry)
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            // Update all telemetry properties
+            Latitude = telemetry.Latitude;
+            Longitude = telemetry.Longitude;
+            Altitude = telemetry.AltitudeRelative;
+            Heading = telemetry.Heading;
+            GroundSpeed = telemetry.GroundSpeed;
+            Airspeed = telemetry.Airspeed;
+            ClimbRate = telemetry.ClimbRate;
+            VerticalSpeed = telemetry.VerticalSpeed;
+            Throttle = telemetry.Throttle;
+            FlightMode = telemetry.FlightMode;
+            IsArmed = telemetry.IsArmed;
+            ArmedStatus = telemetry.IsArmed ? "ARMED" : "Disarmed";
+            Roll = telemetry.Roll;
+            Pitch = telemetry.Pitch;
+            Yaw = telemetry.Yaw;
+            HasValidPosition = telemetry.HasValidPosition;
+            
+            // Update position string
+            if (HasValidPosition)
+            {
+                PositionString = $"{Latitude:F6}, {Longitude:F6}";
+            }
+            else
+            {
+                PositionString = "No Fix";
+            }
+
+            // Update flight time
+            if (IsConnected)
+            {
+                var elapsed = DateTime.Now - _flightStartTime;
+                FlightTime = elapsed.ToString(@"hh\:mm\:ss");
+            }
+
+            // Set home position on first valid fix
+            if (!_homePosition.HasValue && HasValidPosition)
+            {
+                _homePosition = (Latitude, Longitude);
+            }
+
+            // Calculate distance to home
+            if (HasValidPosition && _homePosition.HasValue)
+            {
+                DistanceToHome = CalculateDistance(Latitude, Longitude, _homePosition.Value.Lat, _homePosition.Value.Lon);
+            }
+
+            // Add to flight path if valid position and moved significantly
+            if (HasValidPosition && ShowFlightPath)
+            {
+                var dist = CalculateDistance(Latitude, Longitude, _lastLat, _lastLon);
+                if (dist > 0.5 || _flightPath.Count == 0) // More than 0.5m moved
+                {
+                    _flightPath.Add((Latitude, Longitude));
+                    TotalFlightDistance += dist / 1000.0; // Convert to km
+                    _lastLat = Latitude;
+                    _lastLon = Longitude;
+                    
+                    // Limit path points
+                    if (_flightPath.Count > 5000)
+                    {
+                        _flightPath.RemoveAt(0);
+                    }
+                }
+            }
+
+            // Notify view of position update with full telemetry
+            if (HasValidPosition)
+            {
+                PositionUpdated?.Invoke(this, new DronePositionUpdateEventArgs
+                {
+                    Latitude = Latitude,
+                    Longitude = Longitude,
+                    Altitude = Altitude,
+                    Heading = Heading,
+                    Pitch = Pitch,
+                    Roll = Roll,
+                    GroundSpeed = GroundSpeed,
+                    VerticalSpeed = VerticalSpeed,
+                    IsArmed = IsArmed
+                });
+            }
+        });
+    }
+
+    private void OnPositionChanged(object? sender, PositionChangedEventArgs e)
+    {
+        // Already handled in OnTelemetryUpdated
+    }
+
+    private void OnBatteryStatusChanged(object? sender, BatteryStatusEventArgs e)
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            BatteryVoltage = e.Voltage;
+            BatteryCurrent = e.Current;
+            BatteryRemaining = e.RemainingPercent;
+            
+            if (e.RemainingPercent >= 0)
+            {
+                BatteryStatus = $"{e.RemainingPercent}%";
+            }
+            else
+            {
+                BatteryStatus = $"{e.Voltage:F1}V";
+            }
+        });
+    }
+
+    private void OnGpsStatusChanged(object? sender, GpsStatusEventArgs e)
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            SatelliteCount = e.SatelliteCount;
+            Hdop = e.Hdop;
+            GpsFixType = e.FixType switch
+            {
+                0 => "No GPS",
+                1 => "No Fix",
+                2 => "2D Fix",
+                3 => "3D Fix",
+                4 => "DGPS",
+                5 => "RTK Float",
+                6 => "RTK Fixed",
+                _ => $"Type {e.FixType}"
+            };
+        });
+    }
+
+    private void OnTelemetryAvailabilityChanged(object? sender, bool available)
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            IsReceivingTelemetry = available;
+        });
+    }
+
+    private void ResetTelemetryDisplay()
+    {
+        Latitude = 0;
+        Longitude = 0;
+        Altitude = 0;
+        Heading = 0;
+        GroundSpeed = 0;
+        Airspeed = 0;
+        ClimbRate = 0;
+        VerticalSpeed = 0;
+        Throttle = 0;
+        FlightMode = "Unknown";
+        IsArmed = false;
+        ArmedStatus = "Disarmed";
+        Roll = 0;
+        Pitch = 0;
+        Yaw = 0;
+        SatelliteCount = 0;
+        Hdop = 0;
+        GpsFixType = "No GPS";
+        BatteryVoltage = 0;
+        BatteryCurrent = 0;
+        BatteryRemaining = -1;
+        BatteryStatus = "N/A";
+        HasValidPosition = false;
+        IsReceivingTelemetry = false;
+        PositionString = "N/A";
+        FlightTime = "00:00:00";
+        DistanceToHome = 0;
+        _homePosition = null;
+        
+        // Reset spray/camera
+        IsSprayEnabled = false;
+        FlowRate = 0;
+        FlowRateStatus = "OFF";
+        IsCameraConnected = false;
+        IsRecording = false;
+        CameraStatus = "N/A";
+    }
+
+    #endregion
+
+    #region Commands
+
+    [RelayCommand]
+    private void ToggleFollowDrone()
+    {
+        FollowDrone = !FollowDrone;
+    }
+
+    [RelayCommand]
+    private void RecenterMap()
+    {
+        RecenterRequested?.Invoke(this, EventArgs.Empty);
+    }
+
+    [RelayCommand]
+    private void ClearFlightPath()
+    {
+        _flightPath.Clear();
+        TotalFlightDistance = 0;
+        _homePosition = null;
+        FlightPathCleared?.Invoke(this, EventArgs.Empty);
+    }
+
+    [RelayCommand]
+    private void ChangeMapType()
+    {
+        // Cycle through map types: 0=Satellite, 1=Street, 2=Terrain, 3=Hybrid
+        SelectedMapTypeIndex = (SelectedMapTypeIndex + 1) % 4;
+        MapTypeLabel = SelectedMapTypeIndex switch
+        {
+            0 => "Satellite",
+            1 => "Roadmap",
+            2 => "Terrain",
+            3 => "Hybrid",
+            _ => "Satellite"
+        };
+    }
+
+    [RelayCommand]
+    private void SetViewModeTopDown()
+    {
+        SelectedViewModeIndex = 0;
+        ViewModeLabel = "Top-Down";
+        IsTopDownView = true;
+        IsChase3DView = false;
+        IsFreeRoamView = false;
+        ViewModeChanged?.Invoke(this, new ViewModeChangedEventArgs { ViewMode = "topdown" });
+    }
+
+    [RelayCommand]
+    private void SetViewModeChase3D()
+    {
+        SelectedViewModeIndex = 1;
+        ViewModeLabel = "3D Chase";
+        IsTopDownView = false;
+        IsChase3DView = true;
+        IsFreeRoamView = false;
+        ViewModeChanged?.Invoke(this, new ViewModeChangedEventArgs { ViewMode = "chase3d" });
+    }
+
+    [RelayCommand]
+    private void SetViewModeFreeRoam()
+    {
+        SelectedViewModeIndex = 2;
+        ViewModeLabel = "Free Roam";
+        IsTopDownView = false;
+        IsChase3DView = false;
+        IsFreeRoamView = true;
+        ViewModeChanged?.Invoke(this, new ViewModeChangedEventArgs { ViewMode = "free" });
+    }
+
+    [RelayCommand]
+    private void CycleViewMode()
+    {
+        SelectedViewModeIndex = (SelectedViewModeIndex + 1) % 3;
+        switch (SelectedViewModeIndex)
+        {
+            case 0:
+                SetViewModeTopDown();
+                break;
+            case 1:
+                SetViewModeChase3D();
+                break;
+            case 2:
+                SetViewModeFreeRoam();
+                break;
+        }
+    }
+
+    [RelayCommand]
+    private void ToggleFlightPath()
+    {
+        ShowFlightPath = !ShowFlightPath;
+    }
+
+    [RelayCommand]
+    private void ToggleSprayOverlay()
+    {
+        ShowSprayOverlay = !ShowSprayOverlay;
+    }
+
+    [RelayCommand]
+    private void ToggleSpray()
+    {
+        IsSprayEnabled = !IsSprayEnabled;
+        FlowRateStatus = IsSprayEnabled ? $"{FlowRate:F1} L/min" : "OFF";
+    }
+
+    [RelayCommand]
+    private void TakePhoto()
+    {
+        if (IsCameraConnected)
+        {
+            PhotoCount++;
+        }
+    }
+
+    [RelayCommand]
+    private void ToggleRecording()
+    {
+        if (IsCameraConnected)
+        {
+            IsRecording = !IsRecording;
+            CameraStatus = IsRecording ? "Recording" : "Ready";
+        }
+    }
+
+    [RelayCommand]
+    private void OpenCameraView()
+    {
+        IsCameraViewOpen = true;
+    }
+
+    [RelayCommand]
+    private void CloseCameraView()
+    {
+        IsCameraViewOpen = false;
+    }
+
+    /// <summary>
+    /// Gets the map type name for map providers
+    /// </summary>
+    public string GetMapTypeName()
+    {
+        return SelectedMapTypeIndex switch
+        {
+            0 => "satellite",
+            1 => "roadmap",
+            2 => "terrain",
+            3 => "hybrid",
+            _ => "satellite"
+        };
+    }
+
+    #endregion
+
+    #region Helper Methods
+
+    /// <summary>
+    /// Calculate distance between two GPS points in meters using Haversine formula
+    /// </summary>
+    private static double CalculateDistance(double lat1, double lon1, double lat2, double lon2)
+    {
+        const double R = 6371000; // Earth radius in meters
+        var dLat = (lat2 - lat1) * Math.PI / 180;
+        var dLon = (lon2 - lon1) * Math.PI / 180;
+        var a = Math.Sin(dLat / 2) * Math.Sin(dLat / 2) +
+                Math.Cos(lat1 * Math.PI / 180) * Math.Cos(lat2 * Math.PI / 180) *
+                Math.Sin(dLon / 2) * Math.Sin(dLon / 2);
+        return R * 2 * Math.Atan2(Math.Sqrt(a), Math.Sqrt(1 - a));
+    }
+
+    #endregion
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            _connectionService.ConnectionStateChanged -= OnConnectionStateChanged;
+            _telemetryService.TelemetryUpdated -= OnTelemetryUpdated;
+            _telemetryService.PositionChanged -= OnPositionChanged;
+            _telemetryService.BatteryStatusChanged -= OnBatteryStatusChanged;
+            _telemetryService.GpsStatusChanged -= OnGpsStatusChanged;
+            _telemetryService.TelemetryAvailabilityChanged -= OnTelemetryAvailabilityChanged;
+        }
+        base.Dispose(disposing);
+    }
+}
+
+/// <summary>
+/// Event args for drone position updates with full telemetry
+/// </summary>
+public class DronePositionUpdateEventArgs : EventArgs
+{
+    public double Latitude { get; set; }
+    public double Longitude { get; set; }
+    public double Altitude { get; set; }
+    public double Heading { get; set; }
+    public double Pitch { get; set; }
+    public double Roll { get; set; }
+    public double GroundSpeed { get; set; }
+    public double VerticalSpeed { get; set; }
+    public bool IsArmed { get; set; }
+}
+
+/// <summary>
+/// Event args for view mode changes
+/// </summary>
+public class ViewModeChangedEventArgs : EventArgs
+{
+    public string ViewMode { get; set; } = "topdown";
+}

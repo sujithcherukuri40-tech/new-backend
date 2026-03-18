@@ -1,0 +1,108 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="600"
+             x:Class="PavamanDroneConfigurator.UI.Controls.CesiumMapView"
+             Background="Transparent">
+    
+    <Grid>
+        <!-- Native WebView2 container - hosted by Windows native control -->
+        <Border x:Name="WebViewHost" 
+                Background="#0F172A"
+                ClipToBounds="True"/>
+        
+        <!-- Loading Overlay -->
+        <Border x:Name="LoadingOverlay"
+                Background="#0F172A"
+                IsVisible="True">
+            <StackPanel VerticalAlignment="Center" 
+                        HorizontalAlignment="Center" 
+                        Spacing="20">
+                
+                <!-- Spinner -->
+                <Border Width="60" Height="60"
+                        CornerRadius="30"
+                        BorderBrush="#3B82F6"
+                        BorderThickness="4"
+                        Opacity="0.8">
+                    <Border.Styles>
+                        <Style Selector="Border">
+                            <Style.Animations>
+                                <Animation Duration="0:0:1" IterationCount="Infinite">
+                                    <KeyFrame Cue="0%">
+                                        <Setter Property="RotateTransform.Angle" Value="0"/>
+                                    </KeyFrame>
+                                    <KeyFrame Cue="100%">
+                                        <Setter Property="RotateTransform.Angle" Value="360"/>
+                                    </KeyFrame>
+                                </Animation>
+                            </Style.Animations>
+                        </Style>
+                    </Border.Styles>
+                    <Border.RenderTransform>
+                        <RotateTransform/>
+                    </Border.RenderTransform>
+                </Border>
+                
+                <!-- Loading Text -->
+                <StackPanel Spacing="8">
+                    <TextBlock x:Name="LoadingText"
+                               Text="Initializing 3D Map..."
+                               FontSize="16"
+                               FontWeight="SemiBold"
+                               Foreground="White"
+                               HorizontalAlignment="Center"/>
+                    <TextBlock Text="Loading CesiumJS..."
+                               FontSize="13"
+                               Foreground="#94A3B8"
+                               HorizontalAlignment="Center"/>
+                </StackPanel>
+            </StackPanel>
+        </Border>
+        
+        <!-- Error Overlay -->
+        <Border x:Name="ErrorOverlay"
+                Background="#0F172A"
+                IsVisible="False">
+            <StackPanel VerticalAlignment="Center" 
+                        HorizontalAlignment="Center" 
+                        Spacing="20"
+                        MaxWidth="500">
+                
+                <TextBlock Text="??" 
+                           FontSize="64" 
+                           HorizontalAlignment="Center"/>
+                
+                <StackPanel Spacing="8">
+                    <TextBlock x:Name="ErrorTitle"
+                               Text="Map Initialization Failed"
+                               FontSize="20"
+                               FontWeight="Bold"
+                               Foreground="White"
+                               HorizontalAlignment="Center"
+                               TextWrapping="Wrap"/>
+                    
+                    <TextBlock x:Name="ErrorMessage"
+                               Text="Failed to load WebView2"
+                               FontSize="14"
+                               Foreground="#94A3B8"
+                               HorizontalAlignment="Center"
+                               TextWrapping="Wrap"
+                               TextAlignment="Center"
+                               Margin="0,8,0,0"/>
+                </StackPanel>
+                
+                <Button Content="Retry" 
+                        Padding="20,10"
+                        Background="#3B82F6"
+                        Foreground="White"
+                        CornerRadius="8"
+                        FontSize="14"
+                        FontWeight="SemiBold"
+                        HorizontalAlignment="Center"
+                        Click="OnRetryClick"/>
+            </StackPanel>
+        </Border>
+    </Grid>
+</UserControl>

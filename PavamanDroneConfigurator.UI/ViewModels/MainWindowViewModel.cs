@@ -59,6 +59,7 @@ public partial class MainWindowViewModel : ViewModelBase
     public CameraConfigPageViewModel CameraConfigPage { get; }
     public AdvancedSettingsPageViewModel AdvancedSettingsPage { get; }
     public FirmwarePageViewModel FirmwarePage { get; }
+    public LiveMapPageViewModel LiveMapPage { get; }
     public Admin.AdminPanelViewModel? AdminPanelPage { get; private set; }
     public Admin.AdminDashboardViewModel? AdminDashboardPage { get; private set; }
     public Admin.FirmwareManagementViewModel? FirmwareManagementPage { get; private set; }
@@ -94,6 +95,7 @@ public partial class MainWindowViewModel : ViewModelBase
         CameraConfigPageViewModel cameraConfigPage,
         AdvancedSettingsPageViewModel advancedSettingsPage,
         FirmwarePageViewModel firmwarePage,
+        LiveMapPageViewModel liveMapPage,
         IParameterService parameterService,
         IConnectionService connectionService,
         Auth.AuthSessionViewModel authSession)
@@ -117,6 +119,7 @@ public partial class MainWindowViewModel : ViewModelBase
         CameraConfigPage = cameraConfigPage;
         AdvancedSettingsPage = advancedSettingsPage;
         FirmwarePage = firmwarePage;
+        LiveMapPage = liveMapPage;
         _parameterService = parameterService;
         _connectionService = connectionService;
 

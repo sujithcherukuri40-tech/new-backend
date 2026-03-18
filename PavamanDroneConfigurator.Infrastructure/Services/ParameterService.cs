@@ -16,7 +16,7 @@ public class ParameterService : IParameterService
     private readonly IConnectionService _connectionService;
     private readonly IParameterMetadataService _metadataService;
     private readonly ConcurrentDictionary<string, DroneParameter> _parameters = new(StringComparer.OrdinalIgnoreCase);
-    private readonly ConcurrentDictionary<string, TaskCompletionSource<DroneParameter>> _pendingWrites = new();
+    private readonly ConcurrentDictionary<string, TaskCompletionSource<DroneParameter>> _pendingWrites = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<int> _receivedIndices = new();
     private readonly object _lock = new();
     
@@ -64,6 +64,9 @@ public class ParameterService : IParameterService
             OriginalValue = e.Parameter.Value
         };
         
+        // Normalize parameter name to uppercase for consistent dictionary lookup
+        var normalizedName = param.Name.ToUpperInvariant();
+        
         // ? OPTIMIZED: Enrich with metadata asynchronously to avoid blocking
         // This prevents UI freezing during large parameter downloads
         Task.Run(() =>
@@ -77,7 +80,7 @@ public class ParameterService : IParameterService
             }
         });
         
-        _parameters[param.Name] = param;
+        _parameters[normalizedName] = param;
         
         // ? OPTIMIZED: Reduced logging verbosity - only log every 100 params
         if (_received % 100 == 0 || _received < 10)
@@ -116,9 +119,10 @@ public class ParameterService : IParameterService
             }
         }
 
-        // Handle pending write confirmations
-        if (_pendingWrites.TryRemove(param.Name, out var tcs))
+        // Handle pending write confirmations (use normalized name for lookup)
+        if (_pendingWrites.TryRemove(normalizedName, out var tcs))
         {
+            _logger.LogDebug("Parameter write confirmed: {Name}={Value}", normalizedName, param.Value);
             tcs.TrySetResult(param);
         }
     }
@@ -138,17 +142,39 @@ public class ParameterService : IParameterService
 
     public async Task<bool> SetParameterAsync(string name, float value)
     {
-        if (!_connectionService.IsConnected) return false;
+        if (!_connectionService.IsConnected)
+        {
+            _logger.LogWarning("SetParameterAsync: Not connected, cannot set {Name}={Value}", name, value);
+            return false;
+        }
+
+        // Normalize the parameter name to uppercase for consistency
+        var normalizedName = name.ToUpperInvariant();
+        
+        _logger.LogInformation("SetParameterAsync: Sending {Name}={Value}", normalizedName, value);
 
         var tcs = new TaskCompletionSource<DroneParameter>();
-        _pendingWrites[name] = tcs;
+        _pendingWrites[normalizedName] = tcs;
 
-        _connectionService.SendParamSet(new ParameterWriteRequest(name, value));
+        _connectionService.SendParamSet(new ParameterWriteRequest(normalizedName, value));
 
-        var completed = await Task.WhenAny(tcs.Task, Task.Delay(3000));
-        _pendingWrites.TryRemove(name, out _);
+        // Wait for the confirmation with a 5 second timeout (increased from 3s for slow FCs)
+        var completed = await Task.WhenAny(tcs.Task, Task.Delay(5000));
+        _pendingWrites.TryRemove(normalizedName, out _);
 
-        return completed == tcs.Task;
+        if (completed == tcs.Task)
+        {
+            var confirmedParam = await tcs.Task;
+            _logger.LogInformation("SetParameterAsync: {Name} confirmed with value {Value}", 
+                normalizedName, confirmedParam.Value);
+            return true;
+        }
+        else
+        {
+            _logger.LogWarning("SetParameterAsync: Timeout waiting for {Name} confirmation. " +
+                "The parameter may have been set but FC did not confirm.", normalizedName);
+            return false;
+        }
     }
 
     public async Task RefreshParametersAsync()

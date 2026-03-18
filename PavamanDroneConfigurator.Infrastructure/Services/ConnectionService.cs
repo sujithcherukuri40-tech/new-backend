@@ -17,6 +17,11 @@ using System.Threading.Tasks;
 using MavLinkMagCalProgressData = PavamanDroneConfigurator.Infrastructure.MAVLink.MagCalProgressData;
 using MavLinkMagCalReportData = PavamanDroneConfigurator.Infrastructure.MAVLink.MagCalReportData;
 using MavLinkAutopilotVersionData = PavamanDroneConfigurator.Infrastructure.MAVLink.AutopilotVersionData;
+using GlobalPositionIntData = PavamanDroneConfigurator.Infrastructure.MAVLink.GlobalPositionIntData;
+using AttitudeData = PavamanDroneConfigurator.Infrastructure.MAVLink.AttitudeData;
+using VfrHudData = PavamanDroneConfigurator.Infrastructure.MAVLink.VfrHudData;
+using GpsRawIntData = PavamanDroneConfigurator.Infrastructure.MAVLink.GpsRawIntData;
+using SysStatusData = PavamanDroneConfigurator.Infrastructure.MAVLink.SysStatusData;
 
 namespace PavamanDroneConfigurator.Infrastructure.Services;
 
@@ -70,6 +75,13 @@ public sealed class ConnectionService : IConnectionService, IDisposable
     public event EventHandler<MagCalReportEventArgs>? MagCalReportReceived;
     public event EventHandler<AutopilotVersionDataEventArgs>? AutopilotVersionReceived;
     public event EventHandler? RebootInitiated;
+    
+    // Telemetry events
+    public event EventHandler<GlobalPositionIntEventArgs>? GlobalPositionIntReceived;
+    public event EventHandler<AttitudeEventArgs>? AttitudeReceived;
+    public event EventHandler<VfrHudEventArgs>? VfrHudReceived;
+    public event EventHandler<GpsRawIntEventArgs>? GpsRawIntReceived;
+    public event EventHandler<SysStatusEventArgs>? SysStatusReceived;
 
     public ConnectionService(ILogger<ConnectionService> logger, IMavLinkMessageLogger mavLinkLogger)
     {
@@ -427,6 +439,14 @@ public sealed class ConnectionService : IConnectionService, IDisposable
         _mavlink.MagCalProgressReceived += OnMavlinkMagCalProgress;
         _mavlink.MagCalReportReceived += OnMavlinkMagCalReport;
         _mavlink.AutopilotVersionReceived += OnMavlinkAutopilotVersion;
+        
+        // Telemetry events
+        _mavlink.GlobalPositionIntReceived += OnMavlinkGlobalPositionInt;
+        _mavlink.AttitudeReceived += OnMavlinkAttitude;
+        _mavlink.VfrHudReceived += OnMavlinkVfrHud;
+        _mavlink.GpsRawIntReceived += OnMavlinkGpsRawInt;
+        _mavlink.SysStatusReceived += OnMavlinkSysStatus;
+        
         _mavlink.Initialize(_inputStream, _outputStream);
 
         _lastDataReceivedTime = DateTime.UtcNow;
@@ -627,6 +647,87 @@ public sealed class ConnectionService : IConnectionService, IDisposable
             FirmwarePatch = e.FirmwarePatch,
             FirmwareType = e.FirmwareType,
             FirmwareVersionString = e.FirmwareVersionString
+        });
+    }
+
+    private void OnMavlinkGlobalPositionInt(object? sender, GlobalPositionIntData e)
+    {
+        _lastDataReceivedTime = DateTime.UtcNow;
+        GlobalPositionIntReceived?.Invoke(this, new GlobalPositionIntEventArgs
+        {
+            TimeBootMs = e.TimeBootMs,
+            Latitude = e.Latitude,
+            Longitude = e.Longitude,
+            AltitudeMsl = e.AltitudeMsl,
+            AltitudeRelative = e.AltitudeRelative,
+            VelocityX = e.VelocityX,
+            VelocityY = e.VelocityY,
+            VelocityZ = e.VelocityZ,
+            Heading = e.Heading
+        });
+    }
+
+    private void OnMavlinkAttitude(object? sender, AttitudeData e)
+    {
+        _lastDataReceivedTime = DateTime.UtcNow;
+        AttitudeReceived?.Invoke(this, new AttitudeEventArgs
+        {
+            TimeBootMs = e.TimeBootMs,
+            Roll = e.Roll,
+            Pitch = e.Pitch,
+            Yaw = e.Yaw,
+            RollSpeed = e.RollSpeed,
+            PitchSpeed = e.PitchSpeed,
+            YawSpeed = e.YawSpeed
+        });
+    }
+
+    private void OnMavlinkVfrHud(object? sender, VfrHudData e)
+    {
+        _lastDataReceivedTime = DateTime.UtcNow;
+        VfrHudReceived?.Invoke(this, new VfrHudEventArgs
+        {
+            Airspeed = e.Airspeed,
+            GroundSpeed = e.GroundSpeed,
+            Heading = e.Heading,
+            Throttle = e.Throttle,
+            Altitude = e.Altitude,
+            ClimbRate = e.ClimbRate
+        });
+    }
+
+    private void OnMavlinkGpsRawInt(object? sender, GpsRawIntData e)
+    {
+        _lastDataReceivedTime = DateTime.UtcNow;
+        GpsRawIntReceived?.Invoke(this, new GpsRawIntEventArgs
+        {
+            TimeUsec = e.TimeUsec,
+            FixType = e.FixType,
+            Latitude = e.Latitude,
+            Longitude = e.Longitude,
+            Altitude = e.Altitude,
+            Hdop = e.Hdop,
+            Vdop = e.Vdop,
+            GroundSpeed = e.GroundSpeed,
+            CourseOverGround = e.CourseOverGround,
+            SatellitesVisible = e.SatellitesVisible
+        });
+    }
+
+    private void OnMavlinkSysStatus(object? sender, SysStatusData e)
+    {
+        _lastDataReceivedTime = DateTime.UtcNow;
+        SysStatusReceived?.Invoke(this, new SysStatusEventArgs
+        {
+            SensorsPresent = e.SensorsPresent,
+            SensorsEnabled = e.SensorsEnabled,
+            SensorsHealth = e.SensorsHealth,
+            Load = e.Load,
+            BatteryVoltage = e.BatteryVoltage,
+            BatteryCurrent = e.BatteryCurrent,
+            BatteryRemaining = e.BatteryRemaining,
+            DropRateComm = e.DropRateComm,
+            ErrorsComm = e.ErrorsComm
         });
     }
 
@@ -840,6 +941,11 @@ public sealed class ConnectionService : IConnectionService, IDisposable
                 _mavlink.MagCalProgressReceived -= OnMavlinkMagCalProgress;
                 _mavlink.MagCalReportReceived -= OnMavlinkMagCalReport;
                 _mavlink.AutopilotVersionReceived -= OnMavlinkAutopilotVersion;
+                _mavlink.GlobalPositionIntReceived -= OnMavlinkGlobalPositionInt;
+                _mavlink.AttitudeReceived -= OnMavlinkAttitude;
+                _mavlink.VfrHudReceived -= OnMavlinkVfrHud;
+                _mavlink.GpsRawIntReceived -= OnMavlinkGpsRawInt;
+                _mavlink.SysStatusReceived -= OnMavlinkSysStatus;
                 try { (_mavlink as IDisposable)?.Dispose(); } catch { }
                 _mavlink = null;
             }

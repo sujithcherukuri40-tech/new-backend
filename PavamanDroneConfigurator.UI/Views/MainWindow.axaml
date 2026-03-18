@@ -340,6 +340,14 @@
                                   HorizontalScrollBarVisibility="Disabled">
                         <StackPanel x:Name="NavigationMenu" Margin="4,0">
 
+                            <!-- ═══════════ LIVE MAP (NEW) ═══════════ -->
+                            <TextBlock Text="LIVE" Classes="sidebar-section-title"/>
+                            <Button Content="🗺️  Live Map"
+                                    Classes="sidebar-nav-item"
+                                    Tag="LiveMapPage"
+                                    CommandParameter="{Binding LiveMapPage}"
+                                    Click="NavButton_Click" />
+
                             <!-- ═══════════ HARDWARE ═══════════ -->
                             <TextBlock Text="HARDWARE" Classes="sidebar-section-title"/>
                             <Button Content="✈️  Airframe"

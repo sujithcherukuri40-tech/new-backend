@@ -316,6 +316,7 @@ Publisher: Pavaman Aviation";
             CameraConfigPageViewModel => new views.CameraConfigPage { DataContext = vm },
             AdvancedSettingsPageViewModel => new views.AdvancedSettingsPage { DataContext = vm },
             FirmwarePageViewModel => new views.FirmwarePage { DataContext = vm },
+            LiveMapPageViewModel => new views.LiveMapPage { DataContext = vm },
             AdminDashboardViewModel => new adminViews.AdminDashboardView { DataContext = vm },
             AdminPanelViewModel => new adminViews.AdminPanelView { DataContext = vm },
             FirmwareManagementViewModel => new adminViews.FirmwareManagementPage { DataContext = vm },

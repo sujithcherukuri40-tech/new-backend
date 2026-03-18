@@ -663,6 +663,7 @@ public partial class App : Application
         services.AddSingleton<ILogQueryEngine, LogQueryEngine>();
         services.AddSingleton<ILogExportService, LogExportService>();
         services.AddSingleton<IDerivedChannelProvider, DerivedChannelProvider>();
+        services.AddSingleton<ITelemetryService, TelemetryService>();
 
         services.AddTransient<MainWindowViewModel>();
         services.AddTransient<ConnectionPageViewModel>();
@@ -687,6 +688,7 @@ public partial class App : Application
         services.AddTransient<CameraConfigPageViewModel>();
         services.AddTransient<AdvancedSettingsPageViewModel>();
         services.AddTransient<FirmwarePageViewModel>();
+        services.AddTransient<LiveMapPageViewModel>();
         services.AddTransient<ViewModels.Admin.ParamLogsViewModel>();
 
         Services = services.BuildServiceProvider();
