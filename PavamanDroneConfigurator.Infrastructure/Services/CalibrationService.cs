@@ -52,6 +52,9 @@ public class CalibrationService : ICalibrationService
     private CompassCalibrationStateModel _compassCalState = new();
     private readonly object _compassLock = new();
     private System.Timers.Timer? _compassUiTimer;
+    private DateTime _compassStartUtc;
+    private DateTime _lastCompassProgressUtc;
+    private bool _hasCompassProgress;
 
     public CalibrationStateModel? CurrentState => _currentState;
     public bool IsCalibrating => _isCalibrating;
@@ -936,6 +939,9 @@ public class CalibrationService : ICalibrationService
 
         lock (_compassLock)
         {
+            _hasCompassProgress = true;
+            _lastCompassProgressUtc = DateTime.UtcNow;
+
             // Update progress for this compass
             _compassCalState.CompassProgress[e.CompassId] = e.CompletionPct;
 
@@ -1067,6 +1073,11 @@ public class CalibrationService : ICalibrationService
         // Reset any stale calibration state from previous sessions
         ResetStaleCalibrationState();
 
+        // Request MAG_CAL telemetry at a steady rate so UI gets progress/reports reliably.
+        // 100000 us = 10 Hz.
+        _connectionService.SendSetMessageInterval(191, 100000);
+        _connectionService.SendSetMessageInterval(192, 100000);
+
         // Reset state
         lock (_compassLock)
         {
@@ -1075,6 +1086,10 @@ public class CalibrationService : ICalibrationService
                 State = Core.Enums.CompassCalibrationState.Starting,
                 Message = "Starting compass calibration..."
             };
+
+            _compassStartUtc = DateTime.UtcNow;
+            _lastCompassProgressUtc = _compassStartUtc;
+            _hasCompassProgress = false;
         }
 
         _inCompassCalibrate = true;
@@ -1097,6 +1112,18 @@ public class CalibrationService : ICalibrationService
                 0,  // no delay
                 0   // no autoreboot
             );
+
+            // Some FC/transport stacks may not provide an immediate COMMAND_ACK callback
+            // through the event path; move to running state here so UI doesn't remain in
+            // a perpetual "Preparing..." state while waiting for progress packets.
+            lock (_compassLock)
+            {
+                if (_compassCalState.State == Core.Enums.CompassCalibrationState.Starting)
+                {
+                    _compassCalState.State = Core.Enums.CompassCalibrationState.RunningSphereFit;
+                    _compassCalState.Message = "Calibration started - rotate vehicle in all directions...";
+                }
+            }
 
             NotifyCompassStateChanged();
             return true;
@@ -1187,8 +1214,58 @@ public class CalibrationService : ICalibrationService
     {
         StopCompassUiTimer();
         _compassUiTimer = new System.Timers.Timer(100); // 100ms like MissionPlanner
-        _compassUiTimer.Elapsed += (_, _) => NotifyCompassStateChanged();
+        _compassUiTimer.Elapsed += (_, _) =>
+        {
+            CheckCompassCalibrationHealth();
+            NotifyCompassStateChanged();
+        };
         _compassUiTimer.Start();
+    }
+
+    private void CheckCompassCalibrationHealth()
+    {
+        if (!_inCompassCalibrate)
+            return;
+
+        bool shouldFail = false;
+        string failMessage = string.Empty;
+
+        lock (_compassLock)
+        {
+            var now = DateTime.UtcNow;
+            var state = _compassCalState.State;
+            var inRunningState = state == Core.Enums.CompassCalibrationState.Starting ||
+                                 state == Core.Enums.CompassCalibrationState.RunningSphereFit ||
+                                 state == Core.Enums.CompassCalibrationState.RunningEllipsoidFit;
+
+            if (!inRunningState)
+                return;
+
+            if (!_hasCompassProgress && (now - _compassStartUtc).TotalSeconds > 15)
+            {
+                shouldFail = true;
+                failMessage = "No compass progress received. Check telemetry link and try again.";
+            }
+            else if (_hasCompassProgress && (now - _lastCompassProgressUtc).TotalSeconds > 20)
+            {
+                shouldFail = true;
+                failMessage = "Compass calibration stalled. Try rotating more smoothly and restart calibration.";
+            }
+
+            if (shouldFail)
+            {
+                _compassCalState.State = Core.Enums.CompassCalibrationState.Failed;
+                _compassCalState.Message = failMessage;
+                _inCompassCalibrate = false;
+                _isCalibrating = false;
+            }
+        }
+
+        if (shouldFail)
+        {
+            _logger.LogWarning("[CompassCal] {Message}", failMessage);
+            StopCompassUiTimer();
+        }
     }
 
     private void StopCompassUiTimer()

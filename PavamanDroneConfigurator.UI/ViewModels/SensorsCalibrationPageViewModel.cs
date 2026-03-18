@@ -882,6 +882,27 @@ public partial class SensorsCalibrationPageViewModel : ViewModelBase
             CanCancelCompassCal = e.CanCancel;
             CanStartCompassCal = !e.IsCalibrating && !e.CanAccept;
 
+            // Keep instructions aligned with current state to avoid stale "Preparing..." text
+            switch (e.State)
+            {
+                case CompassCalibrationState.Starting:
+                    CompassInstructions = "Preparing calibration. Keep the vehicle steady for a moment.";
+                    break;
+                case CompassCalibrationState.RunningSphereFit:
+                case CompassCalibrationState.RunningEllipsoidFit:
+                    CompassInstructions = "Rotate the vehicle slowly in all directions to cover all orientations.";
+                    break;
+                case CompassCalibrationState.WaitingForAccept:
+                    CompassInstructions = "Calibration data is ready. Click Accept to save or Cancel to discard.";
+                    break;
+                case CompassCalibrationState.Accepted:
+                    CompassInstructions = "Calibration accepted. Reboot required to apply changes.";
+                    break;
+                case CompassCalibrationState.Cancelled:
+                    CompassInstructions = "Calibration cancelled.";
+                    break;
+            }
+
             // Update button text based on state
             if (e.IsCalibrating)
             {
@@ -1377,10 +1398,10 @@ public partial class SensorsCalibrationPageViewModel : ViewModelBase
 
         AddDebugLog($"[AccelCal] Button clicked - current button text: '{AccelButtonText}'");
 
-        // Only show disclaimer when starting a NEW calibration (not when confirming positions)
-        if (AccelButtonText == "Calibrate Accel")
+        // Show disclaimer only when starting a NEW calibration session.
+        // Using state is more reliable than matching button text.
+        if (!IsAccelCalibrationActive)
         {
-            // Show disclaimer dialog before starting calibration
             var disclaimerResult = await ShowCalibrationDisclaimerAsync("Accelerometer");
             if (!disclaimerResult)
             {
@@ -1389,8 +1410,6 @@ public partial class SensorsCalibrationPageViewModel : ViewModelBase
             }
         }
 
-        // MissionPlanner behavior: If already calibrating, button click confirms position
-        // CalibrationService.StartAccelerometerCalibrationAsync handles this internally
         var success = await _calibrationService.StartAccelerometerCalibrationAsync(true);
 
         if (!success && !IsAccelCalibrationActive)
@@ -1417,8 +1436,16 @@ public partial class SensorsCalibrationPageViewModel : ViewModelBase
             return;
         }
 
+        // Show disclaimer before starting compass calibration
+        var disclaimerResult = await ShowCalibrationDisclaimerAsync("Compass");
+        if (!disclaimerResult)
+        {
+            StatusMessage = "Calibration cancelled - disclaimer not accepted.";
+            return;
+        }
+
         AddDebugLog("[CompassCal] Starting onboard compass calibration...");
-        
+
         // Reset progress and UI
         ResetCompassCalibrationUI();
 
@@ -1432,7 +1459,7 @@ public partial class SensorsCalibrationPageViewModel : ViewModelBase
         CompassCalButtonText = "Calibrating...";
 
         var success = await _calibrationService.StartOnboardCompassCalibrationAsync(0, true, true);
-        
+
         if (!success)
         {
             ShowError("Calibration Failed", "Failed to start compass calibration. Check connection and try again.");
