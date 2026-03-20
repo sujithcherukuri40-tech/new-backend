@@ -3,6 +3,7 @@ using PavamanDroneConfigurator.Core.Interfaces;
 using PavamanDroneConfigurator.Core.Models;
 using PavamanDroneConfigurator.Core.Enums;
 using PavamanDroneConfigurator.Infrastructure.Services;
+using PavamanDroneConfigurator.Infrastructure.Metadata;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -87,7 +88,23 @@ public class ParameterMetadataRepository : IParameterMetadataRepository
             _logger.LogError(ex, "Error loading parameter metadata from XML");
         }
 
-        // Fallback to built-in metadata
+        // Fallback #1: bundled metadata shipped with app (Assets/ParameterMetadata.xml)
+        try
+        {
+            var localMetadata = MetadataLoader.Load("ParameterMetadata.xml");
+            if (localMetadata.Count > 0)
+            {
+                _metadata = new Dictionary<string, ParameterMetadata>(localMetadata, StringComparer.OrdinalIgnoreCase);
+                _logger.LogInformation("Loaded {Count} parameters from bundled local metadata", _metadata.Count);
+                return;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading bundled local parameter metadata");
+        }
+
+        // Fallback #2: built-in minimal metadata
         _logger.LogWarning("Falling back to built-in parameter metadata");
         _metadata = BuildFallbackMetadata();
     }
