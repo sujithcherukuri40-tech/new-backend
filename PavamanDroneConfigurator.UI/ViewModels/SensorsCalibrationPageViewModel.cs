@@ -1592,16 +1592,25 @@ public partial class SensorsCalibrationPageViewModel : ViewModelBase
             _connectionService.SendPreflightReboot(1, 0);
             
             StatusMessage = "Reboot command sent. Disconnecting...";
+
             AddDebugLog("Reboot command sent, waiting before disconnect...");
             
             // Small delay to let the command be processed, then disconnect
-            // The disconnect will be handled by App.axaml.cs which will navigate to ConnectionShell
             await Task.Delay(500);
-            
-            // Disconnect - this will trigger ConnectionStateChanged which App.axaml.cs handles
-            await _connectionService.DisconnectAsync();
-            
-            AddDebugLog("Disconnected after reboot command");
+
+            try
+            {
+                // Disconnect is expected to race with FC reboot; treat disconnect errors as non-fatal
+                await _connectionService.DisconnectAsync();
+                AddDebugLog("Disconnected after reboot command");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Disconnect after reboot command failed (expected during FC reboot)");
+                AddDebugLog($"Disconnect after reboot command skipped: {ex.Message}");
+            }
+
+            StatusMessage = "Reboot command sent. Drone is rebooting...";
             // Note: Navigation to ConnectionShell is handled by App.axaml.cs
         }
         catch (Exception ex)

@@ -14,267 +14,186 @@
     </Design.DataContext>
 
     <UserControl.Styles>
-        <!-- ========================== -->
-        <!-- GLASSMORPHISM PANEL STYLES -->
-        <!-- ========================== -->
-        
         <!-- Dark glass panel -->
         <Style Selector="Border.glass-panel">
-            <Setter Property="Background" Value="#CC1E293B"/>
-            <Setter Property="CornerRadius" Value="16"/>
-            <Setter Property="BorderBrush" Value="#30FFFFFF"/>
+            <Setter Property="Background" Value="#E61E293B"/>
+            <Setter Property="CornerRadius" Value="12"/>
+            <Setter Property="BorderBrush" Value="#40FFFFFF"/>
             <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="BoxShadow" Value="0 8 32 #40000000"/>
         </Style>
         
-        <!-- Glass panel hover effect -->
-        <Style Selector="Border.glass-panel-hover">
-            <Setter Property="Background" Value="#CC1E293B"/>
-            <Setter Property="CornerRadius" Value="16"/>
-            <Setter Property="BorderBrush" Value="#30FFFFFF"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="Transitions">
-                <Transitions>
-                    <BrushTransition Property="Background" Duration="0:0:0.2"/>
-                </Transitions>
-            </Setter>
-        </Style>
-        
-        <Style Selector="Border.glass-panel-hover:pointerover">
-            <Setter Property="Background" Value="#DD2D3A4F"/>
-        </Style>
-        
-        <!-- Status pill (connection/mode indicators) -->
+        <!-- Status pill -->
         <Style Selector="Border.status-pill">
-            <Setter Property="Background" Value="#40FFFFFF"/>
-            <Setter Property="CornerRadius" Value="20"/>
-            <Setter Property="Padding" Value="12,6"/>
+            <Setter Property="Background" Value="#50FFFFFF"/>
+            <Setter Property="CornerRadius" Value="16"/>
+            <Setter Property="Padding" Value="10,5"/>
         </Style>
         
-        <!-- ====================== -->
-        <!-- CONTROL BUTTON STYLES -->
-        <!-- ====================== -->
-        
+        <!-- Control button styles -->
         <Style Selector="Button.floating-btn">
-            <Setter Property="Width" Value="52"/>
-            <Setter Property="Height" Value="52"/>
-            <Setter Property="CornerRadius" Value="14"/>
+            <Setter Property="Width" Value="44"/>
+            <Setter Property="Height" Value="44"/>
+            <Setter Property="CornerRadius" Value="10"/>
             <Setter Property="Padding" Value="0"/>
             <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="BorderBrush" Value="#30FFFFFF"/>
+            <Setter Property="BorderBrush" Value="#40FFFFFF"/>
             <Setter Property="HorizontalContentAlignment" Value="Center"/>
             <Setter Property="VerticalContentAlignment" Value="Center"/>
-            <Setter Property="Background" Value="#CC1E293B"/>
+            <Setter Property="Background" Value="#E61E293B"/>
             <Setter Property="Foreground" Value="White"/>
-            <Setter Property="FontSize" Value="10"/>
+            <Setter Property="FontSize" Value="9"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="Transitions">
-                <Transitions>
-                    <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.15"/>
-                    <BrushTransition Property="Background" Duration="0:0:0.15"/>
-                </Transitions>
-            </Setter>
         </Style>
         
         <Style Selector="Button.floating-btn:pointerover">
-            <Setter Property="Background" Value="#DD3B82F6"/>
-            <Setter Property="RenderTransform" Value="scale(1.08)"/>
-        </Style>
-        
-        <Style Selector="Button.floating-btn:pressed">
-            <Setter Property="Background" Value="#CC2563EB"/>
-            <Setter Property="RenderTransform" Value="scale(0.95)"/>
+            <Setter Property="Background" Value="#E63B82F6"/>
         </Style>
 
         <Style Selector="Button.floating-btn-active">
-            <Setter Property="Background" Value="#CC3B82F6"/>
-            <Setter Property="BorderBrush" Value="#603B82F6"/>
-        </Style>
-
-        <Style Selector="Button.floating-btn-active:pointerover">
-            <Setter Property="Background" Value="#DD2563EB"/>
+            <Setter Property="Background" Value="#E63B82F6"/>
         </Style>
         
         <!-- View mode button -->
         <Style Selector="Button.view-mode-btn">
-            <Setter Property="Height" Value="40"/>
-            <Setter Property="Padding" Value="16,0"/>
-            <Setter Property="CornerRadius" Value="10"/>
+            <Setter Property="Height" Value="36"/>
+            <Setter Property="Padding" Value="14,0"/>
+            <Setter Property="CornerRadius" Value="8"/>
             <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="BorderBrush" Value="#30FFFFFF"/>
-            <Setter Property="Background" Value="#801E293B"/>
+            <Setter Property="BorderBrush" Value="#40FFFFFF"/>
+            <Setter Property="Background" Value="#901E293B"/>
             <Setter Property="Foreground" Value="#94A3B8"/>
-            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="FontSize" Value="11"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="Transitions">
-                <Transitions>
-                    <BrushTransition Property="Background" Duration="0:0:0.15"/>
-                    <BrushTransition Property="Foreground" Duration="0:0:0.15"/>
-                </Transitions>
-            </Setter>
         </Style>
         
         <Style Selector="Button.view-mode-btn:pointerover">
-            <Setter Property="Background" Value="#993B82F6"/>
+            <Setter Property="Background" Value="#B03B82F6"/>
             <Setter Property="Foreground" Value="White"/>
         </Style>
         
         <Style Selector="Button.view-mode-btn-active">
-            <Setter Property="Background" Value="#CC3B82F6"/>
+            <Setter Property="Background" Value="#E63B82F6"/>
             <Setter Property="Foreground" Value="White"/>
-            <Setter Property="BorderBrush" Value="#603B82F6"/>
         </Style>
         
-        <!-- Large action button -->
-        <Style Selector="Button.action-btn">
-            <Setter Property="Height" Value="44"/>
-            <Setter Property="Padding" Value="20,0"/>
-            <Setter Property="CornerRadius" Value="10"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="FontSize" Value="13"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="Transitions">
-                <Transitions>
-                    <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.12"/>
-                </Transitions>
-            </Setter>
-        </Style>
-        
-        <Style Selector="Button.action-btn:pointerover">
-            <Setter Property="RenderTransform" Value="scale(1.02)"/>
-        </Style>
-        
-        <Style Selector="Button.action-btn:pressed">
-            <Setter Property="RenderTransform" Value="scale(0.98)"/>
-        </Style>
-        
-        <!-- ================= -->
-        <!-- TELEMETRY STYLES -->
-        <!-- ================= -->
-        
+        <!-- Telemetry styles -->
         <Style Selector="TextBlock.telem-label">
-            <Setter Property="FontSize" Value="10"/>
+            <Setter Property="FontSize" Value="9"/>
             <Setter Property="Foreground" Value="#64748B"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
         </Style>
         
         <Style Selector="TextBlock.telem-value">
-            <Setter Property="FontSize" Value="15"/>
+            <Setter Property="FontSize" Value="13"/>
             <Setter Property="Foreground" Value="White"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="FontFamily" Value="Inter, Segoe UI, sans-serif"/>
         </Style>
         
         <Style Selector="TextBlock.telem-value-lg">
-            <Setter Property="FontSize" Value="22"/>
+            <Setter Property="FontSize" Value="18"/>
             <Setter Property="Foreground" Value="White"/>
             <Setter Property="FontWeight" Value="Bold"/>
-            <Setter Property="FontFamily" Value="Inter, Segoe UI, sans-serif"/>
         </Style>
         
         <Style Selector="TextBlock.telem-unit">
-            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="FontSize" Value="10"/>
             <Setter Property="Foreground" Value="#94A3B8"/>
-            <Setter Property="FontWeight" Value="Normal"/>
         </Style>
     </UserControl.Styles>
 
-    <Grid>
-        <!-- ===================== -->
-        <!-- CESIUM 3D MAP (BACKGROUND) -->
-        <!-- ===================== -->
-        <controls:CesiumMapView x:Name="CesiumMap"/>
+    <!-- Main Grid: Row 0=TopBar, Row 1=Map area, Row 2=BottomBar -->
+    <Grid RowDefinitions="Auto,*,Auto">
         
         <!-- ===================== -->
-        <!-- TOP STATUS BAR -->
+        <!-- TOP STATUS BAR (Row 0) -->
         <!-- ===================== -->
-        <Border VerticalAlignment="Top"
-                HorizontalAlignment="Stretch"
+        <Border Grid.Row="0"
                 Classes="glass-panel"
-                Margin="16,16,16,0"
-                Padding="16,12">
+                Margin="8,8,8,4"
+                Padding="12,8"
+                IsVisible="{Binding IsConnected}">
             <Grid ColumnDefinitions="Auto,*,Auto">
                 
                 <!-- Left: Connection + GPS Status -->
-                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="12">
-                    
-                    <!-- Connection Status Pill -->
+                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="10">
                     <Border Classes="status-pill"
                             Background="{Binding IsConnected, Converter={StaticResource BoolToColorConverter}, ConverterParameter='#4022C55E|#40EF4444'}">
-                        <StackPanel Orientation="Horizontal" Spacing="8">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
                             <Ellipse Width="8" Height="8" 
                                      Fill="{Binding IsConnected, Converter={StaticResource BoolToColorConverter}, ConverterParameter='#22C55E|#EF4444'}"/>
                             <TextBlock Text="{Binding ConnectionStatus}" 
-                                       FontSize="12" 
-                                       FontWeight="SemiBold" 
-                                       Foreground="White"/>
+                                       FontSize="11" FontWeight="SemiBold" Foreground="White"/>
                         </StackPanel>
                     </Border>
                     
-                    <!-- GPS Status -->
                     <Border Classes="status-pill">
-                        <StackPanel Orientation="Horizontal" Spacing="6">
-                            <TextBlock Text="&#x1F4E1;" FontSize="12"/>
-                            <TextBlock FontSize="12" FontWeight="SemiBold" Foreground="White">
-                                <Run Text="{Binding SatelliteCount}"/>
-                                <Run Text=" sats"/>
+                        <StackPanel Orientation="Horizontal" Spacing="5">
+                            <TextBlock Text="??" FontSize="11"/>
+                            <TextBlock FontSize="11" FontWeight="SemiBold" Foreground="White">
+                                <Run Text="{Binding SatelliteCount}"/><Run Text=" sats"/>
                             </TextBlock>
-                            <TextBlock Text="•" Foreground="#64748B" Margin="4,0"/>
-                            <TextBlock Text="{Binding GpsFixType}" FontSize="11" Foreground="#94A3B8"/>
+                            <TextBlock Text="•" Foreground="#64748B" Margin="3,0"/>
+                            <TextBlock Text="{Binding GpsFixType}" FontSize="10" Foreground="#94A3B8"/>
                         </StackPanel>
                     </Border>
                 </StackPanel>
                 
                 <!-- Center: Flight Mode + Armed Status -->
-                <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center" Spacing="12">
-                    
-                    <!-- Flight Mode -->
-                    <Border Classes="status-pill" Background="#40FFFFFF">
-                        <StackPanel Orientation="Horizontal" Spacing="8">
-                            <TextBlock Text="&#x2708;" FontSize="14"/>
-                            <TextBlock Text="{Binding FlightMode}" 
-                                       FontSize="14" 
-                                       FontWeight="Bold" 
-                                       Foreground="White"/>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center" Spacing="10">
+                    <Border Classes="status-pill">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <TextBlock Text="?" FontSize="12"/>
+                            <TextBlock Text="{Binding FlightMode}" FontSize="12" FontWeight="Bold" Foreground="White"/>
                         </StackPanel>
                     </Border>
                     
-                    <!-- Armed Status -->
-                    <Border CornerRadius="8" Padding="12,6"
+                    <Border CornerRadius="6" Padding="10,5"
                             Background="{Binding IsArmed, Converter={StaticResource BoolToColorConverter}, ConverterParameter='#EF4444|#22C55E'}">
-                        <TextBlock Text="{Binding ArmedStatus}" 
-                                   FontSize="12" 
-                                   FontWeight="Bold" 
-                                   Foreground="White"/>
+                        <TextBlock Text="{Binding ArmedStatus}" FontSize="11" FontWeight="Bold" Foreground="White"/>
                     </Border>
                 </StackPanel>
                 
-                <!-- Right: Battery -->
-                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="12">
-                    
-                    <!-- Battery Status -->
+                <!-- Right: Battery + Live indicator -->
+                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
                     <Border Classes="status-pill">
-                        <StackPanel Orientation="Horizontal" Spacing="8">
-                            <TextBlock Text="&#x1F50B;" FontSize="14"/>
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <TextBlock Text="??" FontSize="12"/>
                             <StackPanel>
-                                <TextBlock FontSize="13" FontWeight="Bold" Foreground="White">
-                                    <Run Text="{Binding BatteryVoltage, StringFormat='{}{0:F1}'}"/>
-                                    <Run Text="V"/>
+                                <TextBlock FontSize="12" FontWeight="Bold" Foreground="White">
+                                    <Run Text="{Binding BatteryVoltage, StringFormat='{}{0:F1}'}"/>V
                                 </TextBlock>
-                                <TextBlock FontSize="10" Foreground="#94A3B8">
-                                    <Run Text="{Binding BatteryCurrent, StringFormat='{}{0:F1}'}"/>
-                                    <Run Text="A"/>
+                                <TextBlock FontSize="9" Foreground="#94A3B8">
+                                    <Run Text="{Binding BatteryCurrent, StringFormat='{}{0:F1}'}"/>A
                                 </TextBlock>
                             </StackPanel>
-                            <Border Width="1" Height="24" Background="#374151" Margin="4,0"/>
-                            <TextBlock Text="{Binding BatteryStatus}" 
-                                       FontSize="14" 
-                                       FontWeight="Bold" 
-                                       Foreground="White"
-                                       VerticalAlignment="Center"/>
+                            <Border Width="1" Height="20" Background="#374151" Margin="3,0"/>
+                            <TextBlock Text="{Binding BatteryStatus}" FontSize="12" FontWeight="Bold" 
+                                       Foreground="White" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Border>
+                    
+                    <!-- LIVE Indicator -->
+                    <Border Background="#E61E293B"
+                            CornerRadius="12"
+                            Padding="8,4"
+                            IsVisible="{Binding IsReceivingTelemetry}">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <Ellipse Width="6" Height="6" Fill="#22C55E">
+                                <Ellipse.Styles>
+                                    <Style Selector="Ellipse">
+                                        <Style.Animations>
+                                            <Animation Duration="0:0:1" IterationCount="Infinite">
+                                                <KeyFrame Cue="0%"><Setter Property="Opacity" Value="1"/></KeyFrame>
+                                                <KeyFrame Cue="50%"><Setter Property="Opacity" Value="0.3"/></KeyFrame>
+                                                <KeyFrame Cue="100%"><Setter Property="Opacity" Value="1"/></KeyFrame>
+                                            </Animation>
+                                        </Style.Animations>
+                                    </Style>
+                                </Ellipse.Styles>
+                            </Ellipse>
+                            <TextBlock Text="LIVE" FontSize="9" FontWeight="Bold" Foreground="#22C55E"/>
                         </StackPanel>
                     </Border>
                 </StackPanel>
@@ -282,217 +201,95 @@
         </Border>
 
         <!-- ===================== -->
-        <!-- VIEW MODE BUTTONS (TOP LEFT BELOW STATUS) -->
+        <!-- MIDDLE CONTENT AREA (Row 1) - Map and right buttons only -->
         <!-- ===================== -->
-        <StackPanel Orientation="Horizontal"
-                    VerticalAlignment="Top"
-                    HorizontalAlignment="Left"
-                    Margin="16,80,0,0"
-                    Spacing="8"
-                    IsVisible="{Binding IsConnected}">
+        <Grid Grid.Row="1" ColumnDefinitions="*,Auto" Margin="8,4">
             
-            <!-- Top-Down View -->
-            <Button Command="{Binding SetViewModeTopDownCommand}"
-                    Classes.view-mode-btn-active="{Binding IsTopDownView}"
-                    Classes="view-mode-btn">
-                <StackPanel Orientation="Horizontal" Spacing="6">
-                    <TextBlock Text="&#x2B07;" FontSize="14"/>
-                    <TextBlock Text="Top-Down"/>
+            <!-- CENTER: MAP AREA with view mode buttons overlaid -->
+            <Grid Grid.Column="0">
+                <!-- CesiumMapView fills this area -->
+                <controls:CesiumMapView x:Name="CesiumMap" ClipToBounds="True"/>
+                
+                <!-- View Mode Buttons (overlaid at bottom center of map) -->
+                <StackPanel Orientation="Horizontal"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Bottom"
+                            Margin="0,0,0,12"
+                            Spacing="6"
+                            IsVisible="{Binding IsConnected}">
+                    <Button Command="{Binding SetViewModeTopDownCommand}"
+                            Classes.view-mode-btn-active="{Binding IsTopDownView}"
+                            Classes="view-mode-btn">
+                        <StackPanel Orientation="Horizontal" Spacing="4">
+                            <TextBlock Text="?" FontSize="12"/>
+                            <TextBlock Text="Top Down"/>
+                        </StackPanel>
+                    </Button>
+                    <Button Command="{Binding SetViewModeChase3DCommand}"
+                            Classes.view-mode-btn-active="{Binding IsChase3DView}"
+                            Classes="view-mode-btn">
+                        <StackPanel Orientation="Horizontal" Spacing="4">
+                            <TextBlock Text="?" FontSize="12"/>
+                            <TextBlock Text="3D Chase"/>
+                        </StackPanel>
+                    </Button>
+                    <Button Command="{Binding SetViewModeFreeRoamCommand}"
+                            Classes.view-mode-btn-active="{Binding IsFreeRoamView}"
+                            Classes="view-mode-btn">
+                        <StackPanel Orientation="Horizontal" Spacing="4">
+                            <TextBlock Text="?" FontSize="12"/>
+                            <TextBlock Text="Free Roam"/>
+                        </StackPanel>
+                    </Button>
                 </StackPanel>
-            </Button>
+            </Grid>
             
-            <!-- 3D Chase View -->
-            <Button Command="{Binding SetViewModeChase3DCommand}"
-                    Classes.view-mode-btn-active="{Binding IsChase3DView}"
-                    Classes="view-mode-btn">
-                <StackPanel Orientation="Horizontal" Spacing="6">
-                    <TextBlock Text="&#x1F3A5;" FontSize="14"/>
-                    <TextBlock Text="3D Chase"/>
-                </StackPanel>
-            </Button>
-            
-            <!-- Free Roam -->
-            <Button Command="{Binding SetViewModeFreeRoamCommand}"
-                    Classes.view-mode-btn-active="{Binding IsFreeRoamView}"
-                    Classes="view-mode-btn">
-                <StackPanel Orientation="Horizontal" Spacing="6">
-                    <TextBlock Text="&#x1F310;" FontSize="14"/>
-                    <TextBlock Text="Free Roam"/>
-                </StackPanel>
-            </Button>
-        </StackPanel>
-
-        <!-- ===================== -->
-        <!-- LEFT SIDE: TELEMETRY PANEL -->
-        <!-- ===================== -->
-        <Border VerticalAlignment="Center"
-                HorizontalAlignment="Left"
-                Classes="glass-panel"
-                Margin="16,130,0,100"
-                Padding="20"
-                MinWidth="180"
-                IsVisible="{Binding IsConnected}">
-            <StackPanel Spacing="16">
-                
-                <!-- Altitude (Large) -->
-                <StackPanel Spacing="4">
-                    <TextBlock Text="ALTITUDE" Classes="telem-label"/>
-                    <StackPanel Orientation="Horizontal" Spacing="4">
-                        <TextBlock Text="{Binding Altitude, StringFormat='{}{0:F1}'}" Classes="telem-value-lg"/>
-                        <TextBlock Text="m" Classes="telem-unit" VerticalAlignment="Bottom" Margin="0,0,0,4"/>
-                    </StackPanel>
-                </StackPanel>
-                
-                <Border Height="1" Background="#334155"/>
-                
-                <!-- Speed -->
-                <StackPanel Spacing="4">
-                    <TextBlock Text="GROUND SPEED" Classes="telem-label"/>
-                    <StackPanel Orientation="Horizontal" Spacing="4">
-                        <TextBlock Text="{Binding GroundSpeed, StringFormat='{}{0:F1}'}" Classes="telem-value"/>
-                        <TextBlock Text="m/s" Classes="telem-unit" VerticalAlignment="Bottom"/>
-                    </StackPanel>
-                </StackPanel>
-                
-                <Border Height="1" Background="#334155"/>
-                
-                <!-- Vertical Speed -->
-                <StackPanel Spacing="4">
-                    <TextBlock Text="VERTICAL SPEED" Classes="telem-label"/>
-                    <StackPanel Orientation="Horizontal" Spacing="4">
-                        <TextBlock Text="{Binding VerticalSpeed, StringFormat='{}{0:F1}'}" Classes="telem-value"/>
-                        <TextBlock Text="m/s" Classes="telem-unit" VerticalAlignment="Bottom"/>
-                    </StackPanel>
-                </StackPanel>
-                
-                <Border Height="1" Background="#334155"/>
-                
-                <!-- Position -->
-                <StackPanel Spacing="4">
-                    <TextBlock Text="POSITION" Classes="telem-label"/>
-                    <TextBlock Text="{Binding PositionString}" 
-                               FontSize="11" 
-                               Foreground="#CBD5E1"
-                               FontFamily="JetBrains Mono, Consolas, monospace"/>
-                </StackPanel>
-                
-                <Border Height="1" Background="#334155"/>
-                
-                <!-- Heading -->
-                <StackPanel Spacing="4">
-                    <TextBlock Text="HEADING" Classes="telem-label"/>
-                    <StackPanel Orientation="Horizontal" Spacing="4">
-                        <TextBlock Text="{Binding Heading, StringFormat='{}{0:F0}'}" Classes="telem-value"/>
-                        <TextBlock Text="°" Classes="telem-unit" VerticalAlignment="Bottom"/>
-                    </StackPanel>
-                </StackPanel>
-                
-                <Border Height="1" Background="#334155"/>
-                
-                <!-- Attitude -->
-                <StackPanel Spacing="6">
-                    <TextBlock Text="ATTITUDE" Classes="telem-label"/>
-                    <Grid ColumnDefinitions="50,*" RowDefinitions="Auto,Auto,Auto" RowSpacing="4">
-                        <TextBlock Grid.Row="0" Grid.Column="0" Text="Roll:" FontSize="11" Foreground="#94A3B8"/>
-                        <TextBlock Grid.Row="0" Grid.Column="1" FontSize="11" Foreground="White">
-                            <Run Text="{Binding Roll, StringFormat='{}{0:F1}'}"/><Run Text="°"/>
-                        </TextBlock>
-                        <TextBlock Grid.Row="1" Grid.Column="0" Text="Pitch:" FontSize="11" Foreground="#94A3B8"/>
-                        <TextBlock Grid.Row="1" Grid.Column="1" FontSize="11" Foreground="White">
-                            <Run Text="{Binding Pitch, StringFormat='{}{0:F1}'}"/><Run Text="°"/>
-                        </TextBlock>
-                        <TextBlock Grid.Row="2" Grid.Column="0" Text="Yaw:" FontSize="11" Foreground="#94A3B8"/>
-                        <TextBlock Grid.Row="2" Grid.Column="1" FontSize="11" Foreground="White">
-                            <Run Text="{Binding Yaw, StringFormat='{}{0:F1}'}"/><Run Text="°"/>
-                        </TextBlock>
-                    </Grid>
-                </StackPanel>
-                
-                <Border Height="1" Background="#334155"/>
-                
-                <!-- Distance to Home -->
-                <StackPanel Spacing="4">
-                    <TextBlock Text="HOME DISTANCE" Classes="telem-label"/>
-                    <StackPanel Orientation="Horizontal" Spacing="4">
-                        <TextBlock Text="{Binding DistanceToHome, StringFormat='{}{0:F0}'}" Classes="telem-value"/>
-                        <TextBlock Text="m" Classes="telem-unit" VerticalAlignment="Bottom"/>
-                    </StackPanel>
-                </StackPanel>
+            <!-- RIGHT CONTROL BUTTONS -->
+            <StackPanel Grid.Column="1"
+                        VerticalAlignment="Top"
+                        Margin="4,0,0,0"
+                        Spacing="6">
+                <Button Classes="floating-btn" ToolTip.Tip="Zoom In" Click="ZoomIn_Click">
+                    <TextBlock Text="+" FontSize="18"/>
+                </Button>
+                <Button Classes="floating-btn" ToolTip.Tip="Zoom Out" Click="ZoomOut_Click">
+                    <TextBlock Text="?" FontSize="18"/>
+                </Button>
+                <Button Classes="floating-btn"
+                        Command="{Binding RecenterMapCommand}"
+                        ToolTip.Tip="Center on Drone">
+                    <TextBlock Text="?" FontSize="16"/>
+                </Button>
+                <Button Command="{Binding ToggleFollowDroneCommand}"
+                        ToolTip.Tip="Toggle Follow"
+                        Classes.floating-btn-active="{Binding FollowDrone}"
+                        Classes="floating-btn">
+                    <TextBlock Text="?" FontSize="14"/>
+                </Button>
+                <Button Classes="floating-btn"
+                        Command="{Binding ChangeMapTypeCommand}"
+                        ToolTip.Tip="Map Type">
+                    <TextBlock Text="?" FontSize="14"/>
+                </Button>
+                <Button Classes="floating-btn"
+                        Command="{Binding ClearFlightPathCommand}"
+                        ToolTip.Tip="Clear Path">
+                    <TextBlock Text="DEL" FontSize="9"/>
+                </Button>
             </StackPanel>
-        </Border>
+        </Grid>
 
         <!-- ===================== -->
-        <!-- RIGHT SIDE: CONTROL BUTTONS -->
+        <!-- BOTTOM TELEMETRY BAR (Row 2) -->
         <!-- ===================== -->
-        <StackPanel VerticalAlignment="Center"
-                    HorizontalAlignment="Right"
-                    Margin="0,0,16,0"
-                    Spacing="10">
-            
-            <!-- Recenter -->
-            <Button Classes="floating-btn"
-                    Command="{Binding RecenterMapCommand}"
-                    ToolTip.Tip="Center on Drone">
-                <StackPanel Spacing="2">
-                    <TextBlock Text="&#x2295;" FontSize="20" HorizontalAlignment="Center"/>
-                    <TextBlock Text="Center" HorizontalAlignment="Center"/>
-                </StackPanel>
-            </Button>
-            
-            <!-- Follow Drone Toggle -->
-            <Button Command="{Binding ToggleFollowDroneCommand}"
-                    ToolTip.Tip="Toggle Follow Mode"
-                    Classes.floating-btn-active="{Binding FollowDrone}"
-                    Classes="floating-btn">
-                <StackPanel Spacing="2">
-                    <TextBlock Text="&#x1F3AF;" FontSize="16" HorizontalAlignment="Center"/>
-                    <TextBlock Text="Follow" HorizontalAlignment="Center"/>
-                </StackPanel>
-            </Button>
-            
-            <!-- Map Type -->
-            <Button Classes="floating-btn"
-                    Command="{Binding ChangeMapTypeCommand}"
-                    ToolTip.Tip="Change Map Type">
-                <StackPanel Spacing="2">
-                    <TextBlock Text="&#x1F5FA;" FontSize="16" HorizontalAlignment="Center"/>
-                    <TextBlock Text="{Binding MapTypeLabel}" HorizontalAlignment="Center"/>
-                </StackPanel>
-            </Button>
-            
-            <!-- Clear Path -->
-            <Button Classes="floating-btn"
-                    Command="{Binding ClearFlightPathCommand}"
-                    ToolTip.Tip="Clear Flight Path">
-                <StackPanel Spacing="2">
-                    <TextBlock Text="&#x1F5D1;" FontSize="16" HorizontalAlignment="Center"/>
-                    <TextBlock Text="Clear" HorizontalAlignment="Center"/>
-                </StackPanel>
-            </Button>
-            
-            <!-- Camera - Opens Popup -->
-            <Button Classes="floating-btn"
-                    Command="{Binding OpenCameraViewCommand}"
-                    ToolTip.Tip="Open Camera View">
-                <StackPanel Spacing="2">
-                    <TextBlock Text="&#x1F4F9;" FontSize="16" HorizontalAlignment="Center"/>
-                    <TextBlock Text="Camera" HorizontalAlignment="Center"/>
-                </StackPanel>
-            </Button>
-        </StackPanel>
-
-        <!-- ===================== -->
-        <!-- BOTTOM TELEMETRY BAR -->
-        <!-- ===================== -->
-        <Border VerticalAlignment="Bottom"
-                HorizontalAlignment="Stretch"
+        <Border Grid.Row="2"
                 Classes="glass-panel"
-                Margin="16,0,16,16"
-                Padding="24,16">
+                Margin="8,4,8,8"
+                Padding="16,10"
+                IsVisible="{Binding IsConnected}">
             <Grid ColumnDefinitions="*,*,*,*,*,*,*,*">
                 
-                <!-- Alt -->
-                <StackPanel Grid.Column="0" HorizontalAlignment="Center" Spacing="4">
+                <StackPanel Grid.Column="0" HorizontalAlignment="Center" Spacing="2">
                     <TextBlock Text="ALT" Classes="telem-label" HorizontalAlignment="Center"/>
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="2">
                         <TextBlock Text="{Binding Altitude, StringFormat='{}{0:F1}'}" Classes="telem-value"/>
@@ -500,8 +297,7 @@
                     </StackPanel>
                 </StackPanel>
                 
-                <!-- Speed -->
-                <StackPanel Grid.Column="1" HorizontalAlignment="Center" Spacing="4">
+                <StackPanel Grid.Column="1" HorizontalAlignment="Center" Spacing="2">
                     <TextBlock Text="SPEED" Classes="telem-label" HorizontalAlignment="Center"/>
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="2">
                         <TextBlock Text="{Binding GroundSpeed, StringFormat='{}{0:F1}'}" Classes="telem-value"/>
@@ -509,8 +305,7 @@
                     </StackPanel>
                 </StackPanel>
                 
-                <!-- V/S -->
-                <StackPanel Grid.Column="2" HorizontalAlignment="Center" Spacing="4">
+                <StackPanel Grid.Column="2" HorizontalAlignment="Center" Spacing="2">
                     <TextBlock Text="V/S" Classes="telem-label" HorizontalAlignment="Center"/>
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="2">
                         <TextBlock Text="{Binding VerticalSpeed, StringFormat='{}{0:F1}'}" Classes="telem-value"/>
@@ -518,8 +313,7 @@
                     </StackPanel>
                 </StackPanel>
                 
-                <!-- HDG -->
-                <StackPanel Grid.Column="3" HorizontalAlignment="Center" Spacing="4">
+                <StackPanel Grid.Column="3" HorizontalAlignment="Center" Spacing="2">
                     <TextBlock Text="HDG" Classes="telem-label" HorizontalAlignment="Center"/>
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="2">
                         <TextBlock Text="{Binding Heading, StringFormat='{}{0:F0}'}" Classes="telem-value"/>
@@ -527,21 +321,17 @@
                     </StackPanel>
                 </StackPanel>
                 
-                <!-- Waypoint -->
-                <StackPanel Grid.Column="4" HorizontalAlignment="Center" Spacing="4">
+                <StackPanel Grid.Column="4" HorizontalAlignment="Center" Spacing="2">
                     <TextBlock Text="WAYPOINT" Classes="telem-label" HorizontalAlignment="Center"/>
                     <TextBlock Text="{Binding WaypointStatus}" Classes="telem-value" HorizontalAlignment="Center"/>
                 </StackPanel>
                 
-                <!-- Flight Time -->
-                <StackPanel Grid.Column="5" HorizontalAlignment="Center" Spacing="4">
+                <StackPanel Grid.Column="5" HorizontalAlignment="Center" Spacing="2">
                     <TextBlock Text="TIME" Classes="telem-label" HorizontalAlignment="Center"/>
-                    <TextBlock Text="{Binding FlightTime}" Classes="telem-value" HorizontalAlignment="Center"
-                               FontFamily="JetBrains Mono, Consolas, monospace"/>
+                    <TextBlock Text="{Binding FlightTime}" Classes="telem-value" HorizontalAlignment="Center"/>
                 </StackPanel>
                 
-                <!-- Distance -->
-                <StackPanel Grid.Column="6" HorizontalAlignment="Center" Spacing="4">
+                <StackPanel Grid.Column="6" HorizontalAlignment="Center" Spacing="2">
                     <TextBlock Text="DISTANCE" Classes="telem-label" HorizontalAlignment="Center"/>
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="2">
                         <TextBlock Text="{Binding TotalFlightDistance, StringFormat='{}{0:F2}'}" Classes="telem-value"/>
@@ -549,8 +339,7 @@
                     </StackPanel>
                 </StackPanel>
                 
-                <!-- Consumed -->
-                <StackPanel Grid.Column="7" HorizontalAlignment="Center" Spacing="4">
+                <StackPanel Grid.Column="7" HorizontalAlignment="Center" Spacing="2">
                     <TextBlock Text="CONSUMED" Classes="telem-label" HorizontalAlignment="Center"/>
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="2">
                         <TextBlock Text="{Binding TotalConsumedLiters, StringFormat='{}{0:F1}'}" Classes="telem-value"/>
@@ -561,305 +350,32 @@
         </Border>
 
         <!-- ===================== -->
-        <!-- CAMERA VIEW POPUP -->
+        <!-- DISCONNECTED OVERLAY (Spans all rows) -->
         <!-- ===================== -->
-        <Border x:Name="CameraPopup"
-                IsVisible="{Binding IsCameraViewOpen}"
-                Background="#E0101827"
-                CornerRadius="20"
-                Margin="80"
-                BoxShadow="0 20 60 #80000000">
-            <Grid RowDefinitions="Auto,*,Auto">
-                
-                <!-- Header -->
-                <Border Grid.Row="0" 
-                        Background="#1E293B"
-                        CornerRadius="20,20,0,0"
-                        Padding="24,16">
-                    <Grid ColumnDefinitions="*,Auto">
-                        <StackPanel Orientation="Horizontal" Spacing="12">
-                            <TextBlock Text="&#x1F4F9;" FontSize="24" VerticalAlignment="Center"/>
-                            <StackPanel>
-                                <TextBlock Text="Camera View" FontSize="18" FontWeight="Bold" Foreground="White"/>
-                                <TextBlock Text="{Binding CameraStatus}" FontSize="12" Foreground="#94A3B8"/>
-                            </StackPanel>
-                        </StackPanel>
-                        <Button Grid.Column="1"
-                                Command="{Binding CloseCameraViewCommand}"
-                                Background="Transparent"
-                                BorderThickness="0"
-                                Padding="8"
-                                Cursor="Hand">
-                            <TextBlock Text="&#x2715;" FontSize="20" Foreground="#94A3B8"/>
-                        </Button>
-                    </Grid>
-                </Border>
-                
-                <!-- Video Feed Area -->
-                <Grid Grid.Row="1" Margin="24">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="2*"/>
-                        <ColumnDefinition Width="16"/>
-                        <ColumnDefinition Width="*"/>
-                    </Grid.ColumnDefinitions>
-                    
-                    <!-- Main Video Feed -->
-                    <Border Grid.Column="0"
-                            Background="#0F172A"
-                            CornerRadius="12"
-                            BorderBrush="#334155"
-                            BorderThickness="1">
-                        <Grid>
-                            <!-- Placeholder for video stream -->
-                            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="16">
-                                <TextBlock Text="&#x1F4F9;" FontSize="64" HorizontalAlignment="Center" Opacity="0.3"/>
-                                <TextBlock Text="Video Feed" FontSize="16" Foreground="#64748B" HorizontalAlignment="Center"/>
-                                <TextBlock Text="Connect camera to view live feed" FontSize="12" Foreground="#475569" HorizontalAlignment="Center"/>
-                            </StackPanel>
-                            
-                            <!-- Recording indicator -->
-                            <Border IsVisible="{Binding IsRecording}"
-                                    VerticalAlignment="Top"
-                                    HorizontalAlignment="Left"
-                                    Margin="16"
-                                    Background="#CC000000"
-                                    CornerRadius="20"
-                                    Padding="12,6">
-                                <StackPanel Orientation="Horizontal" Spacing="8">
-                                    <Ellipse Width="10" Height="10" Fill="#EF4444">
-                                        <Ellipse.Styles>
-                                            <Style Selector="Ellipse">
-                                                <Style.Animations>
-                                                    <Animation Duration="0:0:0.8" IterationCount="Infinite">
-                                                        <KeyFrame Cue="0%">
-                                                            <Setter Property="Opacity" Value="1"/>
-                                                        </KeyFrame>
-                                                        <KeyFrame Cue="50%">
-                                                            <Setter Property="Opacity" Value="0.3"/>
-                                                        </KeyFrame>
-                                                        <KeyFrame Cue="100%">
-                                                            <Setter Property="Opacity" Value="1"/>
-                                                        </KeyFrame>
-                                                    </Animation>
-                                                </Style.Animations>
-                                            </Style>
-                                        </Ellipse.Styles>
-                                    </Ellipse>
-                                    <TextBlock Text="REC" FontSize="12" FontWeight="Bold" Foreground="#EF4444"/>
-                                    <TextBlock Text="{Binding RecordingTime}" FontSize="12" Foreground="White" FontFamily="JetBrains Mono, Consolas"/>
-                                </StackPanel>
-                            </Border>
-                        </Grid>
-                    </Border>
-                    
-                    <!-- 3D Flight View -->
-                    <Border Grid.Column="2"
-                            Background="#0F172A"
-                            CornerRadius="12"
-                            BorderBrush="#334155"
-                            BorderThickness="1">
-                        <Grid>
-                            <!-- Placeholder for 3D view -->
-                            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="12">
-                                <TextBlock Text="&#x1F30D;" FontSize="48" HorizontalAlignment="Center" Opacity="0.3"/>
-                                <TextBlock Text="3D Flight View" FontSize="14" Foreground="#64748B" HorizontalAlignment="Center"/>
-                            </StackPanel>
-                            
-                            <!-- Attitude indicator overlay -->
-                            <Border VerticalAlignment="Bottom"
-                                    HorizontalAlignment="Stretch"
-                                    Background="#80000000"
-                                    Padding="12">
-                                <Grid ColumnDefinitions="*,*,*">
-                                    <StackPanel Grid.Column="0" HorizontalAlignment="Center">
-                                        <TextBlock Text="ROLL" FontSize="9" Foreground="#64748B" HorizontalAlignment="Center"/>
-                                        <TextBlock FontSize="14" Foreground="White" HorizontalAlignment="Center">
-                                            <Run Text="{Binding Roll, StringFormat='{}{0:F1}'}"/><Run Text="°"/>
-                                        </TextBlock>
-                                    </StackPanel>
-                                    <StackPanel Grid.Column="1" HorizontalAlignment="Center">
-                                        <TextBlock Text="PITCH" FontSize="9" Foreground="#64748B" HorizontalAlignment="Center"/>
-                                        <TextBlock FontSize="14" Foreground="White" HorizontalAlignment="Center">
-                                            <Run Text="{Binding Pitch, StringFormat='{}{0:F1}'}"/><Run Text="°"/>
-                                        </TextBlock>
-                                    </StackPanel>
-                                    <StackPanel Grid.Column="2" HorizontalAlignment="Center">
-                                        <TextBlock Text="YAW" FontSize="9" Foreground="#64748B" HorizontalAlignment="Center"/>
-                                        <TextBlock FontSize="14" Foreground="White" HorizontalAlignment="Center">
-                                            <Run Text="{Binding Yaw, StringFormat='{}{0:F1}'}"/><Run Text="°"/>
-                                        </TextBlock>
-                                    </StackPanel>
-                                </Grid>
-                            </Border>
-                        </Grid>
-                    </Border>
-                </Grid>
-                
-                <!-- Footer Controls -->
-                <Border Grid.Row="2"
-                        Background="#1E293B"
-                        CornerRadius="0,0,20,20"
-                        Padding="24,16">
-                    <Grid ColumnDefinitions="*,Auto,*">
-                        <!-- Photo count -->
-                        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                            <TextBlock Text="&#x1F4F7;" FontSize="16"/>
-                            <TextBlock FontSize="14" Foreground="White">
-                                <Run Text="{Binding PhotoCount}"/>
-                                <Run Text=" photos"/>
-                            </TextBlock>
-                        </StackPanel>
-                        
-                        <!-- Control buttons -->
-                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="16">
-                            <Button Command="{Binding TakePhotoCommand}"
-                                    Background="#3B82F6"
-                                    Foreground="White"
-                                    Padding="24,12"
-                                    CornerRadius="8"
-                                    FontWeight="SemiBold"
-                                    Cursor="Hand">
-                                <StackPanel Orientation="Horizontal" Spacing="8">
-                                    <TextBlock Text="&#x1F4F7;" FontSize="16"/>
-                                    <TextBlock Text="Take Photo"/>
-                                </StackPanel>
-                            </Button>
-                            <Button Command="{Binding ToggleRecordingCommand}"
-                                    Background="{Binding IsRecording, Converter={StaticResource BoolToColorConverter}, ConverterParameter='#EF4444|#1E293B'}"
-                                    Foreground="White"
-                                    Padding="24,12"
-                                    CornerRadius="8"
-                                    FontWeight="SemiBold"
-                                    BorderBrush="#374151"
-                                    BorderThickness="1"
-                                    Cursor="Hand">
-                                <StackPanel Orientation="Horizontal" Spacing="8">
-                                    <TextBlock Text="{Binding IsRecording, Converter={StaticResource BoolToStringConverter}, ConverterParameter='&#x23F9;|&#x23FA;'}" FontSize="16"/>
-                                    <TextBlock Text="{Binding IsRecording, Converter={StaticResource BoolToStringConverter}, ConverterParameter='Stop|Record'}"/>
-                                </StackPanel>
-                            </Button>
-                        </StackPanel>
-                        
-                        <!-- Camera status -->
-                        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center" HorizontalAlignment="Right">
-                            <Ellipse Width="8" Height="8" 
-                                     Fill="{Binding IsCameraConnected, Converter={StaticResource BoolToColorConverter}, ConverterParameter='#22C55E|#EF4444'}"/>
-                            <TextBlock Text="{Binding IsCameraConnected, Converter={StaticResource BoolToStringConverter}, ConverterParameter='Connected|Disconnected'}" 
-                                       FontSize="12" Foreground="#94A3B8"/>
-                        </StackPanel>
-                    </Grid>
-                </Border>
-            </Grid>
-        </Border>
-
-        <!-- ===================== -->
-        <!-- DISCONNECTED OVERLAY -->
-        <!-- ===================== -->
-        <Border Background="#F5101827"
+        <Border Grid.Row="0" Grid.RowSpan="3"
+                Background="#F0101827"
                 IsVisible="{Binding !IsConnected}">
-            <Grid>
-                <!-- Subtle pattern overlay -->
-                <Border Opacity="0.03">
-                    <Border.Background>
-                        <VisualBrush TileMode="Tile" SourceRect="0,0,20,20" DestinationRect="0,0,20,20">
-                            <VisualBrush.Visual>
-                                <Ellipse Width="2" Height="2" Fill="White"/>
-                            </VisualBrush.Visual>
-                        </VisualBrush>
-                    </Border.Background>
+            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="24">
+                <Border Width="100" Height="100" CornerRadius="50"
+                        Background="#1E293B" BorderBrush="#334155" BorderThickness="2">
+                    <Border CornerRadius="50" ClipToBounds="True" Margin="16">
+                        <Image Source="avares://PavamanDroneConfigurator.UI/Assets/Images/KFT Logo.png" Stretch="Uniform"/>
+                    </Border>
                 </Border>
                 
-                <!-- Content -->
-                <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="32">
-                    
-                    <!-- Logo container -->
-                    <Border Width="140" Height="140" 
-                            CornerRadius="70"
-                            Background="#1E293B"
-                            BorderBrush="#334155"
-                            BorderThickness="2"
-                            BoxShadow="0 20 60 #40000000">
-                        <Border CornerRadius="70" ClipToBounds="True" Margin="20">
-                            <Image Source="avares://PavamanDroneConfigurator.UI/Assets/Images/KFT Logo.png"
-                                   Stretch="Uniform"/>
-                        </Border>
-                    </Border>
-                    
-                    <!-- Text -->
-                    <StackPanel Spacing="12" HorizontalAlignment="Center">
-                        <TextBlock Text="Live Map View" 
-                                   FontSize="28" 
-                                   FontWeight="Bold"
-                                   Foreground="White"
-                                   HorizontalAlignment="Center"/>
-                        <TextBlock Text="Connect to your drone to view real-time telemetry and flight path" 
-                                   FontSize="14"
-                                   Foreground="#94A3B8"
-                                   HorizontalAlignment="Center"
-                                   TextAlignment="Center"
-                                   MaxWidth="400"/>
-                    </StackPanel>
-                    
-                    <!-- Connection hint -->
-                    <Border Classes="glass-panel" Padding="20,16" HorizontalAlignment="Center">
-                        <StackPanel Orientation="Horizontal" Spacing="12">
-                            <TextBlock Text="&#x1F4A1;" FontSize="18" VerticalAlignment="Center"/>
-                            <TextBlock Text="Navigate to Connection page to establish link" 
-                                       FontSize="13"
-                                       Foreground="#CBD5E1"
-                                       VerticalAlignment="Center"/>
-                        </StackPanel>
-                    </Border>
+                <StackPanel Spacing="8" HorizontalAlignment="Center">
+                    <TextBlock Text="Live Map View" FontSize="22" FontWeight="Bold" Foreground="White" HorizontalAlignment="Center"/>
+                    <TextBlock Text="Connect to your drone to view real-time telemetry" 
+                               FontSize="13" Foreground="#94A3B8" HorizontalAlignment="Center"/>
                 </StackPanel>
-            </Grid>
-        </Border>
-
-        <!-- ===================== -->
-        <!-- RECEIVING TELEMETRY INDICATOR -->
-        <!-- ===================== -->
-        <Border VerticalAlignment="Top"
-                HorizontalAlignment="Right"
-                Margin="0,80,16,0"
-                Background="#CC1E293B"
-                CornerRadius="20"
-                Padding="12,6"
-                IsVisible="{Binding IsReceivingTelemetry}">
-            <StackPanel Orientation="Horizontal" Spacing="8">
-                <Ellipse Width="8" Height="8" Fill="#22C55E">
-                    <Ellipse.Styles>
-                        <Style Selector="Ellipse">
-                            <Style.Animations>
-                                <Animation Duration="0:0:1" IterationCount="Infinite">
-                                    <KeyFrame Cue="0%">
-                                        <Setter Property="Opacity" Value="1"/>
-                                    </KeyFrame>
-                                    <KeyFrame Cue="50%">
-                                        <Setter Property="Opacity" Value="0.3"/>
-                                    </KeyFrame>
-                                    <KeyFrame Cue="100%">
-                                        <Setter Property="Opacity" Value="1"/>
-                                    </KeyFrame>
-                                </Animation>
-                            </Style.Animations>
-                        </Style>
-                    </Ellipse.Styles>
-                </Ellipse>
-                <TextBlock Text="LIVE" FontSize="11" FontWeight="Bold" Foreground="#22C55E"/>
+                
+                <Border Classes="glass-panel" Padding="14,10" HorizontalAlignment="Center">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <TextBlock Text="??" FontSize="14"/>
+                        <TextBlock Text="Navigate to Connection page to establish link" FontSize="12" Foreground="#CBD5E1"/>
+                    </StackPanel>
+                </Border>
             </StackPanel>
-        </Border>
-
-        <!-- ===================== -->
-        <!-- MAP ATTRIBUTION -->
-        <!-- ===================== -->
-        <Border VerticalAlignment="Bottom"
-                HorizontalAlignment="Right"
-                Margin="0,0,16,80"
-                Background="#80000000"
-                CornerRadius="4"
-                Padding="8,4">
-            <TextBlock Text="© OpenStreetMap contributors" 
-                       FontSize="9" 
-                       Foreground="#FFFFFFAA"/>
         </Border>
     </Grid>
 </UserControl>

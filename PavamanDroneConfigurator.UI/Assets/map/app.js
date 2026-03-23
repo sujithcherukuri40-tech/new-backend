@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Pavaman Drone Map - CesiumJS Application
  * Production-ready real-time drone telemetry visualization
  * Uses OpenStreetMap (NO Cesium Ion required)
@@ -27,7 +27,9 @@ const CONFIG = {
     updateThrottleMs: 50,
     cameraFollowOffset: { x: 0, y: -50, z: 30 },
     topDownHeight: 200,
-    droneModelScale: 2.0
+    droneModelScale: 2.0,
+    defaultWaypointAltitude: 10,
+    sprayWidthMeters: 4.0
 };
 
 // View modes
@@ -36,6 +38,20 @@ const ViewMode = {
     CHASE_3D: 'chase3d',
     FREE_ROAM: 'free',
     FIRST_PERSON: 'fpv'
+};
+
+const MapMessageType = {
+    MAP_READY: 'mapReady',
+    ERROR: 'error',
+    VIEW_MODE_CHANGED: 'viewModeChanged',
+    FOLLOW_CHANGED: 'followChanged',
+    WAYPOINT_PLACED: 'waypoint_placed',
+    WAYPOINT_MOVED: 'waypoint_moved',
+    WAYPOINT_DELETED: 'waypoint_deleted',
+    HOME_PLACED: 'home_placed',
+    LAND_PLACED: 'land_placed',
+    ORBIT_PLACED: 'orbit_placed',
+    SURVEY_BOUNDARY_COMPLETED: 'survey_boundary_completed'
 };
 
 // ============================================
@@ -58,88 +74,199 @@ let lastDroneAltitude = 0;
 let lastDronePitch = 0;
 let lastDroneRoll = 0;
 let homePosition = null;
+let missionClickHandler = null;
+let activePlanningTool = 'none';
+let missionWaypoints = [];
+
+// Survey polygon state
+let surveyBoundaryPoints = [];
+let surveyBoundaryEntities = [];
+let surveyGridEntities = [];
+
+// Spray overlay state
+let sprayOverlayEntities = [];
+let isSprayActive = false;
+let lastSprayPosition = null;
+let sprayWidthMeters = CONFIG.sprayWidthMeters;
+
+// Waypoint drag state
+let dragHandler = null;
+let draggedWaypointIndex = null;
 
 // Throttling
 let lastUpdateTime = 0;
+
+let droneHeadingLineEntity = null;
+
+// ============================================
+// ICON GENERATORS
+// ============================================
+function createHomeIconSvg() {
+    const svg = `
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48">
+        <defs>
+            <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+                <feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="#000" flood-opacity="0.4"/>
+            </filter>
+        </defs>
+        <polygon points="24,4 4,24 12,24 12,42 36,42 36,24 44,24" fill="#22C55E" stroke="#16A34A" stroke-width="2" filter="url(#shadow)"/>
+        <rect x="18" y="28" width="12" height="14" fill="#16A34A"/>
+        <rect x="20" y="30" width="8" height="10" fill="#86EFAC"/>
+    </svg>`;
+    return `data:image/svg+xml;base64,${btoa(svg)}`;
+}
+
+function createWaypointIcon(number, isCurrent) {
+    const bgColor = isCurrent ? '#22C55E' : '#3B82F6';
+    const borderColor = isCurrent ? '#16A34A' : '#2563EB';
+    
+    const svg = `
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 50" width="36" height="50">
+        <defs>
+            <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+                <feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="#000" flood-opacity="0.5"/>
+            </filter>
+        </defs>
+        <path d="M18 0 C8 0 0 8 0 18 C0 32 18 50 18 50 C18 50 36 32 36 18 C36 8 28 0 18 0 Z" 
+              fill="${bgColor}" stroke="${borderColor}" stroke-width="2" filter="url(#shadow)"/>
+        <circle cx="18" cy="18" r="12" fill="white"/>
+        <text x="18" y="23" text-anchor="middle" font-family="Inter, Arial, sans-serif" 
+              font-size="14" font-weight="bold" fill="${bgColor}">${number}</text>
+    </svg>`;
+    return `data:image/svg+xml;base64,${btoa(svg)}`;
+}
+
+function createLandIcon() {
+    const svg = `
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48">
+        <circle cx="24" cy="24" r="20" fill="#F59E0B" stroke="#D97706" stroke-width="2"/>
+        <path d="M24 12 L24 28 M18 22 L24 28 L30 22" stroke="white" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        <line x1="14" y1="34" x2="34" y2="34" stroke="white" stroke-width="3" stroke-linecap="round"/>
+    </svg>`;
+    return `data:image/svg+xml;base64,${btoa(svg)}`;
+}
+
+function createOrbitIcon() {
+    const svg = `
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48">
+        <circle cx="24" cy="24" r="18" fill="none" stroke="#8B5CF6" stroke-width="3" stroke-dasharray="8,4"/>
+        <circle cx="24" cy="24" r="6" fill="#8B5CF6"/>
+        <path d="M24 6 L28 12 L20 12 Z" fill="#8B5CF6"/>
+    </svg>`;
+    return `data:image/svg+xml;base64,${btoa(svg)}`;
+}
 
 // ============================================
 // DRONE 3D MODEL - Quadcopter shape using primitives
 // ============================================
 function createDroneModelUri(isArmed) {
     const baseColor = isArmed ? '#EF4444' : '#3B82F6';
-    const glowColor = isArmed ? '#DC2626' : '#2563EB';
-    
-    // Create a simple quadcopter SVG for billboard
-    const svg = `
+    const outlineColor = isArmed ? '#FCA5A5' : '#93C5FD';
+
+    // Use KFT logo image from app assets (fallback to simple SVG badge)
+    const logoPath = '../Images/KFT%20Logo.png';
+
+    const fallbackSvg = `
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
-        <defs>
-            <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
-                <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
-                <feMerge>
-                    <feMergeNode in="coloredBlur"/>
-                    <feMergeNode in="SourceGraphic"/>
-                </feMerge>
-            </filter>
-            <linearGradient id="bodyGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" style="stop-color:${baseColor};stop-opacity:1" />
-                <stop offset="100%" style="stop-color:${glowColor};stop-opacity:1" />
-            </linearGradient>
-        </defs>
-        <!-- Arms -->
-        <line x1="20" y1="20" x2="80" y2="80" stroke="${baseColor}" stroke-width="6" filter="url(#glow)"/>
-        <line x1="80" y1="20" x2="20" y2="80" stroke="${baseColor}" stroke-width="6" filter="url(#glow)"/>
-        <!-- Motors -->
-        <circle cx="20" cy="20" r="12" fill="${baseColor}" filter="url(#glow)"/>
-        <circle cx="80" cy="20" r="12" fill="${baseColor}" filter="url(#glow)"/>
-        <circle cx="20" cy="80" r="12" fill="${baseColor}" filter="url(#glow)"/>
-        <circle cx="80" cy="80" r="12" fill="${baseColor}" filter="url(#glow)"/>
-        <!-- Props (spinning effect) -->
-        <circle cx="20" cy="20" r="15" fill="none" stroke="rgba(255,255,255,0.4)" stroke-width="2" stroke-dasharray="8,4"/>
-        <circle cx="80" cy="20" r="15" fill="none" stroke="rgba(255,255,255,0.4)" stroke-width="2" stroke-dasharray="8,4"/>
-        <circle cx="20" cy="80" r="15" fill="none" stroke="rgba(255,255,255,0.4)" stroke-width="2" stroke-dasharray="8,4"/>
-        <circle cx="80" cy="80" r="15" fill="none" stroke="rgba(255,255,255,0.4)" stroke-width="2" stroke-dasharray="8,4"/>
-        <!-- Center body -->
-        <circle cx="50" cy="50" r="18" fill="url(#bodyGrad)" filter="url(#glow)"/>
-        <circle cx="50" cy="50" r="10" fill="white"/>
-        <circle cx="50" cy="50" r="5" fill="${baseColor}"/>
-        <!-- Heading indicator (front) -->
-        <polygon points="50,25 45,38 55,38" fill="white" filter="url(#glow)"/>
+        <circle cx="50" cy="50" r="34" fill="white" stroke="${baseColor}" stroke-width="6"/>
+        <text x="50" y="57" text-anchor="middle" font-family="Arial, sans-serif" font-size="22" font-weight="700" fill="${baseColor}">KFT</text>
+        <polygon points="50,6 43,22 57,22" fill="${outlineColor}"/>
     </svg>`;
-    
-    return `data:image/svg+xml;base64,${btoa(svg)}`;
+
+    return window._kftLogoFailed ? `data:image/svg+xml;base64,${btoa(fallbackSvg)}` : logoPath;
 }
 
-// Home icon SVG
-function createHomeIconSvg() {
-    const svg = `
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48">
-    <defs>
-        <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
-            <feDropShadow dx="0" dy="2" stdDeviation="2" flood-opacity="0.5"/>
-        </filter>
-    </defs>
-    <circle cx="24" cy="24" r="20" fill="#22C55E" stroke="white" stroke-width="3" filter="url(#shadow)"/>
-    <path d="M24 12 L36 22 L36 36 L28 36 L28 26 L20 26 L20 36 L12 36 L12 22 Z" fill="white"/>
-</svg>`;
-    return `data:image/svg+xml;base64,${btoa(svg)}`;
+function createSatelliteImageryProvider() {
+    return new Cesium.UrlTemplateImageryProvider({
+        url: 'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+        credit: 'Esri World Imagery',
+        maximumLevel: 18 // ✅ High resolution satellite imagery
+    });
 }
 
-// Waypoint icon generator
-function createWaypointIcon(number, isCurrent = false) {
-    const bgColor = isCurrent ? '#F59E0B' : '#FBBF24';
-    const svg = `
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 56" width="40" height="56">
-        <defs>
-            <filter id="wp-shadow" x="-20%" y="-10%" width="140%" height="120%">
-                <feDropShadow dx="0" dy="3" stdDeviation="2" flood-opacity="0.4"/>
-            </filter>
-        </defs>
-        <path d="M20 0 C9 0 0 9 0 20 C0 35 20 56 20 56 C20 56 40 35 40 20 C40 9 31 0 20 0 Z" 
-              fill="${bgColor}" filter="url(#wp-shadow)"/>
-        <circle cx="20" cy="20" r="14" fill="white"/>
-        <text x="20" y="25" text-anchor="middle" font-size="14" font-weight="bold" fill="${bgColor}">${number}</text>
-    </svg>`;
-    return `data:image/svg+xml;base64,${btoa(svg)}`;
+function createRoadImageryProvider() {
+    return new Cesium.OpenStreetMapImageryProvider({
+        url: 'https://tile.openstreetmap.org/',
+        credit: 'OpenStreetMap Contributors',
+        maximumLevel: 19
+    });
+}
+
+function createHybridLabelProvider() {
+    return new Cesium.UrlTemplateImageryProvider({
+        url: 'https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
+        credit: 'Esri Labels',
+        maximumLevel: 18
+    });
+}
+
+// ✅ NEW: Add Blue Marble base layer for when satellite tiles don't load
+function createBlueMarbleProvider() {
+    return new Cesium.TileMapServiceImageryProvider({
+        url: Cesium.buildModuleUrl('Assets/Textures/NaturalEarthII'),
+        credit: 'Natural Earth II',
+        maximumLevel: 5
+    });
+}
+
+function applyMapType(type) {
+    if (!viewer) return;
+
+    const imageryLayers = viewer.imageryLayers;
+    imageryLayers.removeAll();
+
+    try {
+        switch (type) {
+            case 'satellite':
+                imageryLayers.addImageryProvider(createSatelliteImageryProvider());
+                break;
+
+            case 'hybrid':
+                imageryLayers.addImageryProvider(createSatelliteImageryProvider());
+                imageryLayers.addImageryProvider(createHybridLabelProvider());
+                break;
+
+            case 'terrain':
+            case 'roadmap':
+            default:
+                imageryLayers.addImageryProvider(createRoadImageryProvider());
+                break;
+        }
+    } catch (err) {
+        console.warn('[CesiumMap] Failed to apply requested map type, falling back to OSM:', err);
+        imageryLayers.removeAll();
+        imageryLayers.addImageryProvider(createRoadImageryProvider());
+    }
+
+    viewer.scene.requestRender();
+}
+
+function updateDroneHeadingLine(lat, lon, alt, heading) {
+    if (!viewer || !droneEntity) return;
+
+    const headingRad = Cesium.Math.toRadians(heading || 0);
+    const noseLengthMeters = 20;
+    const latRad = Cesium.Math.toRadians(lat);
+
+    const deltaLat = (noseLengthMeters * Math.cos(headingRad)) / 111320;
+    const deltaLon = (noseLengthMeters * Math.sin(headingRad)) / (111320 * Math.max(Math.cos(latRad), 0.0001));
+
+    const start = Cesium.Cartesian3.fromDegrees(lon, lat, alt);
+    const end = Cesium.Cartesian3.fromDegrees(lon + deltaLon, lat + deltaLat, alt);
+
+    if (!droneHeadingLineEntity) {
+        droneHeadingLineEntity = viewer.entities.add({
+            id: 'droneHeadingLine',
+            polyline: {
+                positions: [start, end],
+                width: 3,
+                material: Cesium.Color.RED.withAlpha(0.95),
+                clampToGround: false
+            }
+        });
+    } else {
+        droneHeadingLineEntity.polyline.positions = [start, end];
+    }
 }
 
 // ============================================
@@ -157,10 +284,8 @@ async function initializeCesium() {
             // NO terrain - use simple ellipsoid for better performance
             terrainProvider: new Cesium.EllipsoidTerrainProvider(),
             
-            // Use OpenStreetMap imagery (free, no API key)
-            imageryProvider: new Cesium.OpenStreetMapImageryProvider({
-                url: 'https://tile.openstreetmap.org/'
-            }),
+            // Start with reliable satellite tiles - ✅ CHANGED: Added error handling
+            imageryProvider: false, // ✅ We'll add imagery providers manually after viewer creation
             
             // Disable base layer picker since we're using OSM
             baseLayerPicker: false,
@@ -193,12 +318,41 @@ async function initializeCesium() {
 
         console.log('[CesiumMap] Viewer created successfully');
 
+        // ✅ NEW: Add imagery with error handling
+        try {
+            const satelliteProvider = createSatelliteImageryProvider();
+            viewer.imageryLayers.addImageryProvider(satelliteProvider);
+            console.log('[CesiumMap] Satellite imagery added');
+        } catch (err) {
+            console.warn('[CesiumMap] Failed to load satellite imagery, trying OpenStreetMap:', err);
+            try {
+                const osmProvider = createRoadImageryProvider();
+                viewer.imageryLayers.addImageryProvider(osmProvider);
+                console.log('[CesiumMap] OpenStreetMap imagery added as fallback');
+            } catch (err2) {
+                console.error('[CesiumMap] All imagery providers failed:', err2);
+                // Viewer will show with default globe color
+            }
+        }
+
         // Configure scene
         const scene = viewer.scene;
         scene.globe.enableLighting = false;
         scene.globe.depthTestAgainstTerrain = false;
-        scene.fog.enabled = true;
-        scene.fog.density = 0.0001;
+        scene.globe.showGroundAtmosphere = true; // ✅ CHANGED: Enable atmosphere for better visibility
+        scene.skyAtmosphere.show = true; // ✅ CHANGED: Show sky atmosphere
+        scene.backgroundColor = Cesium.Color.fromCssColorString('#000814'); // ✅ CHANGED: Darker space background
+        scene.globe.baseColor = Cesium.Color.fromCssColorString('#2C3E50'); // ✅ CHANGED: Better ocean color
+        if (scene.sun) {
+            scene.sun.show = false;
+        }
+        if (scene.moon) {
+            scene.moon.show = false;
+        }
+        if (scene.skyBox) {
+            scene.skyBox.show = true; // ✅ CHANGED: Show skybox for better space appearance
+        }
+        scene.fog.enabled = false;
         
         // Disable HDR for better performance
         scene.highDynamicRange = false;
@@ -210,24 +364,29 @@ async function initializeCesium() {
 
         console.log('[CesiumMap] Scene configured');
 
-        // Set initial camera position (India)
+        // Set initial camera position (India) - ✅ CHANGED: Lower altitude for better view
         viewer.camera.setView({
             destination: Cesium.Cartesian3.fromDegrees(
                 CONFIG.defaultCenter.lon, 
                 CONFIG.defaultCenter.lat, 
-                3000000
+                1500000 // ✅ CHANGED: 1500km instead of 3000km - better initial view
             ),
             orientation: {
                 heading: 0,
-                pitch: Cesium.Math.toRadians(-90),
+                pitch: Cesium.Math.toRadians(-45), // ✅ CHANGED: Angled view instead of straight down
                 roll: 0
             }
         });
 
         console.log('[CesiumMap] Camera positioned');
 
+        // Ensure initial map type is satellite
+        applyMapType('satellite');
+
         // Add keyboard controls
         setupKeyboardControls();
+        setupMissionPlannerInteractions();
+        setupWaypointDragHandler();
 
         // Hide loading overlay
         setTimeout(() => {
@@ -240,17 +399,17 @@ async function initializeCesium() {
 
         isInitialized = true;
         console.log('[CesiumMap] ========================================');
-        console.log('[CesiumMap] ? Initialization complete - Ready for telemetry');
+        console.log('[CesiumMap] Initialization complete - Ready for telemetry');
         console.log('[CesiumMap] ========================================');
         
         // Notify C# that map is ready
-        notifyHost({ type: 'mapReady' });
+        notifyHost({ type: MapMessageType.MAP_READY });
 
     } catch (error) {
-        console.error('[CesiumMap] ? Initialization failed:', error);
+        console.error('[CesiumMap] Initialization failed:', error);
         console.error('[CesiumMap] Error stack:', error.stack);
         showLoadingError(error.message);
-        notifyHost({ type: 'error', message: `Map init failed: ${error.message}` });
+        notifyHost({ type: MapMessageType.ERROR, message: `Map init failed: ${error.message}` });
     }
 }
 
@@ -259,7 +418,7 @@ function showLoadingError(message) {
     if (overlay) {
         overlay.innerHTML = `
             <div style="color: #EF4444; text-align: center; padding: 20px;">
-                <div style="font-size: 48px; margin-bottom: 16px;">??</div>
+                <div style="font-size: 48px; margin-bottom: 16px;">⚠️</div>
                 <div style="font-size: 18px; font-weight: 600;">Map Loading Failed</div>
                 <div style="font-size: 14px; color: #94A3B8; margin-top: 8px;">${message}</div>
                 <div style="font-size: 12px; color: #64748B; margin-top: 16px;">Check browser console (F12) for details</div>
@@ -273,6 +432,10 @@ function showLoadingError(message) {
 
 function notifyHost(message) {
     try {
+        if (!message || typeof message !== 'object' || !message.type) {
+            return;
+        }
+
         console.log('[CesiumMap] Notifying host:', JSON.stringify(message));
         if (window.chrome && window.chrome.webview) {
             window.chrome.webview.postMessage(JSON.stringify(message));
@@ -282,6 +445,364 @@ function notifyHost(message) {
     } catch (e) {
         console.error('[CesiumMap] Host notification error:', e.message);
     }
+}
+
+// ============================================
+// MISSION PLANNING INTERACTIONS
+// ============================================
+function setupMissionPlannerInteractions() {
+    if (!viewer || missionClickHandler) return;
+
+    missionClickHandler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
+
+    missionClickHandler.setInputAction((click) => {
+        if (activePlanningTool === 'none') return;
+
+        const ray = viewer.camera.getPickRay(click.position);
+        if (!ray) return;
+
+        const cartesian = viewer.scene.globe.pick(ray, viewer.scene);
+        if (!cartesian) return;
+
+        const cartographic = Cesium.Cartographic.fromCartesian(cartesian);
+        const lat = Cesium.Math.toDegrees(cartographic.latitude);
+        const lon = Cesium.Math.toDegrees(cartographic.longitude);
+
+        if (!isValidCoordinate(lat, lon)) return;
+
+        switch (activePlanningTool) {
+            case 'waypoint': {
+                const index = missionWaypoints.length;
+                const altitude = Math.max(lastDroneAltitude || CONFIG.defaultWaypointAltitude, 5);
+                missionWaypoints.push({ lat, lon, alt: altitude, isCurrent: false });
+                setWaypoints(missionWaypoints);
+                notifyHost({ type: MapMessageType.WAYPOINT_PLACED, lat, lon, alt: altitude, index });
+                console.log(`[CesiumMap] Waypoint placed: ${lat}, ${lon}, ${altitude}`);
+                break;
+            }
+            case 'home':
+                setHomePosition(lat, lon);
+                notifyHost({ type: MapMessageType.HOME_PLACED, lat, lon });
+                console.log(`[CesiumMap] Home position set: ${lat}, ${lon}`);
+                break;
+            case 'land':
+                notifyHost({ type: MapMessageType.LAND_PLACED, lat, lon });
+                console.log(`[CesiumMap] Land position set: ${lat}, ${lon}`);
+                break;
+            case 'orbit':
+                notifyHost({ type: MapMessageType.ORBIT_PLACED, lat, lon, radius: 20 });
+                console.log(`[CesiumMap] Orbit position set: ${lat}, ${lon}`);
+                break;
+            case 'survey':
+                addSurveyBoundaryPoint(lat, lon);
+                console.log(`[CesiumMap] Survey boundary point added: ${lat}, ${lon}`);
+                break;
+        }
+    }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+
+    // Double-click to complete survey polygon
+    missionClickHandler.setInputAction(() => {
+        if (activePlanningTool === 'survey' && surveyBoundaryPoints.length >= 3) {
+            completeSurveyBoundary();
+        }
+    }, Cesium.ScreenSpaceEventType.LEFT_DOUBLE_CLICK);
+
+    // Right-click to cancel current tool
+    missionClickHandler.setInputAction(() => {
+        if (activePlanningTool === 'survey') {
+            clearSurveyBoundary();
+        }
+        setMissionTool('none');
+    }, Cesium.ScreenSpaceEventType.RIGHT_CLICK);
+}
+
+function setupWaypointDragHandler() {
+    if (!viewer || dragHandler) return;
+
+    dragHandler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
+
+    dragHandler.setInputAction((click) => {
+        const picked = viewer.scene.pick(click.position);
+        if (Cesium.defined(picked) && picked.id && typeof picked.id.id === 'string' && picked.id.id.startsWith('waypoint_')) {
+            const idParts = picked.id.id.split('_');
+            if (idParts.length === 2 && !idParts[1].includes('line')) {
+                draggedWaypointIndex = parseInt(idParts[1]);
+                viewer.scene.screenSpaceCameraController.enableRotate = false;
+                viewer.scene.screenSpaceCameraController.enableTranslate = false;
+            }
+        }
+    }, Cesium.ScreenSpaceEventType.LEFT_DOWN);
+
+    dragHandler.setInputAction((movement) => {
+        if (draggedWaypointIndex !== null && draggedWaypointIndex < missionWaypoints.length) {
+            const cartesian = viewer.camera.pickEllipsoid(movement.endPosition, viewer.scene.globe.ellipsoid);
+            if (cartesian) {
+                const cartographic = Cesium.Cartographic.fromCartesian(cartesian);
+                const lat = Cesium.Math.toDegrees(cartographic.latitude);
+                const lon = Cesium.Math.toDegrees(cartographic.longitude);
+                
+                if (isValidCoordinate(lat, lon)) {
+                    missionWaypoints[draggedWaypointIndex].lat = lat;
+                    missionWaypoints[draggedWaypointIndex].lon = lon;
+                    setWaypoints(missionWaypoints);
+                }
+            }
+        }
+    }, Cesium.ScreenSpaceEventType.MOUSE_MOVE);
+
+    dragHandler.setInputAction(() => {
+        if (draggedWaypointIndex !== null) {
+            const wp = missionWaypoints[draggedWaypointIndex];
+            if (wp) {
+                notifyHost({
+                    type: MapMessageType.WAYPOINT_MOVED,
+                    index: draggedWaypointIndex,
+                    lat: wp.lat,
+                    lon: wp.lon
+                });
+                console.log(`[CesiumMap] Waypoint moved: ${wp.lat}, ${wp.lon}`);
+            }
+            draggedWaypointIndex = null;
+            viewer.scene.screenSpaceCameraController.enableRotate = true;
+            viewer.scene.screenSpaceCameraController.enableTranslate = true;
+        }
+    }, Cesium.ScreenSpaceEventType.LEFT_UP);
+}
+
+function setMissionTool(tool) {
+    const allowed = new Set(['none', 'waypoint', 'home', 'survey', 'orbit', 'rtl', 'land']);
+    activePlanningTool = allowed.has((tool || '').toLowerCase()) ? tool.toLowerCase() : 'none';
+
+    const container = document.getElementById('cesiumContainer');
+    if (container) {
+        container.style.cursor = activePlanningTool === 'none' ? 'default' : 'crosshair';
+    }
+
+    if (activePlanningTool === 'survey') {
+        clearSurveyBoundary();
+    }
+
+    console.log(`[CesiumMap] Mission tool: ${activePlanningTool}`);
+}
+
+// ============================================
+// SURVEY BOUNDARY & GRID
+// ============================================
+function addSurveyBoundaryPoint(lat, lon) {
+    surveyBoundaryPoints.push({ lat, lon });
+
+    // Add marker for this point
+    const entity = viewer.entities.add({
+        id: `survey_point_${surveyBoundaryPoints.length - 1}`,
+        position: Cesium.Cartesian3.fromDegrees(lon, lat, 0),
+        point: {
+            pixelSize: 10,
+            color: Cesium.Color.YELLOW,
+            outlineColor: Cesium.Color.BLACK,
+            outlineWidth: 2,
+            heightReference: Cesium.HeightReference.CLAMP_TO_GROUND
+        }
+    });
+    surveyBoundaryEntities.push(entity);
+
+    // Draw polygon outline so far
+    if (surveyBoundaryPoints.length >= 2) {
+        updateSurveyBoundaryPolyline();
+    }
+
+    viewer.scene.requestRender();
+}
+
+function updateSurveyBoundaryPolyline() {
+    // Remove existing polyline
+    const existing = viewer.entities.getById('survey_boundary_line');
+    if (existing) viewer.entities.remove(existing);
+
+    const positions = surveyBoundaryPoints.map(p => Cesium.Cartesian3.fromDegrees(p.lon, p.lat, 0));
+    // Close the polygon visually
+    if (surveyBoundaryPoints.length >= 3) {
+        positions.push(positions[0]);
+    }
+
+    viewer.entities.add({
+        id: 'survey_boundary_line',
+        polyline: {
+            positions: positions,
+            width: 2,
+            material: new Cesium.PolylineDashMaterialProperty({
+                color: Cesium.Color.YELLOW,
+                dashLength: 12
+            }),
+            clampToGround: true
+        }
+    });
+}
+
+function completeSurveyBoundary() {
+    if (surveyBoundaryPoints.length < 3) return;
+
+    // Draw filled polygon
+    const positions = surveyBoundaryPoints.flatMap(p => [p.lon, p.lat]);
+    viewer.entities.add({
+        id: 'survey_boundary_polygon',
+        polygon: {
+            hierarchy: Cesium.Cartesian3.fromDegreesArray(positions),
+            material: Cesium.Color.YELLOW.withAlpha(0.15),
+            outline: true,
+            outlineColor: Cesium.Color.YELLOW,
+            outlineWidth: 2,
+            height: 0,
+            heightReference: Cesium.HeightReference.CLAMP_TO_GROUND
+        }
+    });
+
+    // Notify host with boundary data
+    notifyHost({
+        type: MapMessageType.SURVEY_BOUNDARY_COMPLETED,
+        boundary: surveyBoundaryPoints,
+        vertexCount: surveyBoundaryPoints.length
+    });
+
+    setMissionTool('none');
+    console.log(`[CesiumMap] Survey boundary completed with ${surveyBoundaryPoints.length} vertices`);
+}
+
+function clearSurveyBoundary() {
+    surveyBoundaryEntities.forEach(e => viewer.entities.remove(e));
+    surveyBoundaryEntities = [];
+    surveyBoundaryPoints = [];
+
+    const line = viewer.entities.getById('survey_boundary_line');
+    if (line) viewer.entities.remove(line);
+
+    const polygon = viewer.entities.getById('survey_boundary_polygon');
+    if (polygon) viewer.entities.remove(polygon);
+
+    clearSurveyGrid();
+}
+
+function clearSurveyGrid() {
+    surveyGridEntities.forEach(e => viewer.entities.remove(e));
+    surveyGridEntities = [];
+}
+
+function renderSurveyGrid(gridWaypoints, sprayWidth) {
+    clearSurveyGrid();
+
+    if (!gridWaypoints || gridWaypoints.length < 2) return;
+
+    // Draw spray lanes
+    for (let i = 0; i < gridWaypoints.length - 1; i += 2) {
+        const start = gridWaypoints[i];
+        const end = gridWaypoints[i + 1];
+
+        // Lane center line (green)
+        const lineEntity = viewer.entities.add({
+            id: `survey_lane_${i}`,
+            polyline: {
+                positions: Cesium.Cartesian3.fromDegreesArrayHeights([
+                    start.lon, start.lat, start.alt,
+                    end.lon, end.lat, end.alt
+                ]),
+                width: 3,
+                material: Cesium.Color.LIMEGREEN
+            }
+        });
+        surveyGridEntities.push(lineEntity);
+
+        // Spray swath corridor
+        const corridorEntity = viewer.entities.add({
+            id: `survey_swath_${i}`,
+            corridor: {
+                positions: Cesium.Cartesian3.fromDegreesArray([
+                    start.lon, start.lat, end.lon, end.lat
+                ]),
+                width: sprayWidth,
+                material: Cesium.Color.LIMEGREEN.withAlpha(0.15),
+                height: start.alt
+            }
+        });
+        surveyGridEntities.push(corridorEntity);
+    }
+
+    // Draw turnaround segments (cyan dashed)
+    for (let i = 1; i < gridWaypoints.length - 1; i += 2) {
+        const turnEntity = viewer.entities.add({
+            id: `survey_turn_${i}`,
+            polyline: {
+                positions: Cesium.Cartesian3.fromDegreesArrayHeights([
+                    gridWaypoints[i].lon, gridWaypoints[i].lat, gridWaypoints[i].alt,
+                    gridWaypoints[i + 1].lon, gridWaypoints[i + 1].lat, gridWaypoints[i + 1].alt
+                ]),
+                width: 2,
+                material: new Cesium.PolylineDashMaterialProperty({
+                    color: Cesium.Color.CYAN,
+                    dashLength: 12
+                })
+            }
+        });
+        surveyGridEntities.push(turnEntity);
+    }
+
+    viewer.scene.requestRender();
+    console.log(`[CesiumMap] Survey grid rendered with ${gridWaypoints.length} waypoints`);
+}
+
+// ============================================
+// SPRAY OVERLAY
+// ============================================
+function setSprayActive(active, width) {
+    isSprayActive = active;
+    if (width) sprayWidthMeters = width;
+    if (!active) lastSprayPosition = null;
+    console.log(`[CesiumMap] Spray ${active ? 'ON' : 'OFF'}, width: ${sprayWidthMeters}m`);
+}
+
+function updateSprayTrail(lat, lon, heading) {
+    if (!isSprayActive || !isValidCoordinate(lat, lon)) return;
+
+    const current = { lat, lon };
+
+    if (lastSprayPosition) {
+        const halfWidth = sprayWidthMeters / 2;
+        const perpAngle = (heading || 0) + 90;
+
+        const corners = [
+            offsetPoint(lastSprayPosition, perpAngle, halfWidth),
+            offsetPoint(lastSprayPosition, perpAngle, -halfWidth),
+            offsetPoint(current, perpAngle, -halfWidth),
+            offsetPoint(current, perpAngle, halfWidth)
+        ];
+
+        const positions = corners.flatMap(c => [c.lon, c.lat]);
+        const entity = viewer.entities.add({
+            id: `spray_${Date.now()}`,
+            polygon: {
+                hierarchy: Cesium.Cartesian3.fromDegreesArray(positions),
+                material: Cesium.Color.LIMEGREEN.withAlpha(0.3),
+                height: 0,
+                outline: false,
+                heightReference: Cesium.HeightReference.CLAMP_TO_GROUND
+            }
+        });
+        sprayOverlayEntities.push(entity);
+    }
+
+    lastSprayPosition = current;
+}
+
+function clearSprayOverlay() {
+    sprayOverlayEntities.forEach(e => viewer.entities.remove(e));
+    sprayOverlayEntities = [];
+    lastSprayPosition = null;
+}
+
+function offsetPoint(point, angleDeg, distanceMeters) {
+    const angleRad = Cesium.Math.toRadians(angleDeg);
+    const latRad = Cesium.Math.toRadians(point.lat);
+    const deltaLat = (distanceMeters * Math.cos(angleRad)) / 111320;
+    const deltaLon = (distanceMeters * Math.sin(angleRad)) / (111320 * Math.max(Math.cos(latRad), 0.0001));
+    return { lat: point.lat + deltaLat, lon: point.lon + deltaLon };
 }
 
 // ============================================
@@ -312,7 +833,7 @@ function updateDrone(lat, lon, alt, heading, pitch, roll, isArmed, groundSpeed, 
         window._droneUpdateCount++;
         
         if (window._droneUpdateCount % 50 === 0) {
-            console.log(`[CesiumMap] Drone update #${window._droneUpdateCount}: ${lat.toFixed(6)}, ${lon.toFixed(6)}, ${alt.toFixed(1)}m, ${heading.toFixed(0)}�`);
+            console.log(`[CesiumMap] Drone update #${window._droneUpdateCount}: ${lat.toFixed(6)}, ${lon.toFixed(6)}, ${alt.toFixed(1)}m, ${heading.toFixed(0)}°`);
         }
 
         const position = Cesium.Cartesian3.fromDegrees(lon, lat, alt);
@@ -344,30 +865,46 @@ function updateDrone(lat, lon, alt, heading, pitch, roll, isArmed, groundSpeed, 
                 orientation: orientation,
                 billboard: {
                     image: createDroneModelUri(isArmed),
-                    width: 64,
-                    height: 64,
+                    width: 56,
+                    height: 56,
                     verticalOrigin: Cesium.VerticalOrigin.CENTER,
                     horizontalOrigin: Cesium.HorizontalOrigin.CENTER,
-                    rotation: -headingRad,
+                    rotation: 0,
                     alignedAxis: Cesium.Cartesian3.UNIT_Z,
                     disableDepthTestDistance: Number.POSITIVE_INFINITY
                 },
                 label: createDroneLabel(alt, groundSpeed, verticalSpeed, isArmed)
             });
+
+            // If KFT logo fails to load from local path, switch to SVG fallback
+            if (typeof Image !== 'undefined' && !window._kftLogoChecked) {
+                window._kftLogoChecked = true;
+                const img = new Image();
+                img.onload = () => { window._kftLogoFailed = false; };
+                img.onerror = () => {
+                    window._kftLogoFailed = true;
+                    if (droneEntity?.billboard) {
+                        droneEntity.billboard.image = createDroneModelUri(isArmed);
+                    }
+                };
+                img.src = '../Images/KFT%20Logo.png';
+            }
         } else {
             droneEntity.position = position;
             droneEntity.orientation = orientation;
             droneEntity.billboard.image = createDroneModelUri(isArmed);
-            droneEntity.billboard.rotation = -headingRad;
-            
-            // Update label
+            droneEntity.billboard.rotation = 0;
             updateDroneLabel(droneEntity.label, alt, groundSpeed, verticalSpeed, isArmed);
         }
 
-        // Add to flight path
+        updateDroneHeadingLine(lat, lon, alt, heading);
         addToFlightPath(lon, lat, alt, isArmed);
 
-        // Update camera if following
+        // Update spray trail if spraying
+        if (isSprayActive) {
+            updateSprayTrail(lat, lon, heading);
+        }
+
         if (isFollowing) {
             updateCameraFollow(position, headingRad, pitchRad);
         }
@@ -381,10 +918,10 @@ function updateDrone(lat, lon, alt, heading, pitch, roll, isArmed, groundSpeed, 
 }
 
 function createDroneLabel(alt, groundSpeed, verticalSpeed, isArmed) {
-    const vsSign = verticalSpeed >= 0 ? '?' : '?';
+    const vsSign = verticalSpeed >= 0 ? '↑' : '↓';
     
     return {
-        text: `? ${alt.toFixed(1)}m  ${vsSign} ${Math.abs(verticalSpeed || 0).toFixed(1)}m/s  ? ${(groundSpeed || 0).toFixed(1)}m/s`,
+        text: `▲ ${alt.toFixed(1)}m  ${vsSign} ${Math.abs(verticalSpeed || 0).toFixed(1)}m/s  → ${(groundSpeed || 0).toFixed(1)}m/s`,
         font: '13px Inter, sans-serif',
         fillColor: Cesium.Color.WHITE,
         outlineColor: Cesium.Color.BLACK,
@@ -401,8 +938,8 @@ function createDroneLabel(alt, groundSpeed, verticalSpeed, isArmed) {
 
 function updateDroneLabel(label, alt, groundSpeed, verticalSpeed, isArmed) {
     if (!label) return;
-    const vsSign = verticalSpeed >= 0 ? '?' : '?';
-    label.text = `? ${alt.toFixed(1)}m  ${vsSign} ${Math.abs(verticalSpeed || 0).toFixed(1)}m/s  ? ${(groundSpeed || 0).toFixed(1)}m/s`;
+    const vsSign = verticalSpeed >= 0 ? '↑' : '↓';
+    label.text = `▲ ${alt.toFixed(1)}m  ${vsSign} ${Math.abs(verticalSpeed || 0).toFixed(1)}m/s  → ${(groundSpeed || 0).toFixed(1)}m/s`;
 }
 
 function isValidCoordinate(lat, lon) {
@@ -483,6 +1020,11 @@ function setHomePosition(lat, lon) {
         viewer.entities.remove(homeEntity);
     }
 
+    const existingCircle = viewer.entities.getById('homeCircle');
+    if (existingCircle) {
+        viewer.entities.remove(existingCircle);
+    }
+
     homePosition = { lat, lon };
     const position = Cesium.Cartesian3.fromDegrees(lon, lat, 0);
 
@@ -513,7 +1055,6 @@ function setHomePosition(lat, lon) {
         }
     });
 
-    // Add ground circle marker
     viewer.entities.add({
         id: 'homeCircle',
         position: position,
@@ -536,12 +1077,15 @@ function setHomePosition(lat, lon) {
 // WAYPOINTS
 // ============================================
 function setWaypoints(waypoints) {
-    // Clear existing waypoints
-    clearWaypoints();
+    clearWaypointsInternal();
 
-    if (!waypoints || waypoints.length === 0) return;
+    if (!waypoints || waypoints.length === 0) {
+        missionWaypoints = [];
+        return;
+    }
 
-    // Add waypoint markers
+    missionWaypoints = waypoints.map(w => ({ ...w }));
+
     waypoints.forEach((wp, index) => {
         const position = Cesium.Cartesian3.fromDegrees(wp.lon, wp.lat, wp.alt || 50);
         const isCurrent = wp.isCurrent || false;
@@ -558,7 +1102,7 @@ function setWaypoints(waypoints) {
                 disableDepthTestDistance: Number.POSITIVE_INFINITY
             },
             label: {
-                text: `${(wp.alt || 50).toFixed(0)}m\n(${(wp.groundAlt || wp.alt || 50).toFixed(0)}m)`,
+                text: `${(wp.alt || 50).toFixed(0)}m`,
                 font: '11px Inter, sans-serif',
                 fillColor: Cesium.Color.WHITE,
                 outlineColor: Cesium.Color.BLACK,
@@ -575,7 +1119,6 @@ function setWaypoints(waypoints) {
         
         waypointEntities.push(entity);
 
-        // Add vertical line from waypoint to ground
         const groundPosition = Cesium.Cartesian3.fromDegrees(wp.lon, wp.lat, 0);
         const lineEntity = viewer.entities.add({
             id: `waypoint_line_${index}`,
@@ -591,7 +1134,6 @@ function setWaypoints(waypoints) {
         waypointEntities.push(lineEntity);
     });
 
-    // Create mission path
     if (waypoints.length >= 2) {
         createMissionPath(waypoints);
     }
@@ -622,7 +1164,7 @@ function createMissionPath(waypoints) {
     });
 }
 
-function clearWaypoints() {
+function clearWaypointsInternal() {
     waypointEntities.forEach(entity => {
         viewer.entities.remove(entity);
     });
@@ -634,13 +1176,24 @@ function clearWaypoints() {
     }
 }
 
+function clearWaypoints() {
+    clearWaypointsInternal();
+    missionWaypoints = [];
+}
+
+function deleteWaypoint(index) {
+    if (index >= 0 && index < missionWaypoints.length) {
+        missionWaypoints.splice(index, 1);
+        setWaypoints(missionWaypoints);
+        notifyHost({ type: MapMessageType.WAYPOINT_DELETED, index });
+    }
+}
+
 function setCurrentWaypoint(index) {
-    // Update waypoint appearance
-    waypointEntities.forEach((entity, i) => {
-        if (entity.billboard && i < waypointEntities.length / 2) {
-            entity.billboard.image = createWaypointIcon(i + 1, i === index);
-        }
+    missionWaypoints.forEach((wp, i) => {
+        wp.isCurrent = (i === index);
     });
+    setWaypoints(missionWaypoints);
     viewer.scene.requestRender();
 }
 
@@ -660,7 +1213,6 @@ function updateCameraFollow(position, heading, pitch) {
         case ViewMode.FIRST_PERSON:
             updateFirstPersonView(position, heading, pitch);
             break;
-        // FREE_ROAM does nothing - user controls camera
     }
 }
 
@@ -676,7 +1228,7 @@ function updateTopDownView(position) {
         ),
         orientation: {
             heading: 0,
-            pitch: Cesium.Math.toRadians(-90), // Straight down
+            pitch: Cesium.Math.toRadians(-90),
             roll: 0
         }
     });
@@ -793,7 +1345,7 @@ function setViewMode(mode) {
             break;
     }
     
-    notifyHost({ type: 'viewModeChanged', mode: mode });
+    notifyHost({ type: MapMessageType.VIEW_MODE_CHANGED, mode: mode });
     viewer.scene.requestRender();
 }
 
@@ -804,7 +1356,7 @@ function toggleFollow() {
             Cesium.Math.toRadians(lastDroneHeading), 
             lastDronePitch);
     }
-    notifyHost({ type: 'followChanged', following: isFollowing });
+    notifyHost({ type: MapMessageType.FOLLOW_CHANGED, following: isFollowing });
     return isFollowing;
 }
 
@@ -813,37 +1365,8 @@ function toggleFollow() {
 // ============================================
 function setMapType(type) {
     if (!viewer) return;
-
-    const imageryLayers = viewer.imageryLayers;
-    imageryLayers.removeAll();
-
-    switch (type) {
-        case 'satellite':
-            // Use ESRI World Imagery (free, no API key)
-            imageryLayers.addImageryProvider(new Cesium.ArcGisMapServerImageryProvider({
-                url: 'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer'
-            }));
-            break;
-            
-        case 'terrain':
-        case 'roadmap':
-        default:
-            // Use OpenStreetMap
-            imageryLayers.addImageryProvider(new Cesium.OpenStreetMapImageryProvider({
-                url: 'https://tile.openstreetmap.org/'
-            }));
-            break;
-            
-        case 'hybrid':
-            // ESRI imagery + labels
-            imageryLayers.addImageryProvider(new Cesium.ArcGisMapServerImageryProvider({
-                url: 'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer'
-            }));
-            break;
-    }
-
+    applyMapType(type);
     console.log(`[CesiumMap] Map type: ${type}`);
-    viewer.scene.requestRender();
 }
 
 function clearFlightPath() {
@@ -856,12 +1379,16 @@ function clearFlightPath() {
         viewer.entities.remove(homeEntity);
         homeEntity = null;
     }
-    // Remove home circle
     const homeCircle = viewer.entities.getById('homeCircle');
     if (homeCircle) {
         viewer.entities.remove(homeCircle);
     }
+    if (droneHeadingLineEntity) {
+        viewer.entities.remove(droneHeadingLineEntity);
+        droneHeadingLineEntity = null;
+    }
     homePosition = null;
+    clearSprayOverlay();
     viewer.scene.requestRender();
     console.log('[CesiumMap] Flight path cleared');
 }
@@ -944,6 +1471,9 @@ function setupKeyboardControls() {
                     });
                 }
                 break;
+            case 'Escape':
+                setMissionTool('none');
+                break;
         }
     });
 }
@@ -952,19 +1482,14 @@ function setupKeyboardControls() {
 // GEOFENCE
 // ============================================
 function setGeofence(center, radius, maxAlt) {
-    // Remove existing geofence
     const existing = viewer.entities.getById('geofence');
-    if (existing) {
-        viewer.entities.remove(existing);
-    }
+    if (existing) viewer.entities.remove(existing);
+    
     const existingAlt = viewer.entities.getById('geofenceAlt');
-    if (existingAlt) {
-        viewer.entities.remove(existingAlt);
-    }
+    if (existingAlt) viewer.entities.remove(existingAlt);
 
     if (!center || !radius) return;
 
-    // Ground circle
     viewer.entities.add({
         id: 'geofence',
         position: Cesium.Cartesian3.fromDegrees(center.lon, center.lat, 0),
@@ -980,7 +1505,6 @@ function setGeofence(center, radius, maxAlt) {
         }
     });
 
-    // Altitude cylinder (if max altitude specified)
     if (maxAlt) {
         viewer.entities.add({
             id: 'geofenceAlt',
@@ -1004,13 +1528,26 @@ function setGeofence(center, radius, maxAlt) {
 // TELEMETRY OVERLAY (HUD)
 // ============================================
 function updateTelemetryHud(telemetry) {
-    // This can be used to update an HTML overlay for telemetry
-    // For now, the drone label handles basic telemetry display
+    // Update on-map HUD elements if present
+    const hudAlt = document.getElementById('hud-alt');
+    const hudSpd = document.getElementById('hud-spd');
+    const hudHdg = document.getElementById('hud-hdg');
+    
+    if (hudAlt && telemetry.altitude !== undefined) {
+        hudAlt.textContent = telemetry.altitude.toFixed(1);
+    }
+    if (hudSpd && telemetry.groundSpeed !== undefined) {
+        hudSpd.textContent = telemetry.groundSpeed.toFixed(1);
+    }
+    if (hudHdg && telemetry.heading !== undefined) {
+        hudHdg.textContent = telemetry.heading.toFixed(0);
+    }
 }
 
 // ============================================
 // INITIALIZATION
 // ============================================
+
 document.addEventListener('DOMContentLoaded', initializeCesium);
 
 // ============================================
@@ -1029,8 +1566,16 @@ window.setHomePosition = setHomePosition;
 window.setWaypoints = setWaypoints;
 window.setCurrentWaypoint = setCurrentWaypoint;
 window.clearWaypoints = clearWaypoints;
+window.deleteWaypoint = deleteWaypoint;
 window.setGeofence = setGeofence;
 window.updateTelemetryHud = updateTelemetryHud;
+window.setMissionTool = setMissionTool;
+window.renderSurveyGrid = renderSurveyGrid;
+window.clearSurveyGrid = clearSurveyGrid;
+window.clearSurveyBoundary = clearSurveyBoundary;
+window.setSprayActive = setSprayActive;
+window.clearSprayOverlay = clearSprayOverlay;
 
-// View mode constants for C#
+// Constants for C#
 window.ViewMode = ViewMode;
+window.MapMessageType = MapMessageType;

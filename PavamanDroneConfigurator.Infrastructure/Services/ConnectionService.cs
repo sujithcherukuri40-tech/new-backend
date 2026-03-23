@@ -1234,6 +1234,12 @@ public sealed class ConnectionService : IConnectionService, IDisposable
             return;
         }
 
+        if (_currentConnectionType == ConnectionType.Bluetooth && _bluetoothConnection != null)
+        {
+            _ = _bluetoothConnection.SendSetMessageIntervalAsync(messageId, intervalUs);
+            return;
+        }
+
         if (_mavlink != null)
         {
             _ = _mavlink.SendSetMessageIntervalAsync(messageId, intervalUs);
@@ -1248,6 +1254,12 @@ public sealed class ConnectionService : IConnectionService, IDisposable
         if (!IsConnected)
         {
             _logger.LogWarning("Cannot send request data stream - not connected");
+            return;
+        }
+
+        if (_currentConnectionType == ConnectionType.Bluetooth && _bluetoothConnection != null)
+        {
+            _ = _bluetoothConnection.SendRequestDataStreamAsync(streamId, rateHz, startStop);
             return;
         }
 
@@ -1317,8 +1329,8 @@ public sealed class ConnectionService : IConnectionService, IDisposable
         
         if (_currentConnectionType == ConnectionType.Bluetooth && _bluetoothConnection != null)
         {
-            _logger.LogWarning("AUTOPILOT_VERSION request over Bluetooth not yet supported");
-            return;
+            _ = _bluetoothConnection.SendRequestAutopilotVersionAsync();
+             return;
         }
 
         if (_mavlink == null)

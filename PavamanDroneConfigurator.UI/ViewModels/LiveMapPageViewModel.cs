@@ -203,6 +203,15 @@ public partial class LiveMapPageViewModel : ViewModelBase
     private string _mapTypeLabel = "Satellite";
 
     [ObservableProperty]
+    private string _activeMissionTool = "none";
+
+    [ObservableProperty]
+    private int _missionItemCount;
+
+    [ObservableProperty]
+    private string _missionProgressText = "Mission: 0/0 items";
+
+    [ObservableProperty]
     private bool _isCameraViewOpen;
 
     [ObservableProperty]
@@ -230,6 +239,9 @@ public partial class LiveMapPageViewModel : ViewModelBase
     public event EventHandler? FlightPathCleared;
     public event EventHandler? RecenterRequested;
     public event EventHandler<ViewModeChangedEventArgs>? ViewModeChanged;
+    public event EventHandler<string>? MapTypeChanged;
+    public event EventHandler<bool>? FollowChanged;
+    public event EventHandler<string>? MissionToolChanged;
 
     // Default center (India)
     private const double DEFAULT_LAT = 20.5937;
@@ -479,6 +491,7 @@ public partial class LiveMapPageViewModel : ViewModelBase
     private void ToggleFollowDrone()
     {
         FollowDrone = !FollowDrone;
+        FollowChanged?.Invoke(this, FollowDrone);
     }
 
     [RelayCommand]
@@ -509,6 +522,8 @@ public partial class LiveMapPageViewModel : ViewModelBase
             3 => "Hybrid",
             _ => "Satellite"
         };
+
+        MapTypeChanged?.Invoke(this, GetMapTypeName());
     }
 
     [RelayCommand]
@@ -610,6 +625,64 @@ public partial class LiveMapPageViewModel : ViewModelBase
     private void CloseCameraView()
     {
         IsCameraViewOpen = false;
+    }
+
+    [RelayCommand]
+    private void SelectMissionToolWaypoint()
+    {
+        ActiveMissionTool = "waypoint";
+        MissionToolChanged?.Invoke(this, ActiveMissionTool);
+    }
+
+    [RelayCommand]
+    private void SelectMissionToolHome()
+    {
+        ActiveMissionTool = "home";
+        MissionToolChanged?.Invoke(this, ActiveMissionTool);
+    }
+
+    [RelayCommand]
+    private void SelectMissionToolSurvey()
+    {
+        ActiveMissionTool = "survey";
+        MissionToolChanged?.Invoke(this, ActiveMissionTool);
+    }
+
+    [RelayCommand]
+    private void SelectMissionToolOrbit()
+    {
+        ActiveMissionTool = "orbit";
+        MissionToolChanged?.Invoke(this, ActiveMissionTool);
+    }
+
+    [RelayCommand]
+    private void SelectMissionToolRtl()
+    {
+        ActiveMissionTool = "rtl";
+        MissionToolChanged?.Invoke(this, ActiveMissionTool);
+        RegisterMissionItem("RTL");
+    }
+
+    [RelayCommand]
+    private void SelectMissionToolLand()
+    {
+        ActiveMissionTool = "land";
+        MissionToolChanged?.Invoke(this, ActiveMissionTool);
+    }
+
+    [RelayCommand]
+    private void ClearMissionItems()
+    {
+        MissionItemCount = 0;
+        MissionProgressText = "Mission: 0/0 items";
+        ActiveMissionTool = "none";
+        MissionToolChanged?.Invoke(this, ActiveMissionTool);
+    }
+
+    public void RegisterMissionItem(string _)
+    {
+        MissionItemCount++;
+        MissionProgressText = $"Mission: {MissionItemCount}/{MissionItemCount} items";
     }
 
     /// <summary>
