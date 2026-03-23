@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using PavamanDroneConfigurator.Core.Interfaces;
 using PavamanDroneConfigurator.Core.Models;
 using System.Collections.Concurrent;
+using System.Threading.Tasks;
 
 namespace PavamanDroneConfigurator.Infrastructure.Services;
 
@@ -74,6 +75,14 @@ public class TelemetryService : ITelemetryService, IDisposable
         
         // Subscribe to connection events
         _connectionService.ConnectionStateChanged += OnConnectionStateChanged;
+        
+        // If the service is lazily created after a connection is already established,
+        // the ConnectionStateChanged event for connected=true has already fired and was
+        // missed.  Start immediately so the service is never stuck in a stopped state.
+        if (_connectionService.IsConnected)
+        {
+            Start();
+        }
     }
 
     public void Start()
@@ -95,25 +104,36 @@ public class TelemetryService : ITelemetryService, IDisposable
         _updateTimer.Elapsed += OnUpdateTimerElapsed;
         _updateTimer.Start();
         
-        // Request telemetry data streams from the drone
-        // This is required for ArduPilot to start streaming telemetry
-        RequestTelemetryStreams();
+        // Request telemetry data streams on a background thread so the calling thread
+        // (which may be the UI thread) is not blocked during the delay + MAVLink writes.
+        // RequestTelemetryStreamsAsync has its own try/catch for all expected errors; the
+        // ContinueWith handles any unexpected task-level fault that slips through.
+        _ = Task.Run(RequestTelemetryStreamsAsync)
+            .ContinueWith(
+                t => _logger.LogError(t.Exception, "[TelemetryService] Unexpected error in stream request task"),
+                System.Threading.Tasks.TaskContinuationOptions.OnlyOnFaulted);
         
         _logger.LogInformation("[TelemetryService] Telemetry service started (10Hz updates)");
     }
 
     /// <summary>
-    /// Request telemetry data streams from the drone.
+    /// Request telemetry data streams from the drone (runs on a background thread).
     /// ArduPilot requires explicit stream requests to start sending telemetry.
     /// </summary>
-    private void RequestTelemetryStreams()
+    private async Task RequestTelemetryStreamsAsync()
     {
         try
         {
             _logger.LogInformation("[TelemetryService] ========== REQUESTING TELEMETRY STREAMS ==========");
             
-            // Wait a bit for connection to stabilize
-            Task.Delay(500).Wait();
+            // Wait a bit for connection to stabilize (non-blocking)
+            await Task.Delay(500);
+            
+            if (!_connectionService.IsConnected)
+            {
+                _logger.LogWarning("[TelemetryService] Connection lost before stream requests could be sent");
+                return;
+            }
             
             _logger.LogInformation("[TelemetryService] Sending REQUEST_DATA_STREAM commands...");
             
@@ -141,8 +161,14 @@ public class TelemetryService : ITelemetryService, IDisposable
             _connectionService.SendRequestDataStream(1, 2, 1);
             _logger.LogInformation("[TelemetryService] SENT: Stream 1 (RAW_SENSORS) at 2Hz");
             
-            // Small delay between REQUEST_DATA_STREAM and SET_MESSAGE_INTERVAL
-            Task.Delay(300).Wait();
+            // Small delay between REQUEST_DATA_STREAM and SET_MESSAGE_INTERVAL (non-blocking)
+            await Task.Delay(300);
+            
+            if (!_connectionService.IsConnected)
+            {
+                _logger.LogWarning("[TelemetryService] Connection lost before SET_MESSAGE_INTERVAL could be sent");
+                return;
+            }
             
             _logger.LogInformation("[TelemetryService] Sending SET_MESSAGE_INTERVAL commands...");
             
