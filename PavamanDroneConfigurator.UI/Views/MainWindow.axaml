@@ -347,6 +347,11 @@
                                     Tag="LiveMapPage"
                                     CommandParameter="{Binding LiveMapPage}"
                                     Click="NavButton_Click" />
+                            <Button Content="📡  Telemetry"
+                                    Classes="sidebar-nav-item"
+                                    Tag="TelemetryPage"
+                                    CommandParameter="{Binding TelemetryPage}"
+                                    Click="NavButton_Click" />
 
                             <!-- ═══════════ HARDWARE ═══════════ -->
                             <TextBlock Text="HARDWARE" Classes="sidebar-section-title"/>

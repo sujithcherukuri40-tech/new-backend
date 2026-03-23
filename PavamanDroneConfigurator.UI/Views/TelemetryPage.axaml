@@ -1,0 +1,428 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:PavamanDroneConfigurator.UI.ViewModels"
+             mc:Ignorable="d" d:DesignWidth="1100" d:DesignHeight="800"
+             x:Class="PavamanDroneConfigurator.UI.Views.TelemetryPage"
+             x:DataType="vm:TelemetryPageViewModel"
+             Background="{DynamicResource BackgroundBrush}">
+
+    <UserControl.Styles>
+
+        <!-- Telemetry Card -->
+        <Style Selector="Border.telem-card">
+            <Setter Property="Background" Value="#FFFFFF"/>
+            <Setter Property="CornerRadius" Value="14"/>
+            <Setter Property="Padding" Value="18,14"/>
+            <Setter Property="BoxShadow" Value="0 2 12 0 #12000000"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="BorderBrush" Value="#E8EDF5"/>
+            <Setter Property="Margin" Value="0,0,0,0"/>
+        </Style>
+
+        <!-- Section header inside card -->
+        <Style Selector="TextBlock.card-header">
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="Foreground" Value="#2563EB"/>
+            <Setter Property="LetterSpacing" Value="1"/>
+            <Setter Property="Margin" Value="0,0,0,10"/>
+        </Style>
+
+        <!-- Label (left column) -->
+        <Style Selector="TextBlock.telem-label">
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Foreground" Value="#64748B"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+
+        <!-- Value (right column) -->
+        <Style Selector="TextBlock.telem-value">
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Foreground" Value="#0F172A"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="FontFamily" Value="{DynamicResource MonospaceFont}"/>
+        </Style>
+
+        <!-- Large metric number -->
+        <Style Selector="TextBlock.telem-big">
+            <Setter Property="FontSize" Value="28"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="Foreground" Value="#0F172A"/>
+            <Setter Property="HorizontalAlignment" Value="Center"/>
+            <Setter Property="FontFamily" Value="{DynamicResource MonospaceFont}"/>
+        </Style>
+
+        <!-- Unit label below big number -->
+        <Style Selector="TextBlock.telem-unit">
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="Foreground" Value="#94A3B8"/>
+            <Setter Property="HorizontalAlignment" Value="Center"/>
+        </Style>
+
+        <!-- MAVLink message tag badge -->
+        <Style Selector="Border.msg-badge">
+            <Setter Property="Background" Value="#EFF6FF"/>
+            <Setter Property="CornerRadius" Value="6"/>
+            <Setter Property="Padding" Value="6,2"/>
+        </Style>
+
+        <Style Selector="Border.msg-badge TextBlock">
+            <Setter Property="FontSize" Value="10"/>
+            <Setter Property="Foreground" Value="#2563EB"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+        </Style>
+
+    </UserControl.Styles>
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Margin="{DynamicResource PagePadding}" Spacing="20" MaxWidth="1200">
+
+            <!-- ═══════════════════════════════════════════════════════════════
+                 PAGE HEADER
+            ═══════════════════════════════════════════════════════════════ -->
+            <Grid ColumnDefinitions="*,Auto">
+                <StackPanel Grid.Column="0" Spacing="4">
+                    <TextBlock Text="Telemetry Dashboard" Classes="page-title"/>
+                    <TextBlock Text="Real-time MAVLink telemetry from the connected drone" Classes="page-subtitle"/>
+                </StackPanel>
+
+                <!-- Status Pills -->
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                    <!-- Telemetry status -->
+                    <Border CornerRadius="20" Padding="14,6">
+                        <Border.Background>
+                            <SolidColorBrush Color="{Binding IsReceivingTelemetry, Converter={StaticResource BoolToColorConverter}, ConverterParameter='#DCFCE7|#FEF2F2'}"/>
+                        </Border.Background>
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <Ellipse Width="8" Height="8" VerticalAlignment="Center">
+                                <Ellipse.Fill>
+                                    <SolidColorBrush Color="{Binding IsReceivingTelemetry, Converter={StaticResource BoolToColorConverter}, ConverterParameter='#22C55E|#EF4444'}"/>
+                                </Ellipse.Fill>
+                            </Ellipse>
+                            <TextBlock Text="{Binding TelemetryStatus}"
+                                       FontSize="12" FontWeight="SemiBold"
+                                       VerticalAlignment="Center">
+                                <TextBlock.Foreground>
+                                    <SolidColorBrush Color="{Binding IsReceivingTelemetry, Converter={StaticResource BoolToColorConverter}, ConverterParameter='#16A34A|#DC2626'}"/>
+                                </TextBlock.Foreground>
+                            </TextBlock>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Connection status -->
+                    <Border CornerRadius="20" Padding="14,6">
+                        <Border.Background>
+                            <SolidColorBrush Color="{Binding IsConnected, Converter={StaticResource BoolToColorConverter}, ConverterParameter='#EFF6FF|#F1F5F9'}"/>
+                        </Border.Background>
+                        <TextBlock Text="{Binding ConnectionStatus}"
+                                   FontSize="12" FontWeight="SemiBold">
+                            <TextBlock.Foreground>
+                                <SolidColorBrush Color="{Binding IsConnected, Converter={StaticResource BoolToColorConverter}, ConverterParameter='#2563EB|#64748B'}"/>
+                            </TextBlock.Foreground>
+                        </TextBlock>
+                    </Border>
+                </StackPanel>
+            </Grid>
+
+            <!-- Not-connected notice -->
+            <Border Classes="telem-card"
+                    Background="#FFF7ED"
+                    BorderBrush="#FED7AA"
+                    IsVisible="{Binding !IsConnected}">
+                <StackPanel Orientation="Horizontal" Spacing="12">
+                    <TextBlock Text="⚠️" FontSize="18" VerticalAlignment="Center"/>
+                    <TextBlock Text="Connect to a drone to view live telemetry data."
+                               FontSize="13" Foreground="#92400E" VerticalAlignment="Center"/>
+                </StackPanel>
+            </Border>
+
+            <!-- ═══════════════════════════════════════════════════════════════
+                 ROW 1 – Vehicle Status (HEARTBEAT MSG 0)  &amp;  Battery (SYS_STATUS MSG 1)
+            ═══════════════════════════════════════════════════════════════ -->
+            <Grid ColumnDefinitions="*,*" ColumnSpacing="16">
+
+                <!-- HEARTBEAT card -->
+                <Border Grid.Column="0" Classes="telem-card">
+                    <StackPanel Spacing="12">
+                        <Grid ColumnDefinitions="*,Auto">
+                            <TextBlock Grid.Column="0"
+                                       Text="VEHICLE STATUS" Classes="card-header"/>
+                            <Border Grid.Column="1" Classes="msg-badge">
+                                <TextBlock Text="MSG 0 · HEARTBEAT"/>
+                            </Border>
+                        </Grid>
+
+                        <!-- Armed/Disarmed big badge -->
+                        <Border CornerRadius="10" Padding="0,8" HorizontalAlignment="Left" MinWidth="160">
+                            <Border.Background>
+                                <SolidColorBrush Color="{Binding IsArmed, Converter={StaticResource BoolToColorConverter}, ConverterParameter='#FEE2E2|#DCFCE7'}"/>
+                            </Border.Background>
+                            <TextBlock Text="{Binding ArmedStatus}"
+                                       FontSize="20" FontWeight="Bold"
+                                       HorizontalAlignment="Center">
+                                <TextBlock.Foreground>
+                                    <SolidColorBrush Color="{Binding IsArmed, Converter={StaticResource BoolToColorConverter}, ConverterParameter='#DC2626|#16A34A'}"/>
+                                </TextBlock.Foreground>
+                            </TextBlock>
+                        </Border>
+
+                        <Grid ColumnDefinitions="130,*" RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="8">
+                            <TextBlock Grid.Row="0" Grid.Column="0" Text="Flight Mode"    Classes="telem-label"/>
+                            <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding FlightMode}"    Classes="telem-value"/>
+
+                            <TextBlock Grid.Row="1" Grid.Column="0" Text="Vehicle Type"   Classes="telem-label"/>
+                            <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding VehicleType}"   Classes="telem-value"/>
+
+                            <TextBlock Grid.Row="2" Grid.Column="0" Text="System Status"  Classes="telem-label"/>
+                            <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding SystemStatus}"  Classes="telem-value"/>
+
+                            <TextBlock Grid.Row="3" Grid.Column="0" Text="Last Heartbeat" Classes="telem-label"/>
+                            <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding LastHeartbeatText}" Classes="telem-value"/>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <!-- SYS_STATUS / Battery card -->
+                <Border Grid.Column="1" Classes="telem-card">
+                    <StackPanel Spacing="12">
+                        <Grid ColumnDefinitions="*,Auto">
+                            <TextBlock Grid.Column="0"
+                                       Text="BATTERY STATUS" Classes="card-header"/>
+                            <Border Grid.Column="1" Classes="msg-badge">
+                                <TextBlock Text="MSG 1 · SYS_STATUS"/>
+                            </Border>
+                        </Grid>
+
+                        <!-- Big voltage display -->
+                        <Grid ColumnDefinitions="*,*,*" Margin="0,4,0,8">
+                            <StackPanel Grid.Column="0" HorizontalAlignment="Center" Spacing="2">
+                                <TextBlock Text="{Binding BatteryVoltage, StringFormat='{}{0:F2} V'}"
+                                           Classes="telem-big"/>
+                                <TextBlock Text="Voltage" Classes="telem-unit"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" HorizontalAlignment="Center" Spacing="2">
+                                <TextBlock Text="{Binding BatteryCurrent, StringFormat='{}{0:F1} A'}"
+                                           Classes="telem-big"/>
+                                <TextBlock Text="Current" Classes="telem-unit"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="2" HorizontalAlignment="Center" Spacing="2">
+                                <TextBlock Text="{Binding BatteryRemainingText}"
+                                           Classes="telem-big">
+                                    <TextBlock.Foreground>
+                                        <SolidColorBrush Color="{Binding BatteryStatusColor}"/>
+                                    </TextBlock.Foreground>
+                                </TextBlock>
+                                <TextBlock Text="Remaining" Classes="telem-unit"/>
+                            </StackPanel>
+                        </Grid>
+
+                        <!-- Battery progress bar -->
+                        <ProgressBar Value="{Binding BatteryRemaining}"
+                                     Minimum="0" Maximum="100"
+                                     Height="10"
+                                     CornerRadius="5"
+                                     IsVisible="{Binding BatteryRemaining, Converter={x:Static ObjectConverters.IsNotNull}}">
+                            <ProgressBar.Foreground>
+                                <SolidColorBrush Color="{Binding BatteryStatusColor}"/>
+                            </ProgressBar.Foreground>
+                        </ProgressBar>
+                    </StackPanel>
+                </Border>
+            </Grid>
+
+            <!-- ═══════════════════════════════════════════════════════════════
+                 ROW 2 – GPS (GPS_RAW_INT MSG 24) &amp; Position (GLOBAL_POSITION_INT MSG 33)
+            ═══════════════════════════════════════════════════════════════ -->
+            <Grid ColumnDefinitions="*,*" ColumnSpacing="16">
+
+                <!-- GPS_RAW_INT card -->
+                <Border Grid.Column="0" Classes="telem-card">
+                    <StackPanel Spacing="12">
+                        <Grid ColumnDefinitions="*,Auto">
+                            <TextBlock Grid.Column="0"
+                                       Text="GPS STATUS" Classes="card-header"/>
+                            <Border Grid.Column="1" Classes="msg-badge">
+                                <TextBlock Text="MSG 24 · GPS_RAW_INT"/>
+                            </Border>
+                        </Grid>
+
+                        <!-- Fix type badge -->
+                        <Border CornerRadius="10" Padding="10,6" HorizontalAlignment="Left" MinWidth="120">
+                            <Border.Background>
+                                <SolidColorBrush Color="{Binding GpsStatusColor}"/>
+                            </Border.Background>
+                            <TextBlock Text="{Binding GpsFixTypeDescription}"
+                                       FontSize="15" FontWeight="Bold"
+                                       Foreground="White"
+                                       HorizontalAlignment="Center"/>
+                        </Border>
+
+                        <Grid ColumnDefinitions="130,*" RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="8">
+                            <TextBlock Grid.Row="0" Grid.Column="0" Text="Fix Type"   Classes="telem-label"/>
+                            <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding GpsFixType, StringFormat='Type {0}'}" Classes="telem-value"/>
+
+                            <TextBlock Grid.Row="1" Grid.Column="0" Text="Satellites" Classes="telem-label"/>
+                            <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding SatelliteCount}" Classes="telem-value"/>
+
+                            <TextBlock Grid.Row="2" Grid.Column="0" Text="HDOP"       Classes="telem-label"/>
+                            <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding Hdop, StringFormat='{}{0:F2}'}" Classes="telem-value"/>
+
+                            <TextBlock Grid.Row="3" Grid.Column="0" Text="VDOP"       Classes="telem-label"/>
+                            <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding Vdop, StringFormat='{}{0:F2}'}" Classes="telem-value"/>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <!-- GLOBAL_POSITION_INT card -->
+                <Border Grid.Column="1" Classes="telem-card">
+                    <StackPanel Spacing="12">
+                        <Grid ColumnDefinitions="*,Auto">
+                            <TextBlock Grid.Column="0"
+                                       Text="POSITION" Classes="card-header"/>
+                            <Border Grid.Column="1" Classes="msg-badge">
+                                <TextBlock Text="MSG 33 · GLOBAL_POSITION_INT"/>
+                            </Border>
+                        </Grid>
+
+                        <TextBlock Text="{Binding PositionText}"
+                                   FontSize="14" FontWeight="SemiBold"
+                                   Foreground="#1E40AF"
+                                   FontFamily="{DynamicResource MonospaceFont}"
+                                   Margin="0,0,0,4"/>
+
+                        <Grid ColumnDefinitions="150,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto" RowSpacing="8">
+                            <TextBlock Grid.Row="0" Grid.Column="0" Text="Latitude"      Classes="telem-label"/>
+                            <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding Latitude, StringFormat='{}{0:F6}°'}" Classes="telem-value"/>
+
+                            <TextBlock Grid.Row="1" Grid.Column="0" Text="Longitude"     Classes="telem-label"/>
+                            <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding Longitude, StringFormat='{}{0:F6}°'}" Classes="telem-value"/>
+
+                            <TextBlock Grid.Row="2" Grid.Column="0" Text="Alt MSL"       Classes="telem-label"/>
+                            <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding AltitudeMsl, StringFormat='{}{0:F1} m'}" Classes="telem-value"/>
+
+                            <TextBlock Grid.Row="3" Grid.Column="0" Text="Alt Relative"  Classes="telem-label"/>
+                            <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding AltitudeRelative, StringFormat='{}{0:F1} m'}" Classes="telem-value"/>
+
+                            <TextBlock Grid.Row="4" Grid.Column="0" Text="Heading"       Classes="telem-label"/>
+                            <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding Heading, StringFormat='{}{0:F1}°'}" Classes="telem-value"/>
+
+                            <TextBlock Grid.Row="5" Grid.Column="0" Text="Vel (X / Y / Z)" Classes="telem-label"/>
+                            <StackPanel Grid.Row="5" Grid.Column="1" Orientation="Horizontal" Spacing="4">
+                                <TextBlock Text="{Binding VelX, StringFormat='{}{0:F2}'}" Classes="telem-value"/>
+                                <TextBlock Text="/" Foreground="#94A3B8" VerticalAlignment="Center"/>
+                                <TextBlock Text="{Binding VelY, StringFormat='{}{0:F2}'}" Classes="telem-value"/>
+                                <TextBlock Text="/" Foreground="#94A3B8" VerticalAlignment="Center"/>
+                                <TextBlock Text="{Binding VelZ, StringFormat='{}{0:F2}'}" Classes="telem-value"/>
+                                <TextBlock Text="m/s" Foreground="#94A3B8" FontSize="11" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+            </Grid>
+
+            <!-- ═══════════════════════════════════════════════════════════════
+                 ROW 3 – Attitude (MSG 30) &amp; VFR HUD (MSG 74)
+            ═══════════════════════════════════════════════════════════════ -->
+            <Grid ColumnDefinitions="*,*" ColumnSpacing="16">
+
+                <!-- ATTITUDE card -->
+                <Border Grid.Column="0" Classes="telem-card">
+                    <StackPanel Spacing="12">
+                        <Grid ColumnDefinitions="*,Auto">
+                            <TextBlock Grid.Column="0"
+                                       Text="ATTITUDE" Classes="card-header"/>
+                            <Border Grid.Column="1" Classes="msg-badge">
+                                <TextBlock Text="MSG 30 · ATTITUDE"/>
+                            </Border>
+                        </Grid>
+
+                        <!-- Roll / Pitch / Yaw big numbers -->
+                        <Grid ColumnDefinitions="*,*,*" Margin="0,4,0,8">
+                            <StackPanel Grid.Column="0" HorizontalAlignment="Center" Spacing="2">
+                                <TextBlock Text="{Binding Roll, StringFormat='{}{0:F1}°'}"
+                                           Classes="telem-big"/>
+                                <TextBlock Text="Roll" Classes="telem-unit"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" HorizontalAlignment="Center" Spacing="2">
+                                <TextBlock Text="{Binding Pitch, StringFormat='{}{0:F1}°'}"
+                                           Classes="telem-big"/>
+                                <TextBlock Text="Pitch" Classes="telem-unit"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="2" HorizontalAlignment="Center" Spacing="2">
+                                <TextBlock Text="{Binding Yaw, StringFormat='{}{0:F1}°'}"
+                                           Classes="telem-big"/>
+                                <TextBlock Text="Yaw" Classes="telem-unit"/>
+                            </StackPanel>
+                        </Grid>
+
+                        <Border Height="1" Background="#E8EDF5"/>
+
+                        <!-- Angular rates -->
+                        <TextBlock Text="ANGULAR RATES (deg/s)"
+                                   FontSize="10" FontWeight="Bold" Foreground="#94A3B8" LetterSpacing="1"/>
+
+                        <Grid ColumnDefinitions="100,*,100,*,100,*" RowSpacing="0">
+                            <TextBlock Grid.Column="0" Text="Roll rate"  Classes="telem-label"/>
+                            <TextBlock Grid.Column="1" Text="{Binding RollSpeed, StringFormat='{}{0:F1}'}" Classes="telem-value"/>
+                            <TextBlock Grid.Column="2" Text="Pitch rate" Classes="telem-label"/>
+                            <TextBlock Grid.Column="3" Text="{Binding PitchSpeed, StringFormat='{}{0:F1}'}" Classes="telem-value"/>
+                            <TextBlock Grid.Column="4" Text="Yaw rate"  Classes="telem-label"/>
+                            <TextBlock Grid.Column="5" Text="{Binding YawSpeed, StringFormat='{}{0:F1}'}" Classes="telem-value"/>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <!-- VFR_HUD card -->
+                <Border Grid.Column="1" Classes="telem-card">
+                    <StackPanel Spacing="12">
+                        <Grid ColumnDefinitions="*,Auto">
+                            <TextBlock Grid.Column="0"
+                                       Text="VFR HUD" Classes="card-header"/>
+                            <Border Grid.Column="1" Classes="msg-badge">
+                                <TextBlock Text="MSG 74 · VFR_HUD"/>
+                            </Border>
+                        </Grid>
+
+                        <!-- Speed / Climb big numbers -->
+                        <Grid ColumnDefinitions="*,*" Margin="0,4,0,8">
+                            <StackPanel Grid.Column="0" HorizontalAlignment="Center" Spacing="2">
+                                <TextBlock Text="{Binding GroundSpeed, StringFormat='{}{0:F1}'}"
+                                           Classes="telem-big"/>
+                                <TextBlock Text="Ground Speed (m/s)" Classes="telem-unit"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" HorizontalAlignment="Center" Spacing="2">
+                                <TextBlock Text="{Binding Airspeed, StringFormat='{}{0:F1}'}"
+                                           Classes="telem-big"/>
+                                <TextBlock Text="Airspeed (m/s)" Classes="telem-unit"/>
+                            </StackPanel>
+                        </Grid>
+
+                        <Border Height="1" Background="#E8EDF5"/>
+
+                        <Grid ColumnDefinitions="130,*" RowDefinitions="Auto,Auto" RowSpacing="8" Margin="0,8,0,0">
+                            <TextBlock Grid.Row="0" Grid.Column="0" Text="Climb Rate" Classes="telem-label"/>
+                            <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding ClimbRate, StringFormat='{}{0:F2} m/s'}" Classes="telem-value"/>
+
+                            <TextBlock Grid.Row="1" Grid.Column="0" Text="Throttle"   Classes="telem-label"/>
+                            <StackPanel Grid.Row="1" Grid.Column="1" Spacing="4">
+                                <TextBlock Text="{Binding Throttle, StringFormat='{}{0}%'}" Classes="telem-value"/>
+                                <ProgressBar Value="{Binding Throttle}"
+                                             Minimum="0" Maximum="100"
+                                             Height="6" CornerRadius="3"
+                                             Foreground="#3B82F6"/>
+                            </StackPanel>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+            </Grid>
+
+            <!-- Bottom spacer -->
+            <Border Height="16"/>
+
+        </StackPanel>
+    </ScrollViewer>
+
+</UserControl>

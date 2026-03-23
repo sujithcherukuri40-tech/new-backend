@@ -60,6 +60,7 @@ public partial class MainWindowViewModel : ViewModelBase
     public AdvancedSettingsPageViewModel AdvancedSettingsPage { get; }
     public FirmwarePageViewModel FirmwarePage { get; }
     public LiveMapPageViewModel LiveMapPage { get; }
+    public TelemetryPageViewModel TelemetryPage { get; }
     public Admin.AdminPanelViewModel? AdminPanelPage { get; private set; }
     public Admin.AdminDashboardViewModel? AdminDashboardPage { get; private set; }
     public Admin.FirmwareManagementViewModel? FirmwareManagementPage { get; private set; }
@@ -96,6 +97,7 @@ public partial class MainWindowViewModel : ViewModelBase
         AdvancedSettingsPageViewModel advancedSettingsPage,
         FirmwarePageViewModel firmwarePage,
         LiveMapPageViewModel liveMapPage,
+        TelemetryPageViewModel telemetryPage,
         IParameterService parameterService,
         IConnectionService connectionService,
         Auth.AuthSessionViewModel authSession)
@@ -120,6 +122,7 @@ public partial class MainWindowViewModel : ViewModelBase
         AdvancedSettingsPage = advancedSettingsPage;
         FirmwarePage = firmwarePage;
         LiveMapPage = liveMapPage;
+        TelemetryPage = telemetryPage;
         _parameterService = parameterService;
         _connectionService = connectionService;
 

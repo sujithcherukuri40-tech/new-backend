@@ -21,30 +21,30 @@ public partial class MainWindow : Window
     private const string NavActiveClass = "sidebar-nav-active";
 
     // Privacy Policy content
-    private const string PrivacyPolicyContent = @"Pavaman Drone Configurator – Privacy Policy
+    private const string PrivacyPolicyContent = @"Pavaman Drone Configurator ï¿½ Privacy Policy
 
 Pavaman Drone Configurator is a desktop application developed by Pavaman Aviation.
 
 Information We Collect
-• User email address for authentication
-• Flight controller identification (FC ID / Hardware ID)
-• Parameter configuration logs
-• Firmware installation history
+ï¿½ User email address for authentication
+ï¿½ Flight controller identification (FC ID / Hardware ID)
+ï¿½ Parameter configuration logs
+ï¿½ Firmware installation history
 
 How We Use Information
 The collected information is used only for:
-• User authentication
-• Secure cloud backup of drone configuration
-• Firmware delivery
-• Application functionality
+ï¿½ User authentication
+ï¿½ Secure cloud backup of drone configuration
+ï¿½ Firmware delivery
+ï¿½ Application functionality
 
 Data Storage
 Data is securely stored on Amazon Web Services (AWS) servers. All communications are encrypted using HTTPS.
 
 We Do NOT
-• Sell user data
-• Track location
-• Share personal information with third parties
+ï¿½ Sell user data
+ï¿½ Track location
+ï¿½ Share personal information with third parties
 
 Contact
 Email: pavaman.official@gmail.com
@@ -317,6 +317,7 @@ Publisher: Pavaman Aviation";
             AdvancedSettingsPageViewModel => new views.AdvancedSettingsPage { DataContext = vm },
             FirmwarePageViewModel => new views.FirmwarePage { DataContext = vm },
             LiveMapPageViewModel => new views.LiveMapPage { DataContext = vm },
+            TelemetryPageViewModel => new views.TelemetryPage { DataContext = vm },
             AdminDashboardViewModel => new adminViews.AdminDashboardView { DataContext = vm },
             AdminPanelViewModel => new adminViews.AdminPanelView { DataContext = vm },
             FirmwareManagementViewModel => new adminViews.FirmwareManagementPage { DataContext = vm },
