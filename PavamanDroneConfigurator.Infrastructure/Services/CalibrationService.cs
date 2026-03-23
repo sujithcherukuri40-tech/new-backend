@@ -134,7 +134,7 @@ public class CalibrationService : ICalibrationService
                 lower.Contains("ground pressure calibrated") ||
                 lower.Contains("level complete") ||
                 lower.Contains("trim saved") ||
-                lower.Contains("ins: level") || 
+                lower.Contains("ins: level") ||
                 lower.Contains("calibration ok") ||
                 lower.Contains("ahrs trim saved") ||
                 lower.Contains("simple accel cal"))
@@ -1021,7 +1021,7 @@ public class CalibrationService : ICalibrationService
             {
                 CompassId = e.CompassId,
                 CalMask = e.CalMask,
-                CalStatus = status,  // Cast byte to MagCalStatus
+                CalStatus = status,
                 Autosaved = e.Autosaved,
                 Fitness = e.Fitness,
                 OfsX = e.OfsX,
