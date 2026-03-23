@@ -223,9 +223,9 @@ public class LogAnalysisIssue
     {
         LogMessageSeverity.Critical => "??",
         LogMessageSeverity.Error => "??",
-        LogMessageSeverity.Warning => "??",
+        LogMessageSeverity.Warning => "?",
         LogMessageSeverity.Info => "??",
-        _ => "?"
+        _ => "•"
     };
 
     /// <summary>

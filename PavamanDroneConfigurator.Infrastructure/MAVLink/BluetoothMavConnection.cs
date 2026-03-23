@@ -337,6 +337,39 @@ public class BluetoothMavConnection : IDisposable
     }
 
     /// <summary>
+    /// Send MAV_CMD_SET_MESSAGE_INTERVAL over Bluetooth.
+    /// </summary>
+    public async Task SendSetMessageIntervalAsync(int messageId, int intervalUs, CancellationToken ct = default)
+    {
+        if (!_isConnected || _mavlinkWrapper == null)
+            throw new InvalidOperationException("Bluetooth connection is not active");
+
+        await _mavlinkWrapper.SendSetMessageIntervalAsync(messageId, intervalUs, ct);
+    }
+
+    /// <summary>
+    /// Send REQUEST_DATA_STREAM over Bluetooth.
+    /// </summary>
+    public async Task SendRequestDataStreamAsync(int streamId, int rateHz, int startStop, CancellationToken ct = default)
+    {
+        if (!_isConnected || _mavlinkWrapper == null)
+            throw new InvalidOperationException("Bluetooth connection is not active");
+
+        await _mavlinkWrapper.SendRequestDataStreamAsync(streamId, rateHz, startStop, ct);
+    }
+
+    /// <summary>
+    /// Request AUTOPILOT_VERSION over Bluetooth.
+    /// </summary>
+    public async Task SendRequestAutopilotVersionAsync(CancellationToken ct = default)
+    {
+        if (!_isConnected || _mavlinkWrapper == null)
+            throw new InvalidOperationException("Bluetooth connection is not active");
+
+        await _mavlinkWrapper.SendRequestAutopilotVersionAsync(ct);
+    }
+
+    /// <summary>
     /// Send DO_MOTOR_TEST command to drone
     /// Throws if connection is not active
     /// </summary>

@@ -119,27 +119,27 @@ public class TelemetryService : ITelemetryService, IDisposable
             
             // Request POSITION stream (GLOBAL_POSITION_INT) at 4Hz
             _connectionService.SendRequestDataStream(6, 4, 1);
-            _logger.LogDebug("[TelemetryService] ? Stream 6 (POSITION) at 4Hz");
+            _logger.LogInformation("[TelemetryService] SENT: Stream 6 (POSITION) at 4Hz");
             
             // Request EXTENDED_STATUS stream (SYS_STATUS, GPS_RAW_INT) at 2Hz
             _connectionService.SendRequestDataStream(2, 2, 1);
-            _logger.LogDebug("[TelemetryService] ? Stream 2 (EXTENDED_STATUS) at 2Hz");
+            _logger.LogInformation("[TelemetryService] SENT: Stream 2 (EXTENDED_STATUS) at 2Hz");
             
             // Request EXTRA1 stream (ATTITUDE) at 10Hz for smooth attitude updates
             _connectionService.SendRequestDataStream(10, 10, 1);
-            _logger.LogDebug("[TelemetryService] ? Stream 10 (EXTRA1/ATTITUDE) at 10Hz");
+            _logger.LogInformation("[TelemetryService] SENT: Stream 10 (EXTRA1/ATTITUDE) at 10Hz");
             
             // Request EXTRA2 stream (VFR_HUD) at 4Hz
             _connectionService.SendRequestDataStream(11, 4, 1);
-            _logger.LogDebug("[TelemetryService] ? Stream 11 (EXTRA2/VFR_HUD) at 4Hz");
+            _logger.LogInformation("[TelemetryService] SENT: Stream 11 (EXTRA2/VFR_HUD) at 4Hz");
             
             // Request RC_CHANNELS at 2Hz
             _connectionService.SendRequestDataStream(3, 2, 1);
-            _logger.LogDebug("[TelemetryService] ? Stream 3 (RC_CHANNELS) at 2Hz");
+            _logger.LogInformation("[TelemetryService] SENT: Stream 3 (RC_CHANNELS) at 2Hz");
             
             // Request RAW_SENSORS stream at 2Hz
             _connectionService.SendRequestDataStream(1, 2, 1);
-            _logger.LogDebug("[TelemetryService] ? Stream 1 (RAW_SENSORS) at 2Hz");
+            _logger.LogInformation("[TelemetryService] SENT: Stream 1 (RAW_SENSORS) at 2Hz");
             
             // Small delay between REQUEST_DATA_STREAM and SET_MESSAGE_INTERVAL
             Task.Delay(300).Wait();
@@ -149,29 +149,29 @@ public class TelemetryService : ITelemetryService, IDisposable
             // Also use SET_MESSAGE_INTERVAL for specific messages (more reliable on newer firmware)
             // GLOBAL_POSITION_INT (33) at 4Hz (250000 us)
             _connectionService.SendSetMessageInterval(33, 250000);
-            _logger.LogDebug("[TelemetryService] ? MSG 33 (GLOBAL_POSITION_INT) at 250ms");
+            _logger.LogInformation("[TelemetryService] SENT: MSG 33 (GLOBAL_POSITION_INT) at 250ms");
             
             // ATTITUDE (30) at 10Hz (100000 us)
             _connectionService.SendSetMessageInterval(30, 100000);
-            _logger.LogDebug("[TelemetryService] ? MSG 30 (ATTITUDE) at 100ms");
+            _logger.LogInformation("[TelemetryService] SENT: MSG 30 (ATTITUDE) at 100ms");
             
             // VFR_HUD (74) at 4Hz (250000 us)
             _connectionService.SendSetMessageInterval(74, 250000);
-            _logger.LogDebug("[TelemetryService] ? MSG 74 (VFR_HUD) at 250ms");
+            _logger.LogInformation("[TelemetryService] SENT: MSG 74 (VFR_HUD) at 250ms");
             
             // SYS_STATUS (1) at 2Hz (500000 us)
             _connectionService.SendSetMessageInterval(1, 500000);
-            _logger.LogDebug("[TelemetryService] ? MSG 1 (SYS_STATUS) at 500ms");
+            _logger.LogInformation("[TelemetryService] SENT: MSG 1 (SYS_STATUS) at 500ms");
             
             // GPS_RAW_INT (24) at 2Hz (500000 us)
             _connectionService.SendSetMessageInterval(24, 500000);
-            _logger.LogDebug("[TelemetryService] ? MSG 24 (GPS_RAW_INT) at 500ms");
+            _logger.LogInformation("[TelemetryService] SENT: MSG 24 (GPS_RAW_INT) at 500ms");
             
             // HEARTBEAT (0) - ensure we get heartbeat with full data
             _connectionService.SendSetMessageInterval(0, 1000000);
-            _logger.LogDebug("[TelemetryService] ? MSG 0 (HEARTBEAT) at 1000ms");
+            _logger.LogInformation("[TelemetryService] SENT: MSG 0 (HEARTBEAT) at 1000ms");
             
-            _logger.LogInformation("[TelemetryService] ========== ALL STREAM REQUESTS SENT ==========");
+            _logger.LogWarning("[TelemetryService] ========== ALL STREAM REQUESTS SENT ==========");
             _logger.LogWarning("[TelemetryService] If you still see zeros:");
             _logger.LogWarning("[TelemetryService]   1. Check drone has GPS lock (needs satellites)");
             _logger.LogWarning("[TelemetryService]   2. Check drone is powered on and armed");
@@ -180,7 +180,7 @@ public class TelemetryService : ITelemetryService, IDisposable
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "[TelemetryService] Error requesting telemetry streams");
+            _logger.LogError(ex, "[TelemetryService] ERROR requesting telemetry streams");
         }
     }
 
@@ -242,11 +242,11 @@ public class TelemetryService : ITelemetryService, IDisposable
             _currentTelemetry.VerticalSpeed = e.VelocityZ;
             _currentTelemetry.Heading = e.Heading;
             _currentTelemetry.LastPositionUpdate = DateTime.UtcNow;
-            
-            // DEBUG: Log position data
-            _logger.LogDebug("[TelemetryService] Position: Lat={Lat:F6}, Lon={Lon:F6}, Alt={Alt:F1}m, Hdg={Hdg:F0}°", 
-                e.Latitude, e.Longitude, e.AltitudeRelative, e.Heading);
         }
+        
+        // Log every position update to ensure we're receiving them
+        _logger.LogInformation("[TelemetryService] [OK] POSITION: Lat={Lat:F6}, Lon={Lon:F6}, Alt={Alt:F1}m, Hdg={Hdg:F0}deg", 
+            e.Latitude, e.Longitude, e.AltitudeRelative, e.Heading);
         
         // Add to flight path (throttled)
         var now = DateTime.UtcNow;
@@ -280,13 +280,13 @@ public class TelemetryService : ITelemetryService, IDisposable
             _currentTelemetry.PitchSpeed = e.PitchSpeed;
             _currentTelemetry.YawSpeed = e.YawSpeed;
             _currentTelemetry.LastAttitudeUpdate = DateTime.UtcNow;
-            
-            // DEBUG: Log attitude data occasionally
-            if (DateTime.UtcNow.Second % 5 == 0)
-            {
-                _logger.LogDebug("[TelemetryService] Attitude: Roll={Roll:F1}°, Pitch={Pitch:F1}°, Yaw={Yaw:F1}°", 
-                    e.Roll * 180 / Math.PI, e.Pitch * 180 / Math.PI, e.Yaw * 180 / Math.PI);
-            }
+        }
+        
+        // Log attitude data (every 2 seconds to avoid spam)
+        if (DateTime.UtcNow.Millisecond < 200)
+        {
+            _logger.LogInformation("[TelemetryService] [OK] ATTITUDE: Roll={Roll:F1}deg, Pitch={Pitch:F1}deg, Yaw={Yaw:F1}deg", 
+                e.Roll * 180 / Math.PI, e.Pitch * 180 / Math.PI, e.Yaw * 180 / Math.PI);
         }
         
         _hasPendingUpdate = true;
@@ -301,11 +301,11 @@ public class TelemetryService : ITelemetryService, IDisposable
             _currentTelemetry.GroundSpeed = e.GroundSpeed;
             _currentTelemetry.Throttle = e.Throttle;
             _currentTelemetry.ClimbRate = e.ClimbRate;
-            
-            // DEBUG: Log speed data
-            _logger.LogDebug("[TelemetryService] VFR: GndSpd={GndSpd:F1}m/s, AirSpd={AirSpd:F1}m/s, Thr={Thr}%, ClimbRate={CR:F1}m/s", 
-                e.GroundSpeed, e.Airspeed, e.Throttle, e.ClimbRate);
         }
+        
+        // Log speed data
+        _logger.LogInformation("[TelemetryService] [OK] VFR_HUD: GndSpd={GndSpd:F1}m/s, AirSpd={AirSpd:F1}m/s, Thr={Thr}%, Climb={CR:F1}m/s", 
+            e.GroundSpeed, e.Airspeed, e.Throttle, e.ClimbRate);
         
         _hasPendingUpdate = true;
         UpdateTelemetryAvailability();
@@ -321,11 +321,11 @@ public class TelemetryService : ITelemetryService, IDisposable
             _currentTelemetry.Vdop = e.Vdop;
             _currentTelemetry.GpsAltitude = e.Altitude;
             _currentTelemetry.LastGpsUpdate = DateTime.UtcNow;
-            
-            // DEBUG: Log GPS status
-            _logger.LogInformation("[TelemetryService] GPS: Fix={FixType}, Sats={Sats}, HDOP={HDOP:F1}", 
-                e.FixType, e.SatellitesVisible, e.Hdop);
         }
+        
+        // Log GPS status
+        _logger.LogInformation("[TelemetryService] [OK] GPS_RAW_INT: Fix={FixType}, Sats={Sats}, HDOP={HDOP:F1}", 
+            e.FixType, e.SatellitesVisible, e.Hdop);
         
         // Raise GPS status event
         GpsStatusChanged?.Invoke(this, new GpsStatusEventArgs
@@ -347,11 +347,11 @@ public class TelemetryService : ITelemetryService, IDisposable
             _currentTelemetry.BatteryVoltage = e.BatteryVoltage;
             _currentTelemetry.BatteryCurrent = e.BatteryCurrent;
             _currentTelemetry.BatteryRemaining = e.BatteryRemaining;
-            
-            // DEBUG: Log battery status
-            _logger.LogDebug("[TelemetryService] Battery: {Voltage:F1}V, {Current:F1}A, {Remaining}%", 
-                e.BatteryVoltage, e.BatteryCurrent, e.BatteryRemaining);
         }
+        
+        // Log battery status
+        _logger.LogInformation("[TelemetryService] [OK] SYS_STATUS (Battery): {Voltage:F1}V, {Current:F1}A, {Remaining}%", 
+            e.BatteryVoltage, e.BatteryCurrent, e.BatteryRemaining);
         
         // Raise battery status event
         BatteryStatusChanged?.Invoke(this, new BatteryStatusEventArgs
@@ -373,11 +373,11 @@ public class TelemetryService : ITelemetryService, IDisposable
             _currentTelemetry.FlightMode = GetFlightModeName(e.VehicleType, e.CustomMode);
             _currentTelemetry.VehicleType = GetVehicleTypeName(e.VehicleType);
             _currentTelemetry.LastHeartbeatUpdate = DateTime.UtcNow;
-            
-            // DEBUG: Log heartbeat data
-            _logger.LogDebug("[TelemetryService] Heartbeat: Armed={Armed}, Mode={Mode}, Type={Type}", 
-                e.IsArmed, _currentTelemetry.FlightMode, _currentTelemetry.VehicleType);
         }
+        
+        // Log heartbeat data
+        _logger.LogInformation("[TelemetryService] [OK] HEARTBEAT: Armed={Armed}, Mode={Mode}, Type={Type}", 
+            e.IsArmed, _currentTelemetry.FlightMode, _currentTelemetry.VehicleType);
         
         _hasPendingUpdate = true;
         UpdateTelemetryAvailability();
@@ -462,10 +462,13 @@ public class TelemetryService : ITelemetryService, IDisposable
     {
         if (connected)
         {
+            _logger.LogWarning("[TelemetryService] ========== CONNECTION ESTABLISHED ==========");
+            _logger.LogWarning("[TelemetryService] Starting telemetry service and requesting streams...");
             Start();
         }
         else
         {
+            _logger.LogWarning("[TelemetryService] ========== CONNECTION LOST ==========");
             Stop();
             Clear();
         }

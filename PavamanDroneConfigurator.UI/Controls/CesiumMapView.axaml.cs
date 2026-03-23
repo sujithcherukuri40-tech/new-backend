@@ -1,8 +1,10 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
@@ -10,6 +12,7 @@ using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using Microsoft.Web.WebView2.Core;
 
 namespace PavamanDroneConfigurator.UI.Controls;
@@ -22,6 +25,8 @@ namespace PavamanDroneConfigurator.UI.Controls;
 /// - Flight path tracking with altitude
 /// - Waypoint visualization
 /// - Smooth camera following
+/// - Survey grid planning
+/// - Spray overlay visualization
 /// </summary>
 public partial class CesiumMapView : UserControl
 {
@@ -31,6 +36,7 @@ public partial class CesiumMapView : UserControl
     private bool _isInitialized;
     private bool _isDisposed;
     private bool _mapReady;
+    private EventHandler<AvaloniaPropertyChangedEventArgs>? _boundsChangedHandler;
     
     // Pending update queue for before map is ready
     private DroneUpdateData? _pendingUpdate;
@@ -42,6 +48,32 @@ public partial class CesiumMapView : UserControl
         Chase3D,
         FreeRoam,
         FirstPerson
+    }
+
+    public enum MissionTool
+    {
+        None,
+        Waypoint,
+        Home,
+        Survey,
+        Orbit,
+        Rtl,
+        Land
+    }
+
+    private enum MapMessageType
+    {
+        mapReady,
+        viewModeChanged,
+        followChanged,
+        error,
+        waypoint_placed,
+        waypoint_moved,
+        waypoint_deleted,
+        home_placed,
+        land_placed,
+        orbit_placed,
+        survey_boundary_completed
     }
 
     private ViewMode _currentViewMode = ViewMode.TopDown;
@@ -91,6 +123,14 @@ public partial class CesiumMapView : UserControl
     /// </summary>
     public event EventHandler<ViewMode>? ViewModeChanged;
 
+    public event EventHandler<(double Latitude, double Longitude, int Index)>? WaypointPlaced;
+    public event EventHandler<(int Index, double Latitude, double Longitude)>? WaypointMoved;
+    public event EventHandler<int>? WaypointDeleted;
+    public event EventHandler<(double Latitude, double Longitude)>? HomePlaced;
+    public event EventHandler<(double Latitude, double Longitude)>? LandPlaced;
+    public event EventHandler<(double Latitude, double Longitude)>? OrbitPlaced;
+    public event EventHandler<List<(double Latitude, double Longitude)>>? SurveyBoundaryCompleted;
+
     public CesiumMapView()
     {
         AvaloniaXamlLoader.Load(this);
@@ -134,6 +174,23 @@ public partial class CesiumMapView : UserControl
                 ShowError("WebView2 Initialization Failed", ex.Message);
             }
         });
+    }
+
+    /// <summary>
+    /// Handle visibility changes to show/hide WebView2
+    /// </summary>
+    protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
+    {
+        base.OnPropertyChanged(change);
+        
+        if (change.Property == IsVisibleProperty && _webViewController != null)
+        {
+            _webViewController.IsVisible = IsVisible;
+            if (IsVisible)
+            {
+                UpdateWebViewBounds();
+            }
+        }
     }
 
     private async Task InitializeWebView2Async()
@@ -205,20 +262,19 @@ public partial class CesiumMapView : UserControl
             _webView.NavigationStarting += OnNavigationStarting;
 
             // Position the WebView2 control to fill the parent
-            var bounds = this.Bounds;
-            _webViewController.Bounds = new System.Drawing.Rectangle(0, 0, (int)bounds.Width, (int)bounds.Height);
-            Debug.WriteLine($"[CesiumMapView] WebView2 bounds: {_webViewController.Bounds}");
-            _webViewController.IsVisible = true;
+            UpdateWebViewBounds();
+             Debug.WriteLine($"[CesiumMapView] WebView2 bounds: {_webViewController.Bounds}");
+             _webViewController.IsVisible = true;
 
-            // Update bounds when control resizes
-            this.PropertyChanged += (s, e) =>
+             // Update bounds when control resizes
+            _boundsChangedHandler = (_, e) =>
             {
                 if (e.Property == BoundsProperty && _webViewController != null)
                 {
-                    var newBounds = this.Bounds;
-                    _webViewController.Bounds = new System.Drawing.Rectangle(0, 0, (int)newBounds.Width, (int)newBounds.Height);
+                    UpdateWebViewBounds();
                 }
             };
+            this.PropertyChanged += _boundsChangedHandler;
 
             // Navigate to map HTML
             UpdateLoadingText("Loading CesiumJS 3D terrain...");
@@ -240,6 +296,43 @@ public partial class CesiumMapView : UserControl
         {
             Debug.WriteLine($"[CesiumMapView] Initialization error: {ex}");
             throw;
+        }
+    }
+
+    private void UpdateWebViewBounds()
+    {
+        if (_webViewController == null)
+            return;
+
+        var topLevel = TopLevel.GetTopLevel(this);
+        if (topLevel == null)
+            return;
+
+        // Calculate the position relative to the top-level window
+        var origin = this.TranslatePoint(new Point(0, 0), topLevel);
+        if (!origin.HasValue)
+            return;
+
+        var bounds = this.Bounds;
+        
+        // Account for DPI scaling if present
+        double scaling = 1.0;
+        if (topLevel is Window window)
+        {
+            scaling = window.RenderScaling;
+        }
+
+        // Calculate scaled dimensions - WebView2 fills its container completely
+        var x = (int)Math.Round(origin.Value.X * scaling);
+        var y = (int)Math.Round(origin.Value.Y * scaling);
+        var width = Math.Max(0, (int)Math.Round(bounds.Width * scaling));
+        var height = Math.Max(0, (int)Math.Round(bounds.Height * scaling));
+
+        // Only update if we have valid dimensions
+        if (width > 0 && height > 0)
+        {
+            _webViewController.Bounds = new System.Drawing.Rectangle(x, y, width, height);
+            Debug.WriteLine($"[CesiumMapView] Bounds updated: x={x}, y={y}, w={width}, h={height}, scale={scaling}");
         }
     }
 
@@ -300,13 +393,20 @@ public partial class CesiumMapView : UserControl
             if (string.IsNullOrEmpty(message)) return;
 
             var json = JsonDocument.Parse(message);
-            var type = json.RootElement.GetProperty("type").GetString();
+            var typeString = json.RootElement.GetProperty("type").GetString();
+            if (string.IsNullOrWhiteSpace(typeString)) return;
+
+            if (!Enum.TryParse<MapMessageType>(typeString, ignoreCase: true, out var type))
+            {
+                Debug.WriteLine($"[CesiumMapView] Unknown JS message type: {typeString}");
+                return;
+            }
 
             Dispatcher.UIThread.Post(() =>
             {
                 switch (type)
                 {
-                    case "mapReady":
+                    case MapMessageType.mapReady:
                         _mapReady = true;
                         HideLoading();
                         Debug.WriteLine("[CesiumMapView] Map is ready!");
@@ -321,7 +421,7 @@ public partial class CesiumMapView : UserControl
                         }
                         break;
 
-                    case "viewModeChanged":
+                    case MapMessageType.viewModeChanged:
                         if (json.RootElement.TryGetProperty("mode", out var modeProp))
                         {
                             var modeStr = modeProp.GetString();
@@ -337,14 +437,79 @@ public partial class CesiumMapView : UserControl
                         }
                         break;
 
-                    case "followChanged":
+                    case MapMessageType.followChanged:
                         if (json.RootElement.TryGetProperty("following", out var followProp))
                         {
                             _isFollowing = followProp.GetBoolean();
                         }
                         break;
                     
-                    case "error":
+                    case MapMessageType.waypoint_placed:
+                        {
+                            var lat = json.RootElement.TryGetProperty("lat", out var latProp) ? latProp.GetDouble() : 0;
+                            var lon = json.RootElement.TryGetProperty("lon", out var lonProp) ? lonProp.GetDouble() : 0;
+                            var idx = json.RootElement.TryGetProperty("index", out var idxProp) ? idxProp.GetInt32() : 0;
+                            WaypointPlaced?.Invoke(this, (lat, lon, idx));
+                            break;
+                        }
+
+                    case MapMessageType.waypoint_moved:
+                        {
+                            var idx = json.RootElement.TryGetProperty("index", out var idxProp) ? idxProp.GetInt32() : 0;
+                            var lat = json.RootElement.TryGetProperty("lat", out var latProp) ? latProp.GetDouble() : 0;
+                            var lon = json.RootElement.TryGetProperty("lon", out var lonProp) ? lonProp.GetDouble() : 0;
+                            WaypointMoved?.Invoke(this, (idx, lat, lon));
+                            break;
+                        }
+
+                    case MapMessageType.waypoint_deleted:
+                        {
+                            var idx = json.RootElement.TryGetProperty("index", out var idxProp) ? idxProp.GetInt32() : 0;
+                            WaypointDeleted?.Invoke(this, idx);
+                            break;
+                        }
+
+                    case MapMessageType.home_placed:
+                        {
+                            var lat = json.RootElement.TryGetProperty("lat", out var latProp) ? latProp.GetDouble() : 0;
+                            var lon = json.RootElement.TryGetProperty("lon", out var lonProp) ? lonProp.GetDouble() : 0;
+                            HomePlaced?.Invoke(this, (lat, lon));
+                            break;
+                        }
+
+                    case MapMessageType.land_placed:
+                        {
+                            var lat = json.RootElement.TryGetProperty("lat", out var latProp) ? latProp.GetDouble() : 0;
+                            var lon = json.RootElement.TryGetProperty("lon", out var lonProp) ? lonProp.GetDouble() : 0;
+                            LandPlaced?.Invoke(this, (lat, lon));
+                            break;
+                        }
+
+                    case MapMessageType.orbit_placed:
+                        {
+                            var lat = json.RootElement.TryGetProperty("lat", out var latProp) ? latProp.GetDouble() : 0;
+                            var lon = json.RootElement.TryGetProperty("lon", out var lonProp) ? lonProp.GetDouble() : 0;
+                            OrbitPlaced?.Invoke(this, (lat, lon));
+                            break;
+                        }
+
+                    case MapMessageType.survey_boundary_completed:
+                        {
+                            var boundary = new List<(double Latitude, double Longitude)>();
+                            if (json.RootElement.TryGetProperty("boundary", out var boundaryProp) && boundaryProp.ValueKind == JsonValueKind.Array)
+                            {
+                                foreach (var point in boundaryProp.EnumerateArray())
+                                {
+                                    var lat = point.TryGetProperty("lat", out var latP) ? latP.GetDouble() : 0;
+                                    var lon = point.TryGetProperty("lon", out var lonP) ? lonP.GetDouble() : 0;
+                                    boundary.Add((lat, lon));
+                                }
+                            }
+                            SurveyBoundaryCompleted?.Invoke(this, boundary);
+                            break;
+                        }
+                    
+                    case MapMessageType.error:
                         if (json.RootElement.TryGetProperty("message", out var errorProp))
                         {
                             var errorMsg = errorProp.GetString();
@@ -604,6 +769,34 @@ public partial class CesiumMapView : UserControl
     }
 
     /// <summary>
+    /// Set mission tool
+    /// </summary>
+    public async void SetMissionTool(MissionTool tool)
+    {
+        if (_webView == null || !_mapReady) return;
+
+        try
+        {
+            var toolName = tool switch
+            {
+                MissionTool.Waypoint => "waypoint",
+                MissionTool.Home => "home",
+                MissionTool.Survey => "survey",
+                MissionTool.Orbit => "orbit",
+                MissionTool.Rtl => "rtl",
+                MissionTool.Land => "land",
+                _ => "none"
+            };
+
+            await _webView.ExecuteScriptAsync($"setMissionTool('{toolName}');");
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[CesiumMapView] Error setting mission tool: {ex.Message}");
+        }
+    }
+
+    /// <summary>
     /// Zoom in
     /// </summary>
     public async void ZoomIn()
@@ -628,6 +821,69 @@ public partial class CesiumMapView : UserControl
     {
         if (_webView == null || !_mapReady) return;
         await ExecuteScriptAsync("resetView();");
+    }
+
+    /// <summary>
+    /// Render survey grid on the map
+    /// </summary>
+    public async void RenderSurveyGrid(SurveyGridData[] waypoints, double sprayWidth)
+    {
+        if (_webView == null || !_mapReady) return;
+
+        try
+        {
+            var waypointsJson = JsonSerializer.Serialize(waypoints);
+            await _webView.ExecuteScriptAsync($"renderSurveyGrid({waypointsJson}, {sprayWidth.ToString(CultureInfo.InvariantCulture)});");
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[CesiumMapView] Error rendering survey grid: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Clear survey grid from the map
+    /// </summary>
+    public async void ClearSurveyGrid()
+    {
+        if (_webView == null || !_mapReady) return;
+        await ExecuteScriptAsync("clearSurveyGrid();");
+    }
+
+    /// <summary>
+    /// Clear survey boundary
+    /// </summary>
+    public async void ClearSurveyBoundary()
+    {
+        if (_webView == null || !_mapReady) return;
+        await ExecuteScriptAsync("clearSurveyBoundary();");
+    }
+
+    /// <summary>
+    /// Set spray active state
+    /// </summary>
+    public async void SetSprayActive(bool active, double sprayWidth = 4.0)
+    {
+        if (_webView == null || !_mapReady) return;
+        await ExecuteScriptAsync($"setSprayActive({active.ToString().ToLowerInvariant()}, {sprayWidth.ToString(CultureInfo.InvariantCulture)});");
+    }
+
+    /// <summary>
+    /// Clear spray overlay
+    /// </summary>
+    public async void ClearSprayOverlay()
+    {
+        if (_webView == null || !_mapReady) return;
+        await ExecuteScriptAsync("clearSprayOverlay();");
+    }
+
+    /// <summary>
+    /// Delete a waypoint by index
+    /// </summary>
+    public async void DeleteWaypoint(int index)
+    {
+        if (_webView == null || !_mapReady) return;
+        await ExecuteScriptAsync($"deleteWaypoint({index});");
     }
 
     private async Task ExecuteScriptAsync(string script)
@@ -726,6 +982,12 @@ public partial class CesiumMapView : UserControl
         if (_isDisposed) return;
         _isDisposed = true;
 
+        if (_boundsChangedHandler != null)
+        {
+            this.PropertyChanged -= _boundsChangedHandler;
+            _boundsChangedHandler = null;
+        }
+
         if (_webView != null)
         {
             _webView.WebMessageReceived -= OnWebMessageReceived;
@@ -752,10 +1014,31 @@ public partial class CesiumMapView : UserControl
 
     public class WaypointData
     {
+        [JsonPropertyName("lat")]
         public double Lat { get; set; }
+        
+        [JsonPropertyName("lon")]
         public double Lon { get; set; }
+        
+        [JsonPropertyName("alt")]
         public double Alt { get; set; }
+        
+        [JsonPropertyName("groundAlt")]
         public double? GroundAlt { get; set; }
+        
+        [JsonPropertyName("isCurrent")]
         public bool IsCurrent { get; set; }
+    }
+
+    public class SurveyGridData
+    {
+        [JsonPropertyName("lat")]
+        public double Lat { get; set; }
+        
+        [JsonPropertyName("lon")]
+        public double Lon { get; set; }
+        
+        [JsonPropertyName("alt")]
+        public double Alt { get; set; }
     }
 }
