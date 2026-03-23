@@ -7,6 +7,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using PavamanDroneConfigurator.Infrastructure.Services;
+using Asv.Mavlink.V2.Common;
 
 namespace PavamanDroneConfigurator.Infrastructure.MAVLink
 {
@@ -914,6 +915,8 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
             if (payload.Length < 28)
                 return;
 
+            var rawHeading = BitConverter.ToUInt16(payload, 26);
+
             var data = new GlobalPositionIntData
             {
                 TimeBootMs = BitConverter.ToUInt32(payload, 0),
@@ -924,7 +927,7 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
                 VelocityX = BitConverter.ToInt16(payload, 20) / 100.0,
                 VelocityY = BitConverter.ToInt16(payload, 22) / 100.0,
                 VelocityZ = BitConverter.ToInt16(payload, 24) / 100.0,
-                Heading = BitConverter.ToUInt16(payload, 26) / 100.0
+                Heading = rawHeading == ushort.MaxValue ? double.NaN : rawHeading / 100.0
             };
 
             GlobalPositionIntReceived?.Invoke(this, data);
@@ -1003,16 +1006,20 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
             if (payload.Length < 30)
                 return;
 
+            var rawEph = BitConverter.ToUInt16(payload, 20);
+            var rawEpv = BitConverter.ToUInt16(payload, 22);
+            var rawCog = BitConverter.ToUInt16(payload, 26);
+
             var data = new GpsRawIntData
             {
                 TimeUsec = BitConverter.ToUInt64(payload, 0),
                 Latitude = BitConverter.ToInt32(payload, 8) / 1e7,
                 Longitude = BitConverter.ToInt32(payload, 12) / 1e7,
                 Altitude = BitConverter.ToInt32(payload, 16) / 1000.0,
-                Hdop = BitConverter.ToUInt16(payload, 20) / 100.0,
-                Vdop = BitConverter.ToUInt16(payload, 22) / 100.0,
+                Hdop = rawEph == ushort.MaxValue ? double.NaN : rawEph / 100.0,
+                Vdop = rawEpv == ushort.MaxValue ? double.NaN : rawEpv / 100.0,
                 GroundSpeed = BitConverter.ToUInt16(payload, 24) / 100.0,
-                CourseOverGround = BitConverter.ToUInt16(payload, 26) / 100.0,
+                CourseOverGround = rawCog == ushort.MaxValue ? double.NaN : rawCog / 100.0,
                 FixType = payload[28],
                 SatellitesVisible = payload[29]
             };
@@ -1036,6 +1043,8 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
             if (payload.Length < 23)
                 return;
 
+            var rawCurrent = BitConverter.ToInt16(payload, 16);
+
             var data = new SysStatusData
             {
                 SensorsPresent = BitConverter.ToUInt32(payload, 0),
@@ -1043,7 +1052,7 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
                 SensorsHealth = BitConverter.ToUInt32(payload, 8),
                 Load = BitConverter.ToUInt16(payload, 12),
                 BatteryVoltage = BitConverter.ToUInt16(payload, 14) / 1000.0,
-                BatteryCurrent = BitConverter.ToInt16(payload, 16) / 100.0,
+                BatteryCurrent = rawCurrent == -1 ? double.NaN : rawCurrent / 100.0,
                 BatteryRemaining = (sbyte)payload[18],
                 DropRateComm = BitConverter.ToUInt16(payload, 19),
                 ErrorsComm = BitConverter.ToUInt16(payload, 21)
@@ -1305,27 +1314,59 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
 
         public async Task SendSetMessageIntervalAsync(int messageId, int intervalUs, CancellationToken ct = default)
         {
-            _logger.LogInformation("Sending MAV_CMD_SET_MESSAGE_INTERVAL: msgId={MsgId} interval={Interval}us",
+            _logger.LogInformation("ASV command sent: MAV_CMD_SET_MESSAGE_INTERVAL msgId={MsgId} interval={Interval}us",
                 messageId, intervalUs);
 
-            await SendCommandLongAsync(MAV_CMD_SET_MESSAGE_INTERVAL, messageId, intervalUs, 0, 0, 0, 0, 0, ct);
+            var payload = new CommandLongPayload
+            {
+                Command = MavCmd.MavCmdSetMessageInterval,
+                Param1 = messageId,
+                Param2 = intervalUs,
+                Param3 = 0,
+                Param4 = 0,
+                Param5 = 0,
+                Param6 = 0,
+                Param7 = 0,
+                TargetSystem = _targetSystemId != 0 ? _targetSystemId : (byte)1,
+                TargetComponent = _targetComponentId != 0 ? _targetComponentId : (byte)1,
+                Confirmation = 0
+            };
+
+            await SendCommandLongAsync((ushort)payload.Command,
+                payload.Param1,
+                payload.Param2,
+                payload.Param3,
+                payload.Param4,
+                payload.Param5,
+                payload.Param6,
+                payload.Param7,
+                ct);
         }
 
         public async Task SendRequestDataStreamAsync(int streamId, int rateHz, int startStop, CancellationToken ct = default)
         {
-            _logger.LogInformation("Sending REQUEST_DATA_STREAM: streamId={StreamId} rate={Rate}Hz start={Start}",
+            _logger.LogInformation("ASV command sent: REQUEST_DATA_STREAM streamId={StreamId} rate={Rate}Hz start={Start}",
                 streamId, rateHz, startStop);
 
-            const byte MAVLINK_MSG_ID_REQUEST_DATA_STREAM = 66;
+            var request = new RequestDataStreamPayload
+            {
+                TargetSystem = _targetSystemId != 0 ? _targetSystemId : (byte)1,
+                TargetComponent = _targetComponentId != 0 ? _targetComponentId : (byte)1,
+                ReqStreamId = (byte)streamId,
+                ReqMessageRate = (ushort)Math.Max(rateHz, 0),
+                StartStop = (byte)startStop
+            };
+
+            const byte MavlinkMsgIdRequestDataStream = 66;
 
             var payload = new byte[6];
-            payload[0] = _targetSystemId != 0 ? _targetSystemId : (byte)1;
-            payload[1] = _targetComponentId != 0 ? _targetComponentId : (byte)1;
-            payload[2] = (byte)streamId;
-            BitConverter.GetBytes((ushort)rateHz).CopyTo(payload, 3);
-            payload[5] = (byte)startStop;
+            payload[0] = request.TargetSystem;
+            payload[1] = request.TargetComponent;
+            payload[2] = request.ReqStreamId;
+            BitConverter.GetBytes(request.ReqMessageRate).CopyTo(payload, 3);
+            payload[5] = request.StartStop;
 
-            await SendMessageAsync(MAVLINK_MSG_ID_REQUEST_DATA_STREAM, payload, ct);
+            await SendMessageAsync(MavlinkMsgIdRequestDataStream, payload, ct);
         }
 
         /// <summary>
@@ -1777,8 +1818,7 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
     }
 
     /// <summary>
-    /// GLOBAL_POSITION_INT data
-    /// </summary>
+    /// GLOBAL_POSITION_INT data /// </summary>
     public class GlobalPositionIntData
     {
         public uint TimeBootMs { get; set; }
@@ -1811,17 +1851,15 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
     /// </summary>
     public class VfrHudData
     {
-        public double Airspeed { get; set; }
-        public double GroundSpeed { get; set; }
-        public int Heading { get; set; }
-        public int Throttle { get; set; }
-        public double Altitude { get; set; }
-        public double ClimbRate { get; set; }
+        public double Airspeed = 0.0;
+        public double GroundSpeed = 0.0;
+        public int Heading = 0;
+        public int Throttle = 0;
+        public double Altitude = 0.0;
+        public double ClimbRate = 0.0;
     }
 
-    /// <summary>
-    /// GPS_RAW_INT data
-    /// </summary>
+ 
     public class GpsRawIntData
     {
         public ulong TimeUsec { get; set; }
@@ -1836,9 +1874,7 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
         public byte SatellitesVisible { get; set; }
     }
 
-    /// <summary>
-    /// SYS_STATUS data
-    /// </summary>
+   
     public class SysStatusData
     {
         public uint SensorsPresent { get; set; }

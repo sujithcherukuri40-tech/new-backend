@@ -20,6 +20,7 @@ public partial class TelemetryPageViewModel : ViewModelBase
 {
     private readonly ITelemetryService _telemetryService;
     private readonly IConnectionService _connectionService;
+    private DateTime _lastUiTelemetryApplyUtc = DateTime.MinValue;
 
     // ─── Connection ──────────────────────────────────────────────────────────
 
@@ -176,18 +177,19 @@ public partial class TelemetryPageViewModel : ViewModelBase
         _connectionService.ConnectionStateChanged += OnConnectionStateChanged;
         _telemetryService.TelemetryUpdated += OnTelemetryUpdated;
         _telemetryService.TelemetryAvailabilityChanged += OnTelemetryAvailabilityChanged;
+        _telemetryService.TelemetryHealthChanged += OnTelemetryHealthChanged;
 
         IsConnected = _connectionService.IsConnected;
         UpdateConnectionStatus();
 
-        // Populate from current snapshot if already streaming
-        if (_telemetryService.IsReceivingTelemetry)
+        var health = _telemetryService.CurrentHealth;
+        ApplyHealth(health);
+
+        if (health.IsReceivingTelemetry)
         {
             ApplyTelemetry(_telemetryService.CurrentTelemetry);
         }
-        
-        // Force re-request telemetry streams when this page is opened
-        // This ensures we get ATTITUDE, VFR_HUD, GPS data even if initial request failed
+
         if (IsConnected)
         {
             _telemetryService.RequestStreams();
@@ -202,15 +204,27 @@ public partial class TelemetryPageViewModel : ViewModelBase
         {
             IsConnected = connected;
             UpdateConnectionStatus();
+
             if (!connected)
             {
                 ResetTelemetry();
+            }
+            else
+            {
+                _telemetryService.RequestStreams();
             }
         });
     }
 
     private void OnTelemetryUpdated(object? sender, TelemetryModel telemetry)
     {
+        var now = DateTime.UtcNow;
+        if ((now - _lastUiTelemetryApplyUtc).TotalMilliseconds < 100)
+        {
+            return;
+        }
+
+        _lastUiTelemetryApplyUtc = now;
         Dispatcher.UIThread.Post(() => ApplyTelemetry(telemetry));
     }
 
@@ -219,8 +233,20 @@ public partial class TelemetryPageViewModel : ViewModelBase
         Dispatcher.UIThread.Post(() =>
         {
             IsReceivingTelemetry = available;
-            TelemetryStatus = available ? "Receiving" : "No telemetry";
+            if (!available && IsConnected)
+            {
+                TelemetryStatus = "Connected, negotiating telemetry...";
+            }
+            else if (!available)
+            {
+                TelemetryStatus = "No telemetry";
+            }
         });
+    }
+
+    private void OnTelemetryHealthChanged(object? sender, TelemetryHealthStatus health)
+    {
+        Dispatcher.UIThread.Post(() => ApplyHealth(health));
     }
 
     // ─── Helpers ──────────────────────────────────────────────────────────────
@@ -228,11 +254,21 @@ public partial class TelemetryPageViewModel : ViewModelBase
     private void UpdateConnectionStatus()
     {
         ConnectionStatus = IsConnected ? "Connected" : "Disconnected";
+
         if (!IsConnected)
         {
             IsReceivingTelemetry = false;
             TelemetryStatus = "No telemetry";
+            return;
         }
+
+        ApplyHealth(_telemetryService.CurrentHealth);
+    }
+
+    private void ApplyHealth(TelemetryHealthStatus health)
+    {
+        IsReceivingTelemetry = health.IsReceivingTelemetry;
+        TelemetryStatus = health.StatusText;
     }
 
     private void ApplyTelemetry(TelemetryModel t)
@@ -250,7 +286,7 @@ public partial class TelemetryPageViewModel : ViewModelBase
 
         // SYS_STATUS – Battery
         BatteryVoltage   = t.BatteryVoltage;
-        BatteryCurrent   = t.BatteryCurrent;
+        BatteryCurrent   = t.BatteryCurrent >= 0 ? t.BatteryCurrent : 0;
         BatteryRemaining = t.BatteryRemaining;
         BatteryRemainingText = t.BatteryRemaining >= 0 ? $"{t.BatteryRemaining}%" : "--";
         BatteryStatusColor = t.BatteryRemaining switch
@@ -263,7 +299,7 @@ public partial class TelemetryPageViewModel : ViewModelBase
 
         // GPS_RAW_INT
         GpsFixType            = t.GpsFixType;
-        GpsFixTypeDescription = t.GpsFixTypeDescription;
+        GpsFixTypeDescription = t.GpsFixType >= 2 ? t.GpsFixTypeDescription : "No Fix";
         SatelliteCount        = t.SatelliteCount;
         Hdop                  = t.Hdop;
         Vdop                  = t.Vdop;
@@ -289,7 +325,7 @@ public partial class TelemetryPageViewModel : ViewModelBase
         VelX             = Math.Round(t.GroundSpeedX, 2);
         VelY             = Math.Round(t.GroundSpeedY, 2);
         VelZ             = Math.Round(t.VerticalSpeed, 2);
-        PositionText     = t.HasValidPosition
+        PositionText     = t.GpsFixType >= 2 && t.HasValidPosition
             ? $"{t.Latitude:F6}°, {t.Longitude:F6}°"
             : "No Fix";
         LastPositionUpdate = t.LastPositionUpdate;
@@ -299,9 +335,6 @@ public partial class TelemetryPageViewModel : ViewModelBase
         GroundSpeed = Math.Round(t.GroundSpeed,  1);
         Throttle    = t.Throttle;
         ClimbRate   = Math.Round(t.ClimbRate,    2);
-
-        IsReceivingTelemetry = true;
-        TelemetryStatus = "Receiving";
     }
 
     private void ResetTelemetry()
@@ -366,6 +399,7 @@ public partial class TelemetryPageViewModel : ViewModelBase
             _connectionService.ConnectionStateChanged -= OnConnectionStateChanged;
             _telemetryService.TelemetryUpdated -= OnTelemetryUpdated;
             _telemetryService.TelemetryAvailabilityChanged -= OnTelemetryAvailabilityChanged;
+            _telemetryService.TelemetryHealthChanged -= OnTelemetryHealthChanged;
         }
         base.Dispose(disposing);
     }

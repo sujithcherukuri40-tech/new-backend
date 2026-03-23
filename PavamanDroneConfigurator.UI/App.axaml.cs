@@ -720,12 +720,6 @@ public partial class App : Application
         
         try
         {
-            // CRITICAL: Eagerly initialize TelemetryService so it subscribes to ConnectionService events
-            // This ensures telemetry starts working immediately when connection is established
-            Console.WriteLine("[App] ========== INITIALIZING TELEMETRY SERVICE ==========");
-            var telemetryService = Services.GetRequiredService<ITelemetryService>();
-            Console.WriteLine($"[App] ✓ TelemetryService created. IsReceiving={telemetryService.IsReceivingTelemetry}");
-            
             // Get connection service and parameter service for state management
             _connectionService = Services.GetService<IConnectionService>();
             _parameterService = Services.GetService<IParameterService>();

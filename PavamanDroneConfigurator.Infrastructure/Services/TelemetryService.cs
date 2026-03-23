@@ -2,59 +2,129 @@ using Microsoft.Extensions.Logging;
 using PavamanDroneConfigurator.Core.Interfaces;
 using PavamanDroneConfigurator.Core.Models;
 using System.Collections.Concurrent;
-using System.Threading.Tasks;
+using System.Text;
 
 namespace PavamanDroneConfigurator.Infrastructure.Services;
 
-/// <summary>
-/// Telemetry service that aggregates MAVLink messages into a unified telemetry model.
-/// Provides throttled updates (10Hz) to subscribers for efficient UI updates.
-/// Thread-safe and production-ready.
-/// </summary>
-public class TelemetryService : ITelemetryService, IDisposable
+public sealed class TelemetryService : ITelemetryService, IDisposable
 {
+    private const string LogPrefix = "[TelemetrySM]";
+
+    private static readonly EventId ConnectionStateEvent = new(4100, nameof(ConnectionStateEvent));
+    private static readonly EventId TransitionEvent = new(4101, nameof(TransitionEvent));
+    private static readonly EventId StreamRequestEvent = new(4102, nameof(StreamRequestEvent));
+    private static readonly EventId StartupAttemptEvent = new(4103, nameof(StartupAttemptEvent));
+    private static readonly EventId FirstFrameEvent = new(4104, nameof(FirstFrameEvent));
+    private static readonly EventId StaleEvent = new(4105, nameof(StaleEvent));
+    private static readonly EventId HealthSnapshotEvent = new(4106, nameof(HealthSnapshotEvent));
+    private static readonly EventId ParseErrorEvent = new(4107, nameof(ParseErrorEvent));
+
     private readonly ILogger<TelemetryService> _logger;
     private readonly IConnectionService _connectionService;
-    private readonly object _telemetryLock = new();
-    
-    private TelemetryModel _currentTelemetry = new();
+    private readonly object _stateLock = new();
+    private readonly object _lifecycleLock = new();
+    private readonly SemaphoreSlim _streamRequestGate = new(1, 1);
+
     private readonly ConcurrentQueue<(double Lat, double Lon, double Alt, DateTime Time)> _flightPath = new();
-    private const int MaxFlightPathPoints = 5000;
-    
-    // Throttling for 10Hz updates
-    private System.Timers.Timer? _updateTimer;
-    private bool _hasPendingUpdate;
-    private DateTime _lastPositionUpdate = DateTime.MinValue;
-    private DateTime _lastTelemetryAvailableCheck = DateTime.MinValue;
+    private readonly Queue<string> _transitionHistory = new();
+
+    private TelemetryModel _currentTelemetry = new();
+    private TelemetryServiceState _state = TelemetryServiceState.Disconnected;
+    private TelemetryStaleReason _staleReason = TelemetryStaleReason.None;
     private bool _isReceivingTelemetry;
     private bool _disposed;
-    
-    // Throttle interval (100ms = 10Hz)
+    private bool _started;
+    private bool _isSubscribed;
+    private bool _firstValidFrameLogged;
+    private bool _hasPendingUpdate;
+
+    private DateTime _lastAnyValidFrameUtc = DateTime.MinValue;
+    private DateTime _lastHeartbeatUtc = DateTime.MinValue;
+    private DateTime _lastPositionUtc = DateTime.MinValue;
+    private DateTime _lastGpsUtc = DateTime.MinValue;
+    private DateTime _lastAttitudeUtc = DateTime.MinValue;
+    private DateTime _lastVfrUtc = DateTime.MinValue;
+    private DateTime _lastSysStatusUtc = DateTime.MinValue;
+
+    private DateTime _lastEmittedPositionUtc = DateTime.MinValue;
+    private DateTime _lastEmittedAttitudeUtc = DateTime.MinValue;
+    private DateTime _lastHealthSnapshotLogUtc = DateTime.MinValue;
+    private DateTime _nextStreamRequestDueUtc = DateTime.MinValue;
+    private DateTime _nextMaintenanceRequestDueUtc = DateTime.MinValue;
+    private DateTime _lastPositionPathPointUtc = DateTime.MinValue;
+    private string _lastValidFrameType = "None";
+    private string _lastHealthSignature = string.Empty;
+
+    private int _startupAttemptCount;
+    private int _recoveryAttemptCount;
+
+    private CancellationTokenSource? _lifecycleCts;
+    private Task? _stateLoopTask;
+    private System.Timers.Timer? _updateTimer;
+
+    private readonly TelemetryServiceOptions _options;
     private const int UpdateIntervalMs = 100;
-    
-    // Telemetry timeout (if no data for 3 seconds, consider telemetry unavailable)
-    private const int TelemetryTimeoutMs = 3000;
-    private DateTime _lastStreamRequestTime = DateTime.MinValue;
-    private const int STREAM_REQUEST_INTERVAL_SECONDS = 30; // Re-request streams every 30 seconds if no data
+    private const int MaxFlightPathPoints = 5000;
+
+    private static readonly (int StreamId, int RateHz, string Name)[] StreamRequests =
+    {
+        (0, 4, "ALL"),
+        (2, 2, "EXTENDED_STATUS"),
+        (6, 4, "POSITION"),
+        (10, 10, "EXTRA1"),
+        (11, 4, "EXTRA2")
+    };
+
+    private static readonly (int MessageId, int RateHz, string Name)[] MessageIntervals =
+    {
+        (0, 1, "HEARTBEAT"),
+        (1, 2, "SYS_STATUS"),
+        (24, 2, "GPS_RAW_INT"),
+        (30, 10, "ATTITUDE"),
+        (33, 4, "GLOBAL_POSITION_INT"),
+        (74, 4, "VFR_HUD")
+    };
+
+    public TelemetryService(ILogger<TelemetryService> logger, IConnectionService connectionService)
+    {
+        _logger = logger;
+        _connectionService = connectionService;
+        _options = TelemetryServiceOptions.Default;
+
+        _connectionService.ConnectionStateChanged += OnConnectionStateChanged;
+    }
 
     public TelemetryModel CurrentTelemetry
     {
         get
         {
-            lock (_telemetryLock)
+            lock (_stateLock)
             {
                 return _currentTelemetry.Clone();
             }
         }
     }
 
-    public bool IsReceivingTelemetry => _isReceivingTelemetry;
-    
+    public TelemetryServiceState CurrentState
+    {
+        get
+        {
+            lock (_stateLock)
+            {
+                return _state;
+            }
+        }
+    }
+
+    public TelemetryHealthStatus CurrentHealth => BuildHealthSnapshot(DateTime.UtcNow);
+
+    public bool IsReceivingTelemetry => CurrentState == TelemetryServiceState.TelemetryActive;
+
     public bool HasValidPosition
     {
         get
         {
-            lock (_telemetryLock)
+            lock (_stateLock)
             {
                 return _currentTelemetry.HasValidPosition;
             }
@@ -67,221 +137,122 @@ public class TelemetryService : ITelemetryService, IDisposable
     public event EventHandler<BatteryStatusEventArgs>? BatteryStatusChanged;
     public event EventHandler<GpsStatusEventArgs>? GpsStatusChanged;
     public event EventHandler<bool>? TelemetryAvailabilityChanged;
-
-    public TelemetryService(
-        ILogger<TelemetryService> logger,
-        IConnectionService connectionService)
-    {
-        _logger = logger;
-        _connectionService = connectionService;
-        
-        // Subscribe to connection events
-        _connectionService.ConnectionStateChanged += OnConnectionStateChanged;
-        
-        // If the service is lazily created after a connection is already established,
-        // the ConnectionStateChanged event for connected=true has already fired and was
-        // missed.  Start immediately so the service is never stuck in a stopped state.
-        if (_connectionService.IsConnected)
-        {
-            Start();
-        }
-    }
+    public event EventHandler<TelemetryHealthStatus>? TelemetryHealthChanged;
 
     public void Start()
     {
-        if (_updateTimer != null) return;
-        
-        _logger.LogInformation("[TelemetryService] Starting telemetry service");
-        
-        // Subscribe to MAVLink events
-        _connectionService.GlobalPositionIntReceived += OnGlobalPositionInt;
-        _connectionService.AttitudeReceived += OnAttitude;
-        _connectionService.VfrHudReceived += OnVfrHud;
-        _connectionService.GpsRawIntReceived += OnGpsRawInt;
-        _connectionService.SysStatusReceived += OnSysStatus;
-        _connectionService.HeartbeatDataReceived += OnHeartbeatData;
-        
-        // Start update timer (10Hz)
-        _updateTimer = new System.Timers.Timer(UpdateIntervalMs);
-        _updateTimer.Elapsed += OnUpdateTimerElapsed;
-        _updateTimer.Start();
-        
-        // Request telemetry data streams on a background thread
-        _ = Task.Run(RequestTelemetryStreamsAsync)
-            .ContinueWith(
-                t => _logger.LogError(t.Exception, "[TelemetryService] Unexpected error in stream request task"),
-                System.Threading.Tasks.TaskContinuationOptions.OnlyOnFaulted);
-        
-        _logger.LogInformation("[TelemetryService] Telemetry service started (10Hz updates)");
-    }
-    
-    /// <summary>
-    /// Force re-request telemetry streams. Call this when opening a telemetry view
-    /// or if data appears stale. Safe to call multiple times.
-    /// </summary>
-    public void RequestStreams()
-    {
-        if (!_connectionService.IsConnected)
+        lock (_lifecycleLock)
         {
-            _logger.LogWarning("[TelemetryService] Cannot request streams - not connected");
-            return;
-        }
-        
-        var now = DateTime.UtcNow;
-        var timeSinceLastRequest = (now - _lastStreamRequestTime).TotalSeconds;
-        
-        // Throttle requests to avoid spamming the FC
-        if (timeSinceLastRequest < 5)
-        {
-            _logger.LogDebug("[TelemetryService] Stream request throttled - last request was {Seconds:F1}s ago", timeSinceLastRequest);
-            return;
-        }
-        
-        _logger.LogInformation("[TelemetryService] Force re-requesting telemetry streams...");
-        _ = Task.Run(RequestTelemetryStreamsAsync);
-    }
+            if (_disposed || _started)
+            {
+                return;
+            }
 
-    /// <summary>
-    /// Request telemetry data streams from the drone (runs on a background thread).
-    /// ArduPilot requires explicit stream requests to start sending telemetry.
-    /// </summary>
-    private async Task RequestTelemetryStreamsAsync()
-    {
-        try
-        {
-            _lastStreamRequestTime = DateTime.UtcNow;
-            _logger.LogInformation("[TelemetryService] ========== REQUESTING TELEMETRY STREAMS ==========");
-            
-            // Wait a bit for connection to stabilize (non-blocking)
-            await Task.Delay(500);
-            
-            if (!_connectionService.IsConnected)
-            {
-                _logger.LogWarning("[TelemetryService] Connection lost before stream requests could be sent");
-                return;
-            }
-            
-            _logger.LogInformation("[TelemetryService] Sending REQUEST_DATA_STREAM commands...");
-            
-            // Request ALL stream (covers everything) at 4Hz
-            _connectionService.SendRequestDataStream(0, 4, 1);
-            _logger.LogInformation("[TelemetryService] SENT: Stream 0 (ALL) at 4Hz");
-            await Task.Delay(50);
-            
-            // Request POSITION stream (GLOBAL_POSITION_INT) at 4Hz
-            _connectionService.SendRequestDataStream(6, 4, 1);
-            _logger.LogInformation("[TelemetryService] SENT: Stream 6 (POSITION) at 4Hz");
-            await Task.Delay(50);
-            
-            // Request EXTENDED_STATUS stream (SYS_STATUS, GPS_RAW_INT) at 2Hz
-            _connectionService.SendRequestDataStream(2, 2, 1);
-            _logger.LogInformation("[TelemetryService] SENT: Stream 2 (EXTENDED_STATUS) at 2Hz");
-            await Task.Delay(50);
-            
-            // Request EXTRA1 stream (ATTITUDE) at 10Hz for smooth attitude updates
-            _connectionService.SendRequestDataStream(10, 10, 1);
-            _logger.LogInformation("[TelemetryService] SENT: Stream 10 (EXTRA1/ATTITUDE) at 10Hz");
-            await Task.Delay(50);
-            
-            // Request EXTRA2 stream (VFR_HUD) at 4Hz
-            _connectionService.SendRequestDataStream(11, 4, 1);
-            _logger.LogInformation("[TelemetryService] SENT: Stream 11 (EXTRA2/VFR_HUD) at 4Hz");
-            await Task.Delay(50);
-            
-            // Request RC_CHANNELS at 2Hz
-            _connectionService.SendRequestDataStream(3, 2, 1);
-            _logger.LogInformation("[TelemetryService] SENT: Stream 3 (RC_CHANNELS) at 2Hz");
-            await Task.Delay(50);
-            
-            // Request RAW_SENSORS stream at 2Hz
-            _connectionService.SendRequestDataStream(1, 2, 1);
-            _logger.LogInformation("[TelemetryService] SENT: Stream 1 (RAW_SENSORS) at 2Hz");
-            
-            // Small delay between REQUEST_DATA_STREAM and SET_MESSAGE_INTERVAL (non-blocking)
-            await Task.Delay(300);
-            
-            if (!_connectionService.IsConnected)
-            {
-                _logger.LogWarning("[TelemetryService] Connection lost before SET_MESSAGE_INTERVAL could be sent");
-                return;
-            }
-            
-            _logger.LogInformation("[TelemetryService] Sending SET_MESSAGE_INTERVAL commands...");
-            
-            // Also use SET_MESSAGE_INTERVAL for specific messages (more reliable on newer firmware)
-            // GLOBAL_POSITION_INT (33) at 4Hz (250000 us)
-            _connectionService.SendSetMessageInterval(33, 250000);
-            _logger.LogInformation("[TelemetryService] SENT: MSG 33 (GLOBAL_POSITION_INT) at 250ms");
-            await Task.Delay(50);
-            
-            // ATTITUDE (30) at 10Hz (100000 us)
-            _connectionService.SendSetMessageInterval(30, 100000);
-            _logger.LogInformation("[TelemetryService] SENT: MSG 30 (ATTITUDE) at 100ms");
-            await Task.Delay(50);
-            
-            // VFR_HUD (74) at 4Hz (250000 us)
-            _connectionService.SendSetMessageInterval(74, 250000);
-            _logger.LogInformation("[TelemetryService] SENT: MSG 74 (VFR_HUD) at 250ms");
-            await Task.Delay(50);
-            
-            // SYS_STATUS (1) at 2Hz (500000 us)
-            _connectionService.SendSetMessageInterval(1, 500000);
-            _logger.LogInformation("[TelemetryService] SENT: MSG 1 (SYS_STATUS) at 500ms");
-            await Task.Delay(50);
-            
-            // GPS_RAW_INT (24) at 2Hz (500000 us)
-            _connectionService.SendSetMessageInterval(24, 500000);
-            _logger.LogInformation("[TelemetryService] SENT: MSG 24 (GPS_RAW_INT) at 500ms");
-            await Task.Delay(50);
-            
-            // HEARTBEAT (0) - ensure we get heartbeat with full data
-            _connectionService.SendSetMessageInterval(0, 1000000);
-            _logger.LogInformation("[TelemetryService] SENT: MSG 0 (HEARTBEAT) at 1000ms");
-            
-            _logger.LogWarning("[TelemetryService] ========== ALL STREAM REQUESTS SENT ==========");
-            _logger.LogWarning("[TelemetryService] If you still see zeros:");
-            _logger.LogWarning("[TelemetryService]   1. Check drone has GPS lock (needs satellites)");
-            _logger.LogWarning("[TelemetryService]   2. Check drone is powered on and armed");
-            _logger.LogWarning("[TelemetryService]   3. Try restarting the drone");
-            _logger.LogWarning("[TelemetryService]   4. Check MAVLink parameter SR0_* or SR1_* stream rates");
+            SubscribeTelemetryEvents();
+
+            _lifecycleCts = new CancellationTokenSource();
+            _updateTimer = new System.Timers.Timer(UpdateIntervalMs);
+            _updateTimer.Elapsed += OnUpdateTimerElapsed;
+            _updateTimer.Start();
+
+            _stateLoopTask = Task.Run(() => RunStateLoopAsync(_lifecycleCts.Token));
+            _started = true;
         }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "[TelemetryService] ERROR requesting telemetry streams");
-        }
+
+        _logger.LogInformation(ConnectionStateEvent, "{Prefix} Started", LogPrefix);
     }
 
     public void Stop()
     {
-        _logger.LogInformation("[TelemetryService] Stopping telemetry service");
-        
-        // Unsubscribe from MAVLink events
-        _connectionService.GlobalPositionIntReceived -= OnGlobalPositionInt;
-        _connectionService.AttitudeReceived -= OnAttitude;
-        _connectionService.VfrHudReceived -= OnVfrHud;
-        _connectionService.GpsRawIntReceived -= OnGpsRawInt;
-        _connectionService.SysStatusReceived -= OnSysStatus;
-        _connectionService.HeartbeatDataReceived -= OnHeartbeatData;
-        
-        // Stop timer
-        _updateTimer?.Stop();
-        _updateTimer?.Dispose();
-        _updateTimer = null;
-        
-        _isReceivingTelemetry = false;
-        TelemetryAvailabilityChanged?.Invoke(this, false);
+        CancellationTokenSource? cts;
+        Task? loopTask;
+
+        lock (_lifecycleLock)
+        {
+            if (!_started)
+            {
+                return;
+            }
+
+            cts = _lifecycleCts;
+            loopTask = _stateLoopTask;
+            _lifecycleCts = null;
+            _stateLoopTask = null;
+
+            _updateTimer?.Stop();
+            _updateTimer?.Dispose();
+            _updateTimer = null;
+
+            UnsubscribeTelemetryEvents();
+            _started = false;
+        }
+
+        cts?.Cancel();
+        try
+        {
+            loopTask?.Wait(TimeSpan.FromSeconds(2));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "{Prefix} State loop stop wait interrupted", LogPrefix);
+        }
+        finally
+        {
+            cts?.Dispose();
+        }
+
+        TransitionState(TelemetryServiceState.Disconnected, "service stop", TelemetryStaleReason.None);
     }
 
     public void Clear()
     {
-        lock (_telemetryLock)
+        lock (_stateLock)
         {
             _currentTelemetry = new TelemetryModel();
+            _hasPendingUpdate = false;
+            _firstValidFrameLogged = false;
+            _lastAnyValidFrameUtc = DateTime.MinValue;
+            _lastHeartbeatUtc = DateTime.MinValue;
+            _lastPositionUtc = DateTime.MinValue;
+            _lastGpsUtc = DateTime.MinValue;
+            _lastAttitudeUtc = DateTime.MinValue;
+            _lastVfrUtc = DateTime.MinValue;
+            _lastSysStatusUtc = DateTime.MinValue;
+            _lastValidFrameType = "None";
+            _startupAttemptCount = 0;
+            _recoveryAttemptCount = 0;
+            _nextStreamRequestDueUtc = DateTime.MinValue;
+            _nextMaintenanceRequestDueUtc = DateTime.MinValue;
+            _lastHealthSnapshotLogUtc = DateTime.MinValue;
+            _lastEmittedPositionUtc = DateTime.MinValue;
+            _lastEmittedAttitudeUtc = DateTime.MinValue;
+            _lastPositionPathPointUtc = DateTime.MinValue;
         }
-        
+
         ClearFlightPath();
-        _isReceivingTelemetry = false;
-        TelemetryAvailabilityChanged?.Invoke(this, false);
+        PublishHealthIfChanged();
+    }
+
+    public void RequestStreams()
+    {
+        if (!_connectionService.IsConnected)
+        {
+            _logger.LogWarning(StreamRequestEvent, "{Prefix} RequestStreams ignored, disconnected", LogPrefix);
+            return;
+        }
+
+        Start();
+        HandleConnected();
+
+        lock (_stateLock)
+        {
+            _nextStreamRequestDueUtc = DateTime.UtcNow;
+        }
+
+        TransitionState(TelemetryServiceState.NegotiatingStreams, "manual stream request", TelemetryStaleReason.None);
+
+        var ct = _lifecycleCts?.Token ?? CancellationToken.None;
+        _ = Task.Run(() => SendStreamNegotiationBurstAsync("manual request", ct));
     }
 
     public IReadOnlyList<(double Latitude, double Longitude, double Altitude, DateTime Timestamp)> GetFlightPath()
@@ -291,210 +262,499 @@ public class TelemetryService : ITelemetryService, IDisposable
 
     public void ClearFlightPath()
     {
-        while (_flightPath.TryDequeue(out _)) { }
+        while (_flightPath.TryDequeue(out _))
+        {
+        }
     }
 
-    #region MAVLink Event Handlers
+    public string GetTelemetryDebugDump()
+    {
+        var snapshot = BuildHealthSnapshot(DateTime.UtcNow);
+        List<string> transitions;
+        lock (_stateLock)
+        {
+            transitions = _transitionHistory.ToList();
+        }
+
+        var builder = new StringBuilder();
+        builder.AppendLine("Telemetry Debug Dump");
+        builder.AppendLine($"State: {snapshot.State}");
+        builder.AppendLine($"Connected: {snapshot.IsConnected}");
+        builder.AppendLine($"Receiving: {snapshot.IsReceivingTelemetry}");
+        builder.AppendLine($"StaleReason: {snapshot.StaleReason}");
+        builder.AppendLine($"LastValidFrame: {snapshot.LastValidFrameType} @ {snapshot.LastValidFrameTime:O}");
+        builder.AppendLine($"Ages(s): hb={snapshot.HeartbeatAge.TotalSeconds:F1}, pos={snapshot.PositionAge.TotalSeconds:F1}, gps={snapshot.GpsAge.TotalSeconds:F1}, att={snapshot.AttitudeAge.TotalSeconds:F1}, vfr={snapshot.VfrAge.TotalSeconds:F1}, sys={snapshot.SysStatusAge.TotalSeconds:F1}");
+        builder.AppendLine($"Retries: startup={snapshot.StartupAttemptCount}, recovery={snapshot.RecoveryAttemptCount}");
+        builder.AppendLine("Configured message rates:");
+        foreach (var msg in MessageIntervals)
+        {
+            builder.AppendLine($" - {msg.Name} ({msg.MessageId}): {msg.RateHz}Hz");
+        }
+
+        builder.AppendLine("Recent transitions:");
+        foreach (var transition in transitions)
+        {
+            builder.AppendLine($" - {transition}");
+        }
+
+        return builder.ToString();
+    }
+
+    private async Task RunStateLoopAsync(CancellationToken ct)
+    {
+        while (!ct.IsCancellationRequested)
+        {
+            try
+            {
+                await ProcessStateLoopTickAsync(ct);
+                await Task.Delay(_options.StateLoopInterval, ct);
+            }
+            catch (OperationCanceledException)
+            {
+                break;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "{Prefix} State loop error", LogPrefix);
+            }
+        }
+    }
+
+    private async Task ProcessStateLoopTickAsync(CancellationToken ct)
+    {
+        if (!_connectionService.IsConnected)
+        {
+            return;
+        }
+
+        var now = DateTime.UtcNow;
+
+        if (ShouldTransitionToStale(now, out var staleReason))
+        {
+            TransitionState(TelemetryServiceState.TelemetryStaleRecovering, "stale timeout exceeded", staleReason);
+            lock (_stateLock)
+            {
+                _nextStreamRequestDueUtc = now;
+            }
+        }
+
+        if (TryScheduleBurst(now, out var reason, out var attempt, out var isStartup))
+        {
+            if (isStartup)
+            {
+                _logger.LogInformation(StartupAttemptEvent, "{Prefix} Startup attempt #{Attempt} ({Reason})", LogPrefix, attempt, reason);
+            }
+
+            await SendStreamNegotiationBurstAsync(reason, ct);
+        }
+
+        if (ShouldLogHealthSnapshot(now))
+        {
+            LogHealthSnapshot(now);
+        }
+    }
+
+    private bool TryScheduleBurst(DateTime now, out string reason, out int attempt, out bool isStartup)
+    {
+        reason = string.Empty;
+        attempt = 0;
+        isStartup = false;
+
+        lock (_stateLock)
+        {
+            if (_state == TelemetryServiceState.ConnectedAwaitingTelemetry && now >= _nextStreamRequestDueUtc)
+            {
+                _state = TelemetryServiceState.NegotiatingStreams;
+                _startupAttemptCount++;
+                attempt = _startupAttemptCount;
+                isStartup = true;
+                reason = "startup immediate";
+                _nextStreamRequestDueUtc = now + (_startupAttemptCount < _options.MaxRapidStartupRetries
+                    ? _options.StartupRetryInterval
+                    : _options.SlowRetryInterval);
+                AddTransitionUnsafe(TelemetryServiceState.ConnectedAwaitingTelemetry, TelemetryServiceState.NegotiatingStreams, "initial burst");
+                return true;
+            }
+
+            if (_state == TelemetryServiceState.NegotiatingStreams && now >= _nextStreamRequestDueUtc)
+            {
+                _startupAttemptCount++;
+                attempt = _startupAttemptCount;
+                isStartup = true;
+                reason = _startupAttemptCount <= _options.MaxRapidStartupRetries ? "startup retry" : "startup low-frequency retry";
+                _nextStreamRequestDueUtc = now + (_startupAttemptCount < _options.MaxRapidStartupRetries
+                    ? _options.StartupRetryInterval
+                    : _options.SlowRetryInterval);
+                return true;
+            }
+
+            if (_state == TelemetryServiceState.TelemetryActive && now >= _nextMaintenanceRequestDueUtc)
+            {
+                reason = "active maintenance refresh";
+                _nextMaintenanceRequestDueUtc = now + _options.MaintenanceRefreshInterval;
+                return true;
+            }
+
+            if (_state == TelemetryServiceState.TelemetryStaleRecovering && now >= _nextStreamRequestDueUtc)
+            {
+                _recoveryAttemptCount++;
+                attempt = _recoveryAttemptCount;
+                reason = "stale recovery";
+                _nextStreamRequestDueUtc = now + _options.RecoveryRetryInterval;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private bool ShouldTransitionToStale(DateTime now, out TelemetryStaleReason staleReason)
+    {
+        staleReason = TelemetryStaleReason.None;
+        lock (_stateLock)
+        {
+            if (_state != TelemetryServiceState.TelemetryActive || _lastAnyValidFrameUtc == DateTime.MinValue)
+            {
+                return false;
+            }
+
+            if (now - _lastAnyValidFrameUtc <= _options.StaleTimeout)
+            {
+                return false;
+            }
+
+            staleReason = ComputeStaleReasonUnsafe(now);
+            return true;
+        }
+    }
+
+    private bool ShouldLogHealthSnapshot(DateTime now)
+    {
+        lock (_stateLock)
+        {
+            if (!_connectionService.IsConnected)
+            {
+                return false;
+            }
+
+            if (_lastHealthSnapshotLogUtc != DateTime.MinValue && now - _lastHealthSnapshotLogUtc < _options.HealthSnapshotInterval)
+            {
+                return false;
+            }
+
+            _lastHealthSnapshotLogUtc = now;
+            return true;
+        }
+    }
+
+    private void LogHealthSnapshot(DateTime now)
+    {
+        var health = BuildHealthSnapshot(now);
+        _logger.LogInformation(HealthSnapshotEvent,
+            "{Prefix} Health ages(s): hb={Hb:F1}, pos={Pos:F1}, gps={Gps:F1}, att={Att:F1}, vfr={Vfr:F1}, sys={Sys:F1}, state={State}, stale={Stale}",
+            LogPrefix,
+            health.HeartbeatAge.TotalSeconds,
+            health.PositionAge.TotalSeconds,
+            health.GpsAge.TotalSeconds,
+            health.AttitudeAge.TotalSeconds,
+            health.VfrAge.TotalSeconds,
+            health.SysStatusAge.TotalSeconds,
+            health.State,
+            health.StaleReason);
+    }
+
+    private async Task SendStreamNegotiationBurstAsync(string reason, CancellationToken ct)
+    {
+        if (!_connectionService.IsConnected)
+        {
+            return;
+        }
+
+        var gateTaken = false;
+        try
+        {
+            gateTaken = await _streamRequestGate.WaitAsync(TimeSpan.FromSeconds(1), ct);
+            if (!gateTaken)
+            {
+                return;
+            }
+
+            _logger.LogInformation(StreamRequestEvent, "{Prefix} Sending ASV negotiation burst ({Reason})", LogPrefix, reason);
+
+            foreach (var stream in StreamRequests)
+            {
+                _connectionService.SendTelemetryNegotiationCommand(
+                    TelemetryNegotiationCommand.ForDataStream(stream.StreamId, stream.RateHz, 1, stream.Name));
+                await Task.Delay(_options.BurstCommandGap, ct);
+            }
+
+            foreach (var message in MessageIntervals)
+            {
+                _connectionService.SendTelemetryNegotiationCommand(
+                    TelemetryNegotiationCommand.ForMessageInterval(message.MessageId, message.RateHz, message.Name));
+                await Task.Delay(_options.BurstCommandGap, ct);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "{Prefix} Stream negotiation burst failed ({Reason})", LogPrefix, reason);
+        }
+        finally
+        {
+            if (gateTaken)
+            {
+                _streamRequestGate.Release();
+            }
+        }
+    }
 
     private void OnGlobalPositionInt(object? sender, GlobalPositionIntEventArgs e)
     {
-        lock (_telemetryLock)
+        try
         {
-            _currentTelemetry.Latitude = e.Latitude;
-            _currentTelemetry.Longitude = e.Longitude;
-            _currentTelemetry.AltitudeMsl = e.AltitudeMsl;
-            _currentTelemetry.AltitudeRelative = e.AltitudeRelative;
-            _currentTelemetry.GroundSpeedX = e.VelocityX;
-            _currentTelemetry.GroundSpeedY = e.VelocityY;
-            _currentTelemetry.VerticalSpeed = e.VelocityZ;
-            _currentTelemetry.Heading = e.Heading;
-            _currentTelemetry.LastPositionUpdate = DateTime.UtcNow;
-        }
-        
-        // Log every position update to ensure we're receiving them
-        _logger.LogInformation("[TelemetryService] [OK] POSITION: Lat={Lat:F6}, Lon={Lon:F6}, Alt={Alt:F1}m, Hdg={Hdg:F0}deg", 
-            e.Latitude, e.Longitude, e.AltitudeRelative, e.Heading);
-        
-        // Add to flight path (throttled)
-        var now = DateTime.UtcNow;
-        if ((now - _lastPositionUpdate).TotalMilliseconds > 500 && 
-            Math.Abs(e.Latitude) > 0.0001 && Math.Abs(e.Longitude) > 0.0001)
-        {
-            _lastPositionUpdate = now;
-            
-            // Add to path, removing old points if needed
-            while (_flightPath.Count >= MaxFlightPathPoints)
+            var now = DateTime.UtcNow;
+            if (!IsValidPositionFrame(e))
             {
-                _flightPath.TryDequeue(out _);
+                return;
             }
-            _flightPath.Enqueue((e.Latitude, e.Longitude, e.AltitudeRelative, now));
-            
-            _logger.LogInformation("[TelemetryService] Valid position added to flight path: {Count} points", _flightPath.Count);
+
+            lock (_stateLock)
+            {
+                _currentTelemetry.Latitude = e.Latitude;
+                _currentTelemetry.Longitude = e.Longitude;
+                _currentTelemetry.AltitudeMsl = e.AltitudeMsl;
+                _currentTelemetry.AltitudeRelative = e.AltitudeRelative;
+                _currentTelemetry.GroundSpeedX = e.VelocityX;
+                _currentTelemetry.GroundSpeedY = e.VelocityY;
+                _currentTelemetry.VerticalSpeed = e.VelocityZ;
+                if (!double.IsNaN(e.Heading) && e.Heading is >= 0 and <= 360)
+                {
+                    _currentTelemetry.Heading = e.Heading;
+                }
+                _currentTelemetry.LastPositionUpdate = now;
+                _lastPositionUtc = now;
+                _hasPendingUpdate = true;
+            }
+
+            AddFlightPathPoint(e, now);
+            MarkValidFrame("GLOBAL_POSITION_INT", now);
         }
-        
-        _hasPendingUpdate = true;
-        UpdateTelemetryAvailability();
+        catch (Exception ex)
+        {
+            _logger.LogError(ParseErrorEvent, ex,
+                "{Prefix} Parse failure msg=33 lat={Lat} lon={Lon} alt={Alt}",
+                LogPrefix, e.Latitude, e.Longitude, e.AltitudeRelative);
+        }
     }
 
     private void OnAttitude(object? sender, AttitudeEventArgs e)
     {
-        lock (_telemetryLock)
+        try
         {
-            _currentTelemetry.Roll = e.Roll;
-            _currentTelemetry.Pitch = e.Pitch;
-            _currentTelemetry.Yaw = e.Yaw;
-            _currentTelemetry.RollSpeed = e.RollSpeed;
-            _currentTelemetry.PitchSpeed = e.PitchSpeed;
-            _currentTelemetry.YawSpeed = e.YawSpeed;
-            _currentTelemetry.LastAttitudeUpdate = DateTime.UtcNow;
+            if (!IsValidAttitudeFrame(e))
+            {
+                return;
+            }
+
+            var now = DateTime.UtcNow;
+            lock (_stateLock)
+            {
+                _currentTelemetry.Roll = e.Roll;
+                _currentTelemetry.Pitch = e.Pitch;
+                _currentTelemetry.Yaw = NormalizeYaw(e.Yaw);
+                _currentTelemetry.RollSpeed = e.RollSpeed;
+                _currentTelemetry.PitchSpeed = e.PitchSpeed;
+                _currentTelemetry.YawSpeed = e.YawSpeed;
+                _currentTelemetry.LastAttitudeUpdate = now;
+                _lastAttitudeUtc = now;
+                _hasPendingUpdate = true;
+            }
+
+            MarkValidFrame("ATTITUDE", now);
         }
-        
-        // Log attitude data (every 2 seconds to avoid spam)
-        if (DateTime.UtcNow.Millisecond < 200)
+        catch (Exception ex)
         {
-            _logger.LogInformation("[TelemetryService] [OK] ATTITUDE: Roll={Roll:F1}deg, Pitch={Pitch:F1}deg, Yaw={Yaw:F1}deg", 
-                e.Roll * 180 / Math.PI, e.Pitch * 180 / Math.PI, e.Yaw * 180 / Math.PI);
+            _logger.LogError(ParseErrorEvent, ex,
+                "{Prefix} Parse failure msg=30 roll={Roll} pitch={Pitch} yaw={Yaw}",
+                LogPrefix, e.Roll, e.Pitch, e.Yaw);
         }
-        
-        _hasPendingUpdate = true;
-        UpdateTelemetryAvailability();
     }
 
     private void OnVfrHud(object? sender, VfrHudEventArgs e)
     {
-        lock (_telemetryLock)
+        try
         {
-            _currentTelemetry.Airspeed = e.Airspeed;
-            _currentTelemetry.GroundSpeed = e.GroundSpeed;
-            _currentTelemetry.Throttle = e.Throttle;
-            _currentTelemetry.ClimbRate = e.ClimbRate;
+            if (!IsValidVfrFrame(e))
+            {
+                return;
+            }
+
+            var now = DateTime.UtcNow;
+            lock (_stateLock)
+            {
+                _currentTelemetry.Airspeed = e.Airspeed;
+                _currentTelemetry.GroundSpeed = e.GroundSpeed;
+                _currentTelemetry.Throttle = Math.Clamp(e.Throttle, 0, 100);
+                _currentTelemetry.ClimbRate = e.ClimbRate;
+                _lastVfrUtc = now;
+                _hasPendingUpdate = true;
+            }
+
+            MarkValidFrame("VFR_HUD", now);
         }
-        
-        // Log speed data
-        _logger.LogInformation("[TelemetryService] [OK] VFR_HUD: GndSpd={GndSpd:F1}m/s, AirSpd={AirSpd:F1}m/s, Thr={Thr}%, Climb={CR:F1}m/s", 
-            e.GroundSpeed, e.Airspeed, e.Throttle, e.ClimbRate);
-        
-        _hasPendingUpdate = true;
-        UpdateTelemetryAvailability();
+        catch (Exception ex)
+        {
+            _logger.LogError(ParseErrorEvent, ex,
+                "{Prefix} Parse failure msg=74 gnd={Ground} air={Air} thr={Throttle}",
+                LogPrefix, e.GroundSpeed, e.Airspeed, e.Throttle);
+        }
     }
 
     private void OnGpsRawInt(object? sender, GpsRawIntEventArgs e)
     {
-        lock (_telemetryLock)
+        try
         {
-            _currentTelemetry.GpsFixType = e.FixType;
-            _currentTelemetry.SatelliteCount = e.SatellitesVisible;
-            _currentTelemetry.Hdop = e.Hdop;
-            _currentTelemetry.Vdop = e.Vdop;
-            _currentTelemetry.GpsAltitude = e.Altitude;
-            _currentTelemetry.LastGpsUpdate = DateTime.UtcNow;
+            if (!IsValidGpsFrame(e))
+            {
+                return;
+            }
+
+            var now = DateTime.UtcNow;
+            lock (_stateLock)
+            {
+                _currentTelemetry.GpsFixType = e.FixType;
+                _currentTelemetry.SatelliteCount = e.SatellitesVisible;
+                if (!double.IsNaN(e.Hdop) && e.Hdop >= 0)
+                {
+                    _currentTelemetry.Hdop = e.Hdop;
+                }
+                if (!double.IsNaN(e.Vdop) && e.Vdop >= 0)
+                {
+                    _currentTelemetry.Vdop = e.Vdop;
+                }
+                _currentTelemetry.GpsAltitude = e.Altitude;
+                _currentTelemetry.LastGpsUpdate = now;
+                _lastGpsUtc = now;
+                _hasPendingUpdate = true;
+            }
+
+            GpsStatusChanged?.Invoke(this, new GpsStatusEventArgs
+            {
+                FixType = e.FixType,
+                SatelliteCount = e.SatellitesVisible,
+                Hdop = double.IsNaN(e.Hdop) ? 0 : e.Hdop,
+                HasValidFix = e.FixType >= 2
+            });
+
+            MarkValidFrame("GPS_RAW_INT", now);
         }
-        
-        // Log GPS status
-        _logger.LogInformation("[TelemetryService] [OK] GPS_RAW_INT: Fix={FixType}, Sats={Sats}, HDOP={HDOP:F1}", 
-            e.FixType, e.SatellitesVisible, e.Hdop);
-        
-        // Raise GPS status event
-        GpsStatusChanged?.Invoke(this, new GpsStatusEventArgs
+        catch (Exception ex)
         {
-            FixType = e.FixType,
-            SatelliteCount = e.SatellitesVisible,
-            Hdop = e.Hdop,
-            HasValidFix = e.FixType >= 2
-        });
-        
-        _hasPendingUpdate = true;
-        UpdateTelemetryAvailability();
+            _logger.LogError(ParseErrorEvent, ex,
+                "{Prefix} Parse failure msg=24 fix={Fix} sats={Sats} hdop={Hdop} vdop={Vdop}",
+                LogPrefix, e.FixType, e.SatellitesVisible, e.Hdop, e.Vdop);
+        }
     }
 
     private void OnSysStatus(object? sender, SysStatusEventArgs e)
     {
-        lock (_telemetryLock)
+        try
         {
-            _currentTelemetry.BatteryVoltage = e.BatteryVoltage;
-            _currentTelemetry.BatteryCurrent = e.BatteryCurrent;
-            _currentTelemetry.BatteryRemaining = e.BatteryRemaining;
+            if (!IsValidSysStatusFrame(e))
+            {
+                return;
+            }
+
+            var now = DateTime.UtcNow;
+            lock (_stateLock)
+            {
+                _currentTelemetry.BatteryVoltage = e.BatteryVoltage;
+                if (!double.IsNaN(e.BatteryCurrent) && e.BatteryCurrent >= 0)
+                {
+                    _currentTelemetry.BatteryCurrent = e.BatteryCurrent;
+                }
+                _currentTelemetry.BatteryRemaining = e.BatteryRemaining >= 0 ? e.BatteryRemaining : -1;
+                _lastSysStatusUtc = now;
+                _hasPendingUpdate = true;
+            }
+
+            BatteryStatusChanged?.Invoke(this, new BatteryStatusEventArgs
+            {
+                Voltage = e.BatteryVoltage,
+                Current = double.IsNaN(e.BatteryCurrent) ? -1 : e.BatteryCurrent,
+                RemainingPercent = e.BatteryRemaining >= 0 ? e.BatteryRemaining : -1
+            });
+
+            MarkValidFrame("SYS_STATUS", now);
         }
-        
-        // Log battery status
-        _logger.LogInformation("[TelemetryService] [OK] SYS_STATUS (Battery): {Voltage:F1}V, {Current:F1}A, {Remaining}%", 
-            e.BatteryVoltage, e.BatteryCurrent, e.BatteryRemaining);
-        
-        // Raise battery status event
-        BatteryStatusChanged?.Invoke(this, new BatteryStatusEventArgs
+        catch (Exception ex)
         {
-            Voltage = e.BatteryVoltage,
-            Current = e.BatteryCurrent,
-            RemainingPercent = e.BatteryRemaining
-        });
-        
-        _hasPendingUpdate = true;
-        UpdateTelemetryAvailability();
+            _logger.LogError(ParseErrorEvent, ex,
+                "{Prefix} Parse failure msg=1 voltage={Voltage} current={Current} remaining={Remaining}",
+                LogPrefix, e.BatteryVoltage, e.BatteryCurrent, e.BatteryRemaining);
+        }
     }
 
     private void OnHeartbeatData(object? sender, HeartbeatDataEventArgs e)
     {
-        lock (_telemetryLock)
+        try
         {
-            _currentTelemetry.IsArmed = e.IsArmed;
-            _currentTelemetry.FlightMode = GetFlightModeName(e.VehicleType, e.CustomMode);
-            _currentTelemetry.VehicleType = GetVehicleTypeName(e.VehicleType);
-            _currentTelemetry.LastHeartbeatUpdate = DateTime.UtcNow;
+            if (!IsValidHeartbeatFrame(e))
+            {
+                return;
+            }
+
+            var now = DateTime.UtcNow;
+            lock (_stateLock)
+            {
+                _currentTelemetry.IsArmed = e.IsArmed;
+                _currentTelemetry.FlightMode = GetFlightModeName(e.VehicleType, e.CustomMode);
+                _currentTelemetry.VehicleType = GetVehicleTypeName(e.VehicleType);
+                _currentTelemetry.SystemStatus = GetSystemStatusName(e.SystemStatus);
+                _currentTelemetry.LastHeartbeatUpdate = now;
+                _lastHeartbeatUtc = now;
+                _hasPendingUpdate = true;
+            }
+
+            MarkValidFrame("HEARTBEAT", now);
         }
-        
-        // Log heartbeat data
-        _logger.LogInformation("[TelemetryService] [OK] HEARTBEAT: Armed={Armed}, Mode={Mode}, Type={Type}", 
-            e.IsArmed, _currentTelemetry.FlightMode, _currentTelemetry.VehicleType);
-        
-        _hasPendingUpdate = true;
-        UpdateTelemetryAvailability();
+        catch (Exception ex)
+        {
+            _logger.LogError(ParseErrorEvent, ex,
+                "{Prefix} Parse failure msg=0 vehicle={Vehicle} mode={Mode} status={Status}",
+                LogPrefix, e.VehicleType, e.CustomMode, e.SystemStatus);
+        }
     }
-
-    #endregion
-
-    #region Timer and Update Logic
 
     private void OnUpdateTimerElapsed(object? sender, System.Timers.ElapsedEventArgs e)
     {
-        // Check if we need to re-request streams (no telemetry data for a while)
-        var now = DateTime.UtcNow;
-        DateTime lastUpdate;
-        lock (_telemetryLock)
-        {
-            lastUpdate = new[]
-            {
-                _currentTelemetry.LastPositionUpdate,
-                _currentTelemetry.LastAttitudeUpdate,
-                _currentTelemetry.LastHeartbeatUpdate
-            }.Max();
-        }
-        
-        // If we have connection but no telemetry for STREAM_REQUEST_INTERVAL_SECONDS, re-request streams
-        if (_connectionService.IsConnected && 
-            lastUpdate != DateTime.MinValue && 
-            (now - lastUpdate).TotalSeconds > STREAM_REQUEST_INTERVAL_SECONDS &&
-            (now - _lastStreamRequestTime).TotalSeconds > STREAM_REQUEST_INTERVAL_SECONDS)
-        {
-            _logger.LogWarning("[TelemetryService] No telemetry data for {Seconds}s - re-requesting streams", 
-                (now - lastUpdate).TotalSeconds);
-            _ = Task.Run(RequestTelemetryStreamsAsync);
-        }
-        
-        if (!_hasPendingUpdate) return;
-        _hasPendingUpdate = false;
-        
         TelemetryModel snapshot;
-        lock (_telemetryLock)
+        bool hasUpdate;
+        DateTime positionTimestamp;
+        DateTime attitudeTimestamp;
+
+        lock (_stateLock)
         {
+            hasUpdate = _hasPendingUpdate;
+            if (!hasUpdate)
+            {
+                return;
+            }
+
+            _hasPendingUpdate = false;
             snapshot = _currentTelemetry.Clone();
+            positionTimestamp = snapshot.LastPositionUpdate;
+            attitudeTimestamp = snapshot.LastAttitudeUpdate;
         }
-        
-        // Raise consolidated update event
+
         TelemetryUpdated?.Invoke(this, snapshot);
-        
-        // Raise position changed if we have valid position
-        if (snapshot.HasValidPosition)
+
+        if (snapshot.HasValidPosition && positionTimestamp > _lastEmittedPositionUtc)
         {
+            _lastEmittedPositionUtc = positionTimestamp;
             PositionChanged?.Invoke(this, new PositionChangedEventArgs
             {
                 Latitude = snapshot.Latitude,
@@ -505,73 +765,389 @@ public class TelemetryService : ITelemetryService, IDisposable
                 Timestamp = snapshot.LastPositionUpdate
             });
         }
-        
-        // Raise attitude changed
-        AttitudeChanged?.Invoke(this, new AttitudeChangedEventArgs
-        {
-            Roll = snapshot.Roll,
-            Pitch = snapshot.Pitch,
-            Yaw = snapshot.Yaw,
-            Timestamp = snapshot.LastAttitudeUpdate
-        });
-    }
 
-    private void UpdateTelemetryAvailability()
-    {
-        var now = DateTime.UtcNow;
-        if ((now - _lastTelemetryAvailableCheck).TotalMilliseconds < 500)
-            return;
-        
-        _lastTelemetryAvailableCheck = now;
-        
-        var wasReceiving = _isReceivingTelemetry;
-        
-        lock (_telemetryLock)
+        if (attitudeTimestamp > _lastEmittedAttitudeUtc)
         {
-            var lastUpdate = new[]
+            _lastEmittedAttitudeUtc = attitudeTimestamp;
+            AttitudeChanged?.Invoke(this, new AttitudeChangedEventArgs
             {
-                _currentTelemetry.LastPositionUpdate,
-                _currentTelemetry.LastAttitudeUpdate,
-                _currentTelemetry.LastHeartbeatUpdate
-            }.Max();
-            
-            _isReceivingTelemetry = (now - lastUpdate).TotalMilliseconds < TelemetryTimeoutMs;
-        }
-        
-        if (wasReceiving != _isReceivingTelemetry)
-        {
-            _logger.LogInformation("[TelemetryService] Telemetry availability changed: {Available}", _isReceivingTelemetry);
-            TelemetryAvailabilityChanged?.Invoke(this, _isReceivingTelemetry);
+                Roll = snapshot.Roll,
+                Pitch = snapshot.Pitch,
+                Yaw = snapshot.Yaw,
+                Timestamp = snapshot.LastAttitudeUpdate
+            });
         }
     }
-
-    #endregion
-
-    #region Connection Events
 
     private void OnConnectionStateChanged(object? sender, bool connected)
     {
+        _logger.LogInformation(ConnectionStateEvent, "{Prefix} Connection state changed: {Connected}", LogPrefix, connected);
+
         if (connected)
         {
-            _logger.LogWarning("[TelemetryService] ========== CONNECTION ESTABLISHED ==========");
-            _logger.LogWarning("[TelemetryService] Starting telemetry service and requesting streams...");
-            Start();
+            if (_started)
+            {
+                HandleConnected();
+                RequestStreams();
+            }
+
+            return;
         }
-        else
+
+        HandleDisconnected();
+    }
+
+    private void HandleConnected()
+    {
+        var now = DateTime.UtcNow;
+        lock (_stateLock)
         {
-            _logger.LogWarning("[TelemetryService] ========== CONNECTION LOST ==========");
-            Stop();
-            Clear();
+            _startupAttemptCount = 0;
+            _recoveryAttemptCount = 0;
+            _firstValidFrameLogged = false;
+            _nextStreamRequestDueUtc = now;
+            _nextMaintenanceRequestDueUtc = now + _options.MaintenanceRefreshInterval;
+        }
+
+        TransitionState(TelemetryServiceState.ConnectedAwaitingTelemetry, "connection established", TelemetryStaleReason.None);
+    }
+
+    private void HandleDisconnected()
+    {
+        Stop();
+        Clear();
+        TransitionState(TelemetryServiceState.Disconnected, "connection lost", TelemetryStaleReason.None);
+    }
+
+    private void MarkValidFrame(string messageType, DateTime now)
+    {
+        var shouldActivate = false;
+        var shouldLogFirst = false;
+
+        lock (_stateLock)
+        {
+            if (_lastAnyValidFrameUtc == DateTime.MinValue)
+            {
+                shouldLogFirst = !_firstValidFrameLogged;
+                _firstValidFrameLogged = true;
+            }
+
+            _lastAnyValidFrameUtc = now;
+            _lastValidFrameType = messageType;
+
+            if (_state is TelemetryServiceState.NegotiatingStreams or TelemetryServiceState.TelemetryStaleRecovering)
+            {
+                shouldActivate = HasActivationCriteriaUnsafe(now);
+            }
+        }
+
+        if (shouldLogFirst)
+        {
+            var messageId = GetMessageIdFromType(messageType);
+            _logger.LogInformation(FirstFrameEvent,
+                "{Prefix} ASV frame received first-valid msgId={MessageId} type={Type} at {Timestamp:O}",
+                LogPrefix,
+                messageId,
+                messageType,
+                now);
+        }
+
+        if (shouldActivate)
+        {
+            TransitionState(TelemetryServiceState.TelemetryActive, $"recovered by {messageType}", TelemetryStaleReason.None);
+            lock (_stateLock)
+            {
+                _nextMaintenanceRequestDueUtc = now + _options.MaintenanceRefreshInterval;
+                _recoveryAttemptCount = 0;
+            }
         }
     }
 
-    #endregion
+    private bool HasActivationCriteriaUnsafe(DateTime now)
+    {
+        var heartbeatFresh = _lastHeartbeatUtc != DateTime.MinValue && (now - _lastHeartbeatUtc) <= _options.StartupTimeout;
+        if (!heartbeatFresh)
+        {
+            return false;
+        }
 
-    #region Helper Methods
+        return IsFreshUnsafe(_lastPositionUtc, now, _options.StartupTimeout)
+               || IsFreshUnsafe(_lastGpsUtc, now, _options.StartupTimeout)
+               || IsFreshUnsafe(_lastAttitudeUtc, now, _options.StartupTimeout)
+               || IsFreshUnsafe(_lastVfrUtc, now, _options.StartupTimeout)
+               || IsFreshUnsafe(_lastSysStatusUtc, now, _options.StartupTimeout);
+    }
+
+    private void TransitionState(TelemetryServiceState newState, string reason, TelemetryStaleReason staleReason)
+    {
+        TelemetryServiceState oldState;
+        bool availabilityChanged;
+        bool shouldRaise;
+
+        lock (_stateLock)
+        {
+            oldState = _state;
+            availabilityChanged = _isReceivingTelemetry != (newState == TelemetryServiceState.TelemetryActive);
+            shouldRaise = oldState != newState || _staleReason != staleReason || availabilityChanged;
+
+            if (!shouldRaise)
+            {
+                return;
+            }
+
+            _state = newState;
+            _staleReason = staleReason;
+            _isReceivingTelemetry = newState == TelemetryServiceState.TelemetryActive;
+            AddTransitionUnsafe(oldState, newState, reason);
+        }
+
+        _logger.LogInformation(TransitionEvent,
+            "{Prefix} Transition {From} -> {To}, reason={Reason}, stale={Stale}",
+            LogPrefix, oldState, newState, reason, staleReason);
+
+        if (availabilityChanged)
+        {
+            TelemetryAvailabilityChanged?.Invoke(this, _isReceivingTelemetry);
+        }
+
+        if (newState == TelemetryServiceState.TelemetryStaleRecovering)
+        {
+            _logger.LogWarning(StaleEvent, "{Prefix} Entered stale recovery ({Reason})", LogPrefix, staleReason);
+        }
+
+        PublishHealthIfChanged();
+    }
+
+    private void PublishHealthIfChanged()
+    {
+        var health = BuildHealthSnapshot(DateTime.UtcNow);
+        var signature = $"{health.State}|{health.StaleReason}|{health.IsConnected}|{health.IsReceivingTelemetry}|{health.LastValidFrameType}";
+
+        lock (_stateLock)
+        {
+            if (_lastHealthSignature == signature)
+            {
+                return;
+            }
+
+            _lastHealthSignature = signature;
+        }
+
+        TelemetryHealthChanged?.Invoke(this, health);
+    }
+
+    private TelemetryHealthStatus BuildHealthSnapshot(DateTime now)
+    {
+        lock (_stateLock)
+        {
+            return new TelemetryHealthStatus
+            {
+                State = _state,
+                IsConnected = _connectionService.IsConnected,
+                IsReceivingTelemetry = _state == TelemetryServiceState.TelemetryActive,
+                StaleReason = _staleReason,
+                LastValidFrameType = _lastValidFrameType,
+                LastValidFrameTime = _lastAnyValidFrameUtc,
+                LastHeartbeatTime = _lastHeartbeatUtc,
+                LastPositionTime = _lastPositionUtc,
+                LastGpsTime = _lastGpsUtc,
+                LastAttitudeTime = _lastAttitudeUtc,
+                LastVfrTime = _lastVfrUtc,
+                LastSysStatusTime = _lastSysStatusUtc,
+                HeartbeatAge = GetAge(now, _lastHeartbeatUtc),
+                PositionAge = GetAge(now, _lastPositionUtc),
+                GpsAge = GetAge(now, _lastGpsUtc),
+                AttitudeAge = GetAge(now, _lastAttitudeUtc),
+                VfrAge = GetAge(now, _lastVfrUtc),
+                SysStatusAge = GetAge(now, _lastSysStatusUtc),
+                StartupAttemptCount = _startupAttemptCount,
+                RecoveryAttemptCount = _recoveryAttemptCount
+            };
+        }
+    }
+
+    private TelemetryStaleReason ComputeStaleReasonUnsafe(DateTime now)
+    {
+        if (!IsFreshUnsafe(_lastHeartbeatUtc, now, _options.StaleTimeout)) return TelemetryStaleReason.NoHeartbeat;
+        if (!IsFreshUnsafe(_lastPositionUtc, now, _options.StaleTimeout)) return TelemetryStaleReason.NoPosition;
+        if (!IsFreshUnsafe(_lastAttitudeUtc, now, _options.StaleTimeout)) return TelemetryStaleReason.NoAttitude;
+        if (!IsFreshUnsafe(_lastGpsUtc, now, _options.StaleTimeout)) return TelemetryStaleReason.NoGps;
+        if (!IsFreshUnsafe(_lastVfrUtc, now, _options.StaleTimeout)) return TelemetryStaleReason.NoVfr;
+        if (!IsFreshUnsafe(_lastSysStatusUtc, now, _options.StaleTimeout)) return TelemetryStaleReason.NoSysStatus;
+        return TelemetryStaleReason.NoRecentFrames;
+    }
+
+    private void AddTransitionUnsafe(TelemetryServiceState from, TelemetryServiceState to, string reason)
+    {
+        var line = $"{DateTime.UtcNow:O} {from} -> {to} ({reason})";
+        _transitionHistory.Enqueue(line);
+        while (_transitionHistory.Count > _options.TransitionHistorySize)
+        {
+            _transitionHistory.Dequeue();
+        }
+    }
+
+    private void AddFlightPathPoint(GlobalPositionIntEventArgs e, DateTime now)
+    {
+        if ((now - _lastPositionPathPointUtc) < _options.FlightPathMinInterval)
+        {
+            return;
+        }
+
+        if (Math.Abs(e.Latitude) < 0.000001 && Math.Abs(e.Longitude) < 0.000001)
+        {
+            return;
+        }
+
+        _lastPositionPathPointUtc = now;
+
+        while (_flightPath.Count >= MaxFlightPathPoints)
+        {
+            _flightPath.TryDequeue(out _);
+        }
+
+        _flightPath.Enqueue((e.Latitude, e.Longitude, e.AltitudeRelative, now));
+    }
+
+    private void SubscribeTelemetryEvents()
+    {
+        if (_isSubscribed)
+        {
+            return;
+        }
+
+        _connectionService.GlobalPositionIntReceived += OnGlobalPositionInt;
+        _connectionService.AttitudeReceived += OnAttitude;
+        _connectionService.VfrHudReceived += OnVfrHud;
+        _connectionService.GpsRawIntReceived += OnGpsRawInt;
+        _connectionService.SysStatusReceived += OnSysStatus;
+        _connectionService.HeartbeatDataReceived += OnHeartbeatData;
+        _isSubscribed = true;
+    }
+
+    private void UnsubscribeTelemetryEvents()
+    {
+        if (!_isSubscribed)
+        {
+            return;
+        }
+
+        _connectionService.GlobalPositionIntReceived -= OnGlobalPositionInt;
+        _connectionService.AttitudeReceived -= OnAttitude;
+        _connectionService.VfrHudReceived -= OnVfrHud;
+        _connectionService.GpsRawIntReceived -= OnGpsRawInt;
+        _connectionService.SysStatusReceived -= OnSysStatus;
+        _connectionService.HeartbeatDataReceived -= OnHeartbeatData;
+        _isSubscribed = false;
+    }
+
+    private static bool IsValidHeartbeatFrame(HeartbeatDataEventArgs e)
+    {
+        return e.VehicleType <= 30 && e.SystemId != 0;
+    }
+
+    private static bool IsValidPositionFrame(GlobalPositionIntEventArgs e)
+    {
+        return double.IsFinite(e.Latitude)
+               && double.IsFinite(e.Longitude)
+               && double.IsFinite(e.AltitudeMsl)
+               && e.Latitude is >= -90 and <= 90
+               && e.Longitude is >= -180 and <= 180
+               && !(Math.Abs(e.Latitude) < 0.000001 && Math.Abs(e.Longitude) < 0.000001);
+    }
+
+    private static bool IsValidAttitudeFrame(AttitudeEventArgs e)
+    {
+        return double.IsFinite(e.Roll)
+               && double.IsFinite(e.Pitch)
+               && double.IsFinite(e.Yaw)
+               && Math.Abs(e.Roll) <= 360
+               && Math.Abs(e.Pitch) <= 180
+               && Math.Abs(e.Yaw) <= 360;
+    }
+
+    private static bool IsValidGpsFrame(GpsRawIntEventArgs e)
+    {
+        return e.FixType <= 8
+               && e.SatellitesVisible <= 80
+               && double.IsFinite(e.Altitude);
+    }
+
+    private static bool IsValidSysStatusFrame(SysStatusEventArgs e)
+    {
+        var remainingValid = e.BatteryRemaining is >= -1 and <= 100;
+        return double.IsFinite(e.BatteryVoltage)
+               && e.BatteryVoltage >= 0
+               && e.BatteryVoltage <= 80
+               && remainingValid;
+    }
+
+    private static bool IsValidVfrFrame(VfrHudEventArgs e)
+    {
+        return double.IsFinite(e.Airspeed)
+               && double.IsFinite(e.GroundSpeed)
+               && double.IsFinite(e.ClimbRate)
+               && e.Throttle is >= 0 and <= 100;
+    }
+
+    private static bool IsFreshUnsafe(DateTime timestamp, DateTime now, TimeSpan threshold)
+    {
+        return timestamp != DateTime.MinValue && now - timestamp <= threshold;
+    }
+
+    private static TimeSpan GetAge(DateTime now, DateTime timestamp)
+    {
+        return timestamp == DateTime.MinValue ? TimeSpan.MaxValue : now - timestamp;
+    }
+
+    private static double NormalizeYaw(double yaw)
+    {
+        if (yaw < 0)
+        {
+            yaw += 360;
+        }
+
+        if (yaw >= 360)
+        {
+            yaw %= 360;
+        }
+
+        return yaw;
+    }
+
+    private static int GetMessageIdFromType(string messageType)
+    {
+        return messageType switch
+        {
+            "HEARTBEAT" => 0,
+            "SYS_STATUS" => 1,
+            "GPS_RAW_INT" => 24,
+            "ATTITUDE" => 30,
+            "GLOBAL_POSITION_INT" => 33,
+            "VFR_HUD" => 74,
+            _ => -1
+        };
+    }
+
+    private static string GetSystemStatusName(byte systemStatus)
+    {
+        return systemStatus switch
+        {
+            0 => "Uninitialized",
+            1 => "Boot",
+            2 => "Calibrating",
+            3 => "Standby",
+            4 => "Active",
+            5 => "Critical",
+            6 => "Emergency",
+            7 => "Power Off",
+            8 => "Terminated",
+            _ => $"Status {systemStatus}"
+        };
+    }
 
     private static string GetFlightModeName(byte vehicleType, uint customMode)
     {
-        // ArduCopter modes (vehicle type 2)
         if (vehicleType == 2)
         {
             return customMode switch
@@ -604,8 +1180,7 @@ public class TelemetryService : ITelemetryService, IDisposable
                 _ => $"Mode {customMode}"
             };
         }
-        
-        // ArduPlane modes (vehicle type 1)
+
         if (vehicleType == 1)
         {
             return customMode switch
@@ -634,7 +1209,7 @@ public class TelemetryService : ITelemetryService, IDisposable
                 _ => $"Mode {customMode}"
             };
         }
-        
+
         return $"Mode {customMode}";
     }
 
@@ -668,14 +1243,34 @@ public class TelemetryService : ITelemetryService, IDisposable
         };
     }
 
-    #endregion
-
     public void Dispose()
     {
-        if (_disposed) return;
+        if (_disposed)
+        {
+            return;
+        }
+
         _disposed = true;
-        
         Stop();
         _connectionService.ConnectionStateChanged -= OnConnectionStateChanged;
+        _streamRequestGate.Dispose();
     }
+}
+
+internal sealed class TelemetryServiceOptions
+{
+    public static TelemetryServiceOptions Default { get; } = new();
+
+    public TimeSpan StartupTimeout { get; init; } = TimeSpan.FromSeconds(5);
+    public TimeSpan StaleTimeout { get; init; } = TimeSpan.FromSeconds(3);
+    public TimeSpan StartupRetryInterval { get; init; } = TimeSpan.FromSeconds(2);
+    public TimeSpan RecoveryRetryInterval { get; init; } = TimeSpan.FromSeconds(2);
+    public TimeSpan SlowRetryInterval { get; init; } = TimeSpan.FromSeconds(12);
+    public TimeSpan MaintenanceRefreshInterval { get; init; } = TimeSpan.FromSeconds(30);
+    public TimeSpan HealthSnapshotInterval { get; init; } = TimeSpan.FromSeconds(10);
+    public TimeSpan StateLoopInterval { get; init; } = TimeSpan.FromMilliseconds(500);
+    public TimeSpan FlightPathMinInterval { get; init; } = TimeSpan.FromMilliseconds(500);
+    public TimeSpan BurstCommandGap { get; init; } = TimeSpan.FromMilliseconds(60);
+    public int MaxRapidStartupRetries { get; init; } = 5;
+    public int TransitionHistorySize { get; init; } = 30;
 }

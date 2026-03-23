@@ -486,6 +486,7 @@ public sealed class ConnectionService : IConnectionService, IDisposable
             VehicleType = e.VehicleType,
             Autopilot = e.Autopilot,
             BaseMode = e.BaseMode,
+            SystemStatus = e.SystemStatus,
             IsArmed = e.IsArmed
         });
     }
@@ -761,6 +762,7 @@ public sealed class ConnectionService : IConnectionService, IDisposable
             VehicleType = e.VehicleType,
             Autopilot = e.Autopilot,
             BaseMode = e.BaseMode,
+            SystemStatus = e.SystemStatus,
             IsArmed = e.IsArmed
         });
     }
@@ -1226,46 +1228,72 @@ public sealed class ConnectionService : IConnectionService, IDisposable
 
     public void SendSetMessageInterval(int messageId, int intervalUs)
     {
-        _logger.LogInformation("Sending set message interval: msgId={MessageId}, interval={IntervalUs}us", messageId, intervalUs);
-        
-        if (!IsConnected)
+        SendTelemetryNegotiationCommand(new TelemetryNegotiationCommand
         {
-            _logger.LogWarning("Cannot send set message interval - not connected");
-            return;
-        }
-
-        if (_currentConnectionType == ConnectionType.Bluetooth && _bluetoothConnection != null)
-        {
-            _ = _bluetoothConnection.SendSetMessageIntervalAsync(messageId, intervalUs);
-            return;
-        }
-
-        if (_mavlink != null)
-        {
-            _ = _mavlink.SendSetMessageIntervalAsync(messageId, intervalUs);
-        }
+            Type = TelemetryNegotiationCommandType.SetMessageInterval,
+            MessageId = messageId,
+            IntervalUs = intervalUs,
+            Name = $"MSG_{messageId}"
+        });
     }
 
     public void SendRequestDataStream(int streamId, int rateHz, int startStop)
     {
-        _logger.LogInformation("Sending request data stream: streamId={StreamId}, rate={Rate}Hz, startStop={StartStop}", 
-            streamId, rateHz, startStop);
-        
+        SendTelemetryNegotiationCommand(new TelemetryNegotiationCommand
+        {
+            Type = TelemetryNegotiationCommandType.RequestDataStream,
+            StreamId = streamId,
+            RateHz = rateHz,
+            StartStop = startStop,
+            Name = $"STREAM_{streamId}"
+        });
+    }
+
+    public void SendTelemetryNegotiationCommand(TelemetryNegotiationCommand command)
+    {
         if (!IsConnected)
         {
-            _logger.LogWarning("Cannot send request data stream - not connected");
+            _logger.LogWarning("Cannot send telemetry negotiation command - not connected. Type={Type}", command.Type);
             return;
         }
 
-        if (_currentConnectionType == ConnectionType.Bluetooth && _bluetoothConnection != null)
+        switch (command.Type)
         {
-            _ = _bluetoothConnection.SendRequestDataStreamAsync(streamId, rateHz, startStop);
-            return;
-        }
+            case TelemetryNegotiationCommandType.RequestDataStream:
+                _logger.LogInformation("ASV command sent: REQUEST_DATA_STREAM streamId={StreamId}, rate={Rate}Hz, startStop={StartStop}, name={Name}",
+                    command.StreamId, command.RateHz, command.StartStop, command.Name);
 
-        if (_mavlink != null)
-        {
-            _ = _mavlink.SendRequestDataStreamAsync(streamId, rateHz, startStop);
+                if (_currentConnectionType == ConnectionType.Bluetooth && _bluetoothConnection != null)
+                {
+                    _ = _bluetoothConnection.SendRequestDataStreamAsync(command.StreamId, command.RateHz, command.StartStop);
+                    return;
+                }
+
+                if (_mavlink != null)
+                {
+                    _ = _mavlink.SendRequestDataStreamAsync(command.StreamId, command.RateHz, command.StartStop);
+                }
+                return;
+
+            case TelemetryNegotiationCommandType.SetMessageInterval:
+                _logger.LogInformation("ASV command sent: MAV_CMD_SET_MESSAGE_INTERVAL msgId={MessageId}, intervalUs={IntervalUs}, rate={Rate}Hz, name={Name}",
+                    command.MessageId, command.IntervalUs, command.RateHz, command.Name);
+
+                if (_currentConnectionType == ConnectionType.Bluetooth && _bluetoothConnection != null)
+                {
+                    _ = _bluetoothConnection.SendSetMessageIntervalAsync(command.MessageId, command.IntervalUs);
+                    return;
+                }
+
+                if (_mavlink != null)
+                {
+                    _ = _mavlink.SendSetMessageIntervalAsync(command.MessageId, command.IntervalUs);
+                }
+                return;
+
+            default:
+                _logger.LogWarning("Unknown telemetry negotiation command type: {Type}", command.Type);
+                return;
         }
     }
 
@@ -1325,21 +1353,22 @@ public sealed class ConnectionService : IConnectionService, IDisposable
 
     public void SendRequestAutopilotVersion()
     {
-        _logger.LogInformation("Requesting AUTOPILOT_VERSION from FC");
-        
-        if (_currentConnectionType == ConnectionType.Bluetooth && _bluetoothConnection != null)
-        {
-            _ = _bluetoothConnection.SendRequestAutopilotVersionAsync();
-             return;
-        }
-
-        if (_mavlink == null)
+        if (!IsConnected)
         {
             _logger.LogWarning("Cannot send AUTOPILOT_VERSION request - not connected");
             return;
         }
 
-        _ = _mavlink.SendRequestAutopilotVersionAsync();
+        if (_currentConnectionType == ConnectionType.Bluetooth && _bluetoothConnection != null)
+        {
+            _ = _bluetoothConnection.SendRequestAutopilotVersionAsync();
+            return;
+        }
+
+        if (_mavlink != null)
+        {
+            _ = _mavlink.SendRequestAutopilotVersionAsync();
+        }
     }
 
     #endregion

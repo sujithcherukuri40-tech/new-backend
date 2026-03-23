@@ -54,10 +54,52 @@ public interface IConnectionService
     void SendResetParameters();
     void SendSetMessageInterval(int messageId, int intervalUs);
     void SendRequestDataStream(int streamId, int rateHz, int startStop);
+    void SendTelemetryNegotiationCommand(TelemetryNegotiationCommand command);
     Task SendStartMagCalAsync(int magMask = 0, int retryOnFailure = 1, int autosave = 1, float delay = 0, int autoreboot = 0);
     Task SendAcceptMagCalAsync(int magMask = 0);
     Task SendCancelMagCalAsync(int magMask = 0);
     void SendRequestAutopilotVersion();
+}
+
+public enum TelemetryNegotiationCommandType
+{
+    RequestDataStream,
+    SetMessageInterval
+}
+
+public class TelemetryNegotiationCommand
+{
+    public TelemetryNegotiationCommandType Type { get; init; }
+    public int StreamId { get; init; }
+    public int RateHz { get; init; }
+    public int StartStop { get; init; } = 1;
+    public int MessageId { get; init; }
+    public int IntervalUs { get; init; }
+    public string Name { get; init; } = string.Empty;
+
+    public static TelemetryNegotiationCommand ForDataStream(int streamId, int rateHz, int startStop, string name)
+    {
+        return new TelemetryNegotiationCommand
+        {
+            Type = TelemetryNegotiationCommandType.RequestDataStream,
+            StreamId = streamId,
+            RateHz = rateHz,
+            StartStop = startStop,
+            Name = name
+        };
+    }
+
+    public static TelemetryNegotiationCommand ForMessageInterval(int messageId, int rateHz, string name)
+    {
+        return new TelemetryNegotiationCommand
+        {
+            Type = TelemetryNegotiationCommandType.SetMessageInterval,
+            MessageId = messageId,
+            RateHz = rateHz,
+            IntervalUs = 1_000_000 / Math.Max(rateHz, 1),
+            Name = name
+        };
+    }
 }
 
 public class MavlinkParamValueEventArgs : EventArgs
@@ -82,6 +124,7 @@ public class HeartbeatDataEventArgs : EventArgs
     public byte VehicleType { get; set; }
     public byte Autopilot { get; set; }
     public byte BaseMode { get; set; }
+    public byte SystemStatus { get; set; }
     public bool IsArmed { get; set; }
 }
 
