@@ -1,4 +1,4 @@
-using Avalonia;
+﻿using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Data.Core;
 using Avalonia.Data.Core.Plugins;
@@ -445,6 +445,18 @@ public partial class App : Application
                 };
             }
 
+            // CRITICAL: Ensure telemetry is running when MainWindow opens
+            // If connection exists, force telemetry service to start and request streams
+            if (_connectionService != null && _connectionService.IsConnected)
+            {
+                var telemetryService = Services.GetService<ITelemetryService>();
+                if (telemetryService != null)
+                {
+                    Console.WriteLine("[App] ✓ Connection active - ensuring telemetry is running...");
+                    telemetryService.RequestStreams(); // Force immediate stream request
+                }
+            }
+
             // Create a single connection handler and store reference for later cleanup
             if (_connectionService != null)
             {
@@ -560,6 +572,8 @@ public partial class App : Application
 
     private void ConfigureServices()
     {
+        Console.WriteLine("[App] ========== ConfigureServices START ==========");
+        
         var services = new ServiceCollection();
 
         if (Configuration != null)
@@ -567,12 +581,14 @@ public partial class App : Application
             services.AddSingleton<IConfiguration>(Configuration);
         }
 
+        Console.WriteLine("[App] Adding logging services...");
         services.AddLogging(builder =>
         {
             builder.AddConsole();
             builder.SetMinimumLevel(LogLevel.Warning);
         });
 
+        Console.WriteLine("[App] Adding core services...");
         services.AddSingleton<ITokenStorage, SecureTokenStorage>();
 
         // Auto-connect settings storage
@@ -583,6 +599,8 @@ public partial class App : Application
 
         // Get API URL - embedded default, can be overridden by env var
         var apiUrl = Environment.GetEnvironmentVariable("API_BASE_URL") ?? EMBEDDED_API_URL;
+
+        Console.WriteLine($"[App] API URL: {apiUrl}");
 
         services.AddHttpClient<IAuthService, AuthApiService>(client =>
         {
@@ -629,6 +647,7 @@ public partial class App : Application
             );
         }
 
+        Console.WriteLine("[App] Adding infrastructure services...");
         services.AddSingleton<DatabaseTestService>();
         services.AddSingleton<ArduPilotXmlParser>();
         services.AddSingleton<ArduPilotMetadataDownloader>();
@@ -663,8 +682,11 @@ public partial class App : Application
         services.AddSingleton<ILogQueryEngine, LogQueryEngine>();
         services.AddSingleton<ILogExportService, LogExportService>();
         services.AddSingleton<IDerivedChannelProvider, DerivedChannelProvider>();
+        
+        Console.WriteLine("[App] Adding TelemetryService...");
         services.AddSingleton<ITelemetryService, TelemetryService>();
 
+        Console.WriteLine("[App] Adding ViewModels...");
         services.AddTransient<MainWindowViewModel>();
         services.AddTransient<ConnectionPageViewModel>();
         services.AddTransient<DatabaseTestPageViewModel>();
@@ -692,18 +714,39 @@ public partial class App : Application
         services.AddTransient<TelemetryPageViewModel>();
         services.AddTransient<ViewModels.Admin.ParamLogsViewModel>();
 
+        Console.WriteLine("[App] Building service provider...");
         Services = services.BuildServiceProvider();
+        Console.WriteLine("[App] Service provider built successfully!");
         
-        // Get connection service and parameter service for state management
-        _connectionService = Services.GetService<IConnectionService>();
-        _parameterService = Services.GetService<IParameterService>();
+        try
+        {
+            // CRITICAL: Eagerly initialize TelemetryService so it subscribes to ConnectionService events
+            // This ensures telemetry starts working immediately when connection is established
+            Console.WriteLine("[App] ========== INITIALIZING TELEMETRY SERVICE ==========");
+            var telemetryService = Services.GetRequiredService<ITelemetryService>();
+            Console.WriteLine($"[App] ✓ TelemetryService created. IsReceiving={telemetryService.IsReceivingTelemetry}");
+            
+            // Get connection service and parameter service for state management
+            _connectionService = Services.GetService<IConnectionService>();
+            _parameterService = Services.GetService<IParameterService>();
+
+            Console.WriteLine($"[App] ✓ ConnectionService: {(_connectionService != null ? "OK" : "NULL")}");
+            Console.WriteLine($"[App] ✓ ParameterService: {(_parameterService != null ? "OK" : "NULL")}");
+            Console.WriteLine("[App] ========== SERVICE INITIALIZATION COMPLETE ==========");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[App] ✗ CRITICAL ERROR initializing services: {ex.Message}");
+            Console.WriteLine($"[App] Stack trace: {ex.StackTrace}");
+            throw;
+        }
     }
 
     public override void OnFrameworkInitializationCompleted()
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
-            _desktop = desktop;  // Store reference for session expiration handling
+            _desktop = desktop;
             DisableAvaloniaDataAnnotationValidation();
             ShowSplashScreen(desktop);
         }
@@ -723,10 +766,8 @@ public partial class App : Application
             desktop.MainWindow = splashWindow;
             splashWindow.Show();
 
-            // Initialize splash (minimal processing)
             await splashViewModel.InitializeAsync();
 
-            // Close splash and show auth shell immediately
             if (!_isShuttingDown)
             {
                 ShowAuthShell(desktop);

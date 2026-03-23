@@ -276,6 +276,9 @@ public partial class LiveMapPageViewModel : ViewModelBase
         if (IsConnected)
         {
             _telemetryService.Start();
+            // Force re-request telemetry streams when this page is opened
+            // This ensures we get ATTITUDE, VFR_HUD, GPS data even if initial request failed
+            _telemetryService.RequestStreams();
             _flightStartTime = DateTime.Now;
         }
     }

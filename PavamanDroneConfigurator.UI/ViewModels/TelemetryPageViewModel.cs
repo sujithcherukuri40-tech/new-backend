@@ -185,6 +185,13 @@ public partial class TelemetryPageViewModel : ViewModelBase
         {
             ApplyTelemetry(_telemetryService.CurrentTelemetry);
         }
+        
+        // Force re-request telemetry streams when this page is opened
+        // This ensures we get ATTITUDE, VFR_HUD, GPS data even if initial request failed
+        if (IsConnected)
+        {
+            _telemetryService.RequestStreams();
+        }
     }
 
     // ─── Event handlers ───────────────────────────────────────────────────────

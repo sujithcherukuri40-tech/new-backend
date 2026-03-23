@@ -34,6 +34,8 @@ public class TelemetryService : ITelemetryService, IDisposable
     
     // Telemetry timeout (if no data for 3 seconds, consider telemetry unavailable)
     private const int TelemetryTimeoutMs = 3000;
+    private DateTime _lastStreamRequestTime = DateTime.MinValue;
+    private const int STREAM_REQUEST_INTERVAL_SECONDS = 30; // Re-request streams every 30 seconds if no data
 
     public TelemetryModel CurrentTelemetry
     {
@@ -104,16 +106,39 @@ public class TelemetryService : ITelemetryService, IDisposable
         _updateTimer.Elapsed += OnUpdateTimerElapsed;
         _updateTimer.Start();
         
-        // Request telemetry data streams on a background thread so the calling thread
-        // (which may be the UI thread) is not blocked during the delay + MAVLink writes.
-        // RequestTelemetryStreamsAsync has its own try/catch for all expected errors; the
-        // ContinueWith handles any unexpected task-level fault that slips through.
+        // Request telemetry data streams on a background thread
         _ = Task.Run(RequestTelemetryStreamsAsync)
             .ContinueWith(
                 t => _logger.LogError(t.Exception, "[TelemetryService] Unexpected error in stream request task"),
                 System.Threading.Tasks.TaskContinuationOptions.OnlyOnFaulted);
         
         _logger.LogInformation("[TelemetryService] Telemetry service started (10Hz updates)");
+    }
+    
+    /// <summary>
+    /// Force re-request telemetry streams. Call this when opening a telemetry view
+    /// or if data appears stale. Safe to call multiple times.
+    /// </summary>
+    public void RequestStreams()
+    {
+        if (!_connectionService.IsConnected)
+        {
+            _logger.LogWarning("[TelemetryService] Cannot request streams - not connected");
+            return;
+        }
+        
+        var now = DateTime.UtcNow;
+        var timeSinceLastRequest = (now - _lastStreamRequestTime).TotalSeconds;
+        
+        // Throttle requests to avoid spamming the FC
+        if (timeSinceLastRequest < 5)
+        {
+            _logger.LogDebug("[TelemetryService] Stream request throttled - last request was {Seconds:F1}s ago", timeSinceLastRequest);
+            return;
+        }
+        
+        _logger.LogInformation("[TelemetryService] Force re-requesting telemetry streams...");
+        _ = Task.Run(RequestTelemetryStreamsAsync);
     }
 
     /// <summary>
@@ -124,6 +149,7 @@ public class TelemetryService : ITelemetryService, IDisposable
     {
         try
         {
+            _lastStreamRequestTime = DateTime.UtcNow;
             _logger.LogInformation("[TelemetryService] ========== REQUESTING TELEMETRY STREAMS ==========");
             
             // Wait a bit for connection to stabilize (non-blocking)
@@ -137,25 +163,35 @@ public class TelemetryService : ITelemetryService, IDisposable
             
             _logger.LogInformation("[TelemetryService] Sending REQUEST_DATA_STREAM commands...");
             
+            // Request ALL stream (covers everything) at 4Hz
+            _connectionService.SendRequestDataStream(0, 4, 1);
+            _logger.LogInformation("[TelemetryService] SENT: Stream 0 (ALL) at 4Hz");
+            await Task.Delay(50);
+            
             // Request POSITION stream (GLOBAL_POSITION_INT) at 4Hz
             _connectionService.SendRequestDataStream(6, 4, 1);
             _logger.LogInformation("[TelemetryService] SENT: Stream 6 (POSITION) at 4Hz");
+            await Task.Delay(50);
             
             // Request EXTENDED_STATUS stream (SYS_STATUS, GPS_RAW_INT) at 2Hz
             _connectionService.SendRequestDataStream(2, 2, 1);
             _logger.LogInformation("[TelemetryService] SENT: Stream 2 (EXTENDED_STATUS) at 2Hz");
+            await Task.Delay(50);
             
             // Request EXTRA1 stream (ATTITUDE) at 10Hz for smooth attitude updates
             _connectionService.SendRequestDataStream(10, 10, 1);
             _logger.LogInformation("[TelemetryService] SENT: Stream 10 (EXTRA1/ATTITUDE) at 10Hz");
+            await Task.Delay(50);
             
             // Request EXTRA2 stream (VFR_HUD) at 4Hz
             _connectionService.SendRequestDataStream(11, 4, 1);
             _logger.LogInformation("[TelemetryService] SENT: Stream 11 (EXTRA2/VFR_HUD) at 4Hz");
+            await Task.Delay(50);
             
             // Request RC_CHANNELS at 2Hz
             _connectionService.SendRequestDataStream(3, 2, 1);
             _logger.LogInformation("[TelemetryService] SENT: Stream 3 (RC_CHANNELS) at 2Hz");
+            await Task.Delay(50);
             
             // Request RAW_SENSORS stream at 2Hz
             _connectionService.SendRequestDataStream(1, 2, 1);
@@ -176,22 +212,27 @@ public class TelemetryService : ITelemetryService, IDisposable
             // GLOBAL_POSITION_INT (33) at 4Hz (250000 us)
             _connectionService.SendSetMessageInterval(33, 250000);
             _logger.LogInformation("[TelemetryService] SENT: MSG 33 (GLOBAL_POSITION_INT) at 250ms");
+            await Task.Delay(50);
             
             // ATTITUDE (30) at 10Hz (100000 us)
             _connectionService.SendSetMessageInterval(30, 100000);
             _logger.LogInformation("[TelemetryService] SENT: MSG 30 (ATTITUDE) at 100ms");
+            await Task.Delay(50);
             
             // VFR_HUD (74) at 4Hz (250000 us)
             _connectionService.SendSetMessageInterval(74, 250000);
             _logger.LogInformation("[TelemetryService] SENT: MSG 74 (VFR_HUD) at 250ms");
+            await Task.Delay(50);
             
             // SYS_STATUS (1) at 2Hz (500000 us)
             _connectionService.SendSetMessageInterval(1, 500000);
             _logger.LogInformation("[TelemetryService] SENT: MSG 1 (SYS_STATUS) at 500ms");
+            await Task.Delay(50);
             
             // GPS_RAW_INT (24) at 2Hz (500000 us)
             _connectionService.SendSetMessageInterval(24, 500000);
             _logger.LogInformation("[TelemetryService] SENT: MSG 24 (GPS_RAW_INT) at 500ms");
+            await Task.Delay(50);
             
             // HEARTBEAT (0) - ensure we get heartbeat with full data
             _connectionService.SendSetMessageInterval(0, 1000000);
@@ -415,6 +456,30 @@ public class TelemetryService : ITelemetryService, IDisposable
 
     private void OnUpdateTimerElapsed(object? sender, System.Timers.ElapsedEventArgs e)
     {
+        // Check if we need to re-request streams (no telemetry data for a while)
+        var now = DateTime.UtcNow;
+        DateTime lastUpdate;
+        lock (_telemetryLock)
+        {
+            lastUpdate = new[]
+            {
+                _currentTelemetry.LastPositionUpdate,
+                _currentTelemetry.LastAttitudeUpdate,
+                _currentTelemetry.LastHeartbeatUpdate
+            }.Max();
+        }
+        
+        // If we have connection but no telemetry for STREAM_REQUEST_INTERVAL_SECONDS, re-request streams
+        if (_connectionService.IsConnected && 
+            lastUpdate != DateTime.MinValue && 
+            (now - lastUpdate).TotalSeconds > STREAM_REQUEST_INTERVAL_SECONDS &&
+            (now - _lastStreamRequestTime).TotalSeconds > STREAM_REQUEST_INTERVAL_SECONDS)
+        {
+            _logger.LogWarning("[TelemetryService] No telemetry data for {Seconds}s - re-requesting streams", 
+                (now - lastUpdate).TotalSeconds);
+            _ = Task.Run(RequestTelemetryStreamsAsync);
+        }
+        
         if (!_hasPendingUpdate) return;
         _hasPendingUpdate = false;
         

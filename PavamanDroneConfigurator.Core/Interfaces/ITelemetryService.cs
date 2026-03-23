@@ -70,6 +70,13 @@ public interface ITelemetryService
     void Clear();
     
     /// <summary>
+    /// Force re-request telemetry streams from the drone.
+    /// Call this when opening a telemetry view or if data appears stale.
+    /// Safe to call multiple times (throttled internally).
+    /// </summary>
+    void RequestStreams();
+    
+    /// <summary>
     /// Get flight path history (list of positions for trail)
     /// </summary>
     IReadOnlyList<(double Latitude, double Longitude, double Altitude, DateTime Timestamp)> GetFlightPath();
