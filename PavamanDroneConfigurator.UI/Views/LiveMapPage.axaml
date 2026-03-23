@@ -229,7 +229,7 @@
                             Classes.view-mode-btn-active="{Binding IsChase3DView}"
                             Classes="view-mode-btn">
                         <StackPanel Orientation="Horizontal" Spacing="4">
-                            <TextBlock Text="?" FontSize="12"/>
+                            <TextBlock Text="??" FontSize="12"/>
                             <TextBlock Text="3D Chase"/>
                         </StackPanel>
                     </Button>
@@ -237,7 +237,7 @@
                             Classes.view-mode-btn-active="{Binding IsFreeRoamView}"
                             Classes="view-mode-btn">
                         <StackPanel Orientation="Horizontal" Spacing="4">
-                            <TextBlock Text="?" FontSize="12"/>
+                            <TextBlock Text="??" FontSize="12"/>
                             <TextBlock Text="Free Roam"/>
                         </StackPanel>
                     </Button>
@@ -264,12 +264,12 @@
                         ToolTip.Tip="Toggle Follow"
                         Classes.floating-btn-active="{Binding FollowDrone}"
                         Classes="floating-btn">
-                    <TextBlock Text="?" FontSize="14"/>
+                    <TextBlock Text="??" FontSize="14"/>
                 </Button>
                 <Button Classes="floating-btn"
                         Command="{Binding ChangeMapTypeCommand}"
                         ToolTip.Tip="Map Type">
-                    <TextBlock Text="?" FontSize="14"/>
+                    <TextBlock Text="??" FontSize="14"/>
                 </Button>
                 <Button Classes="floating-btn"
                         Command="{Binding ClearFlightPathCommand}"

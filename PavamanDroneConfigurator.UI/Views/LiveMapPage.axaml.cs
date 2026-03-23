@@ -10,9 +10,9 @@ using System.Diagnostics;
 namespace PavamanDroneConfigurator.UI.Views;
 
 /// <summary>
-/// Live Map Page - Real-time drone telemetry visualization with Cesium 3D
+/// Live Map Page - Real-time drone telemetry visualization with Google Maps
 /// Supports multiple view modes: Top-Down, 3D Chase, Free Roam
-/// Uses CesiumJS for 3D mapping with mission planning and spray overlay
+/// Uses Google Maps API for satellite imagery with mission planning and spray overlay
 /// </summary>
 public partial class LiveMapPage : UserControl
 {
@@ -109,7 +109,7 @@ public partial class LiveMapPage : UserControl
 
     private void OnMapReady(object? sender, EventArgs e)
     {
-        Debug.WriteLine("[LiveMapPage] ? Cesium map is ready!");
+        Debug.WriteLine("[LiveMapPage] ? Google Maps is ready!");
         _isMapReady = true;
 
         if (DataContext is LiveMapPageViewModel vm)
@@ -193,12 +193,13 @@ public partial class LiveMapPage : UserControl
         {
             try
             {
+                // Map ViewModel view mode strings to CesiumMapView.ViewMode enum
                 var viewMode = e.ViewMode switch
                 {
                     "topdown" => CesiumMapView.ViewMode.TopDown,
-                    "chase3d" => CesiumMapView.ViewMode.Chase3D,
+                    "chase3d" or "chase" => CesiumMapView.ViewMode.Chase3D,
                     "fpv" => CesiumMapView.ViewMode.FirstPerson,
-                    "free" => CesiumMapView.ViewMode.FreeRoam,
+                    "free" or "freeroam" => CesiumMapView.ViewMode.FreeRoam,
                     _ => CesiumMapView.ViewMode.TopDown
                 };
 

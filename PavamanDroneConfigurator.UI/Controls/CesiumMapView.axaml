@@ -48,12 +48,12 @@
                 <!-- Loading Text -->
                 <StackPanel Spacing="8">
                     <TextBlock x:Name="LoadingText"
-                               Text="Initializing 3D Map..."
+                               Text="Initializing Map..."
                                FontSize="16"
                                FontWeight="SemiBold"
                                Foreground="White"
                                HorizontalAlignment="Center"/>
-                    <TextBlock Text="Loading CesiumJS..."
+                    <TextBlock Text="Loading Google Maps..."
                                FontSize="13"
                                Foreground="#94A3B8"
                                HorizontalAlignment="Center"/>

@@ -18,9 +18,9 @@ using Microsoft.Web.WebView2.Core;
 namespace PavamanDroneConfigurator.UI.Controls;
 
 /// <summary>
-/// Production-ready CesiumJS 3D map control using WebView2.
+/// Production-ready Google Maps control using WebView2.
 /// Provides real-time drone telemetry visualization with:
-/// - 3D terrain and world imagery
+/// - Satellite imagery
 /// - Multiple view modes (Top-Down, 3D Chase, Free Roam)
 /// - Flight path tracking with altitude
 /// - Waypoint visualization
@@ -148,7 +148,7 @@ public partial class CesiumMapView : UserControl
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"[CesiumMapView] WebView2 init failed: {ex.Message}");
+            Debug.WriteLine($"[GoogleMapView] WebView2 init failed: {ex.Message}");
             ShowError("WebView2 Initialization Failed", ex.Message);
         }
     }
@@ -170,7 +170,7 @@ public partial class CesiumMapView : UserControl
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"[CesiumMapView] Retry failed: {ex.Message}");
+                Debug.WriteLine($"[GoogleMapView] Retry failed: {ex.Message}");
                 ShowError("WebView2 Initialization Failed", ex.Message);
             }
         });
@@ -198,18 +198,18 @@ public partial class CesiumMapView : UserControl
         try
         {
             UpdateLoadingText("Checking WebView2 runtime...");
-            Debug.WriteLine("[CesiumMapView] Starting WebView2 initialization...");
+            Debug.WriteLine("[GoogleMapView] Starting WebView2 initialization...");
 
             // Check if WebView2 runtime is installed
             string? version = null;
             try
             {
                 version = CoreWebView2Environment.GetAvailableBrowserVersionString();
-                Debug.WriteLine($"[CesiumMapView] WebView2 version: {version}");
+                Debug.WriteLine($"[GoogleMapView] WebView2 version: {version}");
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"[CesiumMapView] WebView2 not found: {ex.Message}");
+                Debug.WriteLine($"[GoogleMapView] WebView2 not found: {ex.Message}");
                 throw new InvalidOperationException(
                     "WebView2 runtime is not installed. Please install Microsoft Edge WebView2 Runtime from https://developer.microsoft.com/microsoft-edge/webview2/");
             }
@@ -222,19 +222,19 @@ public partial class CesiumMapView : UserControl
                 "PavamanDroneConfigurator", "WebView2");
             
             Directory.CreateDirectory(userDataFolder);
-            Debug.WriteLine($"[CesiumMapView] User data folder: {userDataFolder}");
+            Debug.WriteLine($"[GoogleMapView] User data folder: {userDataFolder}");
 
             var env = await CoreWebView2Environment.CreateAsync(null, userDataFolder);
-            Debug.WriteLine("[CesiumMapView] Environment created successfully");
+            Debug.WriteLine("[GoogleMapView] Environment created successfully");
             
-            UpdateLoadingText("Initializing 3D map engine...");
+            UpdateLoadingText("Initializing Google Maps...");
 
             // Get the window handle
             var topLevel = TopLevel.GetTopLevel(this);
             if (topLevel is Window window)
             {
                 _webViewHandle = window.TryGetPlatformHandle()?.Handle ?? IntPtr.Zero;
-                Debug.WriteLine($"[CesiumMapView] Window handle: {_webViewHandle}");
+                Debug.WriteLine($"[GoogleMapView] Window handle: {_webViewHandle}");
             }
 
             if (_webViewHandle == IntPtr.Zero)
@@ -243,10 +243,10 @@ public partial class CesiumMapView : UserControl
             }
 
             // Create WebView2 controller
-            Debug.WriteLine("[CesiumMapView] Creating WebView2 controller...");
+            Debug.WriteLine("[GoogleMapView] Creating WebView2 controller...");
             _webViewController = await env.CreateCoreWebView2ControllerAsync(_webViewHandle);
             _webView = _webViewController.CoreWebView2;
-            Debug.WriteLine("[CesiumMapView] WebView2 controller created successfully");
+            Debug.WriteLine("[GoogleMapView] WebView2 controller created successfully");
 
             // Configure WebView2 settings
             _webView.Settings.IsScriptEnabled = true;
@@ -263,7 +263,7 @@ public partial class CesiumMapView : UserControl
 
             // Position the WebView2 control to fill the parent
             UpdateWebViewBounds();
-             Debug.WriteLine($"[CesiumMapView] WebView2 bounds: {_webViewController.Bounds}");
+             Debug.WriteLine($"[GoogleMapView] WebView2 bounds: {_webViewController.Bounds}");
              _webViewController.IsVisible = true;
 
              // Update bounds when control resizes
@@ -276,8 +276,8 @@ public partial class CesiumMapView : UserControl
             };
             this.PropertyChanged += _boundsChangedHandler;
 
-            // Navigate to map HTML
-            UpdateLoadingText("Loading CesiumJS 3D terrain...");
+            // Navigate to Google Maps HTML
+            UpdateLoadingText("Loading Google Maps satellite imagery...");
             var mapPath = GetMapHtmlPath();
             
             if (!File.Exists(mapPath))
@@ -285,16 +285,16 @@ public partial class CesiumMapView : UserControl
                 throw new FileNotFoundException($"Map HTML file not found at: {mapPath}\nMake sure the Assets/map folder is included in the build.");
             }
 
-            Debug.WriteLine($"[CesiumMapView] Navigating to: {mapPath}");
+            Debug.WriteLine($"[GoogleMapView] Navigating to: {mapPath}");
             var uri = new Uri(mapPath).AbsoluteUri;
             _webView.Navigate(uri);
             _isInitialized = true;
 
-            Debug.WriteLine("[CesiumMapView] Navigation started successfully");
+            Debug.WriteLine("[GoogleMapView] Navigation started successfully");
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"[CesiumMapView] Initialization error: {ex}");
+            Debug.WriteLine($"[GoogleMapView] Initialization error: {ex}");
             throw;
         }
     }
@@ -332,15 +332,20 @@ public partial class CesiumMapView : UserControl
         if (width > 0 && height > 0)
         {
             _webViewController.Bounds = new System.Drawing.Rectangle(x, y, width, height);
-            Debug.WriteLine($"[CesiumMapView] Bounds updated: x={x}, y={y}, w={width}, h={height}, scale={scaling}");
+            Debug.WriteLine($"[GoogleMapView] Bounds updated: x={x}, y={y}, w={width}, h={height}, scale={scaling}");
         }
     }
 
     private string GetMapHtmlPath()
     {
-        // Try multiple locations
+        // Try multiple locations - prefer Google Maps HTML
         var candidates = new[]
         {
+            Path.Combine(AppContext.BaseDirectory, "Assets", "map", "google-map.html"),
+            Path.Combine(AppContext.BaseDirectory, "map", "google-map.html"),
+            Path.Combine(Directory.GetCurrentDirectory(), "Assets", "map", "google-map.html"),
+            Path.Combine(Directory.GetCurrentDirectory(), "map", "google-map.html"),
+            // Fallback to Cesium if Google Maps not found
             Path.Combine(AppContext.BaseDirectory, "Assets", "map", "index.html"),
             Path.Combine(AppContext.BaseDirectory, "map", "index.html"),
             Path.Combine(Directory.GetCurrentDirectory(), "Assets", "map", "index.html"),
@@ -349,21 +354,21 @@ public partial class CesiumMapView : UserControl
 
         foreach (var path in candidates)
         {
-            Debug.WriteLine($"[CesiumMapView] Checking: {path}");
+            Debug.WriteLine($"[GoogleMapView] Checking: {path}");
             if (File.Exists(path))
             {
-                Debug.WriteLine($"[CesiumMapView] Found map at: {path}");
+                Debug.WriteLine($"[GoogleMapView] Found map at: {path}");
                 return path;
             }
         }
 
-        Debug.WriteLine("[CesiumMapView] Map HTML not found in any location!");
+        Debug.WriteLine("[GoogleMapView] Map HTML not found in any location!");
         return candidates[0];
     }
 
     private void OnNavigationStarting(object? sender, CoreWebView2NavigationStartingEventArgs e)
     {
-        Debug.WriteLine($"[CesiumMapView] Navigation starting: {e.Uri}");
+        Debug.WriteLine($"[GoogleMapView] Navigation starting: {e.Uri}");
     }
 
     private void OnNavigationCompleted(object? sender, CoreWebView2NavigationCompletedEventArgs e)
@@ -372,13 +377,13 @@ public partial class CesiumMapView : UserControl
         {
             if (e.IsSuccess)
             {
-                Debug.WriteLine("[CesiumMapView] Navigation completed successfully");
+                Debug.WriteLine("[GoogleMapView] Navigation completed successfully");
                 // Map will call back via postMessage when ready
             }
             else
             {
-                Debug.WriteLine($"[CesiumMapView] Navigation failed: {e.WebErrorStatus}");
-                ShowError("Navigation Failed", $"Failed to load map. Error: {e.WebErrorStatus}\n\nMake sure the Assets/map folder exists and contains index.html, app.js, and styles.css");
+                Debug.WriteLine($"[GoogleMapView] Navigation failed: {e.WebErrorStatus}");
+                ShowError("Navigation Failed", $"Failed to load map. Error: {e.WebErrorStatus}\n\nMake sure the Assets/map folder exists and contains google-map.html");
             }
         });
     }
@@ -388,7 +393,7 @@ public partial class CesiumMapView : UserControl
         try
         {
             var message = e.TryGetWebMessageAsString();
-            Debug.WriteLine($"[CesiumMapView] Message from JS: {message}");
+            Debug.WriteLine($"[GoogleMapView] Message from JS: {message}");
 
             if (string.IsNullOrEmpty(message)) return;
 
@@ -398,7 +403,7 @@ public partial class CesiumMapView : UserControl
 
             if (!Enum.TryParse<MapMessageType>(typeString, ignoreCase: true, out var type))
             {
-                Debug.WriteLine($"[CesiumMapView] Unknown JS message type: {typeString}");
+                Debug.WriteLine($"[GoogleMapView] Unknown JS message type: {typeString}");
                 return;
             }
 
@@ -409,13 +414,13 @@ public partial class CesiumMapView : UserControl
                     case MapMessageType.mapReady:
                         _mapReady = true;
                         HideLoading();
-                        Debug.WriteLine("[CesiumMapView] Map is ready!");
+                        Debug.WriteLine("[GoogleMapView] Map is ready!");
                         MapReady?.Invoke(this, EventArgs.Empty);
 
                         // Send pending update if any
                         if (_pendingUpdate != null)
                         {
-                            Debug.WriteLine("[CesiumMapView] Sending pending drone update");
+                            Debug.WriteLine("[GoogleMapView] Sending pending drone update");
                             UpdateDronePositionInternal(_pendingUpdate);
                             _pendingUpdate = null;
                         }
@@ -428,7 +433,7 @@ public partial class CesiumMapView : UserControl
                             var mode = modeStr switch
                             {
                                 "topdown" => ViewMode.TopDown,
-                                "chase3d" => ViewMode.Chase3D,
+                                "chase3d" or "chase" => ViewMode.Chase3D,
                                 "fpv" => ViewMode.FirstPerson,
                                 _ => ViewMode.FreeRoam
                             };
@@ -501,7 +506,7 @@ public partial class CesiumMapView : UserControl
                                 foreach (var point in boundaryProp.EnumerateArray())
                                 {
                                     var lat = point.TryGetProperty("lat", out var latP) ? latP.GetDouble() : 0;
-                                    var lon = point.TryGetProperty("lon", out var lonP) ? lonP.GetDouble() : 0;
+                                    var lon = point.TryGetProperty("lng", out var lngP) ? lngP.GetDouble() : 0;
                                     boundary.Add((lat, lon));
                                 }
                             }
@@ -513,7 +518,7 @@ public partial class CesiumMapView : UserControl
                         if (json.RootElement.TryGetProperty("message", out var errorProp))
                         {
                             var errorMsg = errorProp.GetString();
-                            Debug.WriteLine($"[CesiumMapView] JavaScript error: {errorMsg}");
+                            Debug.WriteLine($"[GoogleMapView] JavaScript error: {errorMsg}");
                         }
                         break;
                 }
@@ -521,7 +526,7 @@ public partial class CesiumMapView : UserControl
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"[CesiumMapView] Error processing message: {ex.Message}");
+            Debug.WriteLine($"[GoogleMapView] Error processing message: {ex.Message}");
         }
     }
 
@@ -555,7 +560,7 @@ public partial class CesiumMapView : UserControl
         if (!_mapReady)
         {
             _pendingUpdate = data;
-            Debug.WriteLine("[CesiumMapView] Map not ready yet, storing pending update");
+            Debug.WriteLine("[GoogleMapView] Map not ready yet, storing pending update");
             return;
         }
 
@@ -566,7 +571,7 @@ public partial class CesiumMapView : UserControl
     {
         if (_webView == null || _isDisposed)
         {
-            Debug.WriteLine("[CesiumMapView] Cannot update: WebView not ready or disposed");
+            Debug.WriteLine("[GoogleMapView] Cannot update: WebView not ready or disposed");
             return;
         }
 
@@ -589,12 +594,12 @@ public partial class CesiumMapView : UserControl
             // Only log occasionally to avoid spam
             if (DateTime.Now.Second % 5 == 0)
             {
-                Debug.WriteLine($"[CesiumMapView] Updated drone position: {data.Latitude:F6}, {data.Longitude:F6}, {data.Altitude:F1}m");
+                Debug.WriteLine($"[GoogleMapView] Updated drone position: {data.Latitude:F6}, {data.Longitude:F6}, {data.Altitude:F1}m");
             }
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"[CesiumMapView] Error updating drone: {ex.Message}");
+            Debug.WriteLine($"[GoogleMapView] Error updating drone: {ex.Message}");
         }
     }
 
@@ -610,18 +615,18 @@ public partial class CesiumMapView : UserControl
             var modeStr = mode switch
             {
                 ViewMode.TopDown => "topdown",
-                ViewMode.Chase3D => "chase3d",
+                ViewMode.Chase3D => "chase",
                 ViewMode.FirstPerson => "fpv",
-                _ => "free"
+                _ => "freeroam"
             };
 
             await _webView.ExecuteScriptAsync($"setViewMode('{modeStr}');");
             _currentViewMode = mode;
-            Debug.WriteLine($"[CesiumMapView] View mode set to: {modeStr}");
+            Debug.WriteLine($"[GoogleMapView] View mode set to: {modeStr}");
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"[CesiumMapView] Error setting view mode: {ex.Message}");
+            Debug.WriteLine($"[GoogleMapView] Error setting view mode: {ex.Message}");
         }
     }
 
@@ -635,11 +640,11 @@ public partial class CesiumMapView : UserControl
         try
         {
             await _webView.ExecuteScriptAsync($"centerOnDrone({animate.ToString().ToLowerInvariant()});");
-            Debug.WriteLine("[CesiumMapView] Centered on drone");
+            Debug.WriteLine("[GoogleMapView] Centered on drone");
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"[CesiumMapView] Error centering: {ex.Message}");
+            Debug.WriteLine($"[GoogleMapView] Error centering: {ex.Message}");
         }
     }
 
@@ -654,11 +659,11 @@ public partial class CesiumMapView : UserControl
         {
             var result = await _webView.ExecuteScriptAsync("toggleFollow();");
             _isFollowing = result.Trim('"').ToLowerInvariant() == "true";
-            Debug.WriteLine($"[CesiumMapView] Follow mode: {_isFollowing}");
+            Debug.WriteLine($"[GoogleMapView] Follow mode: {_isFollowing}");
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"[CesiumMapView] Error toggling follow: {ex.Message}");
+            Debug.WriteLine($"[GoogleMapView] Error toggling follow: {ex.Message}");
         }
     }
 
@@ -672,11 +677,11 @@ public partial class CesiumMapView : UserControl
         try
         {
             await _webView.ExecuteScriptAsync("clearFlightPath();");
-            Debug.WriteLine("[CesiumMapView] Flight path cleared");
+            Debug.WriteLine("[GoogleMapView] Flight path cleared");
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"[CesiumMapView] Error clearing path: {ex.Message}");
+            Debug.WriteLine($"[GoogleMapView] Error clearing path: {ex.Message}");
         }
     }
 
@@ -694,7 +699,7 @@ public partial class CesiumMapView : UserControl
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"[CesiumMapView] Error setting waypoints: {ex.Message}");
+            Debug.WriteLine($"[GoogleMapView] Error setting waypoints: {ex.Message}");
         }
     }
 
@@ -711,7 +716,7 @@ public partial class CesiumMapView : UserControl
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"[CesiumMapView] Error clearing waypoints: {ex.Message}");
+            Debug.WriteLine($"[GoogleMapView] Error clearing waypoints: {ex.Message}");
         }
     }
 
@@ -728,7 +733,7 @@ public partial class CesiumMapView : UserControl
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"[CesiumMapView] Error setting current waypoint: {ex.Message}");
+            Debug.WriteLine($"[GoogleMapView] Error setting current waypoint: {ex.Message}");
         }
     }
 
@@ -747,7 +752,7 @@ public partial class CesiumMapView : UserControl
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"[CesiumMapView] Error setting geofence: {ex.Message}");
+            Debug.WriteLine($"[GoogleMapView] Error setting geofence: {ex.Message}");
         }
     }
 
@@ -764,7 +769,7 @@ public partial class CesiumMapView : UserControl
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"[CesiumMapView] Error setting map type: {ex.Message}");
+            Debug.WriteLine($"[GoogleMapView] Error setting map type: {ex.Message}");
         }
     }
 
@@ -792,7 +797,7 @@ public partial class CesiumMapView : UserControl
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"[CesiumMapView] Error setting mission tool: {ex.Message}");
+            Debug.WriteLine($"[GoogleMapView] Error setting mission tool: {ex.Message}");
         }
     }
 
@@ -837,7 +842,7 @@ public partial class CesiumMapView : UserControl
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"[CesiumMapView] Error rendering survey grid: {ex.Message}");
+            Debug.WriteLine($"[GoogleMapView] Error rendering survey grid: {ex.Message}");
         }
     }
 
@@ -897,7 +902,7 @@ public partial class CesiumMapView : UserControl
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"[CesiumMapView] Script error: {ex.Message}");
+            Debug.WriteLine($"[GoogleMapView] Script error: {ex.Message}");
         }
     }
 

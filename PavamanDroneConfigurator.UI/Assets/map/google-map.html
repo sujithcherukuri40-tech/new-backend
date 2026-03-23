@@ -1,0 +1,964 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>KFT Drone Map</title>
+    <style>
+        html, body, #map { 
+            height: 100%; 
+            margin: 0; 
+            padding: 0; 
+            background: #000814; 
+        }
+        
+        /* Loading overlay */
+        #loading-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: #0F172A;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        
+        #loading-overlay.hidden {
+            display: none;
+        }
+        
+        .spinner {
+            width: 48px;
+            height: 48px;
+            border: 4px solid #334155;
+            border-top-color: #3B82F6;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .loading-text {
+            margin-top: 16px;
+            color: #94A3B8;
+            font-family: 'Inter', sans-serif;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div id="loading-overlay">
+        <div class="spinner"></div>
+        <div class="loading-text">Loading Google Maps...</div>
+    </div>
+    <div id="map"></div>
+    
+    <script>
+        // ============================================
+        // CONFIGURATION
+        // ============================================
+        const CONFIG = {
+            defaultCenter: { lat: 17.385, lng: 78.4867 }, // Hyderabad
+            maxFlightPathPoints: 10000,
+            updateThrottleMs: 50,
+            sprayWidthMeters: 4.0,
+            defaultWaypointAltitude: 10,
+            droneIconSize: 40 // Drone icon size in pixels
+        };
+
+        // View modes
+        const ViewMode = {
+            TOP_DOWN: 'topdown',
+            CHASE_3D: 'chase',
+            FREE_ROAM: 'freeroam'
+        };
+
+        const MapMessageType = {
+            MAP_READY: 'mapReady',
+            ERROR: 'error',
+            VIEW_MODE_CHANGED: 'viewModeChanged',
+            FOLLOW_CHANGED: 'followChanged',
+            WAYPOINT_PLACED: 'waypoint_placed',
+            WAYPOINT_MOVED: 'waypoint_moved',
+            WAYPOINT_DELETED: 'waypoint_deleted',
+            HOME_PLACED: 'home_placed',
+            LAND_PLACED: 'land_placed',
+            ORBIT_PLACED: 'orbit_placed',
+            SURVEY_BOUNDARY_COMPLETED: 'survey_boundary_completed'
+        };
+
+        // ============================================
+        // GLOBAL STATE
+        // ============================================
+        let map = null;
+        let droneMarker = null;
+        let droneIcon = null;
+        let homeMarker = null;
+        let flightPath = null;
+        let flightPathCoords = [];
+        let waypointMarkers = [];
+        let missionPath = null;
+        let missionWaypoints = [];
+        let geofenceCircle = null;
+        let currentViewMode = ViewMode.TOP_DOWN;
+        let isFollowing = true;
+        let lastDronePosition = null;
+        let lastDroneHeading = 0;
+        let lastDroneAltitude = 0;
+        let homePosition = null;
+        let activePlanningTool = 'none';
+        let isMapReady = false;
+        let lastUpdateTime = 0;
+
+        // Survey polygon state
+        let surveyBoundaryPoints = [];
+        let surveyBoundaryMarkers = [];
+        let surveyBoundaryPolygon = null;
+        let surveyGridLines = [];
+
+        // Spray overlay state
+        let sprayOverlays = [];
+        let isSprayActive = false;
+        let lastSprayPosition = null;
+        let sprayWidthMeters = CONFIG.sprayWidthMeters;
+
+        // Drone icon paths (will be set to actual image URLs)
+        let droneIconRed = null;   // Armed state
+        let droneIconGreen = null; // Disarmed state
+        let currentDroneIcon = null;
+
+        // ============================================
+        // ERROR HANDLING
+        // ============================================
+        window.addEventListener('error', function(e) {
+            console.error('[GoogleMap] Global error:', e.error);
+            notifyHost({ type: 'error', message: e.error?.message || 'Unknown error' });
+        });
+
+        window.addEventListener('unhandledrejection', function(e) {
+            console.error('[GoogleMap] Unhandled promise rejection:', e.reason);
+            notifyHost({ type: 'error', message: e.reason?.message || 'Promise rejection' });
+        });
+
+        // ============================================
+        // COMMUNICATION WITH C#
+        // ============================================
+        function notifyHost(message) {
+            try {
+                if (!message || typeof message !== 'object' || !message.type) {
+                    return;
+                }
+                console.log('[GoogleMap] Notifying host:', JSON.stringify(message));
+                if (window.chrome && window.chrome.webview) {
+                    window.chrome.webview.postMessage(JSON.stringify(message));
+                } else {
+                    console.warn('[GoogleMap] WebView2 postMessage not available');
+                }
+            } catch (e) {
+                console.error('[GoogleMap] Host notification error:', e.message);
+            }
+        }
+
+        // ============================================
+        // DRONE ICON CREATION (Using PNG/JPEG Images)
+        // ============================================
+        function createDroneIconObject(isArmed, heading) {
+            // Use the actual drone images from Assets/Images folder
+            // The paths are relative to the HTML file location
+            const iconUrl = isArmed ? '../Images/red-drone-marker.jpeg' : '../Images/green-Drone-marker.jpeg';
+            
+            return {
+                url: iconUrl,
+                scaledSize: new google.maps.Size(CONFIG.droneIconSize, CONFIG.droneIconSize),
+                anchor: new google.maps.Point(CONFIG.droneIconSize / 2, CONFIG.droneIconSize / 2),
+                rotation: heading || 0
+            };
+        }
+
+        // ============================================
+        // MAP INITIALIZATION
+        // ============================================
+        function initMap() {
+            console.log('[GoogleMap] Initializing map...');
+            
+            try {
+                map = new google.maps.Map(document.getElementById('map'), {
+                    center: CONFIG.defaultCenter,
+                    zoom: 18,
+                    mapTypeId: 'satellite',
+                    disableDefaultUI: true,
+                    tilt: 0,
+                    heading: 0,
+                    gestureHandling: 'greedy',
+                    keyboardShortcuts: false,
+                    styles: [
+                        {
+                            featureType: 'poi',
+                            elementType: 'labels',
+                            stylers: [{ visibility: 'off' }]
+                        }
+                    ]
+                });
+
+                // Initialize drone icon URLs
+                droneIconRed = '../Images/red-drone-marker.jpeg';
+                droneIconGreen = '../Images/green-Drone-marker.jpeg';
+                currentDroneIcon = droneIconGreen; // Start with disarmed (green)
+
+                // Create drone marker (initially hidden)
+                droneMarker = new google.maps.Marker({
+                    map: map,
+                    position: CONFIG.defaultCenter,
+                    icon: createDroneIconObject(false, 0),
+                    title: 'Drone',
+                    zIndex: 1000,
+                    visible: false,
+                    optimized: false // Important for smooth rotation
+                });
+
+                // Create flight path polyline
+                flightPath = new google.maps.Polyline({
+                    map: map,
+                    path: [],
+                    strokeColor: '#3B82F6',
+                    strokeOpacity: 0.9,
+                    strokeWeight: 4,
+                    geodesic: true
+                });
+
+                // Set up click handler for mission planning
+                map.addListener('click', onMapClick);
+
+                // Hide loading overlay
+                setTimeout(() => {
+                    const loadingOverlay = document.getElementById('loading-overlay');
+                    if (loadingOverlay) {
+                        loadingOverlay.classList.add('hidden');
+                    }
+                    isMapReady = true;
+                    console.log('[GoogleMap] Map ready!');
+                    notifyHost({ type: MapMessageType.MAP_READY });
+                }, 500);
+
+            } catch (error) {
+                console.error('[GoogleMap] Initialization failed:', error);
+                notifyHost({ type: MapMessageType.ERROR, message: `Map init failed: ${error.message}` });
+            }
+        }
+
+        // ============================================
+        // DRONE UPDATE WITH REAL GPS DATA
+        // ============================================
+        function updateDrone(lat, lng, alt, heading, pitch, roll, isArmed, groundSpeed, verticalSpeed) {
+            if (!map || !isMapReady) {
+                console.warn('[GoogleMap] updateDrone called but map not ready');
+                return;
+            }
+
+            // Throttle updates
+            const now = Date.now();
+            if (now - lastUpdateTime < CONFIG.updateThrottleMs) {
+                return;
+            }
+            lastUpdateTime = now;
+
+            try {
+                // Validate coordinates
+                if (!isValidCoordinate(lat, lng)) {
+                    console.warn(`[GoogleMap] Invalid coordinates: ${lat}, ${lng}`);
+                    return;
+                }
+
+                const position = { lat: lat, lng: lng };
+                
+                // Update drone marker with proper icon based on armed state
+                droneMarker.setPosition(position);
+                droneMarker.setIcon(createDroneIconObject(isArmed, heading));
+                droneMarker.setVisible(true);
+
+                // Update state
+                lastDronePosition = position;
+                lastDroneHeading = heading;
+                lastDroneAltitude = alt;
+                currentDroneIcon = isArmed ? droneIconRed : droneIconGreen;
+
+                // Set home on first valid position
+                if (!homePosition && isValidCoordinate(lat, lng)) {
+                    setHomePosition(lat, lng);
+                }
+
+                // Add to flight path
+                addToFlightPath(lat, lng, isArmed);
+
+                // Update spray trail if spraying
+                if (isSprayActive) {
+                    updateSprayTrail(lat, lng, heading);
+                }
+
+                // Follow drone if enabled
+                if (isFollowing) {
+                    updateCameraFollow(position, heading);
+                }
+
+                // Log every 50th update to avoid console spam
+                if (!window._droneUpdateCount) window._droneUpdateCount = 0;
+                window._droneUpdateCount++;
+                if (window._droneUpdateCount % 50 === 0) {
+                    console.log(`[GoogleMap] Drone update #${window._droneUpdateCount}: ${lat.toFixed(6)}, ${lng.toFixed(6)}, ${alt.toFixed(1)}m, ${heading.toFixed(0)}°, Armed=${isArmed}, Speed=${groundSpeed.toFixed(1)}m/s`);
+                }
+
+            } catch (error) {
+                console.error('[GoogleMap] Error updating drone:', error);
+            }
+        }
+
+        function isValidCoordinate(lat, lng) {
+            return Math.abs(lat) > 0.0001 && Math.abs(lng) > 0.0001 &&
+                   lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180;
+        }
+
+        // ============================================
+        // FLIGHT PATH
+        // ============================================
+        function addToFlightPath(lat, lng, isArmed) {
+            const newPos = { lat: lat, lng: lng };
+            
+            // Distance threshold check
+            if (flightPathCoords.length > 0) {
+                const lastPos = flightPathCoords[flightPathCoords.length - 1];
+                const distance = getDistance(lastPos, newPos);
+                if (distance < 0.5) return; // Less than 0.5m, skip
+            }
+
+            flightPathCoords.push(newPos);
+
+            // Limit path length
+            while (flightPathCoords.length > CONFIG.maxFlightPathPoints) {
+                flightPathCoords.shift();
+            }
+
+            // Update polyline color based on armed state
+            const pathColor = isArmed ? '#EF4444' : '#3B82F6';
+            flightPath.setOptions({ strokeColor: pathColor });
+            flightPath.setPath(flightPathCoords);
+        }
+
+        function getDistance(pos1, pos2) {
+            const R = 6371000; // Earth radius in meters
+            const dLat = (pos2.lat - pos1.lat) * Math.PI / 180;
+            const dLng = (pos2.lng - pos1.lng) * Math.PI / 180;
+            const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                      Math.cos(pos1.lat * Math.PI / 180) * Math.cos(pos2.lat * Math.PI / 180) *
+                      Math.sin(dLng / 2) * Math.sin(dLng / 2);
+            return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        }
+
+        // ============================================
+        // CAMERA CONTROL
+        // ============================================
+        function updateCameraFollow(position, heading) {
+            if (!map || !position) return;
+
+            switch (currentViewMode) {
+                case ViewMode.TOP_DOWN:
+                    map.panTo(position);
+                    map.setTilt(0);
+                    map.setHeading(0);
+                    break;
+                    
+                case ViewMode.CHASE_3D:
+                    map.panTo(position);
+                    map.setTilt(45);
+                    map.setHeading(heading || 0);
+                    break;
+                    
+                case ViewMode.FREE_ROAM:
+                    // Do nothing - user controls camera
+                    break;
+            }
+        }
+
+        function centerOnDrone(animate) {
+            if (!droneMarker || !lastDronePosition) return;
+
+            if (animate) {
+                map.panTo(lastDronePosition);
+            } else {
+                map.setCenter(lastDronePosition);
+            }
+            
+            map.setZoom(18);
+        }
+
+        // ============================================
+        // VIEW MODE
+        // ============================================
+        function setViewMode(mode) {
+            currentViewMode = mode;
+            
+            switch (mode) {
+                case 'topdown':
+                    currentViewMode = ViewMode.TOP_DOWN;
+                    isFollowing = true;
+                    map.setTilt(0);
+                    map.setHeading(0);
+                    console.log('[GoogleMap] View mode: Top-Down');
+                    break;
+                    
+                case 'chase':
+                case 'chase3d':
+                    currentViewMode = ViewMode.CHASE_3D;
+                    isFollowing = true;
+                    map.setTilt(45);
+                    console.log('[GoogleMap] View mode: 3D Chase');
+                    break;
+                    
+                case 'free':
+                case 'freeroam':
+                    currentViewMode = ViewMode.FREE_ROAM;
+                    isFollowing = false;
+                    console.log('[GoogleMap] View mode: Free Roam');
+                    break;
+            }
+            
+            if (isFollowing && lastDronePosition) {
+                updateCameraFollow(lastDronePosition, lastDroneHeading);
+            }
+            
+            notifyHost({ type: MapMessageType.VIEW_MODE_CHANGED, mode: currentViewMode });
+        }
+
+        function toggleFollow() {
+            isFollowing = !isFollowing;
+            if (isFollowing && lastDronePosition) {
+                updateCameraFollow(lastDronePosition, lastDroneHeading);
+            }
+            notifyHost({ type: MapMessageType.FOLLOW_CHANGED, following: isFollowing });
+            return isFollowing;
+        }
+
+        // ============================================
+        // MAP TYPE
+        // ============================================
+        function setMapType(type) {
+            if (!map) return;
+            
+            switch (type) {
+                case 'satellite':
+                    map.setMapTypeId('satellite');
+                    break;
+                case 'hybrid':
+                    map.setMapTypeId('hybrid');
+                    break;
+                case 'terrain':
+                    map.setMapTypeId('terrain');
+                    break;
+                case 'roadmap':
+                default:
+                    map.setMapTypeId('roadmap');
+                    break;
+            }
+            console.log(`[GoogleMap] Map type: ${type}`);
+        }
+
+        // ============================================
+        // HOME POSITION
+        // ============================================
+        function createHomeIcon() {
+            return {
+                path: 'M12 2L2 12h3v8h6v-6h2v6h6v-8h3L12 2z',
+                fillColor: '#22C55E',
+                fillOpacity: 1,
+                strokeColor: '#FFFFFF',
+                strokeWeight: 1,
+                scale: 1.5,
+                anchor: new google.maps.Point(12, 22)
+            };
+        }
+
+        function setHomePosition(lat, lng) {
+            if (homeMarker) {
+                homeMarker.setMap(null);
+            }
+
+            homePosition = { lat: lat, lng: lng };
+            
+            homeMarker = new google.maps.Marker({
+                map: map,
+                position: homePosition,
+                icon: createHomeIcon(),
+                title: 'Home',
+                zIndex: 500
+            });
+
+            console.log(`[GoogleMap] Home position set: ${lat.toFixed(6)}, ${lng.toFixed(6)}`);
+        }
+
+        // ============================================
+        // WAYPOINTS
+        // ============================================
+        function createWaypointIcon(number, isCurrent) {
+            const color = isCurrent ? '#22C55E' : '#3B82F6';
+            
+            return {
+                path: google.maps.SymbolPath.CIRCLE,
+                fillColor: color,
+                fillOpacity: 1,
+                strokeColor: '#FFFFFF',
+                strokeWeight: 2,
+                scale: 12,
+                labelOrigin: new google.maps.Point(0, 0)
+            };
+        }
+
+        function setWaypoints(waypoints) {
+            clearWaypointsInternal();
+
+            if (!waypoints || waypoints.length === 0) {
+                missionWaypoints = [];
+                return;
+            }
+
+            missionWaypoints = waypoints.map(w => ({ ...w }));
+
+            const pathCoords = [];
+
+            waypoints.forEach((wp, index) => {
+                const position = { lat: wp.lat, lng: wp.lon };
+                const isCurrent = wp.isCurrent || false;
+                
+                const marker = new google.maps.Marker({
+                    map: map,
+                    position: position,
+                    icon: createWaypointIcon(index + 1, isCurrent),
+                    label: {
+                        text: String(index + 1),
+                        color: '#FFFFFF',
+                        fontWeight: 'bold',
+                        fontSize: '11px'
+                    },
+                    title: `Waypoint ${index + 1} - ${(wp.alt || 50).toFixed(0)}m`,
+                    zIndex: 800,
+                    draggable: true
+                });
+
+                marker.waypointIndex = index;
+
+                // Handle waypoint drag
+                marker.addListener('dragend', function(e) {
+                    const newLat = e.latLng.lat();
+                    const newLng = e.latLng.lng();
+                    missionWaypoints[index].lat = newLat;
+                    missionWaypoints[index].lon = newLng;
+                    updateMissionPath();
+                    notifyHost({
+                        type: MapMessageType.WAYPOINT_MOVED,
+                        index: index,
+                        lat: newLat,
+                        lon: newLng
+                    });
+                });
+
+                waypointMarkers.push(marker);
+                pathCoords.push(position);
+            });
+
+            // Create mission path
+            if (pathCoords.length >= 2) {
+                missionPath = new google.maps.Polyline({
+                    map: map,
+                    path: pathCoords,
+                    strokeColor: '#FACC15',
+                    strokeOpacity: 0.8,
+                    strokeWeight: 3,
+                    geodesic: true,
+                    icons: [{
+                        icon: {
+                            path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW,
+                            scale: 3,
+                            strokeColor: '#FACC15'
+                        },
+                        offset: '100%',
+                        repeat: '100px'
+                    }]
+                });
+            }
+
+            console.log(`[GoogleMap] Added ${waypoints.length} waypoints`);
+        }
+
+        function updateMissionPath() {
+            if (missionPath) {
+                const pathCoords = missionWaypoints.map(wp => ({ lat: wp.lat, lng: wp.lon }));
+                missionPath.setPath(pathCoords);
+            }
+        }
+
+        function clearWaypointsInternal() {
+            waypointMarkers.forEach(marker => marker.setMap(null));
+            waypointMarkers = [];
+            
+            if (missionPath) {
+                missionPath.setMap(null);
+                missionPath = null;
+            }
+        }
+
+        function clearWaypoints() {
+            clearWaypointsInternal();
+            missionWaypoints = [];
+        }
+
+        function deleteWaypoint(index) {
+            if (index >= 0 && index < missionWaypoints.length) {
+                missionWaypoints.splice(index, 1);
+                setWaypoints(missionWaypoints);
+                notifyHost({ type: MapMessageType.WAYPOINT_DELETED, index: index });
+            }
+        }
+
+        function setCurrentWaypoint(index) {
+            missionWaypoints.forEach((wp, i) => {
+                wp.isCurrent = (i === index);
+            });
+            setWaypoints(missionWaypoints);
+        }
+
+        // ============================================
+        // MISSION PLANNING
+        // ============================================
+        function setMissionTool(tool) {
+            const allowed = new Set(['none', 'waypoint', 'home', 'survey', 'orbit', 'rtl', 'land']);
+            activePlanningTool = allowed.has((tool || '').toLowerCase()) ? tool.toLowerCase() : 'none';
+
+            const mapDiv = document.getElementById('map');
+            if (mapDiv) {
+                mapDiv.style.cursor = activePlanningTool === 'none' ? 'default' : 'crosshair';
+            }
+
+            if (activePlanningTool === 'survey') {
+                clearSurveyBoundary();
+            }
+
+            console.log(`[GoogleMap] Mission tool: ${activePlanningTool}`);
+        }
+
+        function onMapClick(e) {
+            if (activePlanningTool === 'none') return;
+
+            const lat = e.latLng.lat();
+            const lng = e.latLng.lng();
+
+            if (!isValidCoordinate(lat, lng)) return;
+
+            switch (activePlanningTool) {
+                case 'waypoint': {
+                    const index = missionWaypoints.length;
+                    const altitude = Math.max(lastDroneAltitude || CONFIG.defaultWaypointAltitude, 5);
+                    missionWaypoints.push({ lat: lat, lon: lng, alt: altitude, isCurrent: false });
+                    setWaypoints(missionWaypoints);
+                    notifyHost({ type: MapMessageType.WAYPOINT_PLACED, lat: lat, lon: lng, alt: altitude, index: index });
+                    console.log(`[GoogleMap] Waypoint placed: ${lat}, ${lng}, ${altitude}`);
+                    break;
+                }
+                case 'home':
+                    setHomePosition(lat, lng);
+                    notifyHost({ type: MapMessageType.HOME_PLACED, lat: lat, lon: lng });
+                    console.log(`[GoogleMap] Home position set: ${lat}, ${lng}`);
+                    break;
+                case 'land':
+                    notifyHost({ type: MapMessageType.LAND_PLACED, lat: lat, lon: lng });
+                    console.log(`[GoogleMap] Land position set: ${lat}, ${lng}`);
+                    break;
+                case 'orbit':
+                    notifyHost({ type: MapMessageType.ORBIT_PLACED, lat: lat, lon: lng, radius: 20 });
+                    console.log(`[GoogleMap] Orbit position set: ${lat}, ${lng}`);
+                    break;
+                case 'survey':
+                    addSurveyBoundaryPoint(lat, lng);
+                    console.log(`[GoogleMap] Survey boundary point added: ${lat}, ${lng}`);
+                    break;
+            }
+        }
+
+        // ============================================
+        // SURVEY BOUNDARY
+        // ============================================
+        function addSurveyBoundaryPoint(lat, lng) {
+            surveyBoundaryPoints.push({ lat: lat, lng: lng });
+
+            const marker = new google.maps.Marker({
+                map: map,
+                position: { lat: lat, lng: lng },
+                icon: {
+                    path: google.maps.SymbolPath.CIRCLE,
+                    fillColor: '#FACC15',
+                    fillOpacity: 1,
+                    strokeColor: '#000000',
+                    strokeWeight: 2,
+                    scale: 6
+                }
+            });
+            surveyBoundaryMarkers.push(marker);
+
+            // Update polygon
+            if (surveyBoundaryPoints.length >= 3) {
+                if (surveyBoundaryPolygon) {
+                    surveyBoundaryPolygon.setPath(surveyBoundaryPoints);
+                } else {
+                    surveyBoundaryPolygon = new google.maps.Polygon({
+                        map: map,
+                        paths: surveyBoundaryPoints,
+                        strokeColor: '#FACC15',
+                        strokeOpacity: 0.8,
+                        strokeWeight: 2,
+                        fillColor: '#FACC15',
+                        fillOpacity: 0.15
+                    });
+
+                    // Double-click to complete
+                    surveyBoundaryPolygon.addListener('dblclick', completeSurveyBoundary);
+                }
+            }
+        }
+
+        function completeSurveyBoundary() {
+            if (surveyBoundaryPoints.length < 3) return;
+
+            notifyHost({
+                type: MapMessageType.SURVEY_BOUNDARY_COMPLETED,
+                boundary: surveyBoundaryPoints,
+                vertexCount: surveyBoundaryPoints.length
+            });
+
+            setMissionTool('none');
+            console.log(`[GoogleMap] Survey boundary completed with ${surveyBoundaryPoints.length} vertices`);
+        }
+
+        function clearSurveyBoundary() {
+            surveyBoundaryMarkers.forEach(m => m.setMap(null));
+            surveyBoundaryMarkers = [];
+            surveyBoundaryPoints = [];
+
+            if (surveyBoundaryPolygon) {
+                surveyBoundaryPolygon.setMap(null);
+                surveyBoundaryPolygon = null;
+            }
+
+            clearSurveyGrid();
+        }
+
+        function clearSurveyGrid() {
+            surveyGridLines.forEach(l => l.setMap(null));
+            surveyGridLines = [];
+        }
+
+        function renderSurveyGrid(gridWaypoints, sprayWidth) {
+            clearSurveyGrid();
+
+            if (!gridWaypoints || gridWaypoints.length < 2) return;
+
+            // Draw spray lanes
+            for (let i = 0; i < gridWaypoints.length - 1; i += 2) {
+                const start = gridWaypoints[i];
+                const end = gridWaypoints[i + 1];
+
+                const line = new google.maps.Polyline({
+                    map: map,
+                    path: [
+                        { lat: start.lat, lng: start.lon },
+                        { lat: end.lat, lng: end.lon }
+                    ],
+                    strokeColor: '#22C55E',
+                    strokeOpacity: 0.8,
+                    strokeWeight: 3
+                });
+                surveyGridLines.push(line);
+            }
+
+            // Draw turnaround segments
+            for (let i = 1; i < gridWaypoints.length - 1; i += 2) {
+                const turnLine = new google.maps.Polyline({
+                    map: map,
+                    path: [
+                        { lat: gridWaypoints[i].lat, lng: gridWaypoints[i].lon },
+                        { lat: gridWaypoints[i + 1].lat, lng: gridWaypoints[i + 1].lon }
+                    ],
+                    strokeColor: '#06B6D4',
+                    strokeOpacity: 0.6,
+                    strokeWeight: 2,
+                    icons: [{
+                        icon: {
+                            path: 'M 0,-1 0,1',
+                            strokeOpacity: 1,
+                            scale: 3
+                        },
+                        offset: '0',
+                        repeat: '12px'
+                    }]
+                });
+                surveyGridLines.push(turnLine);
+            }
+
+            console.log(`[GoogleMap] Survey grid rendered with ${gridWaypoints.length} waypoints`);
+        }
+
+        // ============================================
+        // SPRAY OVERLAY
+        // ============================================
+        function setSprayActive(active, width) {
+            isSprayActive = active;
+            if (width) sprayWidthMeters = width;
+            if (!active) lastSprayPosition = null;
+            console.log(`[GoogleMap] Spray ${active ? 'ON' : 'OFF'}, width: ${sprayWidthMeters}m`);
+        }
+
+        function updateSprayTrail(lat, lng, heading) {
+            if (!isSprayActive || !isValidCoordinate(lat, lng)) return;
+
+            const current = { lat: lat, lng: lng };
+
+            if (lastSprayPosition) {
+                const halfWidth = sprayWidthMeters / 2;
+                const perpAngle = (heading || 0) + 90;
+
+                const corners = [
+                    offsetPoint(lastSprayPosition, perpAngle, halfWidth),
+                    offsetPoint(lastSprayPosition, perpAngle, -halfWidth),
+                    offsetPoint(current, perpAngle, -halfWidth),
+                    offsetPoint(current, perpAngle, halfWidth)
+                ];
+
+                const polygon = new google.maps.Polygon({
+                    map: map,
+                    paths: corners,
+                    strokeColor: '#22C55E',
+                    strokeOpacity: 0,
+                    strokeWeight: 0,
+                    fillColor: '#22C55E',
+                    fillOpacity: 0.3
+                });
+                sprayOverlays.push(polygon);
+            }
+
+            lastSprayPosition = current;
+        }
+
+        function offsetPoint(point, angleDeg, distanceMeters) {
+            const angleRad = angleDeg * Math.PI / 180;
+            const latRad = point.lat * Math.PI / 180;
+            const deltaLat = (distanceMeters * Math.cos(angleRad)) / 111320;
+            const deltaLng = (distanceMeters * Math.sin(angleRad)) / (111320 * Math.max(Math.cos(latRad), 0.0001));
+            return { lat: point.lat + deltaLat, lng: point.lng + deltaLng };
+        }
+
+        function clearSprayOverlay() {
+            sprayOverlays.forEach(p => p.setMap(null));
+            sprayOverlays = [];
+            lastSprayPosition = null;
+        }
+
+        // ============================================
+        // GEOFENCE
+        // ============================================
+        function setGeofence(center, radius, maxAlt) {
+            if (geofenceCircle) {
+                geofenceCircle.setMap(null);
+            }
+
+            if (!center || !radius) return;
+
+            geofenceCircle = new google.maps.Circle({
+                map: map,
+                center: { lat: center.lat, lng: center.lon },
+                radius: radius,
+                strokeColor: '#EF4444',
+                strokeOpacity: 0.8,
+                strokeWeight: 3,
+                fillColor: '#EF4444',
+                fillOpacity: 0.1
+            });
+
+            console.log(`[GoogleMap] Geofence set: radius=${radius}m, maxAlt=${maxAlt}m`);
+        }
+
+        // ============================================
+        // ZOOM & RESET
+        // ============================================
+        function zoomIn() {
+            if (!map) return;
+            map.setZoom(map.getZoom() + 1);
+        }
+
+        function zoomOut() {
+            if (!map) return;
+            map.setZoom(map.getZoom() - 1);
+        }
+
+        function resetView() {
+            if (!map) return;
+            
+            if (homePosition) {
+                map.panTo(homePosition);
+                map.setZoom(18);
+            } else {
+                map.panTo(CONFIG.defaultCenter);
+                map.setZoom(15);
+            }
+            
+            map.setTilt(0);
+            map.setHeading(0);
+        }
+
+        function clearFlightPath() {
+            flightPathCoords = [];
+            if (flightPath) {
+                flightPath.setPath([]);
+            }
+            if (homeMarker) {
+                homeMarker.setMap(null);
+                homeMarker = null;
+            }
+            homePosition = null;
+            clearSprayOverlay();
+            console.log('[GoogleMap] Flight path cleared');
+        }
+
+        // ============================================
+        // EXPOSE API TO C#
+        // ============================================
+        window.updateDrone = updateDrone;
+        window.centerOnDrone = centerOnDrone;
+        window.clearFlightPath = clearFlightPath;
+        window.setMapType = setMapType;
+        window.setViewMode = setViewMode;
+        window.toggleFollow = toggleFollow;
+        window.zoomIn = zoomIn;
+        window.zoomOut = zoomOut;
+        window.resetView = resetView;
+        window.setHomePosition = setHomePosition;
+        window.setWaypoints = setWaypoints;
+        window.setCurrentWaypoint = setCurrentWaypoint;
+        window.clearWaypoints = clearWaypoints;
+        window.deleteWaypoint = deleteWaypoint;
+        window.setGeofence = setGeofence;
+        window.setMissionTool = setMissionTool;
+        window.renderSurveyGrid = renderSurveyGrid;
+        window.clearSurveyGrid = clearSurveyGrid;
+        window.clearSurveyBoundary = clearSurveyBoundary;
+        window.setSprayActive = setSprayActive;
+        window.clearSprayOverlay = clearSprayOverlay;
+
+        // Constants for C#
+        window.ViewMode = ViewMode;
+        window.MapMessageType = MapMessageType;
+    </script>
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAMZgfUEgWyQmV9pSXnzA5AjAPAmDK0f1U&callback=initMap" async defer></script>
+</body>
+</html>
