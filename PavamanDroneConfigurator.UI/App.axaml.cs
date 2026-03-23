@@ -689,6 +689,7 @@ public partial class App : Application
         services.AddTransient<AdvancedSettingsPageViewModel>();
         services.AddTransient<FirmwarePageViewModel>();
         services.AddTransient<LiveMapPageViewModel>();
+        services.AddTransient<TelemetryPageViewModel>();
         services.AddTransient<ViewModels.Admin.ParamLogsViewModel>();
 
         Services = services.BuildServiceProvider();
