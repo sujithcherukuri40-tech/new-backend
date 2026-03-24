@@ -325,7 +325,10 @@ public partial class LiveMapPageViewModel : ViewModelBase
             Roll = telemetry.Roll;
             Pitch = telemetry.Pitch;
             Yaw = telemetry.Yaw;
-            HasValidPosition = telemetry.HasValidPosition;
+            
+            // Check for actual valid position (non-zero coordinates)
+            bool hasActualPosition = Math.Abs(telemetry.Latitude) > 0.0001 || Math.Abs(telemetry.Longitude) > 0.0001;
+            HasValidPosition = hasActualPosition;
             
             // Update position string
             if (HasValidPosition)
@@ -334,7 +337,7 @@ public partial class LiveMapPageViewModel : ViewModelBase
             }
             else
             {
-                PositionString = "No Fix";
+                PositionString = "Waiting for GPS...";
             }
 
             // Update flight time
@@ -375,7 +378,7 @@ public partial class LiveMapPageViewModel : ViewModelBase
                 }
             }
 
-            // Notify view of position update with full telemetry
+            // Notify view of position update ONLY with actual valid coordinates
             if (HasValidPosition)
             {
                 PositionUpdated?.Invoke(this, new DronePositionUpdateEventArgs
@@ -501,6 +504,18 @@ public partial class LiveMapPageViewModel : ViewModelBase
     private void RecenterMap()
     {
         RecenterRequested?.Invoke(this, EventArgs.Empty);
+    }
+
+    [RelayCommand]
+    private void RefreshTelemetry()
+    {
+        if (!IsConnected)
+            return;
+
+        // Force re-request telemetry streams from the drone
+        _telemetryService.RequestStreams();
+        
+        Console.WriteLine("[LiveMapPage] ??? Manual telemetry refresh requested");
     }
 
     [RelayCommand]

@@ -585,7 +585,7 @@ public partial class App : Application
         services.AddLogging(builder =>
         {
             builder.AddConsole();
-            builder.SetMinimumLevel(LogLevel.Warning);
+            builder.SetMinimumLevel(LogLevel.Information); // Changed from Warning to Information for better diagnostics
         });
 
         Console.WriteLine("[App] Adding core services...");
@@ -720,18 +720,38 @@ public partial class App : Application
         
         try
         {
+            // CRITICAL: Eagerly initialize TelemetryService so it subscribes to ConnectionService events
+            // This ensures telemetry starts working immediately when connection is established
+            Console.WriteLine("[App] ========== INITIALIZING TELEMETRY SERVICE ==========");
+            var telemetryService = Services.GetRequiredService<ITelemetryService>();
+            Console.WriteLine($"[App] SUCCESS: TelemetryService created successfully");
+            Console.WriteLine($"[App] - State: {telemetryService.CurrentState}");
+            Console.WriteLine($"[App] - IsReceiving: {telemetryService.IsReceivingTelemetry}");
+            Console.WriteLine($"[App] - HasValidPosition: {telemetryService.HasValidPosition}");
+            
             // Get connection service and parameter service for state management
             _connectionService = Services.GetService<IConnectionService>();
             _parameterService = Services.GetService<IParameterService>();
 
-            Console.WriteLine($"[App] ✓ ConnectionService: {(_connectionService != null ? "OK" : "NULL")}");
-            Console.WriteLine($"[App] ✓ ParameterService: {(_parameterService != null ? "OK" : "NULL")}");
+            Console.WriteLine($"[App] SUCCESS: ConnectionService: {(_connectionService != null ? "OK" : "NULL")}");
+            Console.WriteLine($"[App] SUCCESS: ParameterService: {(_parameterService != null ? "OK" : "NULL")}");
+            
+            if (_connectionService != null)
+            {
+                Console.WriteLine($"[App] ConnectionService.IsConnected: {_connectionService.IsConnected}");
+            }
+            
             Console.WriteLine("[App] ========== SERVICE INITIALIZATION COMPLETE ==========");
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[App] ✗ CRITICAL ERROR initializing services: {ex.Message}");
+            Console.WriteLine($"[App] CRITICAL ERROR initializing services: {ex.Message}");
             Console.WriteLine($"[App] Stack trace: {ex.StackTrace}");
+            if (ex.InnerException != null)
+            {
+                Console.WriteLine($"[App] Inner exception: {ex.InnerException.Message}");
+                Console.WriteLine($"[App] Inner stack trace: {ex.InnerException.StackTrace}");
+            }
             throw;
         }
     }

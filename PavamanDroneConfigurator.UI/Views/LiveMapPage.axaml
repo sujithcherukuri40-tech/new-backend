@@ -258,7 +258,7 @@
                 <Button Classes="floating-btn"
                         Command="{Binding RecenterMapCommand}"
                         ToolTip.Tip="Center on Drone">
-                    <TextBlock Text="?" FontSize="16"/>
+                    <TextBlock Text="??" FontSize="16"/>
                 </Button>
                 <Button Command="{Binding ToggleFollowDroneCommand}"
                         ToolTip.Tip="Toggle Follow"
@@ -267,9 +267,14 @@
                     <TextBlock Text="??" FontSize="14"/>
                 </Button>
                 <Button Classes="floating-btn"
+                        Command="{Binding RefreshTelemetryCommand}"
+                        ToolTip.Tip="Refresh Telemetry">
+                    <TextBlock Text="??" FontSize="14"/>
+                </Button>
+                <Button Classes="floating-btn"
                         Command="{Binding ChangeMapTypeCommand}"
                         ToolTip.Tip="Map Type">
-                    <TextBlock Text="??" FontSize="14"/>
+                    <TextBlock Text="???" FontSize="14"/>
                 </Button>
                 <Button Classes="floating-btn"
                         Command="{Binding ClearFlightPathCommand}"

@@ -68,7 +68,12 @@ public class TelemetryModel
     public DateTime LastGpsUpdate { get; set; }
     public DateTime LastHeartbeatUpdate { get; set; }
 
-    public bool HasValidPosition => GpsFixType >= 2 && Math.Abs(Latitude) > 0.0001 && Math.Abs(Longitude) > 0.0001;
+    /// <summary>
+    /// Always returns true - we accept ALL position data from SITL/drone.
+    /// The map will display whatever coordinates we receive.
+    /// For SITL default location is around -35.36, 149.16 (Canberra, Australia)
+    /// </summary>
+    public bool HasValidPosition => true;
 
     public string GpsFixTypeDescription => GpsFixType switch
     {

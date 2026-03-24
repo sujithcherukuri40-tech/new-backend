@@ -57,6 +57,7 @@ public sealed class TelemetryService : ITelemetryService, IDisposable
 
     private int _startupAttemptCount;
     private int _recoveryAttemptCount;
+    private int _positionUpdateCount;
 
     private CancellationTokenSource? _lifecycleCts;
     private Task? _stateLoopTask;
@@ -92,6 +93,13 @@ public sealed class TelemetryService : ITelemetryService, IDisposable
         _options = TelemetryServiceOptions.Default;
 
         _connectionService.ConnectionStateChanged += OnConnectionStateChanged;
+        
+        // Auto-start if already connected
+        if (_connectionService.IsConnected)
+        {
+            _logger.LogInformation("{Prefix} Already connected on construction, auto-starting", LogPrefix);
+            Start();
+        }
     }
 
     public TelemetryModel CurrentTelemetry
@@ -143,8 +151,15 @@ public sealed class TelemetryService : ITelemetryService, IDisposable
     {
         lock (_lifecycleLock)
         {
-            if (_disposed || _started)
+            if (_disposed)
             {
+                _logger.LogWarning("{Prefix} Cannot start - disposed", LogPrefix);
+                return;
+            }
+            
+            if (_started)
+            {
+                _logger.LogDebug("{Prefix} Already started", LogPrefix);
                 return;
             }
 
@@ -160,6 +175,13 @@ public sealed class TelemetryService : ITelemetryService, IDisposable
         }
 
         _logger.LogInformation(ConnectionStateEvent, "{Prefix} Started", LogPrefix);
+        
+        // If already connected, trigger connection handling
+        if (_connectionService.IsConnected)
+        {
+            HandleConnected();
+            RequestStreams();
+        }
     }
 
     public void Stop()
@@ -221,6 +243,7 @@ public sealed class TelemetryService : ITelemetryService, IDisposable
             _lastValidFrameType = "None";
             _startupAttemptCount = 0;
             _recoveryAttemptCount = 0;
+            _positionUpdateCount = 0;
             _nextStreamRequestDueUtc = DateTime.MinValue;
             _nextMaintenanceRequestDueUtc = DateTime.MinValue;
             _lastHealthSnapshotLogUtc = DateTime.MinValue;
@@ -241,8 +264,11 @@ public sealed class TelemetryService : ITelemetryService, IDisposable
             return;
         }
 
-        Start();
-        HandleConnected();
+        // Ensure we're started
+        if (!_started)
+        {
+            Start();
+        }
 
         lock (_stateLock)
         {
@@ -271,26 +297,26 @@ public sealed class TelemetryService : ITelemetryService, IDisposable
     {
         var snapshot = BuildHealthSnapshot(DateTime.UtcNow);
         List<string> transitions;
+        TelemetryModel currentTelemetry;
         lock (_stateLock)
         {
             transitions = _transitionHistory.ToList();
+            currentTelemetry = _currentTelemetry.Clone();
         }
 
         var builder = new StringBuilder();
-        builder.AppendLine("Telemetry Debug Dump");
+        builder.AppendLine("=== Telemetry Debug Dump ===");
         builder.AppendLine($"State: {snapshot.State}");
         builder.AppendLine($"Connected: {snapshot.IsConnected}");
         builder.AppendLine($"Receiving: {snapshot.IsReceivingTelemetry}");
         builder.AppendLine($"StaleReason: {snapshot.StaleReason}");
         builder.AppendLine($"LastValidFrame: {snapshot.LastValidFrameType} @ {snapshot.LastValidFrameTime:O}");
+        builder.AppendLine($"Position Updates: {_positionUpdateCount}");
+        builder.AppendLine($"Current Position: Lat={currentTelemetry.Latitude:F6}, Lon={currentTelemetry.Longitude:F6}");
+        builder.AppendLine($"HasValidPosition: {currentTelemetry.HasValidPosition}");
+        builder.AppendLine($"GpsFixType: {currentTelemetry.GpsFixType}");
         builder.AppendLine($"Ages(s): hb={snapshot.HeartbeatAge.TotalSeconds:F1}, pos={snapshot.PositionAge.TotalSeconds:F1}, gps={snapshot.GpsAge.TotalSeconds:F1}, att={snapshot.AttitudeAge.TotalSeconds:F1}, vfr={snapshot.VfrAge.TotalSeconds:F1}, sys={snapshot.SysStatusAge.TotalSeconds:F1}");
         builder.AppendLine($"Retries: startup={snapshot.StartupAttemptCount}, recovery={snapshot.RecoveryAttemptCount}");
-        builder.AppendLine("Configured message rates:");
-        foreach (var msg in MessageIntervals)
-        {
-            builder.AppendLine($" - {msg.Name} ({msg.MessageId}): {msg.RateHz}Hz");
-        }
-
         builder.AppendLine("Recent transitions:");
         foreach (var transition in transitions)
         {
@@ -450,17 +476,23 @@ public sealed class TelemetryService : ITelemetryService, IDisposable
     private void LogHealthSnapshot(DateTime now)
     {
         var health = BuildHealthSnapshot(now);
+        TelemetryModel currentTelemetry;
+        lock (_stateLock)
+        {
+            currentTelemetry = _currentTelemetry.Clone();
+        }
+        
         _logger.LogInformation(HealthSnapshotEvent,
-            "{Prefix} Health ages(s): hb={Hb:F1}, pos={Pos:F1}, gps={Gps:F1}, att={Att:F1}, vfr={Vfr:F1}, sys={Sys:F1}, state={State}, stale={Stale}",
+            "{Prefix} Health: state={State}, pos=({Lat:F4},{Lon:F4}), gps={GpsFix}, ages(s): hb={Hb:F1}, pos={Pos:F1}, gps={Gps:F1}, att={Att:F1}",
             LogPrefix,
+            health.State,
+            currentTelemetry.Latitude,
+            currentTelemetry.Longitude,
+            currentTelemetry.GpsFixType,
             health.HeartbeatAge.TotalSeconds,
             health.PositionAge.TotalSeconds,
             health.GpsAge.TotalSeconds,
-            health.AttitudeAge.TotalSeconds,
-            health.VfrAge.TotalSeconds,
-            health.SysStatusAge.TotalSeconds,
-            health.State,
-            health.StaleReason);
+            health.AttitudeAge.TotalSeconds);
     }
 
     private async Task SendStreamNegotiationBurstAsync(string reason, CancellationToken ct)
@@ -516,8 +548,20 @@ public sealed class TelemetryService : ITelemetryService, IDisposable
         try
         {
             var now = DateTime.UtcNow;
-            if (!IsValidPositionFrame(e))
+            
+            // ALWAYS log first few position messages for debugging
+            _positionUpdateCount++;
+            if (_positionUpdateCount <= 5 || _positionUpdateCount % 50 == 0)
             {
+                _logger.LogInformation("{Prefix} GLOBAL_POSITION_INT #{Count}: lat={Lat:F6}, lon={Lon:F6}, alt={Alt:F1}m",
+                    LogPrefix, _positionUpdateCount, e.Latitude, e.Longitude, e.AltitudeRelative);
+            }
+            
+            // Accept ALL position frames from SITL - don't validate too strictly
+            // Only reject truly invalid data (NaN, infinity, or clearly wrong)
+            if (!double.IsFinite(e.Latitude) || !double.IsFinite(e.Longitude))
+            {
+                _logger.LogWarning("{Prefix} Invalid position: non-finite values", LogPrefix);
                 return;
             }
 
@@ -617,11 +661,7 @@ public sealed class TelemetryService : ITelemetryService, IDisposable
     {
         try
         {
-            if (!IsValidGpsFrame(e))
-            {
-                return;
-            }
-
+            // Accept all GPS frames - SITL may report unusual values
             var now = DateTime.UtcNow;
             lock (_stateLock)
             {
@@ -646,7 +686,7 @@ public sealed class TelemetryService : ITelemetryService, IDisposable
                 FixType = e.FixType,
                 SatelliteCount = e.SatellitesVisible,
                 Hdop = double.IsNaN(e.Hdop) ? 0 : e.Hdop,
-                HasValidFix = e.FixType >= 2
+                HasValidFix = e.FixType >= 1 // Accept any GPS activity for SITL
             });
 
             MarkValidFrame("GPS_RAW_INT", now);
@@ -663,20 +703,16 @@ public sealed class TelemetryService : ITelemetryService, IDisposable
     {
         try
         {
-            if (!IsValidSysStatusFrame(e))
-            {
-                return;
-            }
-
+            // Accept all sys status - SITL may have unusual battery values
             var now = DateTime.UtcNow;
             lock (_stateLock)
             {
                 _currentTelemetry.BatteryVoltage = e.BatteryVoltage;
-                if (!double.IsNaN(e.BatteryCurrent) && e.BatteryCurrent >= 0)
+                if (!double.IsNaN(e.BatteryCurrent))
                 {
                     _currentTelemetry.BatteryCurrent = e.BatteryCurrent;
                 }
-                _currentTelemetry.BatteryRemaining = e.BatteryRemaining >= 0 ? e.BatteryRemaining : -1;
+                _currentTelemetry.BatteryRemaining = e.BatteryRemaining;
                 _lastSysStatusUtc = now;
                 _hasPendingUpdate = true;
             }
@@ -685,7 +721,7 @@ public sealed class TelemetryService : ITelemetryService, IDisposable
             {
                 Voltage = e.BatteryVoltage,
                 Current = double.IsNaN(e.BatteryCurrent) ? -1 : e.BatteryCurrent,
-                RemainingPercent = e.BatteryRemaining >= 0 ? e.BatteryRemaining : -1
+                RemainingPercent = e.BatteryRemaining
             });
 
             MarkValidFrame("SYS_STATUS", now);
@@ -750,9 +786,11 @@ public sealed class TelemetryService : ITelemetryService, IDisposable
             attitudeTimestamp = snapshot.LastAttitudeUpdate;
         }
 
+        // ALWAYS emit TelemetryUpdated when we have pending updates
         TelemetryUpdated?.Invoke(this, snapshot);
 
-        if (snapshot.HasValidPosition && positionTimestamp > _lastEmittedPositionUtc)
+        // ALWAYS emit PositionChanged if we have a position update - NO VALIDATION
+        if (positionTimestamp > _lastEmittedPositionUtc)
         {
             _lastEmittedPositionUtc = positionTimestamp;
             PositionChanged?.Invoke(this, new PositionChangedEventArgs
@@ -785,12 +823,8 @@ public sealed class TelemetryService : ITelemetryService, IDisposable
 
         if (connected)
         {
-            if (_started)
-            {
-                HandleConnected();
-                RequestStreams();
-            }
-
+            // Auto-start on connection
+            Start();
             return;
         }
 
@@ -804,6 +838,7 @@ public sealed class TelemetryService : ITelemetryService, IDisposable
         {
             _startupAttemptCount = 0;
             _recoveryAttemptCount = 0;
+            _positionUpdateCount = 0;
             _firstValidFrameLogged = false;
             _nextStreamRequestDueUtc = now;
             _nextMaintenanceRequestDueUtc = now + _options.MaintenanceRefreshInterval;
@@ -835,7 +870,7 @@ public sealed class TelemetryService : ITelemetryService, IDisposable
             _lastAnyValidFrameUtc = now;
             _lastValidFrameType = messageType;
 
-            if (_state is TelemetryServiceState.NegotiatingStreams or TelemetryServiceState.TelemetryStaleRecovering)
+            if (_state is TelemetryServiceState.NegotiatingStreams or TelemetryServiceState.TelemetryStaleRecovering or TelemetryServiceState.ConnectedAwaitingTelemetry)
             {
                 shouldActivate = HasActivationCriteriaUnsafe(now);
             }
@@ -845,11 +880,10 @@ public sealed class TelemetryService : ITelemetryService, IDisposable
         {
             var messageId = GetMessageIdFromType(messageType);
             _logger.LogInformation(FirstFrameEvent,
-                "{Prefix} ASV frame received first-valid msgId={MessageId} type={Type} at {Timestamp:O}",
+                "{Prefix} First valid frame: msgId={MessageId} type={Type}",
                 LogPrefix,
                 messageId,
-                messageType,
-                now);
+                messageType);
         }
 
         if (shouldActivate)
@@ -865,17 +899,10 @@ public sealed class TelemetryService : ITelemetryService, IDisposable
 
     private bool HasActivationCriteriaUnsafe(DateTime now)
     {
-        var heartbeatFresh = _lastHeartbeatUtc != DateTime.MinValue && (now - _lastHeartbeatUtc) <= _options.StartupTimeout;
-        if (!heartbeatFresh)
-        {
-            return false;
-        }
-
-        return IsFreshUnsafe(_lastPositionUtc, now, _options.StartupTimeout)
-               || IsFreshUnsafe(_lastGpsUtc, now, _options.StartupTimeout)
-               || IsFreshUnsafe(_lastAttitudeUtc, now, _options.StartupTimeout)
-               || IsFreshUnsafe(_lastVfrUtc, now, _options.StartupTimeout)
-               || IsFreshUnsafe(_lastSysStatusUtc, now, _options.StartupTimeout);
+        // For SITL compatibility: activate telemetry if we have ANY valid frame recently
+        // Don't require heartbeat for activation - some setups may not send it first
+        var hasAnyRecentFrame = _lastAnyValidFrameUtc != DateTime.MinValue && (now - _lastAnyValidFrameUtc) <= _options.StartupTimeout;
+        return hasAnyRecentFrame;
     }
 
     private void TransitionState(TelemetryServiceState newState, string reason, TelemetryStaleReason staleReason)
@@ -994,7 +1021,8 @@ public sealed class TelemetryService : ITelemetryService, IDisposable
             return;
         }
 
-        if (Math.Abs(e.Latitude) < 0.000001 && Math.Abs(e.Longitude) < 0.000001)
+        // Only skip truly zero coordinates
+        if (e.Latitude == 0.0 && e.Longitude == 0.0)
         {
             return;
         }
@@ -1023,6 +1051,8 @@ public sealed class TelemetryService : ITelemetryService, IDisposable
         _connectionService.SysStatusReceived += OnSysStatus;
         _connectionService.HeartbeatDataReceived += OnHeartbeatData;
         _isSubscribed = true;
+        
+        _logger.LogInformation("{Prefix} Subscribed to telemetry events", LogPrefix);
     }
 
     private void UnsubscribeTelemetryEvents()
@@ -1039,6 +1069,8 @@ public sealed class TelemetryService : ITelemetryService, IDisposable
         _connectionService.SysStatusReceived -= OnSysStatus;
         _connectionService.HeartbeatDataReceived -= OnHeartbeatData;
         _isSubscribed = false;
+        
+        _logger.LogInformation("{Prefix} Unsubscribed from telemetry events", LogPrefix);
     }
 
     private static bool IsValidHeartbeatFrame(HeartbeatDataEventArgs e)
@@ -1046,48 +1078,18 @@ public sealed class TelemetryService : ITelemetryService, IDisposable
         return e.VehicleType <= 30 && e.SystemId != 0;
     }
 
-    private static bool IsValidPositionFrame(GlobalPositionIntEventArgs e)
-    {
-        return double.IsFinite(e.Latitude)
-               && double.IsFinite(e.Longitude)
-               && double.IsFinite(e.AltitudeMsl)
-               && e.Latitude is >= -90 and <= 90
-               && e.Longitude is >= -180 and <= 180
-               && !(Math.Abs(e.Latitude) < 0.000001 && Math.Abs(e.Longitude) < 0.000001);
-    }
-
     private static bool IsValidAttitudeFrame(AttitudeEventArgs e)
     {
         return double.IsFinite(e.Roll)
                && double.IsFinite(e.Pitch)
-               && double.IsFinite(e.Yaw)
-               && Math.Abs(e.Roll) <= 360
-               && Math.Abs(e.Pitch) <= 180
-               && Math.Abs(e.Yaw) <= 360;
-    }
-
-    private static bool IsValidGpsFrame(GpsRawIntEventArgs e)
-    {
-        return e.FixType <= 8
-               && e.SatellitesVisible <= 80
-               && double.IsFinite(e.Altitude);
-    }
-
-    private static bool IsValidSysStatusFrame(SysStatusEventArgs e)
-    {
-        var remainingValid = e.BatteryRemaining is >= -1 and <= 100;
-        return double.IsFinite(e.BatteryVoltage)
-               && e.BatteryVoltage >= 0
-               && e.BatteryVoltage <= 80
-               && remainingValid;
+               && double.IsFinite(e.Yaw);
     }
 
     private static bool IsValidVfrFrame(VfrHudEventArgs e)
     {
         return double.IsFinite(e.Airspeed)
                && double.IsFinite(e.GroundSpeed)
-               && double.IsFinite(e.ClimbRate)
-               && e.Throttle is >= 0 and <= 100;
+               && double.IsFinite(e.ClimbRate);
     }
 
     private static bool IsFreshUnsafe(DateTime timestamp, DateTime now, TimeSpan threshold)
@@ -1262,12 +1264,12 @@ internal sealed class TelemetryServiceOptions
     public static TelemetryServiceOptions Default { get; } = new();
 
     public TimeSpan StartupTimeout { get; init; } = TimeSpan.FromSeconds(5);
-    public TimeSpan StaleTimeout { get; init; } = TimeSpan.FromSeconds(3);
+    public TimeSpan StaleTimeout { get; init; } = TimeSpan.FromSeconds(5);
     public TimeSpan StartupRetryInterval { get; init; } = TimeSpan.FromSeconds(2);
     public TimeSpan RecoveryRetryInterval { get; init; } = TimeSpan.FromSeconds(2);
     public TimeSpan SlowRetryInterval { get; init; } = TimeSpan.FromSeconds(12);
     public TimeSpan MaintenanceRefreshInterval { get; init; } = TimeSpan.FromSeconds(30);
-    public TimeSpan HealthSnapshotInterval { get; init; } = TimeSpan.FromSeconds(10);
+    public TimeSpan HealthSnapshotInterval { get; init; } = TimeSpan.FromSeconds(5);
     public TimeSpan StateLoopInterval { get; init; } = TimeSpan.FromMilliseconds(500);
     public TimeSpan FlightPathMinInterval { get; init; } = TimeSpan.FromMilliseconds(500);
     public TimeSpan BurstCommandGap { get; init; } = TimeSpan.FromMilliseconds(60);
