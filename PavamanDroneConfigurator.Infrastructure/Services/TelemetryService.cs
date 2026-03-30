@@ -65,7 +65,7 @@ public sealed class TelemetryService : ITelemetryService, IDisposable
     private System.Timers.Timer? _updateTimer;
 
     private readonly TelemetryServiceOptions _options;
-    private const int UpdateIntervalMs = 100;
+    private const int UpdateIntervalMs = 50; // 20 Hz – reduces perceived telemetry lag
     private const int MaxFlightPathPoints = 5000;
 
     private static readonly (int StreamId, int RateHz, string Name)[] StreamRequests =

@@ -22,6 +22,7 @@
             <converters:DirectionToPrefixConverter x:Key="DirectionToPrefixConverter"/>
             <converters:BitmaskSelectionConverter x:Key="BitmaskSelectionConverter"/>
             <converters:ParameterValueConverter x:Key="ParameterValueConverter"/>
+            <converters:StringEqualConverter x:Key="StringEqualConverter"/>
         </ResourceDictionary>
     </Application.Resources>
 
