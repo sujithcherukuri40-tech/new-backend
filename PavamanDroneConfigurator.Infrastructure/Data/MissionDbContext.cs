@@ -5,6 +5,8 @@ namespace PavamanDroneConfigurator.Infrastructure.Data;
 
 public class MissionDbContext : DbContext
 {
+    public const string DefaultConnectionString = "Data Source=mission_drafts.db";
+
     public MissionDbContext(DbContextOptions<MissionDbContext> options)
         : base(options)
     {
@@ -16,7 +18,7 @@ public class MissionDbContext : DbContext
     {
         if (!optionsBuilder.IsConfigured)
         {
-            optionsBuilder.UseSqlite("Data Source=mission_drafts.db");
+            optionsBuilder.UseSqlite(DefaultConnectionString);
         }
     }
 }

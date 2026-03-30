@@ -7,8 +7,8 @@ namespace PavamanDroneConfigurator.Infrastructure.Data.Entities;
 public class MissionDraftEntity
 {
     [Key]
-    public string Id { get; set; } = Guid.NewGuid().ToString();
+    public string Id { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public string JsonBlob { get; set; } = string.Empty;
-    public long UpdatedAt { get; set; } = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+    public long UpdatedAt { get; set; }
 }
