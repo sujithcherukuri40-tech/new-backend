@@ -474,7 +474,7 @@
                                                         <TextBlock Text="m" FontSize="9" Foreground="#64748B" TextAlignment="Right"/>
                                                     </StackPanel>
                                                     <Button Grid.Column="4"
-                                                            Command="{Binding $parent[UserControl].((vm:LiveMapPageViewModel)DataContext).RemoveMissionItemCommand}"
+                                                            Command="{Binding $parent[UserControl].DataContext.RemoveMissionItemCommand}"
                                                             CommandParameter="{Binding}"
                                                             Width="24" Height="24" Padding="0"
                                                             CornerRadius="6" Background="Transparent"

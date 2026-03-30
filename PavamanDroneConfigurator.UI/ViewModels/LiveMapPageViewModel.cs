@@ -727,17 +727,22 @@ public partial class LiveMapPageViewModel : ViewModelBase
 
     public void RegisterMissionItem(string commandName)
     {
+        // Map the caller-supplied name to the correct MAVLink command type.
+        // SURVEY and HOME both generate a NavWaypoint entry so the position
+        // is captured; they can be disambiguated via the DisplayName if needed.
         var cmd = commandName.ToUpperInvariant() switch
         {
-            "RTL"       => MissionCommandType.NavReturnToLaunch,
-            "LAND"      => MissionCommandType.NavLand,
-            "TAKEOFF"   => MissionCommandType.NavTakeoff,
-            "ORBIT"     => MissionCommandType.NavLoiterTurns,
-            "SURVEY"    => MissionCommandType.NavWaypoint,
-            "HOME"      => MissionCommandType.NavWaypoint,
-            _           => MissionCommandType.NavWaypoint
+            "RTL"     => MissionCommandType.NavReturnToLaunch,
+            "LAND"    => MissionCommandType.NavLand,
+            "TAKEOFF" => MissionCommandType.NavTakeoff,
+            "ORBIT"   => MissionCommandType.NavLoiterTurns,
+            _         => MissionCommandType.NavWaypoint  // WP / HOME / SURVEY
         };
 
+        // Use the drone's last-known position as an initial coordinate hint.
+        // Actual placement comes from map click events (OnWaypointPlaced etc.),
+        // which call this method after the map has already rendered the marker;
+        // subsequent MoveWaypoint calls can update the stored coordinates.
         var item = new MissionItem
         {
             Index = MissionItems.Count,
@@ -756,9 +761,15 @@ public partial class LiveMapPageViewModel : ViewModelBase
 
     /// <summary>
     /// Recalculate mission total distance and estimated time from waypoints.
+    /// Skips items that have no GPS fix yet (both lat and lon at exactly 0.0
+    /// is used as a sentinel; real Gulf-of-Guinea locations are vanishingly rare
+    /// for agricultural/drone-config use-cases this app targets).
     /// </summary>
     private void RecalculateMissionStats()
     {
+        // Default cruise speed used when no speed waypoint has been defined.
+        const double DefaultCruiseSpeedMs = 5.0;
+
         double totalM = 0;
         for (int i = 1; i < MissionItems.Count; i++)
         {
@@ -770,8 +781,7 @@ public partial class LiveMapPageViewModel : ViewModelBase
         }
 
         MissionTotalDistanceKm = totalM / 1000.0;
-        const double avgSpeedMs = 5.0;
-        var secs = avgSpeedMs > 0 ? totalM / avgSpeedMs : 0;
+        var secs = totalM / DefaultCruiseSpeedMs;
         MissionEstimatedTime = TimeSpan.FromSeconds(secs).ToString(@"m\:ss");
     }
 
