@@ -58,6 +58,7 @@ public sealed class TelemetryService : ITelemetryService, IDisposable
     private int _startupAttemptCount;
     private int _recoveryAttemptCount;
     private int _positionUpdateCount;
+    private int _crcFailureCount;
 
     private CancellationTokenSource? _lifecycleCts;
     private Task? _stateLoopTask;
@@ -244,6 +245,7 @@ public sealed class TelemetryService : ITelemetryService, IDisposable
             _startupAttemptCount = 0;
             _recoveryAttemptCount = 0;
             _positionUpdateCount = 0;
+            _crcFailureCount = 0;
             _nextStreamRequestDueUtc = DateTime.MinValue;
             _nextMaintenanceRequestDueUtc = DateTime.MinValue;
             _lastHealthSnapshotLogUtc = DateTime.MinValue;
@@ -317,6 +319,7 @@ public sealed class TelemetryService : ITelemetryService, IDisposable
         builder.AppendLine($"GpsFixType: {currentTelemetry.GpsFixType}");
         builder.AppendLine($"Ages(s): hb={snapshot.HeartbeatAge.TotalSeconds:F1}, pos={snapshot.PositionAge.TotalSeconds:F1}, gps={snapshot.GpsAge.TotalSeconds:F1}, att={snapshot.AttitudeAge.TotalSeconds:F1}, vfr={snapshot.VfrAge.TotalSeconds:F1}, sys={snapshot.SysStatusAge.TotalSeconds:F1}");
         builder.AppendLine($"Retries: startup={snapshot.StartupAttemptCount}, recovery={snapshot.RecoveryAttemptCount}");
+        builder.AppendLine($"CRC: failures={snapshot.CrcFailureCount}, lastFrameValid={snapshot.LastCrcValid}");
         builder.AppendLine("Recent transitions:");
         foreach (var transition in transitions)
         {
@@ -584,6 +587,7 @@ public sealed class TelemetryService : ITelemetryService, IDisposable
             }
 
             AddFlightPathPoint(e, now);
+            TrackCrcStatus("GLOBAL_POSITION_INT", e.CrcValid);
             MarkValidFrame("GLOBAL_POSITION_INT", now);
         }
         catch (Exception ex)
@@ -617,6 +621,7 @@ public sealed class TelemetryService : ITelemetryService, IDisposable
                 _hasPendingUpdate = true;
             }
 
+            TrackCrcStatus("ATTITUDE", e.CrcValid);
             MarkValidFrame("ATTITUDE", now);
         }
         catch (Exception ex)
@@ -647,6 +652,7 @@ public sealed class TelemetryService : ITelemetryService, IDisposable
                 _hasPendingUpdate = true;
             }
 
+            TrackCrcStatus("VFR_HUD", e.CrcValid);
             MarkValidFrame("VFR_HUD", now);
         }
         catch (Exception ex)
@@ -689,6 +695,7 @@ public sealed class TelemetryService : ITelemetryService, IDisposable
                 HasValidFix = e.FixType >= 1 // Accept any GPS activity for SITL
             });
 
+            TrackCrcStatus("GPS_RAW_INT", e.CrcValid);
             MarkValidFrame("GPS_RAW_INT", now);
         }
         catch (Exception ex)
@@ -724,6 +731,7 @@ public sealed class TelemetryService : ITelemetryService, IDisposable
                 RemainingPercent = e.BatteryRemaining
             });
 
+            TrackCrcStatus("SYS_STATUS", e.CrcValid);
             MarkValidFrame("SYS_STATUS", now);
         }
         catch (Exception ex)
@@ -755,6 +763,7 @@ public sealed class TelemetryService : ITelemetryService, IDisposable
                 _hasPendingUpdate = true;
             }
 
+            TrackCrcStatus("HEARTBEAT", e.CrcValid);
             MarkValidFrame("HEARTBEAT", now);
         }
         catch (Exception ex)
@@ -897,6 +906,32 @@ public sealed class TelemetryService : ITelemetryService, IDisposable
         }
     }
 
+    /// <summary>
+    /// Records the CRC validation outcome for the received telemetry frame.
+    /// When <paramref name="crcValid"/> is <c>false</c> the failure counter is
+    /// incremented and a warning is logged, but the data itself is accepted so
+    /// the telemetry stream is never interrupted.
+    /// </summary>
+    private void TrackCrcStatus(string messageType, bool crcValid)
+    {
+        lock (_stateLock)
+        {
+            _currentTelemetry.LastCrcValid = crcValid;
+            if (!crcValid)
+            {
+                _crcFailureCount++;
+                _currentTelemetry.CrcFailureCount = _crcFailureCount;
+            }
+        }
+
+        if (!crcValid)
+        {
+            _logger.LogWarning(ParseErrorEvent,
+                "{Prefix} CRC validation failed for {MsgType} frame (total failures: {Count}) - frame accepted to keep telemetry stream flowing",
+                LogPrefix, messageType, _crcFailureCount);
+        }
+    }
+
     private bool HasActivationCriteriaUnsafe(DateTime now)
     {
         // For SITL compatibility: activate telemetry if we have ANY valid frame recently
@@ -988,7 +1023,9 @@ public sealed class TelemetryService : ITelemetryService, IDisposable
                 VfrAge = GetAge(now, _lastVfrUtc),
                 SysStatusAge = GetAge(now, _lastSysStatusUtc),
                 StartupAttemptCount = _startupAttemptCount,
-                RecoveryAttemptCount = _recoveryAttemptCount
+                RecoveryAttemptCount = _recoveryAttemptCount,
+                CrcFailureCount = _crcFailureCount,
+                LastCrcValid = _currentTelemetry.LastCrcValid
             };
         }
     }
