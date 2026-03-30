@@ -16,7 +16,7 @@
 
     <UserControl.Styles>
         <Style Selector="Border.glass-panel">
-            <Setter Property="Background" Value="#E61E293B"/>
+            <Setter Property="Background" Value="#B0101827"/>
             <Setter Property="CornerRadius" Value="12"/>
             <Setter Property="BorderBrush" Value="#40FFFFFF"/>
             <Setter Property="BorderThickness" Value="1"/>
@@ -213,102 +213,32 @@
                             <TextBlock Text="LIVE" FontSize="9" FontWeight="Bold" Foreground="#22C55E"/>
                         </StackPanel>
                     </Border>
-
-                    <!-- Panel tab toggles -->
-                    <StackPanel Orientation="Horizontal" Spacing="2">
-                        <Button Command="{Binding ShowPlotTabCommand}"
-                                Classes.panel-tab-active="{Binding IsPlotTabActive}"
-                                Classes="panel-tab" ToolTip.Tip="Mission Plot">
-                            <StackPanel Orientation="Horizontal" Spacing="4">
-                                <TextBlock Text="&#x25C6;" FontSize="10"/>
-                                <TextBlock Text="Plot"/>
-                            </StackPanel>
-                        </Button>
-                        <Button Command="{Binding ShowCameraTabCommand}"
-                                Classes.panel-tab-active="{Binding IsCameraTabActive}"
-                                Classes="panel-tab" ToolTip.Tip="Camera">
-                            <StackPanel Orientation="Horizontal" Spacing="4">
-                                <TextBlock Text="&#x1F4F7;" FontSize="10"/>
-                                <TextBlock Text="Camera"/>
-                            </StackPanel>
-                        </Button>
-                        <Button Command="{Binding ToggleRightPanelCommand}"
-                                Classes="panel-tab"
-                                IsVisible="{Binding ShowRightPanel}"
-                                ToolTip.Tip="Close Panel">
-                            <TextBlock Text="&#x2715;" FontSize="10"/>
-                        </Button>
-                    </StackPanel>
                 </StackPanel>
             </Grid>
         </Border>
 
         <!-- MIDDLE CONTENT AREA -->
-        <Grid Grid.Row="1" ColumnDefinitions="*,Auto,Auto" Margin="8,4">
+        <Grid Grid.Row="1" ColumnDefinitions="*" Margin="8,4">
 
-            <!-- MAP -->
+            <!-- MAP WITH OVERLAYS -->
             <Grid Grid.Column="0">
                 <controls:CesiumMapView x:Name="CesiumMap" ClipToBounds="True"/>
-                <!-- View Mode buttons overlaid at bottom centre -->
-                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center"
-                            VerticalAlignment="Bottom" Margin="0,0,0,12" Spacing="6"
+
+                <!-- Right-side floating controls -->
+                <StackPanel Orientation="Vertical" HorizontalAlignment="Right"
+                            VerticalAlignment="Center" Margin="0,0,16,0" Spacing="10"
                             IsVisible="{Binding IsConnected}">
-                    <Button Command="{Binding SetViewModeTopDownCommand}"
-                            Classes.view-mode-btn-active="{Binding IsTopDownView}"
-                            Classes="view-mode-btn">
-                        <StackPanel Orientation="Horizontal" Spacing="4">
-                            <TextBlock Text="&#x2299;" FontSize="12"/>
-                            <TextBlock Text="Top Down"/>
-                        </StackPanel>
+                    <Button Classes="floating-btn" Command="{Binding RefreshTelemetryCommand}">
+                        <TextBlock Text="Start" FontWeight="SemiBold"/>
                     </Button>
-                    <Button Command="{Binding SetViewModeChase3DCommand}"
-                            Classes.view-mode-btn-active="{Binding IsChase3DView}"
-                            Classes="view-mode-btn">
-                        <StackPanel Orientation="Horizontal" Spacing="4">
-                            <TextBlock Text="&#x25C8;" FontSize="12"/>
-                            <TextBlock Text="3D Chase"/>
-                        </StackPanel>
+                    <Button Classes="floating-btn" Command="{Binding RecenterMapCommand}">
+                        <TextBlock Text="Recenter" FontWeight="SemiBold"/>
                     </Button>
-                    <Button Command="{Binding SetViewModeFreeRoamCommand}"
-                            Classes.view-mode-btn-active="{Binding IsFreeRoamView}"
-                            Classes="view-mode-btn">
-                        <StackPanel Orientation="Horizontal" Spacing="4">
-                            <TextBlock Text="&#x229E;" FontSize="12"/>
-                            <TextBlock Text="Free Roam"/>
-                        </StackPanel>
+                    <Button Classes="floating-btn" Command="{Binding ChangeMapTypeCommand}">
+                        <TextBlock Text="Map Type" FontWeight="SemiBold"/>
                     </Button>
                 </StackPanel>
             </Grid>
-
-            <!-- RIGHT CONTROL BUTTONS -->
-            <StackPanel Grid.Column="1" VerticalAlignment="Top" Margin="4,0,0,0" Spacing="6">
-                <Button Classes="floating-btn" ToolTip.Tip="Zoom In" Click="ZoomIn_Click">
-                    <TextBlock Text="+" FontSize="20" FontWeight="Bold"/>
-                </Button>
-                <Button Classes="floating-btn" ToolTip.Tip="Zoom Out" Click="ZoomOut_Click">
-                    <TextBlock Text="&#x2212;" FontSize="20"/>
-                </Button>
-                <Button Classes="floating-btn" Command="{Binding RecenterMapCommand}"
-                        ToolTip.Tip="Centre on Drone">
-                    <TextBlock Text="&#x2295;" FontSize="18"/>
-                </Button>
-                <Button Command="{Binding ToggleFollowDroneCommand}" ToolTip.Tip="Toggle Follow"
-                        Classes.floating-btn-active="{Binding FollowDrone}" Classes="floating-btn">
-                    <TextBlock Text="&#x2B06;" FontSize="16"/>
-                </Button>
-                <Button Classes="floating-btn" Command="{Binding RefreshTelemetryCommand}"
-                        ToolTip.Tip="Refresh Telemetry Streams">
-                    <TextBlock Text="&#x21BB;" FontSize="16"/>
-                </Button>
-                <Button Classes="floating-btn" Command="{Binding ChangeMapTypeCommand}"
-                        ToolTip.Tip="Map Type">
-                    <TextBlock Text="&#x2630;" FontSize="16"/>
-                </Button>
-                <Button Classes="floating-btn" Command="{Binding ClearFlightPathCommand}"
-                        ToolTip.Tip="Clear Flight Path">
-                    <TextBlock Text="&#x2715;" FontSize="14"/>
-                </Button>
-            </StackPanel>
 
             <!-- RIGHT PANEL: Plot / Camera Tabs -->
             <Border Grid.Column="2" Classes="glass-panel" Width="300"
