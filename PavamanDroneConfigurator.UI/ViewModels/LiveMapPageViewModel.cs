@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Linq;
 using Avalonia.Threading;
@@ -229,7 +230,31 @@ public partial class LiveMapPageViewModel : ViewModelBase
     [ObservableProperty]
     private bool _isFreeRoamView;
 
+    // Right panel (Plot / Camera) state
+    [ObservableProperty]
+    private bool _showRightPanel;
+
+    [ObservableProperty]
+    private bool _isPlotTabActive = true;
+
+    [ObservableProperty]
+    private bool _isCameraTabActive;
+
+    // Default altitude for new waypoints (metres AGL)
+    [ObservableProperty]
+    private double _defaultAltitude = 30;
+
+    // Mission summary stats
+    [ObservableProperty]
+    private double _missionTotalDistanceKm;
+
+    [ObservableProperty]
+    private string _missionEstimatedTime = "0:00";
+
     #endregion
+
+    // Mission waypoints for Plot tab
+    public ObservableCollection<MissionItem> MissionItems { get; } = new();
 
     // Flight path for map display
     public IReadOnlyList<(double Lat, double Lon)> FlightPath => _flightPath;
@@ -691,16 +716,104 @@ public partial class LiveMapPageViewModel : ViewModelBase
     [RelayCommand]
     private void ClearMissionItems()
     {
+        MissionItems.Clear();
         MissionItemCount = 0;
         MissionProgressText = "Mission: 0/0 items";
+        MissionTotalDistanceKm = 0;
+        MissionEstimatedTime = "0:00";
         ActiveMissionTool = "none";
         MissionToolChanged?.Invoke(this, ActiveMissionTool);
     }
 
-    public void RegisterMissionItem(string _)
+    public void RegisterMissionItem(string commandName)
     {
-        MissionItemCount++;
-        MissionProgressText = $"Mission: {MissionItemCount}/{MissionItemCount} items";
+        var cmd = commandName.ToUpperInvariant() switch
+        {
+            "RTL"       => MissionCommandType.NavReturnToLaunch,
+            "LAND"      => MissionCommandType.NavLand,
+            "TAKEOFF"   => MissionCommandType.NavTakeoff,
+            "ORBIT"     => MissionCommandType.NavLoiterTurns,
+            "SURVEY"    => MissionCommandType.NavWaypoint,
+            "HOME"      => MissionCommandType.NavWaypoint,
+            _           => MissionCommandType.NavWaypoint
+        };
+
+        var item = new MissionItem
+        {
+            Index = MissionItems.Count,
+            Command = cmd,
+            Altitude = (float)DefaultAltitude,
+            Latitude = Latitude,
+            Longitude = Longitude,
+            Autocontinue = true
+        };
+
+        MissionItems.Add(item);
+        MissionItemCount = MissionItems.Count;
+        MissionProgressText = $"Mission: {MissionItemCount} item{(MissionItemCount != 1 ? "s" : "")}";
+        RecalculateMissionStats();
+    }
+
+    /// <summary>
+    /// Recalculate mission total distance and estimated time from waypoints.
+    /// </summary>
+    private void RecalculateMissionStats()
+    {
+        double totalM = 0;
+        for (int i = 1; i < MissionItems.Count; i++)
+        {
+            var prev = MissionItems[i - 1];
+            var curr = MissionItems[i];
+            if (prev.Latitude == 0 && prev.Longitude == 0) continue;
+            if (curr.Latitude == 0 && curr.Longitude == 0) continue;
+            totalM += CalculateDistance(prev.Latitude, prev.Longitude, curr.Latitude, curr.Longitude);
+        }
+
+        MissionTotalDistanceKm = totalM / 1000.0;
+        const double avgSpeedMs = 5.0;
+        var secs = avgSpeedMs > 0 ? totalM / avgSpeedMs : 0;
+        MissionEstimatedTime = TimeSpan.FromSeconds(secs).ToString(@"m\:ss");
+    }
+
+    // ── Right panel / tab toggles ──────────────────────────────────────────
+
+    [RelayCommand]
+    private void ToggleRightPanel()
+    {
+        ShowRightPanel = !ShowRightPanel;
+    }
+
+    [RelayCommand]
+    private void ShowPlotTab()
+    {
+        IsPlotTabActive = true;
+        IsCameraTabActive = false;
+        ShowRightPanel = true;
+    }
+
+    [RelayCommand]
+    private void ShowCameraTab()
+    {
+        IsPlotTabActive = false;
+        IsCameraTabActive = true;
+        ShowRightPanel = true;
+    }
+
+    [RelayCommand]
+    private void RemoveMissionItem(MissionItem item)
+    {
+        if (MissionItems.Remove(item))
+        {
+            // Re-index remaining items
+            for (int i = 0; i < MissionItems.Count; i++)
+                MissionItems[i].Index = i;
+
+            MissionItemCount = MissionItems.Count;
+            MissionProgressText = MissionItemCount > 0
+                ? $"Mission: {MissionItemCount} item{(MissionItemCount != 1 ? "s" : "")}"
+                : "Mission: 0/0 items";
+            RecalculateMissionStats();
+        }
     }
 
     /// <summary>

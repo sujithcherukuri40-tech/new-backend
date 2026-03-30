@@ -85,17 +85,17 @@ public class MissionItem
     
     public string Icon => Command switch
     {
-        MissionCommandType.NavWaypoint => "??",
-        MissionCommandType.NavTakeoff => "??",
-        MissionCommandType.NavLand => "??",
-        MissionCommandType.NavReturnToLaunch => "??",
-        MissionCommandType.NavLoiterTime => "?",
-        MissionCommandType.NavLoiterTurns => "??",
-        MissionCommandType.NavLoiterUnlim => "?",
-        MissionCommandType.DoSetRelay => "??",
-        MissionCommandType.DoChangeSpeed => "?",
-        MissionCommandType.DoDigicamControl => "??",
-        _ => "?"
+        MissionCommandType.NavWaypoint => "\u25C6",         // ◆ waypoint diamond
+        MissionCommandType.NavTakeoff => "\u25B2",          // ▲ takeoff arrow up
+        MissionCommandType.NavLand => "\u25BC",             // ▼ land arrow down
+        MissionCommandType.NavReturnToLaunch => "\u21A9",   // ↩ return
+        MissionCommandType.NavLoiterTime => "\u21BB",       // ↻ loiter (timed)
+        MissionCommandType.NavLoiterTurns => "\u27F3",      // ⟳ orbit turns
+        MissionCommandType.NavLoiterUnlim => "\u221E",      // ∞ loiter unlimited
+        MissionCommandType.DoSetRelay => "\U0001F4A7",      // 💧 spray relay
+        MissionCommandType.DoChangeSpeed => "\u21C9",       // ⇉ change speed
+        MissionCommandType.DoDigicamControl => "\U0001F4F7", // 📷 camera trigger
+        _ => "\u25CB"                                        // ○ generic
     };
 }
 
