@@ -28,7 +28,7 @@ namespace PavamanDroneConfigurator.UI.Controls;
 /// - Survey grid planning
 /// - Spray overlay visualization
 /// </summary>
-public partial class CesiumMapView : UserControl
+public partial class GoogleMapView : UserControl
 {
     private CoreWebView2? _webView;
     private CoreWebView2Controller? _webViewController;
@@ -131,7 +131,7 @@ public partial class CesiumMapView : UserControl
     public event EventHandler<(double Latitude, double Longitude)>? OrbitPlaced;
     public event EventHandler<List<(double Latitude, double Longitude)>>? SurveyBoundaryCompleted;
 
-    public CesiumMapView()
+    public GoogleMapView()
     {
         AvaloniaXamlLoader.Load(this);
         Loaded += OnLoaded;
@@ -263,10 +263,10 @@ public partial class CesiumMapView : UserControl
 
             // Position the WebView2 control to fill the parent
             UpdateWebViewBounds();
-             Debug.WriteLine($"[GoogleMapView] WebView2 bounds: {_webViewController.Bounds}");
-             _webViewController.IsVisible = true;
+            Debug.WriteLine($"[GoogleMapView] WebView2 bounds: {_webViewController.Bounds}");
+            _webViewController.IsVisible = true;
 
-             // Update bounds when control resizes
+            // Update bounds when control resizes
             _boundsChangedHandler = (_, e) =>
             {
                 if (e.Property == BoundsProperty && _webViewController != null)
