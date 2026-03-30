@@ -16,7 +16,7 @@ namespace PavamanDroneConfigurator.UI.Views;
 /// </summary>
 public partial class LiveMapPage : UserControl
 {
-    private CesiumMapView? _cesiumMap;
+    private GoogleMapView? _map;
     private bool _isInitialized;
     private bool _isMapReady;
     private int _updateCount = 0;
@@ -33,27 +33,27 @@ public partial class LiveMapPage : UserControl
     {
         if (_isInitialized) return;
 
-        Debug.WriteLine("[LiveMapPage] OnLoaded - Finding CesiumMap control");
-        _cesiumMap = this.FindControl<CesiumMapView>("CesiumMap");
+        Debug.WriteLine("[LiveMapPage] OnLoaded - Finding GoogleMap control");
+        _map = this.FindControl<GoogleMapView>("MapView");
 
-        if (_cesiumMap == null)
+        if (_map == null)
         {
-            Debug.WriteLine("[LiveMapPage] ERROR: CesiumMap control not found!");
+            Debug.WriteLine("[LiveMapPage] ERROR: GoogleMap control not found!");
             return;
         }
 
-        Debug.WriteLine("[LiveMapPage] CesiumMap control found, setting up event handlers");
+        Debug.WriteLine("[LiveMapPage] GoogleMap control found, setting up event handlers");
 
         // Subscribe to map events
-        _cesiumMap.MapReady += OnMapReady;
-        _cesiumMap.MapError += OnMapError;
-        _cesiumMap.WaypointPlaced += OnWaypointPlaced;
-        _cesiumMap.WaypointMoved += OnWaypointMoved;
-        _cesiumMap.WaypointDeleted += OnWaypointDeleted;
-        _cesiumMap.HomePlaced += OnHomePlaced;
-        _cesiumMap.LandPlaced += OnLandPlaced;
-        _cesiumMap.OrbitPlaced += OnOrbitPlaced;
-        _cesiumMap.SurveyBoundaryCompleted += OnSurveyBoundaryCompleted;
+        _map.MapReady += OnMapReady;
+        _map.MapError += OnMapError;
+        _map.WaypointPlaced += OnWaypointPlaced;
+        _map.WaypointMoved += OnWaypointMoved;
+        _map.WaypointDeleted += OnWaypointDeleted;
+        _map.HomePlaced += OnHomePlaced;
+        _map.LandPlaced += OnLandPlaced;
+        _map.OrbitPlaced += OnOrbitPlaced;
+        _map.SurveyBoundaryCompleted += OnSurveyBoundaryCompleted;
 
         if (DataContext is LiveMapPageViewModel vm)
         {
@@ -93,17 +93,17 @@ public partial class LiveMapPage : UserControl
             vm.MissionToolChanged -= OnMissionToolChanged;
         }
 
-        if (_cesiumMap != null)
+        if (_map != null)
         {
-            _cesiumMap.MapReady -= OnMapReady;
-            _cesiumMap.MapError -= OnMapError;
-            _cesiumMap.WaypointPlaced -= OnWaypointPlaced;
-            _cesiumMap.WaypointMoved -= OnWaypointMoved;
-            _cesiumMap.WaypointDeleted -= OnWaypointDeleted;
-            _cesiumMap.HomePlaced -= OnHomePlaced;
-            _cesiumMap.LandPlaced -= OnLandPlaced;
-            _cesiumMap.OrbitPlaced -= OnOrbitPlaced;
-            _cesiumMap.SurveyBoundaryCompleted -= OnSurveyBoundaryCompleted;
+            _map.MapReady -= OnMapReady;
+            _map.MapError -= OnMapError;
+            _map.WaypointPlaced -= OnWaypointPlaced;
+            _map.WaypointMoved -= OnWaypointMoved;
+            _map.WaypointDeleted -= OnWaypointDeleted;
+            _map.HomePlaced -= OnHomePlaced;
+            _map.LandPlaced -= OnLandPlaced;
+            _map.OrbitPlaced -= OnOrbitPlaced;
+            _map.SurveyBoundaryCompleted -= OnSurveyBoundaryCompleted;
         }
     }
 
@@ -115,12 +115,12 @@ public partial class LiveMapPage : UserControl
         if (DataContext is LiveMapPageViewModel vm)
         {
             // Initialize map settings from ViewModel
-            _cesiumMap?.SetMapType(vm.GetMapTypeName());
-            _cesiumMap?.SetMissionTool(ParseMissionTool(vm.ActiveMissionTool));
+            _map?.SetMapType(vm.GetMapTypeName());
+            _map?.SetMissionTool(ParseMissionTool(vm.ActiveMissionTool));
             
-            if (_cesiumMap != null)
+            if (_map != null)
             {
-                _cesiumMap.IsFollowing = vm.FollowDrone;
+                _map.IsFollowing = vm.FollowDrone;
             }
 
             Debug.WriteLine($"[LiveMapPage] Checking for existing telemetry data: HasValidPosition={vm.HasValidPosition}");
@@ -146,7 +146,7 @@ public partial class LiveMapPage : UserControl
 
     private void OnPositionUpdated(object? sender, DronePositionUpdateEventArgs e)
     {
-        if (!_isMapReady || _cesiumMap == null)
+        if (!_isMapReady || _map == null)
         {
             return;
         }
@@ -156,7 +156,7 @@ public partial class LiveMapPage : UserControl
         // Log every 20th update to avoid spam
         if (_updateCount % 20 == 0)
         {
-            Debug.WriteLine($"[LiveMapPage] Position update #{_updateCount}: Lat={e.Latitude:F6}, Lon={e.Longitude:F6}, Alt={e.Altitude:F1}m, Hdg={e.Heading:F0}°");
+            Debug.WriteLine($"[LiveMapPage] Position update #{_updateCount}: Lat={e.Latitude:F6}, Lon={e.Longitude:F6}, Alt={e.Altitude:F1}m, Hdg={e.Heading:F0}ï¿½");
         }
 
         // Use Post for non-blocking UI update
@@ -164,7 +164,7 @@ public partial class LiveMapPage : UserControl
         {
             try
             {
-                _cesiumMap?.UpdateDronePosition(
+                _map?.UpdateDronePosition(
                     e.Latitude,
                     e.Longitude,
                     e.Altitude,
@@ -185,7 +185,7 @@ public partial class LiveMapPage : UserControl
 
     private void OnViewModeChanged(object? sender, ViewModeChangedEventArgs e)
     {
-        if (!_isMapReady || _cesiumMap == null) return;
+        if (!_isMapReady || _map == null) return;
 
         Debug.WriteLine($"[LiveMapPage] View mode changing to: {e.ViewMode}");
 
@@ -193,17 +193,17 @@ public partial class LiveMapPage : UserControl
         {
             try
             {
-                // Map ViewModel view mode strings to CesiumMapView.ViewMode enum
+                // Map ViewModel view mode strings to GoogleMapView.ViewMode enum
                 var viewMode = e.ViewMode switch
                 {
-                    "topdown" => CesiumMapView.ViewMode.TopDown,
-                    "chase3d" or "chase" => CesiumMapView.ViewMode.Chase3D,
-                    "fpv" => CesiumMapView.ViewMode.FirstPerson,
-                    "free" or "freeroam" => CesiumMapView.ViewMode.FreeRoam,
-                    _ => CesiumMapView.ViewMode.TopDown
+                    "topdown" => GoogleMapView.ViewMode.TopDown,
+                    "chase3d" or "chase" => GoogleMapView.ViewMode.Chase3D,
+                    "fpv" => GoogleMapView.ViewMode.FirstPerson,
+                    "free" or "freeroam" => GoogleMapView.ViewMode.FreeRoam,
+                    _ => GoogleMapView.ViewMode.TopDown
                 };
 
-                _cesiumMap.CurrentViewMode = viewMode;
+                _map.CurrentViewMode = viewMode;
                 Debug.WriteLine($"[LiveMapPage] ? View mode changed to: {e.ViewMode}");
             }
             catch (Exception ex)
@@ -215,13 +215,13 @@ public partial class LiveMapPage : UserControl
 
     private void OnMapTypeChanged(object? sender, string mapType)
     {
-        if (!_isMapReady || _cesiumMap == null) return;
+        if (!_isMapReady || _map == null) return;
 
         Dispatcher.UIThread.Post(() =>
         {
             try
             {
-                _cesiumMap.SetMapType(mapType);
+                _map.SetMapType(mapType);
                 Debug.WriteLine($"[LiveMapPage] Map type set to: {mapType}");
             }
             catch (Exception ex)
@@ -233,22 +233,22 @@ public partial class LiveMapPage : UserControl
 
     private void OnFollowChanged(object? sender, bool follow)
     {
-        if (!_isMapReady || _cesiumMap == null) return;
+        if (!_isMapReady || _map == null) return;
 
         Dispatcher.UIThread.Post(() =>
         {
-            _cesiumMap.IsFollowing = follow;
+            _map.IsFollowing = follow;
             Debug.WriteLine($"[LiveMapPage] Follow mode set to: {follow}");
         });
     }
 
     private void OnMissionToolChanged(object? sender, string tool)
     {
-        if (!_isMapReady || _cesiumMap == null) return;
+        if (!_isMapReady || _map == null) return;
 
         Dispatcher.UIThread.Post(() =>
         {
-            _cesiumMap.SetMissionTool(ParseMissionTool(tool));
+            _map.SetMissionTool(ParseMissionTool(tool));
             Debug.WriteLine($"[LiveMapPage] Mission tool set to: {tool}");
         });
     }
@@ -259,9 +259,9 @@ public partial class LiveMapPage : UserControl
 
         Dispatcher.UIThread.Post(() =>
         {
-            _cesiumMap?.ClearFlightPath();
-            _cesiumMap?.ClearWaypoints();
-            _cesiumMap?.ClearSprayOverlay();
+                _map?.ClearFlightPath();
+                _map?.ClearWaypoints();
+                _map?.ClearSprayOverlay();
             Debug.WriteLine("[LiveMapPage] ? Flight path and waypoints cleared");
         });
     }
@@ -272,7 +272,7 @@ public partial class LiveMapPage : UserControl
 
         Dispatcher.UIThread.Post(() =>
         {
-            _cesiumMap?.CenterOnDrone(true);
+            _map?.CenterOnDrone(true);
             Debug.WriteLine("[LiveMapPage] ? Recentered on drone");
         });
     }
@@ -356,28 +356,28 @@ public partial class LiveMapPage : UserControl
 
     #endregion
 
-    private static CesiumMapView.MissionTool ParseMissionTool(string tool) => tool switch
+    private static GoogleMapView.MissionTool ParseMissionTool(string tool) => tool switch
     {
-        "waypoint" => CesiumMapView.MissionTool.Waypoint,
-        "home" => CesiumMapView.MissionTool.Home,
-        "survey" => CesiumMapView.MissionTool.Survey,
-        "orbit" => CesiumMapView.MissionTool.Orbit,
-        "rtl" => CesiumMapView.MissionTool.Rtl,
-        "land" => CesiumMapView.MissionTool.Land,
-        _ => CesiumMapView.MissionTool.None
+        "waypoint" => GoogleMapView.MissionTool.Waypoint,
+        "home" => GoogleMapView.MissionTool.Home,
+        "survey" => GoogleMapView.MissionTool.Survey,
+        "orbit" => GoogleMapView.MissionTool.Orbit,
+        "rtl" => GoogleMapView.MissionTool.Rtl,
+        "land" => GoogleMapView.MissionTool.Land,
+        _ => GoogleMapView.MissionTool.None
     };
 
     private void UpdateDroneOnMap(LiveMapPageViewModel vm)
     {
-        if (!_isMapReady || _cesiumMap == null || !vm.HasValidPosition)
+        if (!_isMapReady || _map == null || !vm.HasValidPosition)
         {
-            Debug.WriteLine($"[LiveMapPage] Cannot update map: MapReady={_isMapReady}, CesiumMap={_cesiumMap != null}, HasValidPosition={vm.HasValidPosition}");
+            Debug.WriteLine($"[LiveMapPage] Cannot update map: MapReady={_isMapReady}, GoogleMap={_map != null}, HasValidPosition={vm.HasValidPosition}");
             return;
         }
 
         Debug.WriteLine($"[LiveMapPage] Updating drone on map: {vm.Latitude:F6}, {vm.Longitude:F6}, {vm.Altitude:F1}m");
 
-        _cesiumMap.UpdateDronePosition(
+        _map.UpdateDronePosition(
             vm.Latitude,
             vm.Longitude,
             vm.Altitude,
@@ -395,11 +395,11 @@ public partial class LiveMapPage : UserControl
     /// </summary>
     public void SetSprayState(bool active, double sprayWidth = 4.0)
     {
-        if (!_isMapReady || _cesiumMap == null) return;
+        if (!_isMapReady || _map == null) return;
         
         Dispatcher.UIThread.Post(() =>
         {
-            _cesiumMap.SetSprayActive(active, sprayWidth);
+            _map.SetSprayActive(active, sprayWidth);
         });
     }
 
@@ -408,12 +408,12 @@ public partial class LiveMapPage : UserControl
     /// </summary>
     public void RenderSurveyGrid(IEnumerable<(double Lat, double Lon, double Alt)> waypoints, double sprayWidth)
     {
-        if (!_isMapReady || _cesiumMap == null) return;
+        if (!_isMapReady || _map == null) return;
 
-        var gridData = new List<CesiumMapView.SurveyGridData>();
+        var gridData = new List<GoogleMapView.SurveyGridData>();
         foreach (var wp in waypoints)
         {
-            gridData.Add(new CesiumMapView.SurveyGridData 
+            gridData.Add(new GoogleMapView.SurveyGridData 
             { 
                 Lat = wp.Lat, 
                 Lon = wp.Lon, 
@@ -423,17 +423,17 @@ public partial class LiveMapPage : UserControl
 
         Dispatcher.UIThread.Post(() =>
         {
-            _cesiumMap.RenderSurveyGrid(gridData.ToArray(), sprayWidth);
+            _map.RenderSurveyGrid(gridData.ToArray(), sprayWidth);
         });
     }
 
     private void ZoomIn_Click(object? sender, RoutedEventArgs e)
     {
-        _cesiumMap?.ZoomIn();
+        _map?.ZoomIn();
     }
 
     private void ZoomOut_Click(object? sender, RoutedEventArgs e)
     {
-        _cesiumMap?.ZoomOut();
+        _map?.ZoomOut();
     }
 }

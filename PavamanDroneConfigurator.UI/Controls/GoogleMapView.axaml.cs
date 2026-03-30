@@ -28,7 +28,7 @@ namespace PavamanDroneConfigurator.UI.Controls;
 /// - Survey grid planning
 /// - Spray overlay visualization
 /// </summary>
-public partial class CesiumMapView : UserControl
+public partial class GoogleMapView : UserControl
 {
     private CoreWebView2? _webView;
     private CoreWebView2Controller? _webViewController;
@@ -131,7 +131,7 @@ public partial class CesiumMapView : UserControl
     public event EventHandler<(double Latitude, double Longitude)>? OrbitPlaced;
     public event EventHandler<List<(double Latitude, double Longitude)>>? SurveyBoundaryCompleted;
 
-    public CesiumMapView()
+    public GoogleMapView()
     {
         AvaloniaXamlLoader.Load(this);
         Loaded += OnLoaded;

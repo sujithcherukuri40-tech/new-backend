@@ -2,7 +2,6 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:PavamanDroneConfigurator.UI.ViewModels"
              xmlns:controls="using:PavamanDroneConfigurator.UI.Controls"
-             xmlns:models="using:PavamanDroneConfigurator.Core.Models"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              mc:Ignorable="d" d:DesignWidth="1400" d:DesignHeight="900"
@@ -20,11 +19,6 @@
             <Setter Property="CornerRadius" Value="12"/>
             <Setter Property="BorderBrush" Value="#40FFFFFF"/>
             <Setter Property="BorderThickness" Value="1"/>
-        </Style>
-        <Style Selector="Border.status-pill">
-            <Setter Property="Background" Value="#50FFFFFF"/>
-            <Setter Property="CornerRadius" Value="16"/>
-            <Setter Property="Padding" Value="10,5"/>
         </Style>
         <Style Selector="Button.floating-btn">
             <Setter Property="Width" Value="44"/>
@@ -46,29 +40,9 @@
         <Style Selector="Button.floating-btn-active">
             <Setter Property="Background" Value="#E63B82F6"/>
         </Style>
-        <Style Selector="Button.view-mode-btn">
-            <Setter Property="Height" Value="36"/>
-            <Setter Property="Padding" Value="14,0"/>
-            <Setter Property="CornerRadius" Value="8"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="BorderBrush" Value="#40FFFFFF"/>
-            <Setter Property="Background" Value="#901E293B"/>
-            <Setter Property="Foreground" Value="#94A3B8"/>
-            <Setter Property="FontSize" Value="11"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-        </Style>
-        <Style Selector="Button.view-mode-btn:pointerover">
-            <Setter Property="Background" Value="#B03B82F6"/>
-            <Setter Property="Foreground" Value="White"/>
-        </Style>
-        <Style Selector="Button.view-mode-btn-active">
-            <Setter Property="Background" Value="#E63B82F6"/>
-            <Setter Property="Foreground" Value="White"/>
-        </Style>
         <Style Selector="TextBlock.telem-label">
-            <Setter Property="FontSize" Value="9"/>
-            <Setter Property="Foreground" Value="#64748B"/>
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="Foreground" Value="#E5E7EB"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
         </Style>
         <Style Selector="TextBlock.telem-value">
@@ -80,575 +54,88 @@
             <Setter Property="FontSize" Value="10"/>
             <Setter Property="Foreground" Value="#94A3B8"/>
         </Style>
-        <Style Selector="Button.panel-tab">
-            <Setter Property="Height" Value="32"/>
-            <Setter Property="Padding" Value="10,0"/>
-            <Setter Property="CornerRadius" Value="8"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="Foreground" Value="#94A3B8"/>
-            <Setter Property="FontSize" Value="10"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-        </Style>
-        <Style Selector="Button.panel-tab:pointerover">
-            <Setter Property="Background" Value="#2A3B82F6"/>
-            <Setter Property="Foreground" Value="White"/>
-        </Style>
-        <Style Selector="Button.panel-tab-active">
-            <Setter Property="Background" Value="#E63B82F6"/>
-            <Setter Property="Foreground" Value="White"/>
-        </Style>
-        <Style Selector="Button.mission-tool-btn">
-            <Setter Property="Height" Value="34"/>
-            <Setter Property="Padding" Value="8,0"/>
-            <Setter Property="CornerRadius" Value="8"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="BorderBrush" Value="#334155"/>
-            <Setter Property="Background" Value="#1E293B"/>
-            <Setter Property="Foreground" Value="#94A3B8"/>
-            <Setter Property="FontSize" Value="11"/>
-        </Style>
-        <Style Selector="Button.mission-tool-btn:pointerover">
-            <Setter Property="Background" Value="#3B82F6"/>
-            <Setter Property="Foreground" Value="White"/>
-            <Setter Property="BorderBrush" Value="#3B82F6"/>
-        </Style>
-        <Style Selector="Button.mission-tool-btn-active">
-            <Setter Property="Background" Value="#3B82F6"/>
-            <Setter Property="Foreground" Value="White"/>
-            <Setter Property="BorderBrush" Value="#3B82F6"/>
-        </Style>
-        <Style Selector="Border.wp-row">
-            <Setter Property="Background" Value="#141F2E"/>
-            <Setter Property="CornerRadius" Value="8"/>
-            <Setter Property="Padding" Value="10,6"/>
-            <Setter Property="Margin" Value="0,2"/>
-        </Style>
-        <Style Selector="Border.wp-row:pointerover">
-            <Setter Property="Background" Value="#1E293B"/>
-        </Style>
     </UserControl.Styles>
 
-    <Grid RowDefinitions="Auto,*,Auto">
+    <Grid RowDefinitions="*,Auto">
 
-        <!-- TOP STATUS BAR -->
-        <Border Grid.Row="0" Classes="glass-panel" Margin="8,8,8,4" Padding="12,8"
-                IsVisible="{Binding IsConnected}">
-            <Grid ColumnDefinitions="Auto,*,Auto">
+        <!-- MAP AREA -->
+        <Grid Grid.Row="0">
+            <controls:GoogleMapView x:Name="MapView" ClipToBounds="True"/>
 
-                <!-- Left: Connection + GPS -->
-                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="10">
-                    <Border Classes="status-pill"
-                            Background="{Binding IsConnected, Converter={StaticResource BoolToColorConverter}, ConverterParameter='#4022C55E|#40EF4444'}">
-                        <StackPanel Orientation="Horizontal" Spacing="6">
-                            <Ellipse Width="8" Height="8"
-                                     Fill="{Binding IsConnected, Converter={StaticResource BoolToColorConverter}, ConverterParameter='#22C55E|#EF4444'}"/>
-                            <TextBlock Text="{Binding ConnectionStatus}" FontSize="11" FontWeight="SemiBold" Foreground="White"/>
-                        </StackPanel>
-                    </Border>
-                    <Border Classes="status-pill">
-                        <StackPanel Orientation="Horizontal" Spacing="5">
-                            <TextBlock Text="&#x1F4E1;" FontSize="11"/>
-                            <TextBlock FontSize="11" FontWeight="SemiBold" Foreground="White">
-                                <Run Text="{Binding SatelliteCount}"/><Run Text=" sats"/>
-                            </TextBlock>
-                            <TextBlock Text="&#x00B7;" Foreground="#64748B" Margin="3,0"/>
-                            <TextBlock Text="{Binding GpsFixType}" FontSize="10" Foreground="#94A3B8"/>
-                        </StackPanel>
-                    </Border>
-                </StackPanel>
-
-                <!-- Center: Flight Mode + Armed -->
-                <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center" Spacing="10">
-                    <Border Classes="status-pill">
-                        <StackPanel Orientation="Horizontal" Spacing="6">
-                            <TextBlock Text="&#x2708;" FontSize="12"/>
-                            <TextBlock Text="{Binding FlightMode}" FontSize="12" FontWeight="Bold" Foreground="White"/>
-                        </StackPanel>
-                    </Border>
-                    <Border CornerRadius="6" Padding="10,5"
-                            Background="{Binding IsArmed, Converter={StaticResource BoolToColorConverter}, ConverterParameter='#EF4444|#22C55E'}">
-                        <TextBlock Text="{Binding ArmedStatus}" FontSize="11" FontWeight="Bold" Foreground="White"/>
-                    </Border>
-                </StackPanel>
-
-                <!-- Right: Battery + LIVE + Panel toggles -->
-                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
-                    <Border Classes="status-pill">
-                        <StackPanel Orientation="Horizontal" Spacing="6">
-                            <TextBlock Text="&#x26A1;" FontSize="12"/>
-                            <StackPanel>
-                                <TextBlock FontSize="12" FontWeight="Bold" Foreground="White">
-                                    <Run Text="{Binding BatteryVoltage, StringFormat='{}{0:F1}'}"/>V
-                                </TextBlock>
-                                <TextBlock FontSize="9" Foreground="#94A3B8">
-                                    <Run Text="{Binding BatteryCurrent, StringFormat='{}{0:F1}'}"/>A
-                                </TextBlock>
-                            </StackPanel>
-                            <Border Width="1" Height="20" Background="#374151" Margin="3,0"/>
-                            <TextBlock Text="{Binding BatteryStatus}" FontSize="12" FontWeight="Bold"
-                                       Foreground="White" VerticalAlignment="Center"/>
-                        </StackPanel>
-                    </Border>
-
-                    <!-- LIVE indicator -->
-                    <Border Background="#E61E293B" CornerRadius="12" Padding="8,4"
-                            IsVisible="{Binding IsReceivingTelemetry}">
-                        <StackPanel Orientation="Horizontal" Spacing="6">
-                            <Ellipse Width="6" Height="6" Fill="#22C55E">
-                                <Ellipse.Styles>
-                                    <Style Selector="Ellipse">
-                                        <Style.Animations>
-                                            <Animation Duration="0:0:1" IterationCount="Infinite">
-                                                <KeyFrame Cue="0%"><Setter Property="Opacity" Value="1"/></KeyFrame>
-                                                <KeyFrame Cue="50%"><Setter Property="Opacity" Value="0.3"/></KeyFrame>
-                                                <KeyFrame Cue="100%"><Setter Property="Opacity" Value="1"/></KeyFrame>
-                                            </Animation>
-                                        </Style.Animations>
-                                    </Style>
-                                </Ellipse.Styles>
-                            </Ellipse>
-                            <TextBlock Text="LIVE" FontSize="9" FontWeight="Bold" Foreground="#22C55E"/>
-                        </StackPanel>
-                    </Border>
-                </StackPanel>
-            </Grid>
-        </Border>
-
-        <!-- MIDDLE CONTENT AREA -->
-        <Grid Grid.Row="1" ColumnDefinitions="*" Margin="8,4">
-
-            <!-- MAP WITH OVERLAYS -->
-            <Grid Grid.Column="0">
-                <controls:CesiumMapView x:Name="CesiumMap" ClipToBounds="True"/>
-
-                <!-- Right-side floating controls -->
-                <StackPanel Orientation="Vertical" HorizontalAlignment="Right"
-                            VerticalAlignment="Center" Margin="0,0,16,0" Spacing="10"
-                            IsVisible="{Binding IsConnected}">
-                    <Button Classes="floating-btn" Command="{Binding RefreshTelemetryCommand}">
+            <!-- Right-side controls -->
+            <StackPanel Orientation="Vertical" HorizontalAlignment="Right"
+                        VerticalAlignment="Center" Margin="0,0,16,0" Spacing="10"
+                        IsVisible="{Binding IsConnected}">
+                <Button Classes="floating-btn" Command="{Binding RefreshTelemetryCommand}"
+                        Width="120" Height="48" CornerRadius="14">
+                    <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
+                        <TextBlock Text="&#x25B6;" FontSize="16"/>
                         <TextBlock Text="Start" FontWeight="SemiBold"/>
-                    </Button>
-                    <Button Classes="floating-btn" Command="{Binding RecenterMapCommand}">
+                    </StackPanel>
+                </Button>
+                <Button Classes="floating-btn" Command="{Binding RecenterMapCommand}"
+                        Width="120" Height="48" CornerRadius="14">
+                    <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
+                        <TextBlock Text="&#x21BB;" FontSize="16"/>
                         <TextBlock Text="Recenter" FontWeight="SemiBold"/>
-                    </Button>
-                    <Button Classes="floating-btn" Command="{Binding ChangeMapTypeCommand}">
+                    </StackPanel>
+                </Button>
+                <Button Classes="floating-btn" Command="{Binding ChangeMapTypeCommand}"
+                        Width="120" Height="48" CornerRadius="14">
+                    <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
+                        <TextBlock Text="&#x1F5FA;" FontSize="16"/>
                         <TextBlock Text="Map Type" FontWeight="SemiBold"/>
-                    </Button>
-                </StackPanel>
-            </Grid>
-
-            <!-- RIGHT PANEL: Plot / Camera Tabs -->
-            <Border Grid.Column="2" Classes="glass-panel" Width="300"
-                    Margin="4,0,0,0" Padding="0"
-                    IsVisible="{Binding ShowRightPanel}">
-                <Grid RowDefinitions="Auto,*">
-
-                    <!-- Tab Header -->
-                    <Border Grid.Row="0" Background="#0F172A"
-                            CornerRadius="12,12,0,0" Padding="8,6">
-                        <StackPanel Orientation="Horizontal" Spacing="4">
-                            <Button Command="{Binding ShowPlotTabCommand}"
-                                    Classes.panel-tab-active="{Binding IsPlotTabActive}"
-                                    Classes="panel-tab">
-                                <StackPanel Orientation="Horizontal" Spacing="4">
-                                    <TextBlock Text="&#x25C6;" FontSize="10"/>
-                                    <TextBlock Text="MISSION PLOT"/>
-                                </StackPanel>
-                            </Button>
-                            <Button Command="{Binding ShowCameraTabCommand}"
-                                    Classes.panel-tab-active="{Binding IsCameraTabActive}"
-                                    Classes="panel-tab">
-                                <StackPanel Orientation="Horizontal" Spacing="4">
-                                    <TextBlock Text="&#x1F4F7;" FontSize="10"/>
-                                    <TextBlock Text="CAMERA"/>
-                                </StackPanel>
-                            </Button>
-                        </StackPanel>
-                    </Border>
-
-                    <!-- Panel Content -->
-                    <ScrollViewer Grid.Row="1"
-                                  VerticalScrollBarVisibility="Auto"
-                                  HorizontalScrollBarVisibility="Disabled">
-                        <StackPanel Margin="10,8">
-
-                            <!-- PLOT TAB -->
-                            <StackPanel IsVisible="{Binding IsPlotTabActive}" Spacing="8">
-
-                                <TextBlock Text="PLANNING TOOLS" FontSize="9" FontWeight="Bold"
-                                           Foreground="#3B82F6" LetterSpacing="1"/>
-
-                                <WrapPanel Orientation="Horizontal">
-                                    <Button Command="{Binding SelectMissionToolWaypointCommand}"
-                                            Classes.mission-tool-btn-active="{Binding ActiveMissionTool, Converter={StaticResource StringEqualConverter}, ConverterParameter='waypoint'}"
-                                            Classes="mission-tool-btn" Margin="0,0,4,4" ToolTip.Tip="Place Waypoint">
-                                        <StackPanel Orientation="Horizontal" Spacing="4">
-                                            <TextBlock Text="&#x25C6;" FontSize="12"/>
-                                            <TextBlock Text="WP" FontSize="11"/>
-                                        </StackPanel>
-                                    </Button>
-                                    <Button Command="{Binding SelectMissionToolHomeCommand}"
-                                            Classes.mission-tool-btn-active="{Binding ActiveMissionTool, Converter={StaticResource StringEqualConverter}, ConverterParameter='home'}"
-                                            Classes="mission-tool-btn" Margin="0,0,4,4" ToolTip.Tip="Set Home">
-                                        <StackPanel Orientation="Horizontal" Spacing="4">
-                                            <TextBlock Text="&#x2302;" FontSize="12"/>
-                                            <TextBlock Text="Home" FontSize="11"/>
-                                        </StackPanel>
-                                    </Button>
-                                    <Button Command="{Binding SelectMissionToolSurveyCommand}"
-                                            Classes.mission-tool-btn-active="{Binding ActiveMissionTool, Converter={StaticResource StringEqualConverter}, ConverterParameter='survey'}"
-                                            Classes="mission-tool-btn" Margin="0,0,4,4" ToolTip.Tip="Survey Grid">
-                                        <StackPanel Orientation="Horizontal" Spacing="4">
-                                            <TextBlock Text="&#x25A6;" FontSize="12"/>
-                                            <TextBlock Text="Survey" FontSize="11"/>
-                                        </StackPanel>
-                                    </Button>
-                                    <Button Command="{Binding SelectMissionToolOrbitCommand}"
-                                            Classes.mission-tool-btn-active="{Binding ActiveMissionTool, Converter={StaticResource StringEqualConverter}, ConverterParameter='orbit'}"
-                                            Classes="mission-tool-btn" Margin="0,0,4,4" ToolTip.Tip="Orbit">
-                                        <StackPanel Orientation="Horizontal" Spacing="4">
-                                            <TextBlock Text="&#x27F3;" FontSize="12"/>
-                                            <TextBlock Text="Orbit" FontSize="11"/>
-                                        </StackPanel>
-                                    </Button>
-                                    <Button Command="{Binding SelectMissionToolRtlCommand}"
-                                            Classes.mission-tool-btn-active="{Binding ActiveMissionTool, Converter={StaticResource StringEqualConverter}, ConverterParameter='rtl'}"
-                                            Classes="mission-tool-btn" Margin="0,0,4,4" ToolTip.Tip="Return to Launch">
-                                        <StackPanel Orientation="Horizontal" Spacing="4">
-                                            <TextBlock Text="&#x21A9;" FontSize="12"/>
-                                            <TextBlock Text="RTL" FontSize="11"/>
-                                        </StackPanel>
-                                    </Button>
-                                    <Button Command="{Binding SelectMissionToolLandCommand}"
-                                            Classes.mission-tool-btn-active="{Binding ActiveMissionTool, Converter={StaticResource StringEqualConverter}, ConverterParameter='land'}"
-                                            Classes="mission-tool-btn" Margin="0,0,4,4" ToolTip.Tip="Land">
-                                        <StackPanel Orientation="Horizontal" Spacing="4">
-                                            <TextBlock Text="&#x25BC;" FontSize="12"/>
-                                            <TextBlock Text="Land" FontSize="11"/>
-                                        </StackPanel>
-                                    </Button>
-                                </WrapPanel>
-
-                                <!-- Default altitude + clear button -->
-                                <Grid ColumnDefinitions="*,Auto" Margin="0,4,0,0">
-                                    <StackPanel Grid.Column="0" Spacing="2">
-                                        <TextBlock Text="Default Alt (m)" FontSize="9" Foreground="#64748B"/>
-                                        <TextBox Text="{Binding DefaultAltitude, StringFormat='{}{0:F0}'}"
-                                                 Background="#1E293B" Foreground="White"
-                                                 BorderBrush="#334155" BorderThickness="1"
-                                                 CornerRadius="6" Padding="8,6"
-                                                 FontSize="13" MinHeight="34"/>
-                                    </StackPanel>
-                                    <Button Grid.Column="1"
-                                            Command="{Binding ClearMissionItemsCommand}"
-                                            Classes="floating-btn" Margin="6,0,0,0"
-                                            VerticalAlignment="Bottom"
-                                            ToolTip.Tip="Clear all mission items">
-                                        <TextBlock Text="&#x2715;" FontSize="14"/>
-                                    </Button>
-                                </Grid>
-
-                                <!-- Mission stats -->
-                                <Border Background="#0F172A" CornerRadius="8" Padding="10,8" Margin="0,4,0,0">
-                                    <Grid ColumnDefinitions="*,*">
-                                        <StackPanel Grid.Column="0" Spacing="2">
-                                            <TextBlock Text="TOTAL DIST" FontSize="9" Foreground="#64748B" FontWeight="Bold"/>
-                                            <StackPanel Orientation="Horizontal" Spacing="3">
-                                                <TextBlock Text="{Binding MissionTotalDistanceKm, StringFormat='{}{0:F2}'}"
-                                                           FontSize="14" FontWeight="Bold" Foreground="White"/>
-                                                <TextBlock Text="km" FontSize="10" Foreground="#94A3B8" VerticalAlignment="Bottom"/>
-                                            </StackPanel>
-                                        </StackPanel>
-                                        <StackPanel Grid.Column="1" Spacing="2">
-                                            <TextBlock Text="EST. TIME" FontSize="9" Foreground="#64748B" FontWeight="Bold"/>
-                                            <TextBlock Text="{Binding MissionEstimatedTime}"
-                                                       FontSize="14" FontWeight="Bold" Foreground="White"/>
-                                        </StackPanel>
-                                    </Grid>
-                                </Border>
-
-                                <!-- Waypoints list header -->
-                                <Grid ColumnDefinitions="20,*,40,28" Margin="0,8,0,2">
-                                    <TextBlock Grid.Column="0" Text="#" FontSize="9" Foreground="#64748B"/>
-                                    <TextBlock Grid.Column="1" Text="COMMAND" FontSize="9" Foreground="#64748B"/>
-                                    <TextBlock Grid.Column="2" Text="ALT" FontSize="9" Foreground="#64748B" TextAlignment="Right"/>
-                                </Grid>
-
-                                <!-- Waypoints ItemsControl -->
-                                <ItemsControl ItemsSource="{Binding MissionItems}">
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate x:DataType="models:MissionItem">
-                                            <Border Classes="wp-row">
-                                                <Grid ColumnDefinitions="20,Auto,*,40,28">
-                                                    <TextBlock Grid.Column="0" Text="{Binding Index}"
-                                                               FontSize="11" Foreground="#64748B" VerticalAlignment="Center"/>
-                                                    <TextBlock Grid.Column="1" Text="{Binding Icon}"
-                                                               FontSize="13" Margin="0,0,6,0" VerticalAlignment="Center"/>
-                                                    <StackPanel Grid.Column="2" Spacing="1" VerticalAlignment="Center">
-                                                        <TextBlock Text="{Binding DisplayName}"
-                                                                   FontSize="11" FontWeight="SemiBold" Foreground="White"/>
-                                                        <TextBlock FontSize="9" Foreground="#64748B">
-                                                            <Run Text="{Binding Latitude, StringFormat='{}{0:F4}'}"/>
-                                                            <Run Text=", "/>
-                                                            <Run Text="{Binding Longitude, StringFormat='{}{0:F4}'}"/>
-                                                        </TextBlock>
-                                                    </StackPanel>
-                                                    <StackPanel Grid.Column="3" HorizontalAlignment="Right"
-                                                                VerticalAlignment="Center" Margin="2,0">
-                                                        <TextBlock Text="{Binding Altitude, StringFormat='{}{0:F0}'}"
-                                                                   FontSize="11" FontWeight="SemiBold"
-                                                                   Foreground="White" TextAlignment="Right"/>
-                                                        <TextBlock Text="m" FontSize="9" Foreground="#64748B" TextAlignment="Right"/>
-                                                    </StackPanel>
-                                                    <Button Grid.Column="4"
-                                                            Command="{Binding $parent[UserControl].DataContext.RemoveMissionItemCommand}"
-                                                            CommandParameter="{Binding}"
-                                                            Width="24" Height="24" Padding="0"
-                                                            CornerRadius="6" Background="Transparent"
-                                                            BorderThickness="0" Foreground="#EF4444"
-                                                            ToolTip.Tip="Remove" VerticalAlignment="Center">
-                                                        <TextBlock Text="&#x2715;" FontSize="11"/>
-                                                    </Button>
-                                                </Grid>
-                                            </Border>
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
-
-                                <!-- Empty state -->
-                                <Border IsVisible="{Binding !MissionItemCount}"
-                                        Background="#0D1117" CornerRadius="8" Padding="12" Margin="0,4,0,0">
-                                    <StackPanel Spacing="6" HorizontalAlignment="Center">
-                                        <TextBlock Text="&#x1F5FA;" FontSize="24" HorizontalAlignment="Center"/>
-                                        <TextBlock Text="No waypoints yet" FontSize="11" Foreground="#64748B" HorizontalAlignment="Center"/>
-                                        <TextBlock Text="Select a tool above then click the map"
-                                                   FontSize="10" Foreground="#475569"
-                                                   HorizontalAlignment="Center" TextWrapping="Wrap" TextAlignment="Center"/>
-                                    </StackPanel>
-                                </Border>
-
-                                <TextBlock Text="{Binding MissionProgressText}" FontSize="10"
-                                           Foreground="#64748B" HorizontalAlignment="Center"
-                                           Margin="0,6,0,0" IsVisible="{Binding MissionItemCount}"/>
-                            </StackPanel>
-
-                            <!-- CAMERA TAB -->
-                            <StackPanel IsVisible="{Binding IsCameraTabActive}" Spacing="8">
-
-                                <!-- Camera status -->
-                                <Border Background="#0F172A" CornerRadius="10" Padding="12,10">
-                                    <Grid ColumnDefinitions="Auto,*,Auto">
-                                        <TextBlock Grid.Column="0" Text="&#x1F4F7;" FontSize="24"
-                                                   VerticalAlignment="Center" Margin="0,0,10,0"/>
-                                        <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
-                                            <TextBlock Text="CAMERA" FontSize="9" Foreground="#64748B"
-                                                       FontWeight="Bold" LetterSpacing="1"/>
-                                            <TextBlock Text="{Binding CameraStatus}"
-                                                       FontSize="14" FontWeight="Bold" Foreground="White"/>
-                                        </StackPanel>
-                                        <Ellipse Grid.Column="2" Width="10" Height="10" VerticalAlignment="Center"
-                                                 Fill="{Binding IsCameraConnected, Converter={StaticResource BoolToColorConverter}, ConverterParameter='#22C55E|#EF4444'}"/>
-                                    </Grid>
-                                </Border>
-
-                                <!-- Recording -->
-                                <Border CornerRadius="10" Padding="12,10"
-                                        Background="{Binding IsRecording, Converter={StaticResource BoolToColorConverter}, ConverterParameter='#401F2937|#0F172A'}"
-                                        BorderBrush="{Binding IsRecording, Converter={StaticResource BoolToColorConverter}, ConverterParameter='#EF4444|#334155'}"
-                                        BorderThickness="1">
-                                    <Grid ColumnDefinitions="Auto,*,Auto">
-                                        <Ellipse Grid.Column="0" Width="10" Height="10"
-                                                 Margin="0,0,8,0" VerticalAlignment="Center"
-                                                 Fill="{Binding IsRecording, Converter={StaticResource BoolToColorConverter}, ConverterParameter='#EF4444|#374151'}"/>
-                                        <StackPanel Grid.Column="1" Spacing="1" VerticalAlignment="Center">
-                                            <TextBlock Text="{Binding IsRecording, Converter={StaticResource BoolToStringConverter}, ConverterParameter='Recording|Standby'}"
-                                                       FontSize="12" FontWeight="SemiBold" Foreground="White"/>
-                                            <TextBlock Text="{Binding RecordingTime}" FontSize="11" Foreground="#94A3B8"/>
-                                        </StackPanel>
-                                        <Button Grid.Column="2"
-                                                Command="{Binding ToggleRecordingCommand}"
-                                                IsEnabled="{Binding IsCameraConnected}"
-                                                CornerRadius="6" Padding="10,6" FontSize="11"
-                                                Background="{Binding IsRecording, Converter={StaticResource BoolToColorConverter}, ConverterParameter='#EF4444|#334155'}"
-                                                Foreground="White" BorderThickness="0">
-                                            <TextBlock Text="{Binding IsRecording, Converter={StaticResource BoolToStringConverter}, ConverterParameter='Stop|Start'}"/>
-                                        </Button>
-                                    </Grid>
-                                </Border>
-
-                                <!-- Camera metrics -->
-                                <Border Background="#0F172A" CornerRadius="10" Padding="12,10">
-                                    <StackPanel Spacing="8">
-                                        <TextBlock Text="CAMERA TELEMETRY" FontSize="9" Foreground="#3B82F6"
-                                                   FontWeight="Bold" LetterSpacing="1"/>
-                                        <Grid ColumnDefinitions="*,*">
-                                            <StackPanel Grid.Column="0" Spacing="2">
-                                                <TextBlock Text="PHOTOS" FontSize="9" Foreground="#64748B"/>
-                                                <StackPanel Orientation="Horizontal" Spacing="3">
-                                                    <TextBlock Text="&#x1F4F8;" FontSize="12"/>
-                                                    <TextBlock Text="{Binding PhotoCount}"
-                                                               FontSize="18" FontWeight="Bold" Foreground="White"/>
-                                                </StackPanel>
-                                            </StackPanel>
-                                            <StackPanel Grid.Column="1" Spacing="2">
-                                                <TextBlock Text="REC TIME" FontSize="9" Foreground="#64748B"/>
-                                                <StackPanel Orientation="Horizontal" Spacing="3">
-                                                    <TextBlock Text="&#x23F1;" FontSize="12"/>
-                                                    <TextBlock Text="{Binding RecordingTime}"
-                                                               FontSize="18" FontWeight="Bold" Foreground="White"/>
-                                                </StackPanel>
-                                            </StackPanel>
-                                        </Grid>
-                                        <Border Height="1" Background="#1E293B"/>
-                                        <Button Command="{Binding TakePhotoCommand}"
-                                                IsEnabled="{Binding IsCameraConnected}"
-                                                HorizontalAlignment="Stretch"
-                                                HorizontalContentAlignment="Center"
-                                                Height="38" CornerRadius="8"
-                                                Background="#3B82F6" Foreground="White"
-                                                FontSize="12" FontWeight="SemiBold" BorderThickness="0">
-                                            <StackPanel Orientation="Horizontal" Spacing="6">
-                                                <TextBlock Text="&#x1F4F7;" FontSize="14"/>
-                                                <TextBlock Text="Take Photo" VerticalAlignment="Center"/>
-                                            </StackPanel>
-                                        </Button>
-                                    </StackPanel>
-                                </Border>
-
-                                <!-- Spray + Camera -->
-                                <Border Background="#0F172A" CornerRadius="10" Padding="12,10">
-                                    <StackPanel Spacing="6">
-                                        <TextBlock Text="SPRAY + CAMERA" FontSize="9" Foreground="#3B82F6"
-                                                   FontWeight="Bold" LetterSpacing="1"/>
-                                        <Grid ColumnDefinitions="*,*">
-                                            <StackPanel Grid.Column="0" Spacing="2">
-                                                <TextBlock Text="SPRAY" FontSize="9" Foreground="#64748B"/>
-                                                <StackPanel Orientation="Horizontal" Spacing="4">
-                                                    <TextBlock Text="&#x1F4A7;" FontSize="12"/>
-                                                    <TextBlock Text="{Binding FlowRateStatus}" FontSize="12" FontWeight="Bold"
-                                                               Foreground="{Binding IsSprayEnabled, Converter={StaticResource BoolToColorConverter}, ConverterParameter='#22C55E|#94A3B8'}"/>
-                                                </StackPanel>
-                                            </StackPanel>
-                                            <StackPanel Grid.Column="1" Spacing="2">
-                                                <TextBlock Text="FLOW" FontSize="9" Foreground="#64748B"/>
-                                                <StackPanel Orientation="Horizontal" Spacing="3">
-                                                    <TextBlock Text="{Binding FlowRate, StringFormat='{}{0:F1}'}"
-                                                               FontSize="12" FontWeight="Bold" Foreground="White"/>
-                                                    <TextBlock Text="L/min" FontSize="9" Foreground="#94A3B8" VerticalAlignment="Bottom"/>
-                                                </StackPanel>
-                                            </StackPanel>
-                                        </Grid>
-                                        <Grid ColumnDefinitions="*,*">
-                                            <StackPanel Grid.Column="0" Spacing="2">
-                                                <TextBlock Text="AREA" FontSize="9" Foreground="#64748B"/>
-                                                <StackPanel Orientation="Horizontal" Spacing="3">
-                                                    <TextBlock Text="{Binding AreaSprayedAcres, StringFormat='{}{0:F2}'}"
-                                                               FontSize="12" FontWeight="Bold" Foreground="White"/>
-                                                    <TextBlock Text="ac" FontSize="9" Foreground="#94A3B8" VerticalAlignment="Bottom"/>
-                                                </StackPanel>
-                                            </StackPanel>
-                                            <StackPanel Grid.Column="1" Spacing="2">
-                                                <TextBlock Text="CONSUMED" FontSize="9" Foreground="#64748B"/>
-                                                <StackPanel Orientation="Horizontal" Spacing="3">
-                                                    <TextBlock Text="{Binding TotalConsumedLiters, StringFormat='{}{0:F1}'}"
-                                                               FontSize="12" FontWeight="Bold" Foreground="White"/>
-                                                    <TextBlock Text="L" FontSize="9" Foreground="#94A3B8" VerticalAlignment="Bottom"/>
-                                                </StackPanel>
-                                            </StackPanel>
-                                        </Grid>
-                                    </StackPanel>
-                                </Border>
-
-                            </StackPanel>
-                        </StackPanel>
-                    </ScrollViewer>
-                </Grid>
-            </Border>
+                    </StackPanel>
+                </Button>
+            </StackPanel>
         </Grid>
 
         <!-- BOTTOM TELEMETRY BAR -->
-        <Border Grid.Row="2" Classes="glass-panel" Margin="8,4,8,8"
+        <Border Grid.Row="1" Classes="glass-panel" Margin="8,4,8,8"
                 Padding="16,10" IsVisible="{Binding IsConnected}">
-            <Grid ColumnDefinitions="*,*,*,*,*,*,*,*">
-                <StackPanel Grid.Column="0" HorizontalAlignment="Center" Spacing="2">
-                    <TextBlock Text="ALT" Classes="telem-label" HorizontalAlignment="Center"/>
-                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="2">
+            <StackPanel Spacing="8">
+                <UniformGrid Columns="4" ColumnSpacing="12">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <TextBlock Text="Alt:" Classes="telem-label"/>
                         <TextBlock Text="{Binding Altitude, StringFormat='{}{0:F1}'}" Classes="telem-value"/>
                         <TextBlock Text="m" Classes="telem-unit" VerticalAlignment="Bottom"/>
                     </StackPanel>
-                </StackPanel>
-                <StackPanel Grid.Column="1" HorizontalAlignment="Center" Spacing="2">
-                    <TextBlock Text="SPEED" Classes="telem-label" HorizontalAlignment="Center"/>
-                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="2">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <TextBlock Text="Speed:" Classes="telem-label"/>
                         <TextBlock Text="{Binding GroundSpeed, StringFormat='{}{0:F1}'}" Classes="telem-value"/>
                         <TextBlock Text="m/s" Classes="telem-unit" VerticalAlignment="Bottom"/>
                     </StackPanel>
-                </StackPanel>
-                <StackPanel Grid.Column="2" HorizontalAlignment="Center" Spacing="2">
-                    <TextBlock Text="V/S" Classes="telem-label" HorizontalAlignment="Center"/>
-                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="2">
-                        <TextBlock Text="{Binding VerticalSpeed, StringFormat='{}{0:F1}'}" Classes="telem-value"/>
-                        <TextBlock Text="m/s" Classes="telem-unit" VerticalAlignment="Bottom"/>
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <TextBlock Text="Area:" Classes="telem-label"/>
+                        <TextBlock Text="{Binding AreaSprayedAcres, StringFormat='{}{0:F2}'}" Classes="telem-value"/>
+                        <TextBlock Text="acres" Classes="telem-unit" VerticalAlignment="Bottom"/>
                     </StackPanel>
-                </StackPanel>
-                <StackPanel Grid.Column="3" HorizontalAlignment="Center" Spacing="2">
-                    <TextBlock Text="HDG" Classes="telem-label" HorizontalAlignment="Center"/>
-                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="2">
-                        <TextBlock Text="{Binding Heading, StringFormat='{}{0:F0}'}" Classes="telem-value"/>
-                        <TextBlock Text="&#x00B0;" Classes="telem-unit" VerticalAlignment="Bottom"/>
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <TextBlock Text="Flow:" Classes="telem-label"/>
+                        <TextBlock Text="{Binding FlowRate, StringFormat='{}{0:F1}'}" Classes="telem-value"/>
+                        <TextBlock Text="L/min" Classes="telem-unit" VerticalAlignment="Bottom"/>
                     </StackPanel>
-                </StackPanel>
-                <StackPanel Grid.Column="4" HorizontalAlignment="Center" Spacing="2">
-                    <TextBlock Text="WAYPOINT" Classes="telem-label" HorizontalAlignment="Center"/>
-                    <TextBlock Text="{Binding WaypointStatus}" Classes="telem-value" HorizontalAlignment="Center"/>
-                </StackPanel>
-                <StackPanel Grid.Column="5" HorizontalAlignment="Center" Spacing="2">
-                    <TextBlock Text="TIME" Classes="telem-label" HorizontalAlignment="Center"/>
-                    <TextBlock Text="{Binding FlightTime}" Classes="telem-value" HorizontalAlignment="Center"/>
-                </StackPanel>
-                <StackPanel Grid.Column="6" HorizontalAlignment="Center" Spacing="2">
-                    <TextBlock Text="DISTANCE" Classes="telem-label" HorizontalAlignment="Center"/>
-                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="2">
+                </UniformGrid>
+                <UniformGrid Columns="4" ColumnSpacing="12">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <TextBlock Text="WP:" Classes="telem-label"/>
+                        <TextBlock Text="{Binding WaypointStatus}" Classes="telem-value"/>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <TextBlock Text="Time:" Classes="telem-label"/>
+                        <TextBlock Text="{Binding FlightTime}" Classes="telem-value"/>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <TextBlock Text="Distance:" Classes="telem-label"/>
                         <TextBlock Text="{Binding TotalFlightDistance, StringFormat='{}{0:F2}'}" Classes="telem-value"/>
                         <TextBlock Text="km" Classes="telem-unit" VerticalAlignment="Bottom"/>
                     </StackPanel>
-                </StackPanel>
-                <StackPanel Grid.Column="7" HorizontalAlignment="Center" Spacing="2">
-                    <TextBlock Text="CONSUMED" Classes="telem-label" HorizontalAlignment="Center"/>
-                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="2">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <TextBlock Text="Consumed:" Classes="telem-label"/>
                         <TextBlock Text="{Binding TotalConsumedLiters, StringFormat='{}{0:F1}'}" Classes="telem-value"/>
                         <TextBlock Text="L" Classes="telem-unit" VerticalAlignment="Bottom"/>
                     </StackPanel>
-                </StackPanel>
-            </Grid>
-        </Border>
-
-        <!-- DISCONNECTED OVERLAY -->
-        <Border Grid.Row="0" Grid.RowSpan="3" Background="#F0101827"
-                IsVisible="{Binding !IsConnected}">
-            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="24">
-                <Border Width="100" Height="100" CornerRadius="50"
-                        Background="#1E293B" BorderBrush="#334155" BorderThickness="2">
-                    <Border CornerRadius="50" ClipToBounds="True" Margin="16">
-                        <Image Source="avares://PavamanDroneConfigurator.UI/Assets/Images/KFT Logo.png" Stretch="Uniform"/>
-                    </Border>
-                </Border>
-                <StackPanel Spacing="8" HorizontalAlignment="Center">
-                    <TextBlock Text="Live Map View" FontSize="22" FontWeight="Bold"
-                               Foreground="White" HorizontalAlignment="Center"/>
-                    <TextBlock Text="Connect to your drone to view real-time telemetry"
-                               FontSize="13" Foreground="#94A3B8" HorizontalAlignment="Center"/>
-                </StackPanel>
-                <Border Classes="glass-panel" Padding="14,10" HorizontalAlignment="Center">
-                    <StackPanel Orientation="Horizontal" Spacing="8">
-                        <TextBlock Text="&#x2192;" FontSize="14" Foreground="#94A3B8"/>
-                        <TextBlock Text="Navigate to Connection page to establish link"
-                                   FontSize="12" Foreground="#CBD5E1"/>
-                    </StackPanel>
-                </Border>
+                </UniformGrid>
             </StackPanel>
         </Border>
     </Grid>
