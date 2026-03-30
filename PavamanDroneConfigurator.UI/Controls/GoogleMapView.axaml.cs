@@ -263,10 +263,10 @@ public partial class GoogleMapView : UserControl
 
             // Position the WebView2 control to fill the parent
             UpdateWebViewBounds();
-             Debug.WriteLine($"[GoogleMapView] WebView2 bounds: {_webViewController.Bounds}");
-             _webViewController.IsVisible = true;
+            Debug.WriteLine($"[GoogleMapView] WebView2 bounds: {_webViewController.Bounds}");
+            _webViewController.IsVisible = true;
 
-             // Update bounds when control resizes
+            // Update bounds when control resizes
             _boundsChangedHandler = (_, e) =>
             {
                 if (e.Property == BoundsProperty && _webViewController != null)

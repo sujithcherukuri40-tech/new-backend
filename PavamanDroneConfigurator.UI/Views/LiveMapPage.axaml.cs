@@ -259,9 +259,9 @@ public partial class LiveMapPage : UserControl
 
         Dispatcher.UIThread.Post(() =>
         {
-                _map?.ClearFlightPath();
-                _map?.ClearWaypoints();
-                _map?.ClearSprayOverlay();
+            _map?.ClearFlightPath();
+            _map?.ClearWaypoints();
+            _map?.ClearSprayOverlay();
             Debug.WriteLine("[LiveMapPage] ? Flight path and waypoints cleared");
         });
     }
