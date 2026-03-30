@@ -647,6 +647,12 @@ public partial class App : Application
             );
         }
 
+        var missionDbConnection = Configuration?.GetConnectionString("MissionDraftsDb");
+        services.AddDbContext<MissionDbContext>(options =>
+            options.UseSqlite(string.IsNullOrWhiteSpace(missionDbConnection)
+                ? MissionDbContext.DefaultConnectionString
+                : missionDbConnection));
+
         Console.WriteLine("[App] Adding infrastructure services...");
         services.AddSingleton<DatabaseTestService>();
         services.AddSingleton<ArduPilotXmlParser>();
