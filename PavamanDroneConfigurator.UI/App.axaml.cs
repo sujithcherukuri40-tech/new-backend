@@ -647,6 +647,9 @@ public partial class App : Application
             );
         }
 
+        services.AddDbContext<MissionDbContext>(options =>
+            options.UseSqlite("Data Source=mission_drafts.db"));
+
         Console.WriteLine("[App] Adding infrastructure services...");
         services.AddSingleton<DatabaseTestService>();
         services.AddSingleton<ArduPilotXmlParser>();
