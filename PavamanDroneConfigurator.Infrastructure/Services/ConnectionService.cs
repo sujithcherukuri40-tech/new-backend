@@ -487,7 +487,8 @@ public sealed class ConnectionService : IConnectionService, IDisposable
             Autopilot = e.Autopilot,
             BaseMode = e.BaseMode,
             SystemStatus = e.SystemStatus,
-            IsArmed = e.IsArmed
+            IsArmed = e.IsArmed,
+            CrcValid = e.CrcValid
         });
     }
 
@@ -664,7 +665,8 @@ public sealed class ConnectionService : IConnectionService, IDisposable
             VelocityX = e.VelocityX,
             VelocityY = e.VelocityY,
             VelocityZ = e.VelocityZ,
-            Heading = e.Heading
+            Heading = e.Heading,
+            CrcValid = e.CrcValid
         });
     }
 
@@ -679,7 +681,8 @@ public sealed class ConnectionService : IConnectionService, IDisposable
             Yaw = e.Yaw,
             RollSpeed = e.RollSpeed,
             PitchSpeed = e.PitchSpeed,
-            YawSpeed = e.YawSpeed
+            YawSpeed = e.YawSpeed,
+            CrcValid = e.CrcValid
         });
     }
 
@@ -693,7 +696,8 @@ public sealed class ConnectionService : IConnectionService, IDisposable
             Heading = e.Heading,
             Throttle = e.Throttle,
             Altitude = e.Altitude,
-            ClimbRate = e.ClimbRate
+            ClimbRate = e.ClimbRate,
+            CrcValid = e.CrcValid
         });
     }
 
@@ -711,7 +715,8 @@ public sealed class ConnectionService : IConnectionService, IDisposable
             Vdop = e.Vdop,
             GroundSpeed = e.GroundSpeed,
             CourseOverGround = e.CourseOverGround,
-            SatellitesVisible = e.SatellitesVisible
+            SatellitesVisible = e.SatellitesVisible,
+            CrcValid = e.CrcValid
         });
     }
 
@@ -728,7 +733,8 @@ public sealed class ConnectionService : IConnectionService, IDisposable
             BatteryCurrent = e.BatteryCurrent,
             BatteryRemaining = e.BatteryRemaining,
             DropRateComm = e.DropRateComm,
-            ErrorsComm = e.ErrorsComm
+            ErrorsComm = e.ErrorsComm,
+            CrcValid = e.CrcValid
         });
     }
 

@@ -69,6 +69,21 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
         private const byte MAVLINK_MSG_ID_GLOBAL_POSITION_INT = 33;
         private const byte MAVLINK_MSG_ID_VFR_HUD = 74;
 
+        /// <summary>
+        /// Set of message IDs that carry live telemetry.
+        /// CRC failures on these messages are logged but do NOT drop the frame,
+        /// so the telemetry stream is never silently blocked by a CRC mismatch.
+        /// </summary>
+        private static readonly HashSet<int> TelemetryMessageIds = new()
+        {
+            MAVLINK_MSG_ID_HEARTBEAT,
+            MAVLINK_MSG_ID_SYS_STATUS,
+            MAVLINK_MSG_ID_GPS_RAW_INT,
+            MAVLINK_MSG_ID_ATTITUDE,
+            MAVLINK_MSG_ID_GLOBAL_POSITION_INT,
+            MAVLINK_MSG_ID_VFR_HUD
+        };
+
         // MAV_CMD IDs
         private const ushort MAV_CMD_DO_MOTOR_TEST = 209;
         private const ushort MAV_CMD_PREFLIGHT_CALIBRATION = 241;
@@ -486,10 +501,21 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
             ushort crcCalc = CalculateCrc(frame, 1, payloadLen + 5, MavlinkProtocol.GetCrcExtra(msgId));
             ushort crcRecv = (ushort)(frame[6 + payloadLen] | (frame[7 + payloadLen] << 8));
 
-            if (crcCalc != crcRecv)
+            bool crcValid = crcCalc == crcRecv;
+            if (!crcValid)
             {
-                _logger.LogTrace("V1 CRC mismatch: msg={Msg} calc=0x{Calc:X4} recv=0x{Recv:X4}", msgId, crcCalc, crcRecv);
-                return;
+                if (TelemetryMessageIds.Contains(msgId))
+                {
+                    _logger.LogWarning(
+                        "V1 telemetry CRC mismatch: msg={Msg} calc=0x{Calc:X4} recv=0x{Recv:X4} - streaming frame with CrcValid=false",
+                        msgId, crcCalc, crcRecv);
+                    // Fall through: telemetry stream must not be blocked by CRC failures.
+                }
+                else
+                {
+                    _logger.LogTrace("V1 CRC mismatch: msg={Msg} calc=0x{Calc:X4} recv=0x{Recv:X4}", msgId, crcCalc, crcRecv);
+                    return;
+                }
             }
 
             if (!MavlinkProtocol.IsKnownMessage(msgId))
@@ -500,7 +526,7 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
             var payload = new byte[payloadLen];
             Array.Copy(frame, 6, payload, 0, payloadLen);
 
-            HandleMessage(sysId, compId, msgId, payload);
+            HandleMessage(sysId, compId, msgId, payload, crcValid);
         }
 
         private void ProcessMavlink2Frame(byte[] frame)
@@ -529,10 +555,21 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
             int crcOffset = 10 + payloadLen;
             ushort crcRecv = (ushort)(frame[crcOffset] | (frame[crcOffset + 1] << 8));
 
-            if (crcCalc != crcRecv)
+            bool crcValid = crcCalc == crcRecv;
+            if (!crcValid)
             {
-                _logger.LogTrace("V2 CRC mismatch: msg={Msg} calc=0x{Calc:X4} recv=0x{Recv:X4}", msgId, crcCalc, crcRecv);
-                return;
+                if (TelemetryMessageIds.Contains(msgId))
+                {
+                    _logger.LogWarning(
+                        "V2 telemetry CRC mismatch: msg={Msg} calc=0x{Calc:X4} recv=0x{Recv:X4} - streaming frame with CrcValid=false",
+                        msgId, crcCalc, crcRecv);
+                    // Fall through: telemetry stream must not be blocked by CRC failures.
+                }
+                else
+                {
+                    _logger.LogTrace("V2 CRC mismatch: msg={Msg} calc=0x{Calc:X4} recv=0x{Recv:X4}", msgId, crcCalc, crcRecv);
+                    return;
+                }
             }
 
             if (!MavlinkProtocol.IsKnownMessage(msgId))
@@ -543,33 +580,33 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
             var payload = new byte[payloadLen];
             Array.Copy(frame, 10, payload, 0, payloadLen);
 
-            HandleMessage(sysId, compId, (byte)msgId, payload);
+            HandleMessage(sysId, compId, (byte)msgId, payload, crcValid);
         }
 
-        private void HandleMessage(byte sysId, byte compId, byte msgId, byte[] payload)
+        private void HandleMessage(byte sysId, byte compId, byte msgId, byte[] payload, bool crcValid = true)
         {
             switch (msgId)
             {
                 case MAVLINK_MSG_ID_HEARTBEAT:
-                    HandleHeartbeat(sysId, compId, payload);
+                    HandleHeartbeat(sysId, compId, payload, crcValid);
                     break;
                 case MAVLINK_MSG_ID_SYS_STATUS:
-                    HandleSysStatus(payload);
+                    HandleSysStatus(payload, crcValid);
                     break;
                 case MAVLINK_MSG_ID_PARAM_VALUE:
                     HandleParamValue(payload);
                     break;
                 case MAVLINK_MSG_ID_GPS_RAW_INT:
-                    HandleGpsRawInt(payload);
+                    HandleGpsRawInt(payload, crcValid);
                     break;
                 case MAVLINK_MSG_ID_ATTITUDE:
-                    HandleAttitude(payload);
+                    HandleAttitude(payload, crcValid);
                     break;
                 case MAVLINK_MSG_ID_GLOBAL_POSITION_INT:
-                    HandleGlobalPositionInt(payload);
+                    HandleGlobalPositionInt(payload, crcValid);
                     break;
                 case MAVLINK_MSG_ID_VFR_HUD:
-                    HandleVfrHud(payload);
+                    HandleVfrHud(payload, crcValid);
                     break;
                 case (byte)MAVLINK_MSG_ID_COMMAND_ACK:
                     HandleCommandAck(payload);
@@ -601,7 +638,7 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
             }
         }
 
-        private void HandleHeartbeat(byte sysId, byte compId, byte[] payload)
+        private void HandleHeartbeat(byte sysId, byte compId, byte[] payload, bool crcValid = true)
         {
             if (compId == GCS_COMPONENT_ID || sysId == 0)
                 return;
@@ -633,7 +670,8 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
                     BaseMode = baseMode,
                     SystemStatus = systemStatus,
                     MavlinkVersion = mavlinkVersion,
-                    IsArmed = (baseMode & 0x80) != 0
+                    IsArmed = (baseMode & 0x80) != 0,
+                    CrcValid = crcValid
                 };
 
                 HeartbeatDataReceived?.Invoke(this, heartbeatData);
@@ -1028,7 +1066,7 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
             MagCalReportReceived?.Invoke(this, reportData);
         }
 
-        private void HandleGlobalPositionInt(byte[] payload)
+        private void HandleGlobalPositionInt(byte[] payload, bool crcValid = true)
         {
             // GLOBAL_POSITION_INT message (28 bytes):
             // [0-3]   time_boot_ms (uint32)
@@ -1065,13 +1103,14 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
                 VelocityX = BitConverter.ToInt16(payload, 20) / 100.0,
                 VelocityY = BitConverter.ToInt16(payload, 22) / 100.0,
                 VelocityZ = BitConverter.ToInt16(payload, 24) / 100.0,
-                Heading = rawHeading == ushort.MaxValue ? double.NaN : rawHeading / 100.0
+                Heading = rawHeading == ushort.MaxValue ? double.NaN : rawHeading / 100.0,
+                CrcValid = crcValid
             };
 
             GlobalPositionIntReceived?.Invoke(this, data);
         }
 
-        private void HandleAttitude(byte[] payload)
+        private void HandleAttitude(byte[] payload, bool crcValid = true)
         {
             // ATTITUDE message (28 bytes):
             // [0-3]   time_boot_ms (uint32)
@@ -1097,7 +1136,8 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
                 Yaw = BitConverter.ToSingle(payload, 12) * RadToDeg,
                 RollSpeed = BitConverter.ToSingle(payload, 16) * RadToDeg,
                 PitchSpeed = BitConverter.ToSingle(payload, 20) * RadToDeg,
-                YawSpeed = BitConverter.ToSingle(payload, 24) * RadToDeg
+                YawSpeed = BitConverter.ToSingle(payload, 24) * RadToDeg,
+                CrcValid = crcValid
             };
 
             // Normalize yaw to 0-360
@@ -1109,7 +1149,7 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
             AttitudeReceived?.Invoke(this, data);
         }
 
-        private void HandleGpsRawInt(byte[] payload)
+        private void HandleGpsRawInt(byte[] payload, bool crcValid = true)
         {
             // GPS_RAW_INT message (30+ bytes):
             // [0-7]   time_usec (uint64)
@@ -1148,13 +1188,14 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
                 GroundSpeed = BitConverter.ToUInt16(payload, 24) / 100.0,
                 CourseOverGround = rawCog == ushort.MaxValue ? double.NaN : rawCog / 100.0,
                 FixType = fixType,
-                SatellitesVisible = sats
+                SatellitesVisible = sats,
+                CrcValid = crcValid
             };
 
             GpsRawIntReceived?.Invoke(this, data);
         }
 
-        private void HandleVfrHud(byte[] payload)
+        private void HandleVfrHud(byte[] payload, bool crcValid = true)
         {
             // VFR_HUD message (20 bytes):
             // [0-3]   airspeed (float, m/s)
@@ -1173,13 +1214,14 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
                 Heading = BitConverter.ToInt16(payload, 8),
                 Throttle = BitConverter.ToUInt16(payload, 10),
                 Altitude = BitConverter.ToSingle(payload, 12),
-                ClimbRate = BitConverter.ToSingle(payload, 16)
+                ClimbRate = BitConverter.ToSingle(payload, 16),
+                CrcValid = crcValid
             };
 
             VfrHudReceived?.Invoke(this, data);
         }
 
-        private void HandleSysStatus(byte[] payload)
+        private void HandleSysStatus(byte[] payload, bool crcValid = true)
         {
             // SYS_STATUS message (31 bytes):
             // [0-3]   onboard_control_sensors_present (uint32)
@@ -1207,7 +1249,8 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
                 BatteryCurrent = rawCurrent == -1 ? double.NaN : rawCurrent / 100.0,
                 BatteryRemaining = (sbyte)payload[18],
                 DropRateComm = BitConverter.ToUInt16(payload, 19),
-                ErrorsComm = BitConverter.ToUInt16(payload, 21)
+                ErrorsComm = BitConverter.ToUInt16(payload, 21),
+                CrcValid = crcValid
             };
 
             SysStatusReceived?.Invoke(this, data);
@@ -1671,6 +1714,7 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
         public byte SystemStatus { get; set; }
         public byte MavlinkVersion { get; set; }
         public bool IsArmed { get; set; }
+        public bool CrcValid { get; set; } = true;
     }
 
     /// <summary>
@@ -1930,6 +1974,7 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
         public double VelocityY { get; set; }
         public double VelocityZ { get; set; }
         public double Heading { get; set; }
+        public bool CrcValid { get; set; } = true;
     }
 
     /// <summary>
@@ -1944,6 +1989,7 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
         public double RollSpeed { get; set; }
         public double PitchSpeed { get; set; }
         public double YawSpeed { get; set; }
+        public bool CrcValid { get; set; } = true;
     }
 
     /// <summary>
@@ -1957,6 +2003,7 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
         public int Throttle = 0;
         public double Altitude = 0.0;
         public double ClimbRate = 0.0;
+        public bool CrcValid { get; set; } = true;
     }
 
  
@@ -1972,6 +2019,7 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
         public double GroundSpeed { get; set; }
         public double CourseOverGround { get; set; }
         public byte SatellitesVisible { get; set; }
+        public bool CrcValid { get; set; } = true;
     }
 
    
@@ -1986,5 +2034,6 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
         public sbyte BatteryRemaining { get; set; }
         public ushort DropRateComm { get; set; }
         public ushort ErrorsComm { get; set; }
+        public bool CrcValid { get; set; } = true;
     }
 }

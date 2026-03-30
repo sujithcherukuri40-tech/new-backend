@@ -51,7 +51,8 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
             { 21, 159 },  // PARAM_REQUEST_LIST
             { 22, 220 },  // PARAM_VALUE
             { 23, 168 },  // PARAM_SET
-            { 24, 165 },  // PARAM_MAP_RC
+            { 24, 24 },   // GPS_RAW_INT
+            { 50, 119 },  // PARAM_MAP_RC
             
             // Mission protocol
             { 25, 153 },  // MISSION_WRITE_PARTIAL_LIST

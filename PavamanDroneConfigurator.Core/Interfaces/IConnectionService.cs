@@ -126,6 +126,7 @@ public class HeartbeatDataEventArgs : EventArgs
     public byte BaseMode { get; set; }
     public byte SystemStatus { get; set; }
     public bool IsArmed { get; set; }
+    public bool CrcValid { get; set; } = true;
 }
 
 public class StatusTextEventArgs : EventArgs
@@ -302,6 +303,7 @@ public class GlobalPositionIntEventArgs : EventArgs
     public double VelocityY { get; set; }
     public double VelocityZ { get; set; }
     public double Heading { get; set; }
+    public bool CrcValid { get; set; } = true;
 }
 
 public class AttitudeEventArgs : EventArgs
@@ -313,6 +315,7 @@ public class AttitudeEventArgs : EventArgs
     public double RollSpeed { get; set; }
     public double PitchSpeed { get; set; }
     public double YawSpeed { get; set; }
+    public bool CrcValid { get; set; } = true;
 }
 
 public class VfrHudEventArgs : EventArgs
@@ -323,6 +326,7 @@ public class VfrHudEventArgs : EventArgs
     public int Throttle { get; set; }
     public double Altitude { get; set; }
     public double ClimbRate { get; set; }
+    public bool CrcValid { get; set; } = true;
 }
 
 public class GpsRawIntEventArgs : EventArgs
@@ -337,6 +341,7 @@ public class GpsRawIntEventArgs : EventArgs
     public double GroundSpeed { get; set; }
     public double CourseOverGround { get; set; }
     public byte SatellitesVisible { get; set; }
+    public bool CrcValid { get; set; } = true;
 }
 
 public class SysStatusEventArgs : EventArgs
@@ -350,4 +355,5 @@ public class SysStatusEventArgs : EventArgs
     public sbyte BatteryRemaining { get; set; }
     public ushort DropRateComm { get; set; }
     public ushort ErrorsComm { get; set; }
+    public bool CrcValid { get; set; } = true;
 }

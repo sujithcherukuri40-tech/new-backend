@@ -69,6 +69,19 @@ public class TelemetryModel
     public DateTime LastHeartbeatUpdate { get; set; }
 
     /// <summary>
+    /// Whether the most recently received telemetry frame passed CRC validation.
+    /// A value of <c>false</c> indicates the frame was streamed with a CRC error
+    /// (data may be corrupt); the stream itself is not interrupted.
+    /// </summary>
+    public bool LastCrcValid { get; set; } = true;
+
+    /// <summary>
+    /// Total number of telemetry frames received with a CRC mismatch since
+    /// the service started.  Non-zero values indicate link quality issues.
+    /// </summary>
+    public int CrcFailureCount { get; set; }
+
+    /// <summary>
     /// Always returns true - we accept ALL position data from SITL/drone.
     /// The map will display whatever coordinates we receive.
     /// For SITL default location is around -35.36, 149.16 (Canberra, Australia)
@@ -128,7 +141,9 @@ public class TelemetryModel
             LastPositionUpdate = LastPositionUpdate,
             LastAttitudeUpdate = LastAttitudeUpdate,
             LastGpsUpdate = LastGpsUpdate,
-            LastHeartbeatUpdate = LastHeartbeatUpdate
+            LastHeartbeatUpdate = LastHeartbeatUpdate,
+            LastCrcValid = LastCrcValid,
+            CrcFailureCount = CrcFailureCount
         };
     }
 }
@@ -155,6 +170,17 @@ public class TelemetryHealthStatus
     public TimeSpan SysStatusAge { get; set; }
     public int StartupAttemptCount { get; set; }
     public int RecoveryAttemptCount { get; set; }
+
+    /// <summary>
+    /// Total count of telemetry frames that failed CRC validation but were still
+    /// streamed through so the telemetry feed is not interrupted.
+    /// </summary>
+    public int CrcFailureCount { get; set; }
+
+    /// <summary>
+    /// Whether the most recently processed telemetry frame passed CRC validation.
+    /// </summary>
+    public bool LastCrcValid { get; set; } = true;
 
     public string StatusText => State switch
     {
