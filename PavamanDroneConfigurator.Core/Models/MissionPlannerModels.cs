@@ -230,5 +230,8 @@ public record MissionState
     public PlannerSettings Settings { get; init; } = new();
     public UploadStatus UploadStatus { get; init; } = UploadStatus.Idle;
     public IReadOnlyList<ValidationResult> ValidationResults { get; init; } = [];
+    /// <summary>
+    /// Indicates mission state has unsaved changes.
+    /// </summary>
     public bool Dirty { get; init; }
 }
