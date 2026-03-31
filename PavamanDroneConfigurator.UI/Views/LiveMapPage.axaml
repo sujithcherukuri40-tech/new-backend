@@ -125,6 +125,18 @@
                         <TextBlock Text="{Binding LiveStatusText}" Classes="hud-value"/>
                     </StackPanel>
                 </Border>
+                <Border Classes="glass-chip">
+                    <StackPanel Spacing="2">
+                        <TextBlock Text="WP TOTAL" Classes="hud-label"/>
+                        <TextBlock Text="{Binding TotalWaypointCount}" Classes="hud-value"/>
+                    </StackPanel>
+                </Border>
+                <Border Classes="glass-chip">
+                    <StackPanel Spacing="2">
+                        <TextBlock Text="BATTERY" Classes="hud-label"/>
+                        <TextBlock Text="{Binding BatteryStatus}" Classes="hud-value"/>
+                    </StackPanel>
+                </Border>
                 <Button Classes="top-action-btn" Command="{Binding ToggleSprayCommand}">
                     <StackPanel Orientation="Horizontal" Spacing="6">
                         <TextBlock Text="&#x1F4A7;"/>

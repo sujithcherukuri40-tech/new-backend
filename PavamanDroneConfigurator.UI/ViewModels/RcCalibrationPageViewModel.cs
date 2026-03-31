@@ -74,6 +74,46 @@ public partial class RcCalibrationPageViewModel : ViewModelBase
 
     #endregion
 
+    #region Calibration Min / Max / Center Values (captured during calibration)
+
+    [ObservableProperty]
+    private int _rollMin = 1000;
+
+    [ObservableProperty]
+    private int _rollMax = 2000;
+
+    [ObservableProperty]
+    private int _rollCenter = 1500;
+
+    [ObservableProperty]
+    private int _pitchMin = 1000;
+
+    [ObservableProperty]
+    private int _pitchMax = 2000;
+
+    [ObservableProperty]
+    private int _pitchCenter = 1500;
+
+    [ObservableProperty]
+    private int _yawMin = 1000;
+
+    [ObservableProperty]
+    private int _yawMax = 2000;
+
+    [ObservableProperty]
+    private int _yawCenter = 1500;
+
+    [ObservableProperty]
+    private int _throttleMin = 1000;
+
+    [ObservableProperty]
+    private int _throttleMax = 2000;
+
+    [ObservableProperty]
+    private int _throttleCenter = 1500;
+
+    #endregion
+
     #region All 16 Channel Values
 
     [ObservableProperty]
@@ -262,23 +302,50 @@ public partial class RcCalibrationPageViewModel : ViewModelBase
         Channel15Value = e.GetChannel(15)?.PwmValue ?? 0;
         Channel16Value = e.GetChannel(16)?.PwmValue ?? 0;
 
-        // Update main attitude channels based on current mapping
-        if (_currentMapping != null)
+        // Determine attitude channel values
+        int roll     = _currentMapping != null ? e.GetChannel(_currentMapping.RollChannel)?.PwmValue     ?? 0 : Channel1Value;
+        int pitch    = _currentMapping != null ? e.GetChannel(_currentMapping.PitchChannel)?.PwmValue    ?? 0 : Channel2Value;
+        int throttle = _currentMapping != null ? e.GetChannel(_currentMapping.ThrottleChannel)?.PwmValue ?? 0 : Channel3Value;
+        int yaw      = _currentMapping != null ? e.GetChannel(_currentMapping.YawChannel)?.PwmValue      ?? 0 : Channel4Value;
+
+        RollValue     = roll;
+        PitchValue    = pitch;
+        ThrottleValue = throttle;
+        YawValue      = yaw;
+
+        // Track min/max for calibration display
+        if (IsCalibrating)
         {
-            RollValue = e.GetChannel(_currentMapping.RollChannel)?.PwmValue ?? 0;
-            PitchValue = e.GetChannel(_currentMapping.PitchChannel)?.PwmValue ?? 0;
-            YawValue = e.GetChannel(_currentMapping.YawChannel)?.PwmValue ?? 0;
-            ThrottleValue = e.GetChannel(_currentMapping.ThrottleChannel)?.PwmValue ?? 0;
+            // Roll
+            if (IsValidPwmValue(roll))
+            {
+                if (roll < RollMin) RollMin = roll;
+                if (roll > RollMax) RollMax = roll;
+                RollCenter = roll;
+            }
+            // Pitch
+            if (IsValidPwmValue(pitch))
+            {
+                if (pitch < PitchMin) PitchMin = pitch;
+                if (pitch > PitchMax) PitchMax = pitch;
+                PitchCenter = pitch;
+            }
+            // Throttle
+            if (IsValidPwmValue(throttle))
+            {
+                if (throttle < ThrottleMin) ThrottleMin = throttle;
+                if (throttle > ThrottleMax) ThrottleMax = throttle;
+                ThrottleCenter = throttle;
+            }
+            // Yaw
+            if (IsValidPwmValue(yaw))
+            {
+                if (yaw < YawMin) YawMin = yaw;
+                if (yaw > YawMax) YawMax = yaw;
+                YawCenter = yaw;
+            }
         }
-        else
-        {
-            // Default mapping
-            RollValue = Channel1Value;
-            PitchValue = Channel2Value;
-            ThrottleValue = Channel3Value;
-            YawValue = Channel4Value;
-        }
-        
+
         // Update RC connection status
         UpdateRcConnectionStatus(e);
     }
@@ -291,7 +358,7 @@ public partial class RcCalibrationPageViewModel : ViewModelBase
         // RC is considered connected if:
         // 1. We're receiving channel data
         // 2. At least the first 4 channels have valid PWM values (not 0 or 65535)
-        // 3. Values are in reasonable range (800-2200 µs)
+        // 3. Values are in reasonable range (800-2200 ï¿½s)
         
         var ch1 = e.GetChannel(1);
         var ch2 = e.GetChannel(2);
@@ -418,6 +485,11 @@ public partial class RcCalibrationPageViewModel : ViewModelBase
         }
         else
         {
+            // Reset calibration min/max/center tracking
+            RollMin = PitchMin = ThrottleMin = YawMin = 2200;
+            RollMax = PitchMax = ThrottleMax = YawMax = 800;
+            RollCenter = PitchCenter = ThrottleCenter = YawCenter = 1500;
+
             // Start calibration
             _logger.LogInformation("Starting RC calibration - RC is connected");
             await _rcCalibrationService.StartCalibrationAsync();

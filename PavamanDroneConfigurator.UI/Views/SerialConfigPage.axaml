@@ -153,8 +153,50 @@
                     <TextBlock Classes="SectionTitle" Text="Serial Port Configuration"/>
                     <TextBlock Classes="SectionSubtitle" Text="Configure protocol and baud rate for each serial port"/>
                     
-                    <!-- Serial2 (TELEM2) -->
+                    <!-- Serial0 (USB / Console) -->
                     <Border Classes="PortRow" CornerRadius="8,8,0,0">
+                        <Grid ColumnDefinitions="80,*,20,*">
+                            <TextBlock Grid.Column="0" Classes="PortLabel" Text="Serial0"/>
+                            
+                            <StackPanel Grid.Column="1">
+                                <TextBlock Classes="FieldLabel" Text="USB Baudrate"/>
+                                <ComboBox ItemsSource="{Binding BaudRateOptions}"
+                                          SelectedItem="{Binding Serial0BaudRate}"
+                                          DisplayMemberBinding="{Binding Label}"/>
+                            </StackPanel>
+                            
+                            <StackPanel Grid.Column="3">
+                                <TextBlock Classes="FieldLabel" Text="USB Protocol"/>
+                                <ComboBox ItemsSource="{Binding ProtocolOptions}"
+                                          SelectedItem="{Binding Serial0Protocol}"
+                                          DisplayMemberBinding="{Binding Label}"/>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
+                    <!-- Serial1 (TELEM1) -->
+                    <Border Classes="PortRow">
+                        <Grid ColumnDefinitions="80,*,20,*">
+                            <TextBlock Grid.Column="0" Classes="PortLabel" Text="Serial1"/>
+                            
+                            <StackPanel Grid.Column="1">
+                                <TextBlock Classes="FieldLabel" Text="Telem1 Baudrate"/>
+                                <ComboBox ItemsSource="{Binding BaudRateOptions}"
+                                          SelectedItem="{Binding Serial1BaudRate}"
+                                          DisplayMemberBinding="{Binding Label}"/>
+                            </StackPanel>
+                            
+                            <StackPanel Grid.Column="3">
+                                <TextBlock Classes="FieldLabel" Text="Telem1 Protocol"/>
+                                <ComboBox ItemsSource="{Binding ProtocolOptions}"
+                                          SelectedItem="{Binding Serial1Protocol}"
+                                          DisplayMemberBinding="{Binding Label}"/>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
+                    <!-- Serial2 (TELEM2) -->
+                    <Border Classes="PortRow">
                         <Grid ColumnDefinitions="80,*,20,*">
                             <TextBlock Grid.Column="0" Classes="PortLabel" Text="Serial2"/>
                             
