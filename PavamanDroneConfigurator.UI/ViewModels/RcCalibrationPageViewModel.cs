@@ -316,12 +316,34 @@ public partial class RcCalibrationPageViewModel : ViewModelBase
         // Track min/max for calibration display
         if (IsCalibrating)
         {
-            static int Valid(int v) => v > 800 && v < 2200 ? v : 0;
-            int rv = Valid(roll), pv = Valid(pitch), tv = Valid(throttle), yv = Valid(yaw);
-            if (rv > 0) { if (rv < RollMin) RollMin = rv; if (rv > RollMax) RollMax = rv; RollCenter = rv; }
-            if (pv > 0) { if (pv < PitchMin) PitchMin = pv; if (pv > PitchMax) PitchMax = pv; PitchCenter = pv; }
-            if (tv > 0) { if (tv < ThrottleMin) ThrottleMin = tv; if (tv > ThrottleMax) ThrottleMax = tv; ThrottleCenter = tv; }
-            if (yv > 0) { if (yv < YawMin) YawMin = yv; if (yv > YawMax) YawMax = yv; YawCenter = yv; }
+            // Roll
+            if (IsValidPwmValue(roll))
+            {
+                if (roll < RollMin) RollMin = roll;
+                if (roll > RollMax) RollMax = roll;
+                RollCenter = roll;
+            }
+            // Pitch
+            if (IsValidPwmValue(pitch))
+            {
+                if (pitch < PitchMin) PitchMin = pitch;
+                if (pitch > PitchMax) PitchMax = pitch;
+                PitchCenter = pitch;
+            }
+            // Throttle
+            if (IsValidPwmValue(throttle))
+            {
+                if (throttle < ThrottleMin) ThrottleMin = throttle;
+                if (throttle > ThrottleMax) ThrottleMax = throttle;
+                ThrottleCenter = throttle;
+            }
+            // Yaw
+            if (IsValidPwmValue(yaw))
+            {
+                if (yaw < YawMin) YawMin = yaw;
+                if (yaw > YawMax) YawMax = yaw;
+                YawCenter = yaw;
+            }
         }
 
         // Update RC connection status
