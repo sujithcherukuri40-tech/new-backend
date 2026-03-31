@@ -21,8 +21,9 @@ namespace PavamanDroneConfigurator.UI.Views;
 /// </summary>
 public partial class LiveMapPage : UserControl
 {
-    private const double TopOverlayInsetPx = 96;
-    private const double RightOverlayInsetPx = 140;
+    private const double TopOverlayInsetPx = 108;
+    private const double RightOverlayInsetPx = 84;
+    private const double BottomOverlayInsetPx = 116;
     private const float GeofenceVolumeAltitudeThreshold = 0f;
 
     private GoogleMapView? _map;
@@ -54,7 +55,7 @@ public partial class LiveMapPage : UserControl
         }
 
         Debug.WriteLine("[LiveMapPage] GoogleMap control found, setting up event handlers");
-        _map.SetViewportInsets(top: TopOverlayInsetPx, right: RightOverlayInsetPx, bottom: 0, left: 0);
+        _map.SetViewportInsets(top: TopOverlayInsetPx, right: RightOverlayInsetPx, bottom: BottomOverlayInsetPx, left: 0);
 
         // Subscribe to map events
         _map.MapReady += OnMapReady;
