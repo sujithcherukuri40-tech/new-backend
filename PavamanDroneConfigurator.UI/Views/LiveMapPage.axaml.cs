@@ -44,36 +44,42 @@ public partial class LiveMapPage : UserControl
 
     private void OnLoaded(object? sender, RoutedEventArgs e)
     {
-        if (_isInitialized) return;
-
         Debug.WriteLine("[LiveMapPage] OnLoaded - Finding GoogleMap control");
-        _map = this.FindControl<GoogleMapView>("MapView");
 
-        if (_map == null)
+        if (!_isInitialized)
         {
-            Debug.WriteLine("[LiveMapPage] ERROR: GoogleMap control not found!");
-            return;
+            _map = this.FindControl<GoogleMapView>("MapView");
+
+            if (_map == null)
+            {
+                Debug.WriteLine("[LiveMapPage] ERROR: GoogleMap control not found!");
+                return;
+            }
+
+            Debug.WriteLine("[LiveMapPage] GoogleMap control found, setting up event handlers");
+            _map.SetViewportInsets(top: TopOverlayInset, right: RightOverlayInset, bottom: BottomOverlayInset, left: 0);
+
+            // Subscribe to map events (only once – these are on the control itself)
+            _map.MapReady += OnMapReady;
+            _map.MapError += OnMapError;
+            _map.WaypointPlaced += OnWaypointPlaced;
+            _map.WaypointMoved += OnWaypointMoved;
+            _map.WaypointDeleted += OnWaypointDeleted;
+            _map.HomePlaced += OnHomePlaced;
+            _map.LandPlaced += OnLandPlaced;
+            _map.OrbitPlaced += OnOrbitPlaced;
+            _map.SurveyBoundaryCompleted += OnSurveyBoundaryCompleted;
+
+            _safetyService = App.Services?.GetService<ISafetyService>();
+            _isInitialized = true;
         }
 
-        Debug.WriteLine("[LiveMapPage] GoogleMap control found, setting up event handlers");
-        _map.SetViewportInsets(top: TopOverlayInset, right: RightOverlayInset, bottom: BottomOverlayInset, left: 0);
-
-        // Subscribe to map events
-        _map.MapReady += OnMapReady;
-        _map.MapError += OnMapError;
-        _map.WaypointPlaced += OnWaypointPlaced;
-        _map.WaypointMoved += OnWaypointMoved;
-        _map.WaypointDeleted += OnWaypointDeleted;
-        _map.HomePlaced += OnHomePlaced;
-        _map.LandPlaced += OnLandPlaced;
-        _map.OrbitPlaced += OnOrbitPlaced;
-        _map.SurveyBoundaryCompleted += OnSurveyBoundaryCompleted;
-
+        // Always (re-)subscribe to ViewModel events so that telemetry keeps flowing
+        // after the control is re-attached to the visual tree (e.g. tab switch).
         if (DataContext is LiveMapPageViewModel vm)
         {
             Debug.WriteLine($"[LiveMapPage] ViewModel connected. IsConnected={vm.IsConnected}, HasValidPosition={vm.HasValidPosition}");
 
-            // Subscribe to ViewModel events
             vm.PositionUpdated += OnPositionUpdated;
             vm.BatteryUpdated += OnBatteryUpdated;
             vm.FlightPathCleared += OnFlightPathCleared;
@@ -90,15 +96,14 @@ public partial class LiveMapPage : UserControl
         {
             Debug.WriteLine("[LiveMapPage] WARNING: DataContext is not LiveMapPageViewModel");
         }
-
-        _safetyService = App.Services?.GetService<ISafetyService>();
-        _isInitialized = true;
     }
 
     private void OnUnloaded(object? sender, RoutedEventArgs e)
     {
         Debug.WriteLine("[LiveMapPage] OnUnloaded");
 
+        // Unsubscribe only ViewModel events (they are re-subscribed in OnLoaded).
+        // Map control events stay connected because the control itself persists.
         if (DataContext is LiveMapPageViewModel vm)
         {
             vm.PositionUpdated -= OnPositionUpdated;
@@ -110,19 +115,6 @@ public partial class LiveMapPage : UserControl
             vm.FollowChanged -= OnFollowChanged;
             vm.MissionToolChanged -= OnMissionToolChanged;
             vm.MissionItems.CollectionChanged -= OnMissionItemsCollectionChanged;
-        }
-
-        if (_map != null)
-        {
-            _map.MapReady -= OnMapReady;
-            _map.MapError -= OnMapError;
-            _map.WaypointPlaced -= OnWaypointPlaced;
-            _map.WaypointMoved -= OnWaypointMoved;
-            _map.WaypointDeleted -= OnWaypointDeleted;
-            _map.HomePlaced -= OnHomePlaced;
-            _map.LandPlaced -= OnLandPlaced;
-            _map.OrbitPlaced -= OnOrbitPlaced;
-            _map.SurveyBoundaryCompleted -= OnSurveyBoundaryCompleted;
         }
     }
 
