@@ -220,6 +220,53 @@
                         </StackPanel>
                     </Border>
 
+                    <!-- Stick Position Visualizer -->
+                    <Grid ColumnDefinitions="*,32,*" Margin="0,4,0,0">
+                        <!-- Left Stick: Yaw (X) + Throttle (Y) -->
+                        <StackPanel Grid.Column="0" HorizontalAlignment="Center" Spacing="4">
+                            <TextBlock Text="Left Stick (Yaw / Throttle)" FontSize="12" FontWeight="SemiBold"
+                                       Foreground="#374151" HorizontalAlignment="Center"/>
+                            <Border Width="140" Height="140" CornerRadius="8"
+                                    Background="#F9FAFB" BorderBrush="#D1D5DB" BorderThickness="1"
+                                    ClipToBounds="True">
+                                <Canvas Width="140" Height="140">
+                                    <!-- Crosshair lines -->
+                                    <Line StartPoint="70,0" EndPoint="70,140" Stroke="#E5E7EB" StrokeThickness="1"/>
+                                    <Line StartPoint="0,70" EndPoint="140,70" Stroke="#E5E7EB" StrokeThickness="1"/>
+                                    <!-- Axis labels -->
+                                    <TextBlock Text="Yaw" FontSize="9" Foreground="#9CA3AF" Canvas.Left="2" Canvas.Top="64"/>
+                                    <TextBlock Text="Thr" FontSize="9" Foreground="#9CA3AF" Canvas.Left="64" Canvas.Top="2"/>
+                                    <!-- Stick dot (16×16; ConverterParameter = canvasWidth − ellipseSize = 140 − 16 = 124) -->
+                                    <Ellipse Width="16" Height="16" Fill="#3B82F6" Opacity="0.85"
+                                             Canvas.Left="{Binding YawValue, Converter={x:Static conv:PwmToStickPositionConverter.Instance}, ConverterParameter=124}"
+                                             Canvas.Top="{Binding ThrottleValue, Converter={x:Static conv:PwmToStickPositionInvertedConverter.Instance}, ConverterParameter=124}"/>
+                                </Canvas>
+                            </Border>
+                        </StackPanel>
+
+                        <!-- Right Stick: Roll (X) + Pitch (Y) -->
+                        <StackPanel Grid.Column="2" HorizontalAlignment="Center" Spacing="4">
+                            <TextBlock Text="Right Stick (Roll / Pitch)" FontSize="12" FontWeight="SemiBold"
+                                       Foreground="#374151" HorizontalAlignment="Center"/>
+                            <Border Width="140" Height="140" CornerRadius="8"
+                                    Background="#F9FAFB" BorderBrush="#D1D5DB" BorderThickness="1"
+                                    ClipToBounds="True">
+                                <Canvas Width="140" Height="140">
+                                    <!-- Crosshair lines -->
+                                    <Line StartPoint="70,0" EndPoint="70,140" Stroke="#E5E7EB" StrokeThickness="1"/>
+                                    <Line StartPoint="0,70" EndPoint="140,70" Stroke="#E5E7EB" StrokeThickness="1"/>
+                                    <!-- Axis labels -->
+                                    <TextBlock Text="Roll" FontSize="9" Foreground="#9CA3AF" Canvas.Left="2" Canvas.Top="64"/>
+                                    <TextBlock Text="Pitch" FontSize="9" Foreground="#9CA3AF" Canvas.Left="60" Canvas.Top="2"/>
+                                    <!-- Stick dot (16×16; ConverterParameter = canvasWidth − ellipseSize = 140 − 16 = 124) -->
+                                    <Ellipse Width="16" Height="16" Fill="#3B82F6" Opacity="0.85"
+                                             Canvas.Left="{Binding RollValue, Converter={x:Static conv:PwmToStickPositionConverter.Instance}, ConverterParameter=124}"
+                                             Canvas.Top="{Binding PitchValue, Converter={x:Static conv:PwmToStickPositionInvertedConverter.Instance}, ConverterParameter=124}"/>
+                                </Canvas>
+                            </Border>
+                        </StackPanel>
+                    </Grid>
+
                     <!-- Main Attitude Channels -->
                     <StackPanel Spacing="12" Margin="0,8,0,0">
                         
