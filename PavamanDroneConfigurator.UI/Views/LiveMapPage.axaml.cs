@@ -86,6 +86,23 @@ public partial class LiveMapPage : UserControl
             vm.MissionItems.CollectionChanged += OnMissionItemsCollectionChanged;
 
             Debug.WriteLine("[LiveMapPage] All event handlers connected");
+
+            // Restore flight path and waypoints when re-entering the tab.
+            // This covers any points accumulated while the page was hidden.
+            if (_isMapReady && _map != null)
+            {
+                if (vm.FlightPath.Count > 0)
+                {
+                    _map.RestoreFlightPath(vm.FlightPath);
+                }
+
+                SyncMissionOverlays(vm);
+
+                if (vm.HasValidPosition)
+                {
+                    UpdateDroneOnMap(vm);
+                }
+            }
         }
         else
         {
