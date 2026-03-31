@@ -18,6 +18,9 @@ namespace PavamanDroneConfigurator.UI.ViewModels;
 /// </summary>
 public partial class LiveMapPageViewModel : ViewModelBase
 {
+    private const string LiveStatusOnline = "LIVE";
+    private const string LiveStatusOffline = "OFFLINE";
+
     private readonly IConnectionService _connectionService;
     private readonly ITelemetryService _telemetryService;
     private readonly List<(double Lat, double Lon)> _flightPath = new();
@@ -188,7 +191,7 @@ public partial class LiveMapPageViewModel : ViewModelBase
     [ObservableProperty]
     private bool _isReceivingTelemetry;
 
-    public string LiveStatusText => IsReceivingTelemetry ? "LIVE" : "OFFLINE";
+    public string LiveStatusText => IsReceivingTelemetry ? LiveStatusOnline : LiveStatusOffline;
 
     [ObservableProperty]
     private bool _followDrone = true;
