@@ -215,7 +215,7 @@ public partial class LiveMapPageViewModel : ViewModelBase
     private int _missionItemCount;
 
     [ObservableProperty]
-    private string _missionProgressText = "Mission: 0/0 items";
+    private string _missionProgressText = "Mission: 0 items";
 
     [ObservableProperty]
     private bool _isCameraViewOpen;
@@ -728,7 +728,7 @@ public partial class LiveMapPageViewModel : ViewModelBase
     {
         MissionItems.Clear();
         MissionItemCount = 0;
-        MissionProgressText = "Mission: 0/0 items";
+        MissionProgressText = "Mission: 0 items";
         MissionTotalDistanceKm = 0;
         MissionEstimatedTime = "0:00";
         ActiveMissionTool = "none";
@@ -782,9 +782,14 @@ public partial class LiveMapPageViewModel : ViewModelBase
         MissionItemCount = MissionItems.Count;
         MissionProgressText = MissionItemCount > 0
             ? $"Mission: {MissionItemCount} item{(MissionItemCount != 1 ? "s" : "")}"
-            : "Mission: 0/0 items";
+            : "Mission: 0 items";
         RecalculateMissionStats();
         return true;
+    }
+
+    public void RefreshMissionStats()
+    {
+        RecalculateMissionStats();
     }
 
     /// <summary>
@@ -849,7 +854,7 @@ public partial class LiveMapPageViewModel : ViewModelBase
             MissionItemCount = MissionItems.Count;
             MissionProgressText = MissionItemCount > 0
                 ? $"Mission: {MissionItemCount} item{(MissionItemCount != 1 ? "s" : "")}"
-                : "Mission: 0/0 items";
+                : "Mission: 0 items";
             RecalculateMissionStats();
         }
     }

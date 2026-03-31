@@ -323,10 +323,10 @@ public partial class GoogleMapView : UserControl
             scaling = window.RenderScaling;
         }
 
-        var insetLeft = Math.Max(0, _viewportInsets.Left);
-        var insetTop = Math.Max(0, _viewportInsets.Top);
-        var insetRight = Math.Max(0, _viewportInsets.Right);
-        var insetBottom = Math.Max(0, _viewportInsets.Bottom);
+        var insetLeft = _viewportInsets.Left;
+        var insetTop = _viewportInsets.Top;
+        var insetRight = _viewportInsets.Right;
+        var insetBottom = _viewportInsets.Bottom;
 
         var contentX = origin.Value.X + insetLeft;
         var contentY = origin.Value.Y + insetTop;

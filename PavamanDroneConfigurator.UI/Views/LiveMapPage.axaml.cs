@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.Specialized;
+using System.Linq;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
@@ -9,6 +10,7 @@ using PavamanDroneConfigurator.UI.Controls;
 using System.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using PavamanDroneConfigurator.Core.Interfaces;
+using PavamanDroneConfigurator.Core.Models;
 
 namespace PavamanDroneConfigurator.UI.Views;
 
@@ -19,6 +21,10 @@ namespace PavamanDroneConfigurator.UI.Views;
 /// </summary>
 public partial class LiveMapPage : UserControl
 {
+    private const double TopOverlayInsetPx = 96;
+    private const double RightOverlayInsetPx = 140;
+    private const float GeofenceVolumeAltitudeThreshold = 0f;
+
     private GoogleMapView? _map;
     private bool _isInitialized;
     private bool _isMapReady;
@@ -48,7 +54,7 @@ public partial class LiveMapPage : UserControl
         }
 
         Debug.WriteLine("[LiveMapPage] GoogleMap control found, setting up event handlers");
-        _map.SetViewportInsets(top: 96, right: 140, bottom: 0, left: 0);
+        _map.SetViewportInsets(top: TopOverlayInsetPx, right: RightOverlayInsetPx, bottom: 0, left: 0);
 
         // Subscribe to map events
         _map.MapReady += OnMapReady;
@@ -323,6 +329,7 @@ public partial class LiveMapPage : UserControl
         {
             vm.MissionItems[e.Index].Latitude = e.Latitude;
             vm.MissionItems[e.Index].Longitude = e.Longitude;
+            vm.RefreshMissionStats();
             SyncMissionOverlays(vm);
         }
     }
@@ -379,8 +386,11 @@ public partial class LiveMapPage : UserControl
         {
             // Register survey as a mission item
             var centroid = CalculateCentroid(boundary);
-            vm.RegisterMissionItem("SURVEY", centroid.Lat, centroid.Lon);
-            SyncMissionOverlays(vm);
+            if (centroid.HasValue)
+            {
+                vm.RegisterMissionItem("SURVEY", centroid.Value.Lat, centroid.Value.Lon);
+                SyncMissionOverlays(vm);
+            }
             
             // TODO: Generate survey grid and render on map
             // This would integrate with IMissionService.GenerateSurveyGrid()
@@ -400,20 +410,36 @@ public partial class LiveMapPage : UserControl
         _ => GoogleMapView.MissionTool.None
     };
 
-    private (double Lat, double Lon) CalculateCentroid(IReadOnlyList<(double Latitude, double Longitude)> boundary)
+    private (double Lat, double Lon)? CalculateCentroid(IReadOnlyList<(double Latitude, double Longitude)> boundary)
     {
-        if (boundary.Count == 0)
-            return (0, 0);
+        if (boundary.Count < 3)
+            return null;
 
-        double lat = 0;
-        double lon = 0;
-        foreach (var point in boundary)
+        var radians = boundary
+            .Select(p => (Lat: DegreesToRadians(p.Latitude), Lon: DegreesToRadians(p.Longitude)))
+            .ToList();
+
+        double x = 0;
+        double y = 0;
+        double z = 0;
+
+        foreach (var point in radians)
         {
-            lat += point.Latitude;
-            lon += point.Longitude;
+            var cosLat = Math.Cos(point.Lat);
+            x += cosLat * Math.Cos(point.Lon);
+            y += cosLat * Math.Sin(point.Lon);
+            z += Math.Sin(point.Lat);
         }
 
-        return (lat / boundary.Count, lon / boundary.Count);
+        x /= radians.Count;
+        y /= radians.Count;
+        z /= radians.Count;
+
+        var lon = Math.Atan2(y, x);
+        var hyp = Math.Sqrt((x * x) + (y * y));
+        var lat = Math.Atan2(z, hyp);
+
+        return (RadiansToDegrees(lat), RadiansToDegrees(lon));
     }
 
     private void SyncMissionOverlays(LiveMapPageViewModel vm)
@@ -424,14 +450,15 @@ public partial class LiveMapPage : UserControl
         var waypointData = new List<GoogleMapView.WaypointData>();
         foreach (var item in vm.MissionItems)
         {
-            if (Math.Abs(item.Latitude) < 0.000001 && Math.Abs(item.Longitude) < 0.000001)
-                continue;
+            var renderAltitude = item.Command == MissionCommandType.NavWaypoint && item.Altitude <= 0
+                ? vm.DefaultAltitude
+                : item.Altitude;
 
             waypointData.Add(new GoogleMapView.WaypointData
             {
                 Lat = item.Latitude,
                 Lon = item.Longitude,
-                Alt = item.Altitude > 0 ? item.Altitude : vm.DefaultAltitude,
+                Alt = renderAltitude,
                 IsCurrent = item.IsCurrent
             });
         }
@@ -453,7 +480,8 @@ public partial class LiveMapPage : UserControl
             if (!vm.HasValidPosition)
                 return;
 
-            _map.SetGeofence(vm.Latitude, vm.Longitude, geofence.Radius, geofence.AltMax > 0 ? geofence.AltMax : null);
+            double? geofenceMaxAltitude = geofence.AltMax > GeofenceVolumeAltitudeThreshold ? geofence.AltMax : null;
+            _map.SetGeofence(vm.Latitude, vm.Longitude, geofence.Radius, geofenceMaxAltitude);
             _geofenceLoaded = true;
         }
         catch (Exception ex)
@@ -461,6 +489,9 @@ public partial class LiveMapPage : UserControl
             Debug.WriteLine($"[LiveMapPage] Failed to render geofence: {ex.Message}");
         }
     }
+
+    private static double DegreesToRadians(double degrees) => degrees * Math.PI / 180d;
+    private static double RadiansToDegrees(double radians) => radians * 180d / Math.PI;
 
     private void UpdateDroneOnMap(LiveMapPageViewModel vm)
     {
