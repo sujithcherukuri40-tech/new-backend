@@ -37,6 +37,7 @@ public partial class GoogleMapView : UserControl
     private bool _isDisposed;
     private bool _mapReady;
     private EventHandler<AvaloniaPropertyChangedEventArgs>? _boundsChangedHandler;
+    private Thickness _viewportInsets = new(0);
     
     // Pending update queue for before map is ready
     private DroneUpdateData? _pendingUpdate;
@@ -322,17 +323,44 @@ public partial class GoogleMapView : UserControl
             scaling = window.RenderScaling;
         }
 
-        // Calculate scaled dimensions - WebView2 fills its container completely
-        var x = (int)Math.Round(origin.Value.X * scaling);
-        var y = (int)Math.Round(origin.Value.Y * scaling);
-        var width = Math.Max(0, (int)Math.Round(bounds.Width * scaling));
-        var height = Math.Max(0, (int)Math.Round(bounds.Height * scaling));
+        var insetLeft = _viewportInsets.Left;
+        var insetTop = _viewportInsets.Top;
+        var insetRight = _viewportInsets.Right;
+        var insetBottom = _viewportInsets.Bottom;
+
+        var contentX = origin.Value.X + insetLeft;
+        var contentY = origin.Value.Y + insetTop;
+        var contentWidth = Math.Max(0, bounds.Width - insetLeft - insetRight);
+        var contentHeight = Math.Max(0, bounds.Height - insetTop - insetBottom);
+
+        // Calculate scaled dimensions - WebView2 fills the available viewport area
+        var x = (int)Math.Round(contentX * scaling);
+        var y = (int)Math.Round(contentY * scaling);
+        var width = Math.Max(0, (int)Math.Round(contentWidth * scaling));
+        var height = Math.Max(0, (int)Math.Round(contentHeight * scaling));
 
         // Only update if we have valid dimensions
         if (width > 0 && height > 0)
         {
             _webViewController.Bounds = new System.Drawing.Rectangle(x, y, width, height);
             Debug.WriteLine($"[GoogleMapView] Bounds updated: x={x}, y={y}, w={width}, h={height}, scale={scaling}");
+        }
+    }
+
+    /// <summary>
+    /// Sets viewport insets in device-independent pixels to reserve UI overlay areas.
+    /// </summary>
+    public void SetViewportInsets(double top, double right, double bottom, double left)
+    {
+        _viewportInsets = new Thickness(
+            Math.Max(0, left),
+            Math.Max(0, top),
+            Math.Max(0, right),
+            Math.Max(0, bottom));
+
+        if (_webViewController != null)
+        {
+            UpdateWebViewBounds();
         }
     }
 
