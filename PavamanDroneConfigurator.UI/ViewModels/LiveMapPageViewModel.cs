@@ -215,7 +215,7 @@ public partial class LiveMapPageViewModel : ViewModelBase
     private int _missionItemCount;
 
     [ObservableProperty]
-    private string _missionProgressText = "Mission: 0/0 items";
+    private string _missionProgressText = "Mission: 0 items";
 
     [ObservableProperty]
     private bool _isCameraViewOpen;
@@ -728,14 +728,14 @@ public partial class LiveMapPageViewModel : ViewModelBase
     {
         MissionItems.Clear();
         MissionItemCount = 0;
-        MissionProgressText = "Mission: 0/0 items";
+        MissionProgressText = "Mission: 0 items";
         MissionTotalDistanceKm = 0;
         MissionEstimatedTime = "0:00";
         ActiveMissionTool = "none";
         MissionToolChanged?.Invoke(this, ActiveMissionTool);
     }
 
-    public void RegisterMissionItem(string commandName)
+    public void RegisterMissionItem(string commandName, double? latitude = null, double? longitude = null, double? altitude = null)
     {
         // Map the caller-supplied name to the correct MAVLink command type.
         // SURVEY and HOME both generate a NavWaypoint entry so the position
@@ -757,15 +757,38 @@ public partial class LiveMapPageViewModel : ViewModelBase
         {
             Index = MissionItems.Count,
             Command = cmd,
-            Altitude = (float)DefaultAltitude,
-            Latitude = Latitude,
-            Longitude = Longitude,
+            Altitude = (float)(altitude ?? DefaultAltitude),
+            Latitude = latitude ?? Latitude,
+            Longitude = longitude ?? Longitude,
             Autocontinue = true
         };
 
         MissionItems.Add(item);
         MissionItemCount = MissionItems.Count;
         MissionProgressText = $"Mission: {MissionItemCount} item{(MissionItemCount != 1 ? "s" : "")}";
+        RecalculateMissionStats();
+    }
+
+    public bool RemoveMissionItemAt(int index)
+    {
+        if (index < 0 || index >= MissionItems.Count)
+            return false;
+
+        MissionItems.RemoveAt(index);
+
+        for (int i = 0; i < MissionItems.Count; i++)
+            MissionItems[i].Index = i;
+
+        MissionItemCount = MissionItems.Count;
+        MissionProgressText = MissionItemCount > 0
+            ? $"Mission: {MissionItemCount} item{(MissionItemCount != 1 ? "s" : "")}"
+            : "Mission: 0 items";
+        RecalculateMissionStats();
+        return true;
+    }
+
+    public void RefreshMissionStats()
+    {
         RecalculateMissionStats();
     }
 
@@ -831,7 +854,7 @@ public partial class LiveMapPageViewModel : ViewModelBase
             MissionItemCount = MissionItems.Count;
             MissionProgressText = MissionItemCount > 0
                 ? $"Mission: {MissionItemCount} item{(MissionItemCount != 1 ? "s" : "")}"
-                : "Mission: 0/0 items";
+                : "Mission: 0 items";
             RecalculateMissionStats();
         }
     }
