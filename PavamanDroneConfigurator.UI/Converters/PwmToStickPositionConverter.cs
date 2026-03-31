@@ -6,8 +6,9 @@ namespace PavamanDroneConfigurator.UI.Converters;
 
 /// <summary>
 /// Converts a PWM value (800-2200) to a stick-indicator position within a fixed-size area.
-/// ConverterParameter supplies the available canvas size (e.g. "120").
-/// The result is the offset of the indicator centre (0 … canvasSize).
+/// ConverterParameter supplies the usable range, i.e. canvasSize minus the indicator diameter
+/// (e.g. "124" for a 140px canvas with a 16px ellipse).
+/// The result is the Canvas.Left or Canvas.Top of the indicator.
 /// </summary>
 public class PwmToStickPositionConverter : IValueConverter
 {

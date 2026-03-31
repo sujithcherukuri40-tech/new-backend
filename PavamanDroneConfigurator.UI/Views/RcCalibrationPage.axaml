@@ -236,7 +236,7 @@
                                     <!-- Axis labels -->
                                     <TextBlock Text="Yaw" FontSize="9" Foreground="#9CA3AF" Canvas.Left="2" Canvas.Top="64"/>
                                     <TextBlock Text="Thr" FontSize="9" Foreground="#9CA3AF" Canvas.Left="64" Canvas.Top="2"/>
-                                    <!-- Stick dot -->
+                                    <!-- Stick dot (16×16; ConverterParameter = canvasWidth − ellipseSize = 140 − 16 = 124) -->
                                     <Ellipse Width="16" Height="16" Fill="#3B82F6" Opacity="0.85"
                                              Canvas.Left="{Binding YawValue, Converter={x:Static conv:PwmToStickPositionConverter.Instance}, ConverterParameter=124}"
                                              Canvas.Top="{Binding ThrottleValue, Converter={x:Static conv:PwmToStickPositionInvertedConverter.Instance}, ConverterParameter=124}"/>
@@ -258,7 +258,7 @@
                                     <!-- Axis labels -->
                                     <TextBlock Text="Roll" FontSize="9" Foreground="#9CA3AF" Canvas.Left="2" Canvas.Top="64"/>
                                     <TextBlock Text="Pitch" FontSize="9" Foreground="#9CA3AF" Canvas.Left="60" Canvas.Top="2"/>
-                                    <!-- Stick dot -->
+                                    <!-- Stick dot (16×16; ConverterParameter = canvasWidth − ellipseSize = 140 − 16 = 124) -->
                                     <Ellipse Width="16" Height="16" Fill="#3B82F6" Opacity="0.85"
                                              Canvas.Left="{Binding RollValue, Converter={x:Static conv:PwmToStickPositionConverter.Instance}, ConverterParameter=124}"
                                              Canvas.Top="{Binding PitchValue, Converter={x:Static conv:PwmToStickPositionInvertedConverter.Instance}, ConverterParameter=124}"/>
