@@ -15,22 +15,29 @@
 
     <UserControl.Styles>
         <Style Selector="Border.glass-panel">
-            <Setter Property="Background" Value="#B0101827"/>
-            <Setter Property="CornerRadius" Value="12"/>
-            <Setter Property="BorderBrush" Value="#40FFFFFF"/>
+            <Setter Property="Background" Value="#A6141E2E"/>
+            <Setter Property="CornerRadius" Value="18"/>
+            <Setter Property="BorderBrush" Value="#55FFFFFF"/>
             <Setter Property="BorderThickness" Value="1"/>
+        </Style>
+        <Style Selector="Border.glass-chip">
+            <Setter Property="Background" Value="#90131D2D"/>
+            <Setter Property="CornerRadius" Value="14"/>
+            <Setter Property="BorderBrush" Value="#45FFFFFF"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="12,8"/>
         </Style>
         <Style Selector="Button.floating-btn">
             <Setter Property="Width" Value="44"/>
             <Setter Property="Height" Value="44"/>
-            <Setter Property="CornerRadius" Value="10"/>
+            <Setter Property="CornerRadius" Value="14"/>
             <Setter Property="Padding" Value="0"/>
             <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="BorderBrush" Value="#40FFFFFF"/>
             <Setter Property="HorizontalContentAlignment" Value="Center"/>
             <Setter Property="VerticalContentAlignment" Value="Center"/>
-            <Setter Property="Background" Value="#E61E293B"/>
+            <Setter Property="Background" Value="#CC1B2536"/>
             <Setter Property="Foreground" Value="White"/>
             <Setter Property="FontSize" Value="16"/>
         </Style>
@@ -54,6 +61,30 @@
             <Setter Property="FontSize" Value="10"/>
             <Setter Property="Foreground" Value="#94A3B8"/>
         </Style>
+        <Style Selector="TextBlock.top-label">
+            <Setter Property="FontSize" Value="10"/>
+            <Setter Property="Foreground" Value="#9CA3AF"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+        </Style>
+        <Style Selector="TextBlock.top-value">
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+        </Style>
+        <Style Selector="Button.top-action-btn">
+            <Setter Property="CornerRadius" Value="14"/>
+            <Setter Property="Padding" Value="12,8"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="BorderBrush" Value="#50FFFFFF"/>
+            <Setter Property="Background" Value="#B01E293B"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Cursor" Value="Hand"/>
+        </Style>
+        <Style Selector="Button.top-action-btn:pointerover">
+            <Setter Property="Background" Value="#CC3B82F6"/>
+        </Style>
     </UserControl.Styles>
 
     <Grid RowDefinitions="*,Auto">
@@ -62,32 +93,78 @@
         <Grid Grid.Row="0">
             <controls:GoogleMapView x:Name="MapView" ClipToBounds="True"/>
 
-            <!-- Right-side controls -->
-            <StackPanel Orientation="Vertical" HorizontalAlignment="Right"
-                        VerticalAlignment="Center" Margin="0,0,16,0" Spacing="10"
-                        IsVisible="{Binding IsConnected}">
-                <Button Classes="floating-btn" Command="{Binding RefreshTelemetryCommand}"
-                        Width="120" Height="48" CornerRadius="14">
-                    <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
-                        <TextBlock Text="&#x25B6;" FontSize="16"/>
-                        <TextBlock Text="Start" FontWeight="SemiBold"/>
-                    </StackPanel>
-                </Button>
-                <Button Classes="floating-btn" Command="{Binding RecenterMapCommand}"
-                        Width="120" Height="48" CornerRadius="14">
-                    <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
-                        <TextBlock Text="&#x21BB;" FontSize="16"/>
-                        <TextBlock Text="Recenter" FontWeight="SemiBold"/>
-                    </StackPanel>
-                </Button>
-                <Button Classes="floating-btn" Command="{Binding ChangeMapTypeCommand}"
-                        Width="120" Height="48" CornerRadius="14">
-                    <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
-                        <TextBlock Text="&#x1F5FA;" FontSize="16"/>
-                        <TextBlock Text="Map Type" FontWeight="SemiBold"/>
-                    </StackPanel>
-                </Button>
-            </StackPanel>
+            <!-- Top transparent status/action bar -->
+            <Border Classes="glass-panel" HorizontalAlignment="Center" VerticalAlignment="Top"
+                    Margin="12" Padding="12,10" IsVisible="{Binding IsConnected}">
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                    <Border Classes="glass-chip">
+                        <StackPanel Spacing="1">
+                            <TextBlock Text="SATS" Classes="top-label"/>
+                            <TextBlock Text="{Binding SatelliteCount}" Classes="top-value"/>
+                        </StackPanel>
+                    </Border>
+                    <Border Classes="glass-chip">
+                        <StackPanel Spacing="1">
+                            <TextBlock Text="MODE" Classes="top-label"/>
+                            <TextBlock Text="{Binding FlightMode}" Classes="top-value"/>
+                        </StackPanel>
+                    </Border>
+                    <Border Classes="glass-chip">
+                        <StackPanel Spacing="1">
+                            <TextBlock Text="CONNECTION" Classes="top-label"/>
+                            <TextBlock Text="{Binding ConnectionStatus}" Classes="top-value"/>
+                        </StackPanel>
+                    </Border>
+                    <Border Classes="glass-chip">
+                        <StackPanel Spacing="1">
+                            <TextBlock Text="LIVE" Classes="top-label"/>
+                            <TextBlock Text="{Binding LiveStatusText}" Classes="top-value"/>
+                        </StackPanel>
+                    </Border>
+
+                    <Button Classes="top-action-btn" Command="{Binding ToggleSprayCommand}">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <TextBlock Text="&#x1F4A7;"/>
+                            <TextBlock Text="Spray"/>
+                        </StackPanel>
+                    </Button>
+                    <Button Classes="top-action-btn" Command="{Binding ShowPlotTabCommand}">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <TextBlock Text="&#x1F4DD;"/>
+                            <TextBlock Text="MAV Msg"/>
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+            </Border>
+
+            <!-- Right-side map controls -->
+            <Border Classes="glass-panel" HorizontalAlignment="Right"
+                    VerticalAlignment="Center" Margin="0,0,14,0" Padding="10"
+                    IsVisible="{Binding IsConnected}">
+                <StackPanel Orientation="Vertical" Spacing="9">
+                    <Button Classes="floating-btn" Click="ZoomIn_Click" ToolTip.Tip="Zoom In">
+                        <TextBlock Text="+" FontSize="20" FontWeight="Bold"/>
+                    </Button>
+                    <Button Classes="floating-btn" Click="ZoomOut_Click" ToolTip.Tip="Zoom Out">
+                        <TextBlock Text="&#x2212;" FontSize="20" FontWeight="Bold"/>
+                    </Button>
+                    <Button Classes="floating-btn" Command="{Binding ChangeMapTypeCommand}" ToolTip.Tip="Map Type">
+                        <TextBlock Text="&#x1F5FA;" FontSize="17"/>
+                    </Button>
+                    <Button Classes="floating-btn" Command="{Binding RecenterMapCommand}" ToolTip.Tip="Center on Drone">
+                        <TextBlock Text="&#x25CE;" FontSize="18"/>
+                    </Button>
+                    <Button Classes="floating-btn" Command="{Binding OpenCameraViewCommand}" ToolTip.Tip="Camera Quick Action">
+                        <TextBlock Text="&#x1F4F7;" FontSize="17"/>
+                    </Button>
+                    <Button Classes="floating-btn" Command="{Binding RefreshTelemetryCommand}" ToolTip.Tip="Refresh Telemetry">
+                        <TextBlock Text="&#x21BB;" FontSize="17"/>
+                    </Button>
+                    <Border Classes="glass-chip" Padding="10,8">
+                        <TextBlock Text="{Binding MapTypeLabel}" Classes="top-value"/>
+                    </Border>
+                </StackPanel>
+            </Border>
         </Grid>
 
         <!-- BOTTOM TELEMETRY BAR -->

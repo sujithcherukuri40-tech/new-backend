@@ -188,6 +188,8 @@ public partial class LiveMapPageViewModel : ViewModelBase
     [ObservableProperty]
     private bool _isReceivingTelemetry;
 
+    public string LiveStatusText => IsReceivingTelemetry ? "LIVE" : "OFFLINE";
+
     [ObservableProperty]
     private bool _followDrone = true;
 
@@ -252,6 +254,11 @@ public partial class LiveMapPageViewModel : ViewModelBase
     private string _missionEstimatedTime = "0:00";
 
     #endregion
+
+    partial void OnIsReceivingTelemetryChanged(bool value)
+    {
+        OnPropertyChanged(nameof(LiveStatusText));
+    }
 
     // Mission waypoints for Plot tab
     public ObservableCollection<MissionItem> MissionItems { get; } = new();
