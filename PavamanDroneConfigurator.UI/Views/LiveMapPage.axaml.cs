@@ -21,10 +21,6 @@ namespace PavamanDroneConfigurator.UI.Views;
 /// </summary>
 public partial class LiveMapPage : UserControl
 {
-    // Logical UI inset values (DIP) reserved for floating overlays so map interactions remain unobstructed.
-    private const double TopOverlayInset = 108;
-    private const double RightOverlayInset = 84;
-    private const double BottomOverlayInset = 116;
     private const float GeofenceVolumeAltitudeThreshold = 0f;
 
     private GoogleMapView? _map;
@@ -57,7 +53,6 @@ public partial class LiveMapPage : UserControl
             }
 
             Debug.WriteLine("[LiveMapPage] GoogleMap control found, setting up event handlers");
-            _map.SetViewportInsets(top: TopOverlayInset, right: RightOverlayInset, bottom: BottomOverlayInset, left: 0);
 
             // Subscribe to map events (only once – these are on the control itself)
             _map.MapReady += OnMapReady;
@@ -553,15 +548,5 @@ public partial class LiveMapPage : UserControl
         {
             _map.RenderSurveyGrid(gridData.ToArray(), sprayWidth);
         });
-    }
-
-    private void ZoomIn_Click(object? sender, RoutedEventArgs e)
-    {
-        _map?.ZoomIn();
-    }
-
-    private void ZoomOut_Click(object? sender, RoutedEventArgs e)
-    {
-        _map?.ZoomOut();
     }
 }
