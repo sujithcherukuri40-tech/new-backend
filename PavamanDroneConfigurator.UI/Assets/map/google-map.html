@@ -438,6 +438,10 @@
             droneIconGreen: '../Images/green-Drone-marker.jpeg',
             droneIconRed: '../Images/red-drone-marker.jpeg'
         };
+        const AVERAGE_SPRAY_SEGMENT_LENGTH_METERS = 2.2;
+        const SQUARE_METERS_PER_ACRE = 4046.8564;
+        const ESTIMATED_DRONE_SPEED_MS = 5.0;
+        const ESTIMATED_FLOW_LPM = 2.4;
 
         const ViewMode = { TOP_DOWN: 'topdown', CHASE_3D: 'chase', FREE_ROAM: 'freeroam' };
 
@@ -484,7 +488,7 @@
         let mapTypeCycle = ['satellite', 'hybrid', 'terrain', 'roadmap'];
         let mapTypeIndex = 0;
         let sonarRings = [];
-        let missionStartAt = Date.now();
+        let missionStartAt = null;
 
         window.addEventListener('error', function(e) {
             notifyHost({ type: 'error', message: e.error?.message || 'Unknown error' });
@@ -634,13 +638,17 @@
             if (isSprayActive) updateSprayTrail(lat, lng, heading);
             if (isFollowing) updateCameraFollow(position, heading);
 
-            positionSonarRings(new google.maps.LatLng(lat, lng));
+            positionSonarRings(position);
+
+            if (missionStartAt === null) {
+                missionStartAt = Date.now();
+            }
 
             document.getElementById('altVal').textContent = `${(alt || 0).toFixed(1)} m`;
             document.getElementById('speedVal').textContent = `${(groundSpeed || 0).toFixed(1)} m/s`;
-            document.getElementById('flowVal').textContent = `${isSprayActive ? sprayWidthMeters.toFixed(1) : (0).toFixed(1)} L/min`;
+            document.getElementById('flowVal').textContent = `${isSprayActive ? ESTIMATED_FLOW_LPM.toFixed(1) : (0).toFixed(1)} L/min`;
             document.getElementById('miniHeading').textContent = `${Math.round(lastDroneHeading)}°`;
-            const elapsed = Math.max(0, Math.floor((Date.now() - missionStartAt) / 1000));
+            const elapsed = missionStartAt === null ? 0 : Math.max(0, Math.floor((Date.now() - missionStartAt) / 1000));
             const hh = String(Math.floor(elapsed / 3600)).padStart(2, '0');
             const mm = String(Math.floor((elapsed % 3600) / 60)).padStart(2, '0');
             const ss = String(elapsed % 60).padStart(2, '0');
@@ -778,7 +786,7 @@
                     map,
                     position,
                     icon: createWaypointIcon(index + 1, isCurrent),
-                    label: { text: String(index + 1), color: '#0a0e1a', fontWeight: '700', fontSize: '11px' },
+                    label: { text: String(index + 1), color: '#ffffff', fontWeight: '700', fontSize: '11px' },
                     title: `Waypoint ${index + 1} - ${(wp.alt || 50).toFixed(0)}m`,
                     zIndex: 800,
                     draggable: true
@@ -982,10 +990,12 @@
                     fillOpacity: 0.3
                 });
                 sprayOverlays.push(polygon);
-                const areaVal = Math.max(0, (sprayOverlays.length * sprayWidthMeters * 2.2) / 4046.8564);
+                const areaVal = Math.max(
+                    0,
+                    (sprayOverlays.length * sprayWidthMeters * AVERAGE_SPRAY_SEGMENT_LENGTH_METERS) / SQUARE_METERS_PER_ACRE
+                );
                 document.getElementById('areaVal').textContent = `${areaVal.toFixed(2)} ac`;
                 document.getElementById('consumedVal').textContent = `${(sprayOverlays.length * 0.05).toFixed(1)} L`;
-                document.getElementById('miniBatt').textContent = `${Math.max(0, 100 - Math.min(95, Math.floor(sprayOverlays.length / 3)))}%`;
                 document.getElementById('miniEta').textContent = estimateEta();
             }
             lastSprayPosition = current;
@@ -995,7 +1005,7 @@
             if (!missionWaypoints.length || !lastDronePosition) return 'N/A';
             const end = missionWaypoints[missionWaypoints.length - 1];
             const d = getDistance(lastDronePosition, { lat: end.lat, lng: end.lon });
-            const sec = Math.floor(d / 5.0);
+            const sec = Math.floor(d / ESTIMATED_DRONE_SPEED_MS);
             const mm = String(Math.floor(sec / 60)).padStart(2, '0');
             const ss = String(sec % 60).padStart(2, '0');
             return `${mm}:${ss}`;
