@@ -41,6 +41,26 @@ public partial class SerialConfigPageViewModel : ViewModelBase
 
     #endregion
 
+    #region Serial0 (USB / Console) Properties
+
+    [ObservableProperty]
+    private SerialProtocolOption? _serial0Protocol;
+
+    [ObservableProperty]
+    private SerialBaudRateOption? _serial0BaudRate;
+
+    #endregion
+
+    #region Serial1 (TELEM1) Properties
+
+    [ObservableProperty]
+    private SerialProtocolOption? _serial1Protocol;
+
+    [ObservableProperty]
+    private SerialBaudRateOption? _serial1BaudRate;
+
+    #endregion
+
     #region Serial2 (TELEM2) Properties
 
     [ObservableProperty]
@@ -140,6 +160,15 @@ public partial class SerialConfigPageViewModel : ViewModelBase
 
     private void SetDefaultSelections()
     {
+        // Serial0 - USB / Console
+        Serial0Protocol = ProtocolOptions.FirstOrDefault(p => p.Protocol == SerialProtocol.MAVLink2);
+        Serial0BaudRate = BaudRateOptions.FirstOrDefault(b => b.BaudRate == SerialBaudRate.Baud115200)
+                          ?? BaudRateOptions.FirstOrDefault();
+
+        // Serial1 - TELEM1
+        Serial1Protocol = ProtocolOptions.FirstOrDefault(p => p.Protocol == SerialProtocol.MAVLink2);
+        Serial1BaudRate = BaudRateOptions.FirstOrDefault(b => b.BaudRate == SerialBaudRate.Baud57600);
+
         // Serial2 - TELEM2
         Serial2Protocol = ProtocolOptions.FirstOrDefault(p => p.Protocol == SerialProtocol.MAVLink2);
         Serial2BaudRate = BaudRateOptions.FirstOrDefault(b => b.BaudRate == SerialBaudRate.Baud57600);
@@ -184,6 +213,8 @@ public partial class SerialConfigPageViewModel : ViewModelBase
 
     #region Property Change Handlers
 
+    partial void OnSerial0ProtocolChanged(SerialProtocolOption? value) => ValidateConfiguration();
+    partial void OnSerial1ProtocolChanged(SerialProtocolOption? value) => ValidateConfiguration();
     partial void OnSerial2ProtocolChanged(SerialProtocolOption? value) => ValidateConfiguration();
     partial void OnSerial3ProtocolChanged(SerialProtocolOption? value) => ValidateConfiguration();
     partial void OnSerial4ProtocolChanged(SerialProtocolOption? value) => ValidateConfiguration();
@@ -213,6 +244,14 @@ public partial class SerialConfigPageViewModel : ViewModelBase
     {
         var config = _currentConfiguration ?? new SerialConfiguration();
 
+        // Serial0
+        config.Serial0.Protocol = Serial0Protocol?.Protocol ?? SerialProtocol.MAVLink2;
+        config.Serial0.BaudRate = Serial0BaudRate?.BaudRate ?? SerialBaudRate.Baud115200;
+
+        // Serial1
+        config.Serial1.Protocol = Serial1Protocol?.Protocol ?? SerialProtocol.MAVLink2;
+        config.Serial1.BaudRate = Serial1BaudRate?.BaudRate ?? SerialBaudRate.Baud57600;
+
         // Serial2
         config.Serial2.Protocol = Serial2Protocol?.Protocol ?? SerialProtocol.MAVLink2;
         config.Serial2.BaudRate = Serial2BaudRate?.BaudRate ?? SerialBaudRate.Baud57600;
@@ -239,6 +278,14 @@ public partial class SerialConfigPageViewModel : ViewModelBase
     private void LoadConfigurationToUI(SerialConfiguration config)
     {
         _currentConfiguration = config;
+
+        // Serial0
+        Serial0Protocol = ProtocolOptions.FirstOrDefault(p => p.Protocol == config.Serial0.Protocol);
+        Serial0BaudRate = BaudRateOptions.FirstOrDefault(b => b.BaudRate == config.Serial0.BaudRate);
+
+        // Serial1
+        Serial1Protocol = ProtocolOptions.FirstOrDefault(p => p.Protocol == config.Serial1.Protocol);
+        Serial1BaudRate = BaudRateOptions.FirstOrDefault(b => b.BaudRate == config.Serial1.BaudRate);
 
         // Serial2
         Serial2Protocol = ProtocolOptions.FirstOrDefault(p => p.Protocol == config.Serial2.Protocol);
@@ -351,6 +398,13 @@ public partial class SerialConfigPageViewModel : ViewModelBase
             StatusMessage = "Applying PDRL-compliant defaults...";
 
             // Set UI to PDRL defaults
+            Serial0Protocol = ProtocolOptions.FirstOrDefault(p => p.Protocol == SerialProtocol.MAVLink2);
+            Serial0BaudRate = BaudRateOptions.FirstOrDefault(b => b.BaudRate == SerialBaudRate.Baud115200)
+                              ?? BaudRateOptions.FirstOrDefault();
+
+            Serial1Protocol = ProtocolOptions.FirstOrDefault(p => p.Protocol == SerialProtocol.MAVLink2);
+            Serial1BaudRate = BaudRateOptions.FirstOrDefault(b => b.BaudRate == SerialBaudRate.Baud57600);
+
             Serial2Protocol = ProtocolOptions.FirstOrDefault(p => p.Protocol == SerialProtocol.MAVLink2);
             Serial2BaudRate = BaudRateOptions.FirstOrDefault(b => b.BaudRate == SerialBaudRate.Baud57600);
 

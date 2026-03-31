@@ -914,6 +914,15 @@ public partial class GoogleMapView : UserControl
         await ExecuteScriptAsync($"deleteWaypoint({index});");
     }
 
+    /// <summary>
+    /// Update battery percentage shown in the in-map HUD card.
+    /// </summary>
+    public async void UpdateBattery(int batteryPercent)
+    {
+        if (_webView == null || !_mapReady) return;
+        await ExecuteScriptAsync($"updateBattery({batteryPercent});");
+    }
+
     private async Task ExecuteScriptAsync(string script)
     {
         try

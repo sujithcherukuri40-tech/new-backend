@@ -170,6 +170,9 @@ public partial class LiveMapPageViewModel : ViewModelBase
     private string _waypointStatus = "N/A";
 
     [ObservableProperty]
+    private int _totalWaypointCount;
+
+    [ObservableProperty]
     private double _distanceToHome;
 
     [ObservableProperty]
@@ -263,6 +266,12 @@ public partial class LiveMapPageViewModel : ViewModelBase
         OnPropertyChanged(nameof(LiveStatusText));
     }
 
+    partial void OnMissionItemCountChanged(int value)
+    {
+        TotalWaypointCount = value;
+        WaypointStatus = value > 0 ? value.ToString() : "N/A";
+    }
+
     // Mission waypoints for Plot tab
     public ObservableCollection<MissionItem> MissionItems { get; } = new();
 
@@ -271,6 +280,7 @@ public partial class LiveMapPageViewModel : ViewModelBase
 
     // Events to notify view of updates
     public event EventHandler<DronePositionUpdateEventArgs>? PositionUpdated;
+    public event EventHandler<int>? BatteryUpdated;
     public event EventHandler? FlightPathCleared;
     public event EventHandler? RecenterRequested;
     public event EventHandler<ViewModeChangedEventArgs>? ViewModeChanged;
@@ -453,6 +463,8 @@ public partial class LiveMapPageViewModel : ViewModelBase
             {
                 BatteryStatus = $"{e.Voltage:F1}V";
             }
+
+            BatteryUpdated?.Invoke(this, e.RemainingPercent);
         });
     }
 

@@ -75,6 +75,7 @@ public partial class LiveMapPage : UserControl
 
             // Subscribe to ViewModel events
             vm.PositionUpdated += OnPositionUpdated;
+            vm.BatteryUpdated += OnBatteryUpdated;
             vm.FlightPathCleared += OnFlightPathCleared;
             vm.RecenterRequested += OnRecenterRequested;
             vm.ViewModeChanged += OnViewModeChanged;
@@ -101,6 +102,7 @@ public partial class LiveMapPage : UserControl
         if (DataContext is LiveMapPageViewModel vm)
         {
             vm.PositionUpdated -= OnPositionUpdated;
+            vm.BatteryUpdated -= OnBatteryUpdated;
             vm.FlightPathCleared -= OnFlightPathCleared;
             vm.RecenterRequested -= OnRecenterRequested;
             vm.ViewModeChanged -= OnViewModeChanged;
@@ -162,6 +164,12 @@ public partial class LiveMapPage : UserControl
     {
         Debug.WriteLine($"[LiveMapPage] ? Map error: {error}");
         _isMapReady = false;
+    }
+
+    private void OnBatteryUpdated(object? sender, int batteryPercent)
+    {
+        if (!_isMapReady || _map == null) return;
+        _map.UpdateBattery(batteryPercent);
     }
 
     private void OnPositionUpdated(object? sender, DronePositionUpdateEventArgs e)

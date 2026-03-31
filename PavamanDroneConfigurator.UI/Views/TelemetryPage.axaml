@@ -339,22 +339,34 @@
                             </Border>
                         </Grid>
 
-                        <!-- Roll / Pitch / Yaw big numbers -->
-                        <Grid ColumnDefinitions="*,*,*" Margin="0,4,0,8">
+                        <!-- Roll / Pitch / Yaw big numbers with indicator bars -->
+                        <Grid ColumnDefinitions="*,*,*" Margin="0,4,0,4">
                             <StackPanel Grid.Column="0" HorizontalAlignment="Center" Spacing="2">
                                 <TextBlock Text="{Binding Roll, StringFormat='{}{0:F1}°'}"
                                            Classes="telem-big"/>
                                 <TextBlock Text="Roll" Classes="telem-unit"/>
+                                <ProgressBar Value="{Binding Roll}"
+                                             Minimum="-180" Maximum="180"
+                                             Height="6" CornerRadius="3"
+                                             Foreground="#3B82F6" Margin="0,4,0,0"/>
                             </StackPanel>
                             <StackPanel Grid.Column="1" HorizontalAlignment="Center" Spacing="2">
                                 <TextBlock Text="{Binding Pitch, StringFormat='{}{0:F1}°'}"
                                            Classes="telem-big"/>
                                 <TextBlock Text="Pitch" Classes="telem-unit"/>
+                                <ProgressBar Value="{Binding Pitch}"
+                                             Minimum="-90" Maximum="90"
+                                             Height="6" CornerRadius="3"
+                                             Foreground="#10B981" Margin="0,4,0,0"/>
                             </StackPanel>
                             <StackPanel Grid.Column="2" HorizontalAlignment="Center" Spacing="2">
                                 <TextBlock Text="{Binding Yaw, StringFormat='{}{0:F1}°'}"
                                            Classes="telem-big"/>
                                 <TextBlock Text="Yaw" Classes="telem-unit"/>
+                                <ProgressBar Value="{Binding Yaw}"
+                                             Minimum="0" Maximum="360"
+                                             Height="6" CornerRadius="3"
+                                             Foreground="#F59E0B" Margin="0,4,0,0"/>
                             </StackPanel>
                         </Grid>
 
@@ -386,17 +398,25 @@
                             </Border>
                         </Grid>
 
-                        <!-- Speed / Climb big numbers -->
-                        <Grid ColumnDefinitions="*,*" Margin="0,4,0,8">
+                        <!-- Speed / Climb big numbers with indicator bars -->
+                        <Grid ColumnDefinitions="*,*" Margin="0,4,0,4">
                             <StackPanel Grid.Column="0" HorizontalAlignment="Center" Spacing="2">
                                 <TextBlock Text="{Binding GroundSpeed, StringFormat='{}{0:F1}'}"
                                            Classes="telem-big"/>
                                 <TextBlock Text="Ground Speed (m/s)" Classes="telem-unit"/>
+                                <ProgressBar Value="{Binding GroundSpeed}"
+                                             Minimum="0" Maximum="30"
+                                             Height="6" CornerRadius="3"
+                                             Foreground="#3B82F6" Margin="0,4,0,0"/>
                             </StackPanel>
                             <StackPanel Grid.Column="1" HorizontalAlignment="Center" Spacing="2">
                                 <TextBlock Text="{Binding Airspeed, StringFormat='{}{0:F1}'}"
                                            Classes="telem-big"/>
                                 <TextBlock Text="Airspeed (m/s)" Classes="telem-unit"/>
+                                <ProgressBar Value="{Binding Airspeed}"
+                                             Minimum="0" Maximum="30"
+                                             Height="6" CornerRadius="3"
+                                             Foreground="#8B5CF6" Margin="0,4,0,0"/>
                             </StackPanel>
                         </Grid>
 

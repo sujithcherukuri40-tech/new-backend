@@ -507,28 +507,34 @@
         }
 
         function createDroneIconObject(isArmed, heading) {
-            const iconUrl = isArmed ? CONFIG.droneIconRed : CONFIG.droneIconGreen;
+            // Use SVG data URI so we can bake in the heading rotation for proper orientation.
+            const bodyColor = isArmed ? '#ff6b6b' : '#22c55e';
+            const glowColor = isArmed ? 'rgba(255,80,80,0.7)' : 'rgba(34,197,94,0.7)';
+            const h = heading || 0;
+            const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" width="40" height="40">
+                <g transform="rotate(${h},20,20)">
+                    <filter id="glow"><feDropShadow dx="0" dy="0" stdDeviation="2" flood-color="${glowColor}" flood-opacity="0.9"/></filter>
+                    <!-- drone body -->
+                    <ellipse cx="20" cy="20" rx="7" ry="7" fill="${bodyColor}" opacity="0.95" filter="url(#glow)"/>
+                    <!-- arms -->
+                    <line x1="20" y1="20" x2="6" y2="6"  stroke="${bodyColor}" stroke-width="2.5" opacity="0.85"/>
+                    <line x1="20" y1="20" x2="34" y2="6"  stroke="${bodyColor}" stroke-width="2.5" opacity="0.85"/>
+                    <line x1="20" y1="20" x2="6" y2="34" stroke="${bodyColor}" stroke-width="2.5" opacity="0.85"/>
+                    <line x1="20" y1="20" x2="34" y2="34" stroke="${bodyColor}" stroke-width="2.5" opacity="0.85"/>
+                    <!-- propellers -->
+                    <circle cx="6" cy="6"   r="5" fill="none" stroke="${bodyColor}" stroke-width="1.5" opacity="0.75"/>
+                    <circle cx="34" cy="6"  r="5" fill="none" stroke="${bodyColor}" stroke-width="1.5" opacity="0.75"/>
+                    <circle cx="6" cy="34"  r="5" fill="none" stroke="${bodyColor}" stroke-width="1.5" opacity="0.75"/>
+                    <circle cx="34" cy="34" r="5" fill="none" stroke="${bodyColor}" stroke-width="1.5" opacity="0.75"/>
+                    <!-- heading arrow (points north / forward) -->
+                    <polygon points="20,4 17,13 23,13" fill="white" opacity="0.9"/>
+                </g>
+            </svg>`;
             return {
-                url: iconUrl,
-                scaledSize: new google.maps.Size(CONFIG.droneIconSize, CONFIG.droneIconSize),
-                anchor: new google.maps.Point(CONFIG.droneIconSize / 2, CONFIG.droneIconSize / 2),
-                rotation: heading || 0
+                url: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`,
+                scaledSize: new google.maps.Size(40, 40),
+                anchor: new google.maps.Point(20, 20)
             };
-        }
-
-        function createHomeIconSvgDataUri() {
-            const svg = `
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
-                    <defs>
-                        <filter id="g" x="-50%" y="-50%" width="200%" height="200%">
-                            <feDropShadow dx="0" dy="0" stdDeviation="2" flood-color="#00e5c9" flood-opacity="0.9"/>
-                        </filter>
-                    </defs>
-                    <path d="M24 6L8 20h4v18h24V20h4L24 6z" fill="#00e5c9" stroke="#dff" stroke-width="1.5" filter="url(#g)"/>
-                    <path d="M20 38V26h8v12" fill="rgba(255,255,255,0.7)"/>
-                    <path d="M24 2l4 7h-8z" fill="#00e5c9"/>
-                </svg>`;
-            return `data:image/svg+xml;base64,${btoa(svg)}`;
         }
 
         function initMap() {
@@ -644,6 +650,9 @@
                 missionStartAt = Date.now();
             }
 
+            // Update compass rose needle rotation
+            updateCompassNeedle(lastDroneHeading);
+
             document.getElementById('altVal').textContent = `${(alt || 0).toFixed(1)} m`;
             document.getElementById('speedVal').textContent = `${(groundSpeed || 0).toFixed(1)} m/s`;
             document.getElementById('flowVal').textContent = `${isSprayActive ? ESTIMATED_FLOW_LPM.toFixed(1) : (0).toFixed(1)} L/min`;
@@ -655,6 +664,49 @@
             document.getElementById('timeVal').textContent = `${hh}:${mm}:${ss}`;
             document.getElementById('statSats').textContent = 'GPS';
             document.getElementById('statMode').textContent = currentViewMode === ViewMode.TOP_DOWN ? 'TOP' : (currentViewMode === ViewMode.CHASE_3D ? 'CHASE' : 'FREE');
+
+            // Update area covered from flight path (dynamically, even when spray is off)
+            updateFlightPathArea();
+        }
+
+        function updateCompassNeedle(heading) {
+            const needle = document.querySelector('.compass-needle');
+            if (!needle) return;
+            // Rotate needle around the center of the compass ring.
+            // The needle is positioned at top:6px within a 72px ring (center=36px).
+            // Transform-origin at 50% 30px rotates around the ring's center.
+            needle.style.transformOrigin = '50% 30px';
+            needle.style.transform = `translateX(-50%) rotate(${heading || 0}deg)`;
+        }
+
+        function updateFlightPathArea() {
+            if (isSprayActive) return; // spray trail area is handled in updateSprayTrail
+            // Compute approximate bounding-box area of the flight path for non-spray display
+            if (flightPathCoords.length < 2) return;
+            let minLat = Infinity, maxLat = -Infinity, minLng = Infinity, maxLng = -Infinity;
+            for (const p of flightPathCoords) {
+                if (p.lat < minLat) minLat = p.lat;
+                if (p.lat > maxLat) maxLat = p.lat;
+                if (p.lng < minLng) minLng = p.lng;
+                if (p.lng > maxLng) maxLng = p.lng;
+            }
+            const latMeters = (maxLat - minLat) * 111320;
+            const lngMeters = (maxLng - minLng) * 111320 * Math.cos(((minLat + maxLat) / 2) * Math.PI / 180);
+            const areaM2 = latMeters * lngMeters;
+            const areaAcres = areaM2 / SQUARE_METERS_PER_ACRE;
+            document.getElementById('areaVal').textContent = `${areaAcres.toFixed(2)} ac`;
+        }
+
+        function updateBattery(percent) {
+            const el = document.getElementById('miniBatt');
+            if (!el) return;
+            if (percent >= 0) {
+                el.textContent = `${percent}%`;
+                el.style.color = percent >= 50 ? 'var(--live)' : percent >= 20 ? 'var(--warn)' : '#ff6b6b';
+            } else {
+                el.textContent = '--%';
+                el.style.color = '';
+            }
         }
 
         function addToFlightPath(lat, lng, isArmed) {
@@ -746,19 +798,9 @@
         }
 
         function setHomePosition(lat, lng) {
-            if (homeMarker) homeMarker.setMap(null);
+            if (homeMarker) { homeMarker.setMap(null); homeMarker = null; }
             homePosition = { lat, lng };
-            homeMarker = new google.maps.Marker({
-                map,
-                position: homePosition,
-                icon: {
-                    url: createHomeIconSvgDataUri(),
-                    scaledSize: new google.maps.Size(34, 34),
-                    anchor: new google.maps.Point(17, 17)
-                },
-                title: 'Home',
-                zIndex: 500
-            });
+            // Home position is tracked internally but no icon is shown on the map.
         }
 
         function createWaypointIcon(number, isCurrent) {
@@ -1070,6 +1112,7 @@
         }
 
         window.updateDrone = updateDrone;
+        window.updateBattery = updateBattery;
         window.centerOnDrone = centerOnDrone;
         window.clearFlightPath = clearFlightPath;
         window.setMapType = setMapType;
