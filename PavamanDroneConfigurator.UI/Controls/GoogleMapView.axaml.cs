@@ -366,18 +366,13 @@ public partial class GoogleMapView : UserControl
 
     private string GetMapHtmlPath()
     {
-        // Try multiple locations - prefer Google Maps HTML
+        // Try multiple locations - Google Maps HTML only
         var candidates = new[]
         {
             Path.Combine(AppContext.BaseDirectory, "Assets", "map", "google-map.html"),
             Path.Combine(AppContext.BaseDirectory, "map", "google-map.html"),
             Path.Combine(Directory.GetCurrentDirectory(), "Assets", "map", "google-map.html"),
-            Path.Combine(Directory.GetCurrentDirectory(), "map", "google-map.html"),
-            // Fallback to Cesium if Google Maps not found
-            Path.Combine(AppContext.BaseDirectory, "Assets", "map", "index.html"),
-            Path.Combine(AppContext.BaseDirectory, "map", "index.html"),
-            Path.Combine(Directory.GetCurrentDirectory(), "Assets", "map", "index.html"),
-            Path.Combine(Directory.GetCurrentDirectory(), "map", "index.html")
+            Path.Combine(Directory.GetCurrentDirectory(), "map", "google-map.html")
         };
 
         foreach (var path in candidates)
