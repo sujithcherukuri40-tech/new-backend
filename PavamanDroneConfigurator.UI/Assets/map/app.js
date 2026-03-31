@@ -160,8 +160,9 @@ function createOrbitIcon() {
 // DRONE 3D MODEL - Quadcopter shape using primitives
 // ============================================
 function createDroneModelUri(isArmed) {
-    const baseColor = isArmed ? '#EF4444' : '#3B82F6';
-    const outlineColor = isArmed ? '#FCA5A5' : '#93C5FD';
+    // Always use green for the drone marker
+    const baseColor = '#22C55E';
+    const outlineColor = '#86EFAC';
 
     // Use KFT logo image from app assets (fallback to simple SVG badge)
     const logoPath = '../Images/KFT%20Logo.png';
@@ -985,13 +986,8 @@ function rebuildFlightPath() {
 
     const positions = flightPathPositions.map(p => p.position);
     
-    // Determine if currently armed for path color
-    const isArmed = flightPathPositions.length > 0 ? 
-        flightPathPositions[flightPathPositions.length - 1].isArmed : false;
-    
-    const pathColor = isArmed ? 
-        Cesium.Color.fromCssColorString('#EF4444').withAlpha(0.9) :
-        Cesium.Color.fromCssColorString('#3B82F6').withAlpha(0.9);
+    // Always use green/cyan for flight path color
+    const pathColor = Cesium.Color.fromCssColorString('#00E5C9').withAlpha(0.9);
 
     flightPathEntity = viewer.entities.add({
         id: 'flightPath',

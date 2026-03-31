@@ -507,9 +507,9 @@
         }
 
         function createDroneIconObject(isArmed, heading) {
-            // Use SVG data URI so we can bake in the heading rotation for proper orientation.
-            const bodyColor = isArmed ? '#ff6b6b' : '#22c55e';
-            const glowColor = isArmed ? 'rgba(255,80,80,0.7)' : 'rgba(34,197,94,0.7)';
+            // Always use green for the drone marker (matches Mission Planner behavior).
+            const bodyColor = '#22c55e';
+            const glowColor = 'rgba(34,197,94,0.7)';
             const h = heading || 0;
             const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" width="40" height="40">
                 <g transform="rotate(${h},20,20)">
@@ -717,7 +717,7 @@
             }
             flightPathCoords.push(newPos);
             while (flightPathCoords.length > CONFIG.maxFlightPathPoints) flightPathCoords.shift();
-            flightPath.setOptions({ strokeColor: isArmed ? '#ff6b6b' : '#00E5C9' });
+            flightPath.setOptions({ strokeColor: '#00E5C9' });
             flightPath.setPath(flightPathCoords);
             const distKm = pathDistanceKm(flightPathCoords);
             document.getElementById('distVal').textContent = `${distKm.toFixed(2)} km`;
@@ -1110,10 +1110,22 @@
             clearSprayOverlay();
         }
 
+        function restoreFlightPath(coords) {
+            if (!coords || coords.length === 0) return;
+            flightPathCoords = coords.map(c => ({ lat: c.lat, lng: c.lng }));
+            if (flightPath) {
+                flightPath.setOptions({ strokeColor: '#00E5C9' });
+                flightPath.setPath(flightPathCoords);
+            }
+            const distKm = pathDistanceKm(flightPathCoords);
+            document.getElementById('distVal').textContent = `${distKm.toFixed(2)} km`;
+        }
+
         window.updateDrone = updateDrone;
         window.updateBattery = updateBattery;
         window.centerOnDrone = centerOnDrone;
         window.clearFlightPath = clearFlightPath;
+        window.restoreFlightPath = restoreFlightPath;
         window.setMapType = setMapType;
         window.setViewMode = setViewMode;
         window.toggleFollow = toggleFollow;

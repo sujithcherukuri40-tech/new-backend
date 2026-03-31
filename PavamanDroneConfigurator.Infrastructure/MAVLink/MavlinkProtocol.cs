@@ -81,7 +81,7 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
             
             // GPS
             { 65, 118 },  // RC_CHANNELS
-            { 74, 237 },  // VFR_HUD
+            { 74, 20 },   // VFR_HUD
             { 76, 152 },  // COMMAND_LONG
             { 77, 143 },  // COMMAND_ACK
             { 87, 138 },  // POSITION_TARGET_GLOBAL_INT
