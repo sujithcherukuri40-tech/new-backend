@@ -182,6 +182,32 @@ public sealed class VideoStreamingService : IVideoStreamingService
     {
         if (_disposed) return;
         _disposed = true;
-        _ = StopAsync();
+
+        // Cancel the running stream and wait briefly for the task to finish
+        // so that resources are released before the service is GC'd.
+        CancellationTokenSource? cts;
+        Task? task;
+        lock (_lock)
+        {
+            cts = _streamCts;
+            task = _streamTask;
+            _streamCts = null;
+            _streamTask = null;
+        }
+
+        if (cts != null)
+        {
+            try { cts.Cancel(); } catch { /* ignored */ }
+            if (task != null)
+            {
+                try { task.Wait(TimeSpan.FromSeconds(2)); }
+                catch (AggregateException) { /* OperationCanceledException expected */ }
+                catch (Exception ex)
+                {
+                    _logger.LogDebug(ex, "[VideoStream] Task did not complete cleanly during Dispose");
+                }
+            }
+            cts.Dispose();
+        }
     }
 }

@@ -719,7 +719,7 @@ public partial class App : Application
         services.AddTransient<FirmwarePageViewModel>();
         services.AddTransient<LiveMapPageViewModel>();
         services.AddTransient<TelemetryPageViewModel>();
-        services.AddTransient<MavlinkLogsViewModel>();
+        services.AddSingleton<MavlinkLogsViewModel>();
         services.AddTransient<ViewModels.Admin.ParamLogsViewModel>();
 
         Console.WriteLine("[App] Building service provider...");

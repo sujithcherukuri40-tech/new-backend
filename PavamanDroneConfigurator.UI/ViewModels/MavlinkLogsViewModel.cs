@@ -48,9 +48,9 @@ public partial class MavlinkLogsViewModel : ViewModelBase
 
         // Populate with any messages already captured before this window opened.
         var existing = _logger.GetRecentMessages(500);
-        foreach (var entry in existing.Reverse())
+        for (int i = existing.Count - 1; i >= 0; i--)
         {
-            _allEntries.Add(entry);
+            _allEntries.Add(existing[i]);
         }
         ApplyFilter();
     }
