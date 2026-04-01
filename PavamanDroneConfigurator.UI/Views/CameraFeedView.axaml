@@ -1,0 +1,82 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:PavamanDroneConfigurator.UI.ViewModels"
+             mc:Ignorable="d" d:DesignWidth="240" d:DesignHeight="300"
+             x:Class="PavamanDroneConfigurator.UI.Views.CameraFeedView"
+             x:DataType="vm:CameraFeedViewModel"
+             Background="#EE0D111C">
+
+    <Grid RowDefinitions="*,Auto,Auto">
+
+        <!-- Video area placeholder -->
+        <Border Grid.Row="0"
+                Background="#1A1E2E"
+                BorderBrush="#33FFFFFF" BorderThickness="0,0,0,0.5"
+                CornerRadius="4,4,0,0">
+            <Grid>
+                <!-- Camera icon / placeholder shown when not streaming -->
+                <StackPanel IsVisible="{Binding !IsStreaming}"
+                            HorizontalAlignment="Center" VerticalAlignment="Center"
+                            Spacing="8">
+                    <TextBlock Text="📷" FontSize="32" HorizontalAlignment="Center"
+                               Foreground="#44FFFFFF"/>
+                    <TextBlock Text="Camera Feed" FontSize="12" Foreground="#66FFFFFF"
+                               HorizontalAlignment="Center"/>
+                    <TextBlock Text="{Binding StreamStatus}" FontSize="10" Foreground="#44FFFFFF"
+                               HorizontalAlignment="Center" TextWrapping="Wrap"
+                               MaxWidth="180" TextAlignment="Center"/>
+                </StackPanel>
+
+                <!-- Live indicator when streaming -->
+                <Border IsVisible="{Binding IsStreaming}"
+                        Background="#CC1A1E2E"
+                        HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="4">
+                        <TextBlock Text="● LIVE" FontSize="14" FontWeight="Bold"
+                                   Foreground="#FFE74C3C" HorizontalAlignment="Center"/>
+                        <TextBlock Text="{Binding StreamStatus}" FontSize="10" Foreground="#AAFFFFFF"
+                                   HorizontalAlignment="Center" TextWrapping="Wrap"
+                                   MaxWidth="180" TextAlignment="Center"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- HUD overlay (bottom-left) -->
+                <StackPanel IsVisible="{Binding IsStreaming}"
+                            HorizontalAlignment="Left" VerticalAlignment="Bottom"
+                            Margin="6,0,0,6" Spacing="2">
+                    <TextBlock Text="{Binding StreamLatencyMs, StringFormat='LAT {0}ms'}"
+                               Foreground="#DDFFFFFF" FontSize="10"/>
+                    <TextBlock Text="{Binding StreamResolution}"
+                               Foreground="#DDFFFFFF" FontSize="10"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- Stream URI input -->
+        <Border Grid.Row="1" Padding="8,6" BorderBrush="#22FFFFFF" BorderThickness="0,0,0,0.5">
+            <Grid ColumnDefinitions="*,Auto">
+                <TextBox Grid.Column="0"
+                         Text="{Binding StreamUri}"
+                         Watermark="rtsp://192.168.1.1:8554/live"
+                         FontSize="10" Padding="6,4"
+                         Background="#1A2030" Foreground="#DDFFFFFF"
+                         BorderBrush="#33FFFFFF" BorderThickness="1"
+                         CornerRadius="4,0,0,4"/>
+            </Grid>
+        </Border>
+
+        <!-- Controls -->
+        <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="6" Margin="8">
+            <Button Command="{Binding StartStreamCommand}"
+                    IsVisible="{Binding !IsStreaming}"
+                    Classes="MapOverlayBtn"
+                    Content="▶  Connect" HorizontalAlignment="Left"/>
+            <Button Command="{Binding StopStreamCommand}"
+                    IsVisible="{Binding IsStreaming}"
+                    Classes="MapOverlayBtn Danger"
+                    Content="■  Disconnect" HorizontalAlignment="Left"/>
+        </StackPanel>
+    </Grid>
+</UserControl>
