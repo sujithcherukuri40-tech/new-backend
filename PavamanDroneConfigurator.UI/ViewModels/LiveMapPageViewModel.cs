@@ -145,6 +145,27 @@ public partial class LiveMapPageViewModel : ViewModelBase
     [ObservableProperty]
     private double _totalConsumedLiters;
 
+    [ObservableProperty]
+    private bool _isSprayPanelVisible;
+
+    [ObservableProperty]
+    private int _sprayPumpChannel = 9;
+
+    [ObservableProperty]
+    private int _sprayPumpPwmOn = 1900;
+
+    [ObservableProperty]
+    private int _sprayPumpPwmOff = 1100;
+
+    [ObservableProperty]
+    private int _sprayRelayNumber;
+
+    [ObservableProperty]
+    private int _sprayPumpSpeedPercent = 80;
+
+    [ObservableProperty]
+    private string _sprayStatus = "Idle";
+
     #endregion
 
     #region Observable Properties - Camera System
@@ -163,6 +184,15 @@ public partial class LiveMapPageViewModel : ViewModelBase
 
     [ObservableProperty]
     private string _recordingTime = "00:00";
+
+    [ObservableProperty]
+    private float _gimbalTiltAngle;
+
+    [ObservableProperty]
+    private float _gimbalPanAngle;
+
+    [ObservableProperty]
+    private string _gimbalStatus = "Idle";
 
     #endregion
 
@@ -590,9 +620,14 @@ public partial class LiveMapPageViewModel : ViewModelBase
         IsSprayEnabled = false;
         FlowRate = 0;
         FlowRateStatus = "OFF";
+        SprayStatus = "Idle";
+        IsSprayPanelVisible = false;
         IsCameraConnected = false;
         IsRecording = false;
         CameraStatus = "N/A";
+        GimbalTiltAngle = 0;
+        GimbalPanAngle = 0;
+        GimbalStatus = "Idle";
     }
 
     #endregion
@@ -717,26 +752,125 @@ public partial class LiveMapPageViewModel : ViewModelBase
     private void ToggleSpray()
     {
         IsSprayEnabled = !IsSprayEnabled;
+        if (IsSprayEnabled)
+        {
+            _connectionService.SendDoSetServo(SprayPumpChannel, SprayPumpPwmOn);
+            FlowRateStatus = $"{FlowRate:F1} L/min";
+            SprayStatus = "Spraying";
+        }
+        else
+        {
+            _connectionService.SendDoSetServo(SprayPumpChannel, SprayPumpPwmOff);
+            FlowRateStatus = "OFF";
+            SprayStatus = "Idle";
+        }
+    }
+
+    [RelayCommand]
+    private void ToggleSprayRelay()
+    {
+        IsSprayEnabled = !IsSprayEnabled;
+        _connectionService.SendDoSetRelay(SprayRelayNumber, IsSprayEnabled);
         FlowRateStatus = IsSprayEnabled ? $"{FlowRate:F1} L/min" : "OFF";
+        SprayStatus = IsSprayEnabled ? "Spraying" : "Idle";
+    }
+
+    [RelayCommand]
+    private void ToggleSprayPanel()
+    {
+        IsSprayPanelVisible = !IsSprayPanelVisible;
+    }
+
+    [RelayCommand]
+    private void SetSprayPumpSpeed(string? speedParam)
+    {
+        if (int.TryParse(speedParam, out int speed))
+        {
+            SprayPumpSpeedPercent = Math.Clamp(speed, 0, 100);
+        }
+        int pwm = 1000 + (int)(SprayPumpSpeedPercent / 100.0 * 1000);
+        SprayPumpPwmOn = pwm;
+        if (IsSprayEnabled)
+        {
+            _connectionService.SendDoSetServo(SprayPumpChannel, pwm);
+            SprayStatus = $"Spraying at {SprayPumpSpeedPercent}%";
+        }
     }
 
     [RelayCommand]
     private void TakePhoto()
     {
-        if (IsCameraConnected)
-        {
-            PhotoCount++;
-        }
+        _connectionService.SendImageStartCapture(0, 1);
+        PhotoCount++;
+        CameraStatus = "Photo taken";
     }
 
     [RelayCommand]
     private void ToggleRecording()
     {
-        if (IsCameraConnected)
+        IsRecording = !IsRecording;
+        if (IsRecording)
         {
-            IsRecording = !IsRecording;
-            CameraStatus = IsRecording ? "Recording" : "Ready";
+            _connectionService.SendVideoStartCapture();
+            CameraStatus = "Recording";
         }
+        else
+        {
+            _connectionService.SendVideoStopCapture();
+            CameraStatus = "Ready";
+        }
+    }
+
+    // ── Gimbal Control Commands ────────────────────────────────────────────
+
+    [RelayCommand]
+    private void GimbalTiltUp()
+    {
+        GimbalTiltAngle = Math.Clamp(GimbalTiltAngle + 5f, -90f, 30f);
+        _connectionService.SendDoMountControl(GimbalTiltAngle, 0, GimbalPanAngle);
+        GimbalStatus = $"Tilt: {GimbalTiltAngle:F0}°";
+    }
+
+    [RelayCommand]
+    private void GimbalTiltDown()
+    {
+        GimbalTiltAngle = Math.Clamp(GimbalTiltAngle - 5f, -90f, 30f);
+        _connectionService.SendDoMountControl(GimbalTiltAngle, 0, GimbalPanAngle);
+        GimbalStatus = $"Tilt: {GimbalTiltAngle:F0}°";
+    }
+
+    [RelayCommand]
+    private void GimbalPanLeft()
+    {
+        GimbalPanAngle = Math.Clamp(GimbalPanAngle - 5f, -180f, 180f);
+        _connectionService.SendDoMountControl(GimbalTiltAngle, 0, GimbalPanAngle);
+        GimbalStatus = $"Pan: {GimbalPanAngle:F0}°";
+    }
+
+    [RelayCommand]
+    private void GimbalPanRight()
+    {
+        GimbalPanAngle = Math.Clamp(GimbalPanAngle + 5f, -180f, 180f);
+        _connectionService.SendDoMountControl(GimbalTiltAngle, 0, GimbalPanAngle);
+        GimbalStatus = $"Pan: {GimbalPanAngle:F0}°";
+    }
+
+    [RelayCommand]
+    private void GimbalCenter()
+    {
+        GimbalTiltAngle = 0;
+        GimbalPanAngle = 0;
+        _connectionService.SendDoMountControl(0, 0, 0);
+        GimbalStatus = "Centered";
+    }
+
+    [RelayCommand]
+    private void GimbalLookDown()
+    {
+        GimbalTiltAngle = -90;
+        GimbalPanAngle = 0;
+        _connectionService.SendDoMountControl(-90, 0, 0);
+        GimbalStatus = "Nadir";
     }
 
     [RelayCommand]

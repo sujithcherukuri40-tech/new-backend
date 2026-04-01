@@ -1377,6 +1377,108 @@ public sealed class ConnectionService : IConnectionService, IDisposable
         }
     }
 
+    // ── Spray System Commands ──────────────────────────────────────────────
+
+    public void SendDoSetRelay(int relayNumber, bool on)
+    {
+        if (!IsConnected)
+        {
+            _logger.LogWarning("Cannot send DO_SET_RELAY - not connected");
+            return;
+        }
+
+        if (_mavlink != null)
+        {
+            _ = _mavlink.SendDoSetRelayAsync(relayNumber, on);
+        }
+    }
+
+    public void SendDoSetServo(int servoChannel, int pwmValue)
+    {
+        if (!IsConnected)
+        {
+            _logger.LogWarning("Cannot send DO_SET_SERVO - not connected");
+            return;
+        }
+
+        if (_mavlink != null)
+        {
+            _ = _mavlink.SendDoSetServoAsync(servoChannel, pwmValue);
+        }
+    }
+
+    // ── Camera / Gimbal Commands ──────────────────────────────────────────
+
+    public void SendDoMountControl(float tiltDeg, float rollDeg, float panDeg)
+    {
+        if (!IsConnected)
+        {
+            _logger.LogWarning("Cannot send DO_MOUNT_CONTROL - not connected");
+            return;
+        }
+
+        if (_mavlink != null)
+        {
+            _ = _mavlink.SendDoMountControlAsync(tiltDeg, rollDeg, panDeg);
+        }
+    }
+
+    public void SendDoDigicamControl(int commandId = 1)
+    {
+        if (!IsConnected)
+        {
+            _logger.LogWarning("Cannot send DO_DIGICAM_CONTROL - not connected");
+            return;
+        }
+
+        if (_mavlink != null)
+        {
+            _ = _mavlink.SendDoDigicamControlAsync(commandId);
+        }
+    }
+
+    public void SendImageStartCapture(float intervalSec = 0, int totalImages = 1)
+    {
+        if (!IsConnected)
+        {
+            _logger.LogWarning("Cannot send IMAGE_START_CAPTURE - not connected");
+            return;
+        }
+
+        if (_mavlink != null)
+        {
+            _ = _mavlink.SendImageStartCaptureAsync(intervalSec, totalImages);
+        }
+    }
+
+    public void SendVideoStartCapture()
+    {
+        if (!IsConnected)
+        {
+            _logger.LogWarning("Cannot send VIDEO_START_CAPTURE - not connected");
+            return;
+        }
+
+        if (_mavlink != null)
+        {
+            _ = _mavlink.SendVideoStartCaptureAsync();
+        }
+    }
+
+    public void SendVideoStopCapture()
+    {
+        if (!IsConnected)
+        {
+            _logger.LogWarning("Cannot send VIDEO_STOP_CAPTURE - not connected");
+            return;
+        }
+
+        if (_mavlink != null)
+        {
+            _ = _mavlink.SendVideoStopCaptureAsync();
+        }
+    }
+
     #endregion
 
     private void SetConnected(bool connected)
