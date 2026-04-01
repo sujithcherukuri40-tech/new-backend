@@ -159,6 +159,13 @@ public partial class LiveMapPage : UserControl
                 Debug.WriteLine("[LiveMapPage] No valid position yet, waiting for telemetry...");
             }
 
+            // Restore flight path if we have any accumulated points
+            if (vm.FlightPath.Count > 0 && _map != null)
+            {
+                _map.RestoreFlightPath(vm.FlightPath);
+                Debug.WriteLine($"[LiveMapPage] Restored {vm.FlightPath.Count} flight path points on map ready");
+            }
+
             SyncMissionOverlays(vm);
             _ = LoadAndRenderGeofenceAsync(vm);
         }
