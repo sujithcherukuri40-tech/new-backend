@@ -223,7 +223,7 @@ public partial class LiveMapPageViewModel : ViewModelBase
     private string _missionProgressText = "Mission: 0 items";
 
     [ObservableProperty]
-    private bool _isCameraViewOpen;
+    private bool _isCameraVisible;
 
     [ObservableProperty]
     private int _selectedViewModeIndex;
@@ -540,7 +540,7 @@ public partial class LiveMapPageViewModel : ViewModelBase
         Dispatcher.UIThread.Post(() =>
         {
             IsVideoStreaming = isStreaming;
-            if (!isStreaming && IsCameraViewOpen)
+            if (!isStreaming && IsCameraVisible)
             {
                 // Keep the panel open so the user sees the status message.
             }
@@ -742,13 +742,13 @@ public partial class LiveMapPageViewModel : ViewModelBase
     [RelayCommand]
     private void OpenCameraView()
     {
-        IsCameraViewOpen = true;
+        IsCameraVisible = true;
     }
 
     [RelayCommand]
     private void CloseCameraView()
     {
-        IsCameraViewOpen = false;
+        IsCameraVisible = false;
     }
 
     /// <summary>Start the RTSP/UDP video stream from the drone camera.</summary>
@@ -757,7 +757,7 @@ public partial class LiveMapPageViewModel : ViewModelBase
     {
         _videoStreamingService.StreamUrl = VideoStreamUrl;
         await _videoStreamingService.StartAsync();
-        IsCameraViewOpen = true;
+        IsCameraVisible = true;
     }
 
     /// <summary>Stop the current video stream.</summary>
@@ -777,12 +777,43 @@ public partial class LiveMapPageViewModel : ViewModelBase
             await StartVideoStreamAsync();
     }
 
+    /// <summary>
+    /// Toggle the camera panel visibility and start/stop the stream accordingly.
+    /// Satisfies the MVVM requirement: ToggleCameraCommand.
+    /// </summary>
+    [RelayCommand]
+    private async System.Threading.Tasks.Task ToggleCameraAsync()
+    {
+        if (IsCameraVisible)
+        {
+            IsCameraVisible = false;
+            if (IsVideoStreaming)
+                await _videoStreamingService.StopAsync();
+        }
+        else
+        {
+            IsCameraVisible = true;
+            if (!IsVideoStreaming)
+            {
+                _videoStreamingService.StreamUrl = VideoStreamUrl;
+                await _videoStreamingService.StartAsync();
+            }
+        }
+    }
+
     /// <summary>Open the MAVLink logs window (handled by the View).</summary>
     [RelayCommand]
-    private void OpenMavlinkLogs()
-    {
+    private void OpenMavlinkLogs() => RaiseMavlinkLogsRequested();
+
+    /// <summary>
+    /// Open the MAVLink logs window.
+    /// Satisfies the MVVM requirement: OpenLogsCommand.
+    /// </summary>
+    [RelayCommand]
+    private void OpenLogs() => RaiseMavlinkLogsRequested();
+
+    private void RaiseMavlinkLogsRequested() =>
         OpenMavlinkLogsRequested?.Invoke(this, EventArgs.Empty);
-    }
 
     [RelayCommand]
     private void SelectMissionToolWaypoint()
