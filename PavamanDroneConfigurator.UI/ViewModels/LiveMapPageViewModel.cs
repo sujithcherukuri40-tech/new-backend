@@ -436,7 +436,10 @@ public partial class LiveMapPageViewModel : ViewModelBase
                     Roll = Roll,
                     GroundSpeed = GroundSpeed,
                     VerticalSpeed = VerticalSpeed,
-                    IsArmed = IsArmed
+                    IsArmed = IsArmed,
+                    SatelliteCount = SatelliteCount,
+                    FlightMode = FlightMode,
+                    FlowRate = FlowRate
                 });
             }
         });
@@ -935,6 +938,9 @@ public class DronePositionUpdateEventArgs : EventArgs
     public double GroundSpeed { get; set; }
     public double VerticalSpeed { get; set; }
     public bool IsArmed { get; set; }
+    public int SatelliteCount { get; set; }
+    public string FlightMode { get; set; } = "Unknown";
+    public double FlowRate { get; set; }
 }
 
 /// <summary>

@@ -580,7 +580,10 @@ public partial class GoogleMapView : UserControl
         double roll = 0,
         bool isArmed = false,
         double groundSpeed = 0,
-        double verticalSpeed = 0)
+        double verticalSpeed = 0,
+        int satelliteCount = 0,
+        string flightMode = "Unknown",
+        double flowRate = 0)
     {
         var data = new DroneUpdateData
         {
@@ -592,7 +595,10 @@ public partial class GoogleMapView : UserControl
             Roll = roll,
             IsArmed = isArmed,
             GroundSpeed = groundSpeed,
-            VerticalSpeed = verticalSpeed
+            VerticalSpeed = verticalSpeed,
+            SatelliteCount = satelliteCount,
+            FlightMode = flightMode,
+            FlowRate = flowRate
         };
 
         if (!_mapReady)
@@ -615,9 +621,10 @@ public partial class GoogleMapView : UserControl
 
         try
         {
+            var flightModeJson = System.Text.Json.JsonSerializer.Serialize(data.FlightMode);
             var script = string.Format(
                 CultureInfo.InvariantCulture,
-                "updateDrone({0}, {1}, {2}, {3}, {4}, {5}, {6}, {7}, {8});",
+                "updateDrone({0}, {1}, {2}, {3}, {4}, {5}, {6}, {7}, {8}, {9}, {10}, {11});",
                 data.Latitude,
                 data.Longitude,
                 data.Altitude,
@@ -626,7 +633,10 @@ public partial class GoogleMapView : UserControl
                 data.Roll,
                 data.IsArmed.ToString().ToLowerInvariant(),
                 data.GroundSpeed,
-                data.VerticalSpeed);
+                data.VerticalSpeed,
+                data.SatelliteCount,
+                flightModeJson,
+                data.FlowRate);
 
             await _webView.ExecuteScriptAsync(script);
             // Only log occasionally to avoid spam
@@ -1084,6 +1094,9 @@ public partial class GoogleMapView : UserControl
         public bool IsArmed { get; set; }
         public double GroundSpeed { get; set; }
         public double VerticalSpeed { get; set; }
+        public int SatelliteCount { get; set; }
+        public string FlightMode { get; set; } = "Unknown";
+        public double FlowRate { get; set; }
     }
 
     public class WaypointData

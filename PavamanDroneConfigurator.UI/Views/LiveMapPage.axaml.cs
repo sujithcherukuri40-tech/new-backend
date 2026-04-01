@@ -205,7 +205,10 @@ public partial class LiveMapPage : UserControl
                     e.Roll,
                     e.IsArmed,
                     e.GroundSpeed,
-                    e.VerticalSpeed
+                    e.VerticalSpeed,
+                    e.SatelliteCount,
+                    e.FlightMode,
+                    e.FlowRate
                 );
 
                 if (!_geofenceLoaded && DataContext is LiveMapPageViewModel vm)
@@ -526,7 +529,10 @@ public partial class LiveMapPage : UserControl
             vm.Roll,
             vm.IsArmed,
             vm.GroundSpeed,
-            vm.VerticalSpeed
+            vm.VerticalSpeed,
+            vm.SatelliteCount,
+            vm.FlightMode,
+            vm.FlowRate
         );
     }
 
