@@ -423,7 +423,7 @@
                             <StackPanel Orientation="Horizontal" Spacing="6"
                                         HorizontalAlignment="Center">
                                 <Ellipse Width="8" Height="8" VerticalAlignment="Center"
-                                         Fill="{Binding IsSprayEnabled,
+                                         Fill="{Binding IsSprayRelayEnabled,
                                                 Converter={StaticResource BoolToColorConverter},
                                                 ConverterParameter='#22c55e|#EF4444'}"/>
                                 <TextBlock Text="Pump Relay" FontSize="12"

@@ -22,6 +22,10 @@ public partial class LiveMapPageViewModel : ViewModelBase
     private const string LiveStatusOnline = "LIVE";
     private const string LiveStatusOffline = "OFFLINE";
 
+    // PWM output range for servo-based spray/gimbal control
+    private const int PwmMin = 1000;
+    private const int PwmRange = 1000; // PwmMax (2000) - PwmMin (1000)
+
     private readonly IConnectionService _connectionService;
     private readonly ITelemetryService _telemetryService;
     private readonly IVideoStreamingService _videoStreamingService;
@@ -162,6 +166,9 @@ public partial class LiveMapPageViewModel : ViewModelBase
 
     [ObservableProperty]
     private int _sprayPumpSpeedPercent = 80;
+
+    [ObservableProperty]
+    private bool _isSprayRelayEnabled;
 
     [ObservableProperty]
     private string _sprayStatus = "Idle";
@@ -618,6 +625,7 @@ public partial class LiveMapPageViewModel : ViewModelBase
         
         // Reset spray/camera
         IsSprayEnabled = false;
+        IsSprayRelayEnabled = false;
         FlowRate = 0;
         FlowRateStatus = "OFF";
         SprayStatus = "Idle";
@@ -769,10 +777,10 @@ public partial class LiveMapPageViewModel : ViewModelBase
     [RelayCommand]
     private void ToggleSprayRelay()
     {
-        IsSprayEnabled = !IsSprayEnabled;
-        _connectionService.SendDoSetRelay(SprayRelayNumber, IsSprayEnabled);
-        FlowRateStatus = IsSprayEnabled ? $"{FlowRate:F1} L/min" : "OFF";
-        SprayStatus = IsSprayEnabled ? "Spraying" : "Idle";
+        IsSprayRelayEnabled = !IsSprayRelayEnabled;
+        _connectionService.SendDoSetRelay(SprayRelayNumber, IsSprayRelayEnabled);
+        FlowRateStatus = IsSprayRelayEnabled ? $"{FlowRate:F1} L/min" : "OFF";
+        SprayStatus = IsSprayRelayEnabled ? "Spraying (Relay)" : "Idle";
     }
 
     [RelayCommand]
@@ -788,7 +796,7 @@ public partial class LiveMapPageViewModel : ViewModelBase
         {
             SprayPumpSpeedPercent = Math.Clamp(speed, 0, 100);
         }
-        int pwm = 1000 + (int)(SprayPumpSpeedPercent / 100.0 * 1000);
+        int pwm = PwmMin + (int)(SprayPumpSpeedPercent / 100.0 * PwmRange);
         SprayPumpPwmOn = pwm;
         if (IsSprayEnabled)
         {
