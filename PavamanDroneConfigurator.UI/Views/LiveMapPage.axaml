@@ -11,9 +11,7 @@
              Background="#0A0E1A">
 
     <UserControl.Resources>
-        <converters:BoolToStringConverter x:Key="BoolToStringConverter"/>
         <converters:BoolToColorConverter x:Key="BoolToColorConverter"/>
-        <converters:BoolToBackgroundConverter x:Key="BoolToBackgroundConverter"/>
     </UserControl.Resources>
 
     <UserControl.Styles>
@@ -37,14 +35,6 @@
             <Setter Property="Background" Value="#CC2D3D50"/>
         </Style>
 
-        <!-- Battery indicator text -->
-        <Style Selector="TextBlock.batt-label">
-            <Setter Property="FontSize" Value="12"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="Foreground" Value="#E2E8F0"/>
-            <Setter Property="VerticalAlignment" Value="Center"/>
-        </Style>
-
     </UserControl.Styles>
 
     <!-- Root grid: map + Avalonia overlays stacked in same cell -->
@@ -53,107 +43,46 @@
         <!-- ── Live Map (WebView2) ── -->
         <controls:GoogleMapView x:Name="MapView" ClipToBounds="True"/>
 
-        <!-- ── Top toolbar overlay ──
-             Semi-transparent bar along the top with status indicators and action buttons.
+        <!-- ── Top-right toolbar overlay ──
+             Minimal two-button bar (Live Camera + MAVLink Logs) anchored to the top-right.
              Height ≈52dp; SetViewportInsets reserves this space in code-behind. -->
         <Border VerticalAlignment="Top"
-                HorizontalAlignment="Stretch"
-                Background="#D90A0E1A"
-                Padding="12,8"
-                BorderBrush="#1E2433"
-                BorderThickness="0,0,0,1">
+                HorizontalAlignment="Right"
+                Background="Transparent"
+                Padding="12,8">
 
-            <Grid ColumnDefinitions="*,Auto">
+            <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
 
-                <!-- Left: live status + flight mode + GPS -->
-                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                <!-- 🎥 Live Camera button (always visible) -->
+                <Button Classes="overlay-btn"
+                        Command="{Binding ToggleCameraCommand}">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <TextBlock Text="🎥" FontSize="14"/>
+                        <TextBlock Text="Live Camera" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Button>
 
-                    <!-- LIVE / OFFLINE indicator -->
-                    <Border Background="#CC111827" CornerRadius="6" Padding="8,4">
-                        <StackPanel Orientation="Horizontal" Spacing="6">
-                            <Ellipse Width="8" Height="8"
-                                     Fill="{Binding IsReceivingTelemetry,
-                                            Converter={StaticResource BoolToColorConverter},
-                                            ConverterParameter='#22c55e|#ef4444'}"
-                                     VerticalAlignment="Center"/>
-                            <TextBlock Text="{Binding LiveStatusText}"
-                                       FontSize="11" FontWeight="Bold"
-                                       Foreground="#E2E8F0" VerticalAlignment="Center"/>
-                        </StackPanel>
-                    </Border>
+                <!-- 📊 MAVLink Logs button -->
+                <Button Classes="overlay-btn"
+                        Command="{Binding OpenLogsCommand}">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <TextBlock Text="📊" FontSize="14"/>
+                        <TextBlock Text="MAVLink Logs" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Button>
 
-                    <!-- Flight mode -->
-                    <Border Background="#CC111827" CornerRadius="6" Padding="8,4">
-                        <TextBlock Text="{Binding FlightMode}"
-                                   FontSize="12" FontWeight="SemiBold"
-                                   Foreground="#38BDF8" VerticalAlignment="Center"/>
-                    </Border>
-
-                    <!-- GPS sats (only when connected) -->
-                    <Border Background="#CC111827" CornerRadius="6" Padding="8,4"
-                            IsVisible="{Binding IsConnected}">
-                        <StackPanel Orientation="Horizontal" Spacing="4">
-                            <TextBlock Text="🛰" FontSize="12" VerticalAlignment="Center"/>
-                            <TextBlock Text="{Binding SatelliteCount}"
-                                       FontSize="12" Foreground="#94A3B8" VerticalAlignment="Center"/>
-                        </StackPanel>
-                    </Border>
-
-                </StackPanel>
-
-                <!-- Right: battery + action buttons -->
-                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-
-                    <!-- Battery status indicator -->
-                    <Border Background="#CC111827" CornerRadius="6" Padding="8,4" Margin="0,0,12,0">
-                        <StackPanel Orientation="Horizontal" Spacing="6">
-                            <TextBlock Text="🔋" FontSize="13" VerticalAlignment="Center"/>
-                            <!-- BatteryStatus shows "42%" when remaining% is known, else "12.4V" -->
-                            <TextBlock Classes="batt-label"
-                                       Text="{Binding BatteryStatus}"/>
-                            <!-- Raw voltage shown alongside when connected -->
-                            <TextBlock FontSize="11" Foreground="#64748B"
-                                       VerticalAlignment="Center"
-                                       IsVisible="{Binding IsConnected}"
-                                       Text="{Binding BatteryVoltage, StringFormat='{}{0:F1}V'}"/>
-                        </StackPanel>
-                    </Border>
-
-                    <!-- 🎥 Live Camera button (only when connected) -->
-                    <Button Classes="overlay-btn"
-                            Command="{Binding ToggleVideoStreamCommand}"
-                            IsVisible="{Binding IsConnected}">
-                        <StackPanel Orientation="Horizontal" Spacing="6">
-                            <TextBlock Text="🎥" FontSize="14"/>
-                            <TextBlock Text="{Binding IsVideoStreaming,
-                                       Converter={StaticResource BoolToStringConverter},
-                                       ConverterParameter='Stop Camera|Live Camera'}"
-                                       VerticalAlignment="Center"/>
-                        </StackPanel>
-                    </Button>
-
-                    <!-- 📊 MAVLink Logs button (always visible) -->
-                    <Button Classes="overlay-btn"
-                            Command="{Binding OpenMavlinkLogsCommand}">
-                        <StackPanel Orientation="Horizontal" Spacing="6">
-                            <TextBlock Text="📊" FontSize="14"/>
-                            <TextBlock Text="MAVLink Logs" VerticalAlignment="Center"/>
-                        </StackPanel>
-                    </Button>
-
-                </StackPanel>
-
-            </Grid>
+            </StackPanel>
         </Border>
 
         <!-- ── Camera feed overlay panel ──
-             Floats over the map at top-right when IsCameraViewOpen = true.
-             Provides stream URL input, start/stop, and a frame display area. -->
-        <Border IsVisible="{Binding IsCameraViewOpen}"
+             Floats over the map at top-right when IsCameraVisible = true.
+             Compact 16:9 card (~320×200) positioned directly below the toolbar buttons.
+             Toggled by ToggleCameraCommand; stream is started/stopped alongside. -->
+        <Border IsVisible="{Binding IsCameraVisible}"
                 HorizontalAlignment="Right"
                 VerticalAlignment="Top"
                 Margin="0,60,12,0"
-                Width="360" Height="240"
+                Width="320" Height="200"
                 Background="#E60A0E1A"
                 CornerRadius="10"
                 BorderBrush="#2D3748"
@@ -181,7 +110,7 @@
                         </StackPanel>
                         <Button Grid.Column="1"
                                 Content="✕"
-                                Command="{Binding CloseCameraViewCommand}"
+                                Command="{Binding ToggleCameraCommand}"
                                 Background="Transparent"
                                 Foreground="#64748B"
                                 Padding="4,2"
@@ -204,7 +133,7 @@
                                        FontSize="11" Foreground="#64748B"
                                        HorizontalAlignment="Center"
                                        TextWrapping="Wrap" TextAlignment="Center"
-                                       MaxWidth="280"/>
+                                       MaxWidth="260"/>
                         </StackPanel>
 
                         <!-- Streaming: show active indicator -->
@@ -220,40 +149,35 @@
                                        FontSize="10" Foreground="#64748B"
                                        HorizontalAlignment="Center"/>
                         </StackPanel>
+
+                        <!-- LIVE badge (top-left overlay when streaming) -->
+                        <Border IsVisible="{Binding IsVideoStreaming}"
+                                HorizontalAlignment="Left" VerticalAlignment="Top"
+                                Margin="8,6" Background="#BB22c55e"
+                                CornerRadius="4" Padding="5,2">
+                            <TextBlock Text="● LIVE"
+                                       FontSize="10" FontWeight="Bold"
+                                       Foreground="White"/>
+                        </Border>
                     </Grid>
                 </Border>
 
-                <!-- URL input + Start/Stop -->
+                <!-- Stream URL input -->
                 <Border Grid.Row="2"
                         Background="#CC111827"
                         Padding="10,8"
                         BorderBrush="#1E2433"
                         BorderThickness="0,1,0,0">
-                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                        <TextBox Grid.Column="0"
-                                 Text="{Binding VideoStreamUrl}"
-                                 Watermark="rtsp://…"
-                                 FontSize="11"
-                                 IsEnabled="{Binding !IsVideoStreaming}"
-                                 Background="#0D1117"
-                                 Foreground="#E2E8F0"
-                                 BorderBrush="#2D3748"
-                                 BorderThickness="1"
-                                 CornerRadius="6"
-                                 Padding="8,5"/>
-                        <Button Grid.Column="1"
-                                Command="{Binding ToggleVideoStreamCommand}"
-                                FontSize="12" FontWeight="SemiBold"
-                                Padding="10,6" CornerRadius="6"
-                                Background="{Binding IsVideoStreaming,
-                                             Converter={StaticResource BoolToBackgroundConverter},
-                                             ConverterParameter='#DC2626|#16A34A'}"
-                                Foreground="White"
-                                BorderThickness="0"
-                                Content="{Binding IsVideoStreaming,
-                                          Converter={StaticResource BoolToStringConverter},
-                                          ConverterParameter='Stop|Start'}"/>
-                    </Grid>
+                    <TextBox Text="{Binding VideoStreamUrl}"
+                             Watermark="rtsp://…"
+                             FontSize="11"
+                             IsEnabled="{Binding !IsVideoStreaming}"
+                             Background="#0D1117"
+                             Foreground="#E2E8F0"
+                             BorderBrush="#2D3748"
+                             BorderThickness="1"
+                             CornerRadius="6"
+                             Padding="8,5"/>
                 </Border>
 
             </Grid>
