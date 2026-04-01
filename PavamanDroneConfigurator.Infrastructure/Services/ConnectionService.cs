@@ -1216,23 +1216,6 @@ public sealed class ConnectionService : IConnectionService, IDisposable
         _ = _mavlink.SendArmDisarmAsync(arm, force);
     }
 
-    public void SendReturnToLaunch()
-    {
-        if (_currentConnectionType == ConnectionType.Bluetooth && _bluetoothConnection != null)
-        {
-            _ = _bluetoothConnection.SendReturnToLaunchAsync();
-            return;
-        }
-
-        if (_mavlink == null)
-        {
-            _logger.LogWarning("Cannot send MAV_CMD_NAV_RETURN_TO_LAUNCH - not connected");
-            return;
-        }
-
-        _ = _mavlink.SendReturnToLaunchAsync();
-    }
-
     public void SendResetParameters()
     {
         _logger.LogInformation("Sending reset parameters command");

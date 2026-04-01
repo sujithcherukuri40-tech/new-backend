@@ -87,7 +87,6 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
         };
 
         // MAV_CMD IDs
-        private const ushort MAV_CMD_NAV_RETURN_TO_LAUNCH = 20;
         private const ushort MAV_CMD_DO_MOTOR_TEST = 209;
         private const ushort MAV_CMD_PREFLIGHT_CALIBRATION = 241;
         private const ushort MAV_CMD_PREFLIGHT_STORAGE = 245;
@@ -1367,12 +1366,6 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
 
             await SendCommandLongAsync(MAV_CMD_COMPONENT_ARM_DISARM,
                 arm ? 1 : 0, force ? 21196 : 0, 0, 0, 0, 0, 0, ct);
-        }
-
-        public async Task SendReturnToLaunchAsync(CancellationToken ct = default)
-        {
-            _logger.LogInformation("Sending MAV_CMD_NAV_RETURN_TO_LAUNCH");
-            await SendCommandLongFireAndForgetAsync(MAV_CMD_NAV_RETURN_TO_LAUNCH, 0, 0, 0, 0, 0, 0, 0, ct);
         }
 
         public async Task SendAccelCalVehiclePosAsync(int position, CancellationToken ct = default)

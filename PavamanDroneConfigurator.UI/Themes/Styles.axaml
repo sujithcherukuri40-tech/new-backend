@@ -386,46 +386,4 @@
         <Setter Property="MaxWidth" Value="{DynamicResource DialogMaxWidth}"/>
     </Style>
 
-    <!-- ═══════════════════════════════════════════════════════════════════════
-         LIVE MAP OVERLAY BUTTON STYLES
-    ════════════════════════════════════════════════════════════════════════ -->
-
-    <Style Selector="Button.MapOverlayBtn">
-        <Setter Property="Background" Value="#CC0D111C"/>
-        <Setter Property="Foreground" Value="#DDFFFFFF"/>
-        <Setter Property="BorderBrush" Value="#33FFFFFF"/>
-        <Setter Property="BorderThickness" Value="0.5"/>
-        <Setter Property="CornerRadius" Value="6"/>
-        <Setter Property="Padding" Value="10,6"/>
-        <Setter Property="FontSize" Value="12"/>
-        <Setter Property="FontWeight" Value="Medium"/>
-        <Setter Property="Cursor" Value="Hand"/>
-    </Style>
-    <Style Selector="Button.MapOverlayBtn:pointerover">
-        <Setter Property="Background" Value="#DD1A2540"/>
-    </Style>
-    <Style Selector="Button.MapOverlayBtn.Danger">
-        <Setter Property="BorderBrush" Value="#66F87171"/>
-        <Setter Property="Foreground" Value="#FFFCA5A5"/>
-    </Style>
-    <Style Selector="Button.MapOverlayBtn.Amber">
-        <Setter Property="BorderBrush" Value="#66FCD34D"/>
-        <Setter Property="Foreground" Value="#FFFDE68A"/>
-    </Style>
-    <Style Selector="ToggleButton.MapOverlayBtn">
-        <Setter Property="Background" Value="#CC0D111C"/>
-        <Setter Property="Foreground" Value="#DDFFFFFF"/>
-        <Setter Property="BorderBrush" Value="#33FFFFFF"/>
-        <Setter Property="BorderThickness" Value="0.5"/>
-        <Setter Property="CornerRadius" Value="6"/>
-        <Setter Property="Padding" Value="10,6"/>
-        <Setter Property="FontSize" Value="12"/>
-        <Setter Property="FontWeight" Value="Medium"/>
-        <Setter Property="Cursor" Value="Hand"/>
-    </Style>
-    <Style Selector="ToggleButton.MapOverlayBtn.Amber">
-        <Setter Property="BorderBrush" Value="#66FCD34D"/>
-        <Setter Property="Foreground" Value="#FFFDE68A"/>
-    </Style>
-
 </Styles>

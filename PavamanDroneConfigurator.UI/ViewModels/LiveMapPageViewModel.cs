@@ -108,12 +108,6 @@ public partial class LiveMapPageViewModel : ViewModelBase
     [ObservableProperty]
     private string _batteryStatus = "N/A";
 
-    [ObservableProperty]
-    private bool _isBatteryLow;
-
-    private const double BatteryLowThresholdPercent = 20.0;
-    private const double BatteryLowThresholdVolts = 10.5;
-
     #endregion
 
     #region Observable Properties - Attitude
@@ -254,18 +248,6 @@ public partial class LiveMapPageViewModel : ViewModelBase
     [ObservableProperty]
     private bool _isCameraTabActive;
 
-    // MAVLink Log panel
-    [ObservableProperty]
-    private bool _isLogPanelOpen;
-
-    // Camera side panel
-    [ObservableProperty]
-    private bool _isCameraPanelOpen;
-
-    // Disarm confirmation
-    [ObservableProperty]
-    private bool _isDisarmConfirmVisible;
-
     // Default altitude for new waypoints (metres AGL)
     [ObservableProperty]
     private double _defaultAltitude = 30;
@@ -296,10 +278,6 @@ public partial class LiveMapPageViewModel : ViewModelBase
     // Flight path for map display
     public IReadOnlyList<(double Lat, double Lon)> FlightPath => _flightPath;
 
-    // Sub-ViewModels for camera feed and MAVLink log panel
-    public CameraFeedViewModel CameraFeed { get; private set; } = null!;
-    public MavlinkLogViewModel MavlinkLog { get; private set; } = null!;
-
     // Events to notify view of updates
     public event EventHandler<DronePositionUpdateEventArgs>? PositionUpdated;
     public event EventHandler<int>? BatteryUpdated;
@@ -324,9 +302,6 @@ public partial class LiveMapPageViewModel : ViewModelBase
     {
         _connectionService = connectionService;
         _telemetryService = telemetryService;
-
-        MavlinkLog = new MavlinkLogViewModel(_connectionService);
-        CameraFeed = new CameraFeedViewModel();
 
         // Subscribe to connection events
         _connectionService.ConnectionStateChanged += OnConnectionStateChanged;
@@ -493,12 +468,10 @@ public partial class LiveMapPageViewModel : ViewModelBase
             if (e.RemainingPercent >= 0)
             {
                 BatteryStatus = $"{e.RemainingPercent}%";
-                IsBatteryLow = e.RemainingPercent < BatteryLowThresholdPercent;
             }
             else
             {
                 BatteryStatus = $"{e.Voltage:F1}V";
-                IsBatteryLow = e.Voltage > 0 && e.Voltage < BatteryLowThresholdVolts;
             }
 
             BatteryUpdated?.Invoke(this, e.RemainingPercent);
@@ -557,7 +530,6 @@ public partial class LiveMapPageViewModel : ViewModelBase
         BatteryCurrent = 0;
         BatteryRemaining = -1;
         BatteryStatus = "N/A";
-        IsBatteryLow = false;
         HasValidPosition = false;
         IsReceivingTelemetry = false;
         PositionString = "N/A";
@@ -610,61 +582,6 @@ public partial class LiveMapPageViewModel : ViewModelBase
         TotalFlightDistance = 0;
         _homePosition = null;
         FlightPathCleared?.Invoke(this, EventArgs.Empty);
-    }
-
-    // ── Overlay action buttons ─────────────────────────────────────────────
-
-    /// <summary>Activate waypoint placement tool on the map.</summary>
-    [RelayCommand]
-    private void AddWaypoint()
-    {
-        SelectMissionToolWaypoint();
-    }
-
-    /// <summary>Send MAV_CMD_NAV_RETURN_TO_LAUNCH to the drone.</summary>
-    [RelayCommand]
-    private void Rtl()
-    {
-        if (!IsConnected) return;
-        _connectionService.SendReturnToLaunch();
-    }
-
-    /// <summary>Show inline disarm confirmation before sending command.</summary>
-    [RelayCommand]
-    private void RequestDisarm()
-    {
-        if (!IsConnected) return;
-        IsDisarmConfirmVisible = true;
-    }
-
-    /// <summary>Cancel disarm confirmation.</summary>
-    [RelayCommand]
-    private void CancelDisarm()
-    {
-        IsDisarmConfirmVisible = false;
-    }
-
-    /// <summary>Confirm and send MAV_CMD_COMPONENT_ARM_DISARM (param1=0).</summary>
-    [RelayCommand]
-    private void ConfirmDisarm()
-    {
-        IsDisarmConfirmVisible = false;
-        if (!IsConnected) return;
-        _connectionService.SendArmDisarm(false);
-    }
-
-    /// <summary>Toggle the MAVLink log panel.</summary>
-    [RelayCommand]
-    private void OpenMavlinkLogs()
-    {
-        IsLogPanelOpen = !IsLogPanelOpen;
-    }
-
-    /// <summary>Toggle the camera side panel.</summary>
-    [RelayCommand]
-    private void ToggleCamera()
-    {
-        IsCameraPanelOpen = !IsCameraPanelOpen;
     }
 
     [RelayCommand]
@@ -1009,8 +926,6 @@ public partial class LiveMapPageViewModel : ViewModelBase
             _telemetryService.BatteryStatusChanged -= OnBatteryStatusChanged;
             _telemetryService.GpsStatusChanged -= OnGpsStatusChanged;
             _telemetryService.TelemetryAvailabilityChanged -= OnTelemetryAvailabilityChanged;
-            MavlinkLog.Dispose();
-            CameraFeed.Dispose();
         }
         base.Dispose(disposing);
     }

@@ -1,125 +1,13 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:controls="using:PavamanDroneConfigurator.UI.Controls"
-             xmlns:views="using:PavamanDroneConfigurator.UI.Views"
-             xmlns:vm="using:PavamanDroneConfigurator.UI.ViewModels"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              mc:Ignorable="d" d:DesignWidth="1400" d:DesignHeight="900"
              x:Class="PavamanDroneConfigurator.UI.Views.LiveMapPage"
-             x:DataType="vm:LiveMapPageViewModel"
              Background="#0A0E1A">
 
-    <Grid RowDefinitions="*,Auto">
-        <!-- Row 0: map + side panels -->
-        <Grid Grid.Row="0" ColumnDefinitions="*,Auto">
-
-            <!-- Map layer (always column 0) -->
-            <Grid Grid.Column="0">
-                <controls:GoogleMapView x:Name="MapView" ClipToBounds="True"/>
-
-                <!-- Bottom-left action cluster -->
-                <StackPanel Orientation="Horizontal"
-                            VerticalAlignment="Bottom" HorizontalAlignment="Left"
-                            Margin="12" Spacing="6">
-                    <Button Classes="MapOverlayBtn"
-                            Command="{Binding AddWaypointCommand}"
-                            Content="⊕  Waypoint"/>
-                    <Button Classes="MapOverlayBtn"
-                            Command="{Binding RtlCommand}"
-                            IsEnabled="{Binding IsConnected}"
-                            Content="⬌  RTL"/>
-                    <Panel>
-                        <Button Classes="MapOverlayBtn Danger"
-                                Command="{Binding RequestDisarmCommand}"
-                                IsEnabled="{Binding IsConnected}"
-                                Content="✕  Disarm"
-                                IsVisible="{Binding !IsDisarmConfirmVisible}"/>
-                        <!-- Inline confirmation -->
-                        <StackPanel Orientation="Horizontal" Spacing="4"
-                                    IsVisible="{Binding IsDisarmConfirmVisible}">
-                            <TextBlock Text="Disarm?" VerticalAlignment="Center"
-                                       Foreground="#FFFCA5A5" FontSize="12" Margin="4,0"/>
-                            <Button Classes="MapOverlayBtn Danger"
-                                    Command="{Binding ConfirmDisarmCommand}"
-                                    Content="Yes"/>
-                            <Button Classes="MapOverlayBtn"
-                                    Command="{Binding CancelDisarmCommand}"
-                                    Content="No"/>
-                        </StackPanel>
-                    </Panel>
-                </StackPanel>
-
-                <!-- Bottom-right cluster -->
-                <StackPanel Orientation="Horizontal"
-                            VerticalAlignment="Bottom" HorizontalAlignment="Right"
-                            Margin="12" Spacing="6">
-                    <Button Classes="MapOverlayBtn Amber"
-                            Command="{Binding OpenMavlinkLogsCommand}"
-                            Content="☰  MAVLink Logs"/>
-                    <Button Classes="MapOverlayBtn"
-                            Command="{Binding ToggleCameraCommand}"
-                            Content="⛶  Camera"/>
-                </StackPanel>
-            </Grid>
-
-            <!-- Camera side panel -->
-            <Border Grid.Column="1"
-                    IsVisible="{Binding IsCameraPanelOpen}"
-                    Width="240"
-                    Background="#EE0D111C"
-                    BorderBrush="#33FFFFFF" BorderThickness="0.5,0,0,0">
-                <views:CameraFeedView DataContext="{Binding CameraFeed}"/>
-            </Border>
-        </Grid>
-
-        <!-- Row 1: MAVLink log panel (collapsible drawer at bottom) -->
-        <Border Grid.Row="1"
-                IsVisible="{Binding IsLogPanelOpen}"
-                Background="#EE0D111C"
-                BorderBrush="#33FFFFFF" BorderThickness="0,0.5,0,0"
-                Height="180">
-            <Grid RowDefinitions="Auto,*">
-                <!-- Log toolbar -->
-                <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="12" Margin="12,8">
-                    <TextBlock Text="MAVLink Logs" Foreground="White"
-                               FontWeight="Medium" FontSize="13" VerticalAlignment="Center"/>
-                    <ToggleButton Content="{Binding MavlinkLog.IsPaused, Converter={StaticResource BoolToStringConverter}, ConverterParameter='Resume|Pause'}"
-                                  IsChecked="{Binding MavlinkLog.IsPaused}"
-                                  Classes="MapOverlayBtn Amber"
-                                  Padding="8,4" FontSize="11"/>
-                    <Button Content="Clear"
-                            Command="{Binding MavlinkLog.ClearLogsCommand}"
-                            Classes="MapOverlayBtn"
-                            Padding="8,4" FontSize="11"/>
-                    <Button Content="Export .log"
-                            Command="{Binding MavlinkLog.ExportLogsCommand}"
-                            Classes="MapOverlayBtn"
-                            Padding="8,4" FontSize="11"/>
-                    <Button Content="✕" ToolTip.Tip="Close"
-                            Command="{Binding OpenMavlinkLogsCommand}"
-                            Classes="MapOverlayBtn"
-                            Padding="8,4" FontSize="11"
-                            HorizontalAlignment="Right"/>
-                </StackPanel>
-
-                <!-- Log list -->
-                <ListBox Grid.Row="1"
-                         ItemsSource="{Binding MavlinkLog.LogEntries}"
-                         Background="Transparent"
-                         ScrollViewer.HorizontalScrollBarVisibility="Disabled">
-                    <ListBox.ItemTemplate>
-                        <DataTemplate>
-                            <TextBlock Text="{Binding}"
-                                       FontFamily="Cascadia Code, Consolas, monospace"
-                                       FontSize="11"
-                                       Foreground="#AAFFFFFF"
-                                       Padding="8,2"/>
-                        </DataTemplate>
-                    </ListBox.ItemTemplate>
-                </ListBox>
-            </Grid>
-        </Border>
+    <Grid>
+        <controls:GoogleMapView x:Name="MapView" ClipToBounds="True"/>
     </Grid>
 </UserControl>
-
