@@ -76,6 +76,12 @@ public partial class TelemetryPageViewModel : ViewModelBase
     [ObservableProperty]
     private string _batteryStatusColor = "#9CA3AF";
 
+    [ObservableProperty]
+    private bool _batteryProgressVisible;
+
+    [ObservableProperty]
+    private double _batteryProgressValue;
+
     // ─── GPS_RAW_INT (MSG 24) ─────────────────────────────────────────────────
 
     [ObservableProperty]
@@ -289,6 +295,8 @@ public partial class TelemetryPageViewModel : ViewModelBase
         BatteryCurrent   = t.BatteryCurrent >= 0 ? t.BatteryCurrent : 0;
         BatteryRemaining = t.BatteryRemaining;
         BatteryRemainingText = t.BatteryRemaining >= 0 ? $"{t.BatteryRemaining}%" : "--";
+        BatteryProgressVisible = t.BatteryRemaining >= 0;
+        BatteryProgressValue = t.BatteryRemaining >= 0 ? t.BatteryRemaining : 0;
         BatteryStatusColor = t.BatteryRemaining switch
         {
             >= 50 => "#22C55E",
@@ -332,7 +340,7 @@ public partial class TelemetryPageViewModel : ViewModelBase
 
         // VFR_HUD
         Airspeed    = Math.Round(t.Airspeed,     1);
-        GroundSpeed = Math.Round(t.GroundSpeed,  1);
+        GroundSpeed = Math.Round(t.GroundSpeed > 0.001 ? t.GroundSpeed : t.GroundSpeedMagnitude,  1);
         Throttle    = t.Throttle;
         ClimbRate   = Math.Round(t.ClimbRate,    2);
     }
@@ -354,6 +362,8 @@ public partial class TelemetryPageViewModel : ViewModelBase
         BatteryRemaining = -1;
         BatteryRemainingText = "--";
         BatteryStatusColor = "#9CA3AF";
+        BatteryProgressVisible = false;
+        BatteryProgressValue = 0;
 
         // GPS_RAW_INT
         GpsFixType = 0;
@@ -404,3 +414,9 @@ public partial class TelemetryPageViewModel : ViewModelBase
         base.Dispose(disposing);
     }
 }
+
+
+
+
+
+

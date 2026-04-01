@@ -342,7 +342,7 @@
 
         @keyframes sonarPulse {
             0% { width: 10px; height: 10px; opacity: 0.9; }
-            100% { width: 84px; height: 84px; opacity: 0; }
+            100% { width: 84px, height: 84px; opacity: 0; }
         }
     </style>
 </head>
@@ -403,7 +403,6 @@
     </div>
 
     <div class="mission-card glass">
-        <div class="mission-row"><span class="label">WAYPOINT</span><span class="value" id="miniWp">N/A</span></div>
         <div class="mission-row"><span class="label">ETA</span><span class="value" id="miniEta">N/A</span></div>
         <div class="mission-row"><span class="label">BATTERY</span><span class="value" id="miniBatt">--%</span></div>
         <div class="mission-row"><span class="label">HEADING</span><span class="value" id="miniHeading">0°</span></div>
@@ -415,7 +414,7 @@
             <div class="metric-row">
                 <div class="metric"><div class="label">ALT</div><div class="value" id="altVal">0.0 m</div></div>
                 <div class="metric"><div class="label">SPEED</div><div class="value" id="speedVal">0.0 m/s</div></div>
-                <div class="metric"><div class="label">WAYPOINT</div><div class="value" id="wpVal">N/A</div></div>
+                <div class="metric"><div class="label">V/SPEED</div><div class="value" id="vSpeedVal">0.0 m/s</div></div>
                 <div class="metric"><div class="label">TIME</div><div class="value" id="timeVal">00:00:00</div></div>
             </div>
             <div class="metric-row">
@@ -657,6 +656,7 @@
 
             document.getElementById('altVal').textContent = `${(alt || 0).toFixed(1)} m`;
             document.getElementById('speedVal').textContent = `${(groundSpeed || 0).toFixed(1)} m/s`;
+            document.getElementById('vSpeedVal').textContent = `${(verticalSpeed || 0).toFixed(1)} m/s`;
             document.getElementById('flowVal').textContent = `${(flowRate != null ? flowRate : 0).toFixed(1)} L/min`;
             document.getElementById('miniHeading').textContent = `${Math.round(lastDroneHeading)}°`;
             const elapsed = missionStartAt === null ? 0 : Math.max(0, Math.floor((Date.now() - missionStartAt) / 1000));
@@ -862,8 +862,6 @@
                     }]
                 });
             }
-            document.getElementById('wpVal').textContent = missionWaypoints.length ? `${missionWaypoints.length}` : 'N/A';
-            document.getElementById('miniWp').textContent = missionWaypoints.length ? `${missionWaypoints.length}` : 'N/A';
         }
 
         function updateMissionPath() {
@@ -879,8 +877,6 @@
         function clearWaypoints() {
             clearWaypointsInternal();
             missionWaypoints = [];
-            document.getElementById('wpVal').textContent = 'N/A';
-            document.getElementById('miniWp').textContent = 'N/A';
         }
 
         function deleteWaypoint(index) {

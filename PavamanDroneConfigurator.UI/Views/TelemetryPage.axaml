@@ -220,11 +220,11 @@
                         </Grid>
 
                         <!-- Battery progress bar -->
-                        <ProgressBar Value="{Binding BatteryRemaining}"
+                        <ProgressBar Value="{Binding BatteryProgressValue}"
                                      Minimum="0" Maximum="100"
                                      Height="10"
                                      CornerRadius="5"
-                                     IsVisible="{Binding BatteryRemaining, Converter={x:Static ObjectConverters.IsNotNull}}">
+                                     IsVisible="{Binding BatteryProgressVisible}">
                             <ProgressBar.Foreground>
                                 <SolidColorBrush Color="{Binding BatteryStatusColor}"/>
                             </ProgressBar.Foreground>
@@ -293,7 +293,7 @@
                                    FontFamily="{DynamicResource MonospaceFont}"
                                    Margin="0,0,0,4"/>
 
-                        <Grid ColumnDefinitions="150,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto" RowSpacing="8">
+                        <Grid ColumnDefinitions="150,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto" RowSpacing="8">
                             <TextBlock Grid.Row="0" Grid.Column="0" Text="Latitude"      Classes="telem-label"/>
                             <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding Latitude, StringFormat='{}{0:F6}°'}" Classes="telem-value"/>
 
@@ -309,8 +309,11 @@
                             <TextBlock Grid.Row="4" Grid.Column="0" Text="Heading"       Classes="telem-label"/>
                             <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding Heading, StringFormat='{}{0:F1}°'}" Classes="telem-value"/>
 
-                            <TextBlock Grid.Row="5" Grid.Column="0" Text="Vel (X / Y / Z)" Classes="telem-label"/>
-                            <StackPanel Grid.Row="5" Grid.Column="1" Orientation="Horizontal" Spacing="4">
+                            <TextBlock Grid.Row="5" Grid.Column="0" Text="Ground Speed"  Classes="telem-label"/>
+                            <TextBlock Grid.Row="5" Grid.Column="1" Text="{Binding GroundSpeed, StringFormat='{}{0:F1} m/s'}" Classes="telem-value"/>
+
+                            <TextBlock Grid.Row="6" Grid.Column="0" Text="Vel (X / Y / Z)" Classes="telem-label"/>
+                            <StackPanel Grid.Row="6" Grid.Column="1" Orientation="Horizontal" Spacing="4">
                                 <TextBlock Text="{Binding VelX, StringFormat='{}{0:F2}'}" Classes="telem-value"/>
                                 <TextBlock Text="/" Foreground="#94A3B8" VerticalAlignment="Center"/>
                                 <TextBlock Text="{Binding VelY, StringFormat='{}{0:F2}'}" Classes="telem-value"/>
@@ -446,3 +449,7 @@
     </ScrollViewer>
 
 </UserControl>
+
+
+
+

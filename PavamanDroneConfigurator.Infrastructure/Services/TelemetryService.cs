@@ -637,6 +637,12 @@ public sealed class TelemetryService : ITelemetryService, IDisposable
     {
         try
         {
+            if (!e.CrcValid)
+            {
+                TrackCrcStatus("VFR_HUD", false);
+                return;
+            }
+
             if (!IsValidVfrFrame(e))
             {
                 return;
@@ -653,7 +659,7 @@ public sealed class TelemetryService : ITelemetryService, IDisposable
                 _hasPendingUpdate = true;
             }
 
-            TrackCrcStatus("VFR_HUD", e.CrcValid);
+            TrackCrcStatus("VFR_HUD", true);
             MarkValidFrame("VFR_HUD", now);
         }
         catch (Exception ex)
@@ -711,7 +717,12 @@ public sealed class TelemetryService : ITelemetryService, IDisposable
     {
         try
         {
-            // Accept all sys status - SITL may have unusual battery values
+            if (!e.CrcValid)
+            {
+                TrackCrcStatus("SYS_STATUS", false);
+                return;
+            }
+
             var now = DateTime.UtcNow;
             lock (_stateLock)
             {
@@ -732,7 +743,7 @@ public sealed class TelemetryService : ITelemetryService, IDisposable
                 RemainingPercent = e.BatteryRemaining
             });
 
-            TrackCrcStatus("SYS_STATUS", e.CrcValid);
+            TrackCrcStatus("SYS_STATUS", true);
             MarkValidFrame("SYS_STATUS", now);
         }
         catch (Exception ex)

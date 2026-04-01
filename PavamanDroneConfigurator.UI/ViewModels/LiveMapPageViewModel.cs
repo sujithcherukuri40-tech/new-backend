@@ -359,7 +359,14 @@ public partial class LiveMapPageViewModel : ViewModelBase
             Longitude = telemetry.Longitude;
             Altitude = telemetry.AltitudeRelative;
             Heading = telemetry.Heading;
-            GroundSpeed = telemetry.GroundSpeed;
+
+            var resolvedGroundSpeed = telemetry.GroundSpeed;
+            if (resolvedGroundSpeed <= 0.001)
+            {
+                resolvedGroundSpeed = telemetry.GroundSpeedMagnitude;
+            }
+
+            GroundSpeed = resolvedGroundSpeed;
             Airspeed = telemetry.Airspeed;
             ClimbRate = telemetry.ClimbRate;
             VerticalSpeed = telemetry.VerticalSpeed;
