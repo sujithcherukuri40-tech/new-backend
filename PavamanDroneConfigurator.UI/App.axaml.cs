@@ -660,6 +660,7 @@ public partial class App : Application
         services.AddSingleton<VehicleTypeDetector>();
         services.AddSingleton<IArduPilotMetadataLoader, ArduPilotMetadataLoader>();
         services.AddSingleton<IMavLinkMessageLogger, MavLinkMessageLogger>();
+        services.AddSingleton<IVideoStreamingService, VideoStreamingService>();
         services.AddSingleton<CalibrationPreConditionChecker>();
         services.AddSingleton<CalibrationAbortMonitor>();
         services.AddSingleton<CalibrationValidationHelper>();
@@ -718,6 +719,7 @@ public partial class App : Application
         services.AddTransient<FirmwarePageViewModel>();
         services.AddTransient<LiveMapPageViewModel>();
         services.AddTransient<TelemetryPageViewModel>();
+        services.AddSingleton<MavlinkLogsViewModel>();
         services.AddTransient<ViewModels.Admin.ParamLogsViewModel>();
 
         Console.WriteLine("[App] Building service provider...");

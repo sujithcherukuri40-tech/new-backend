@@ -8,6 +8,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using PavamanDroneConfigurator.Core.Interfaces;
 using PavamanDroneConfigurator.Core.Models;
+using PavamanDroneConfigurator.Infrastructure.Services;
 
 namespace PavamanDroneConfigurator.UI.ViewModels;
 
@@ -23,6 +24,7 @@ public partial class LiveMapPageViewModel : ViewModelBase
 
     private readonly IConnectionService _connectionService;
     private readonly ITelemetryService _telemetryService;
+    private readonly IVideoStreamingService _videoStreamingService;
     private readonly List<(double Lat, double Lon)> _flightPath = new();
 
     #region Observable Properties - Connection Status
@@ -259,11 +261,29 @@ public partial class LiveMapPageViewModel : ViewModelBase
     [ObservableProperty]
     private string _missionEstimatedTime = "0:00";
 
+    #region Observable Properties - Video Streaming
+
+    [ObservableProperty]
+    private bool _isVideoStreaming;
+
+    [ObservableProperty]
+    private string _videoStreamUrl = "rtsp://192.168.1.1:8554/live";
+
+    [ObservableProperty]
+    private string _videoStreamStatus = "Not connected";
+
+    #endregion
+
     #endregion
 
     partial void OnIsReceivingTelemetryChanged(bool value)
     {
         OnPropertyChanged(nameof(LiveStatusText));
+    }
+
+    partial void OnVideoStreamUrlChanged(string value)
+    {
+        _videoStreamingService.StreamUrl = value;
     }
 
     partial void OnMissionItemCountChanged(int value)
@@ -288,6 +308,9 @@ public partial class LiveMapPageViewModel : ViewModelBase
     public event EventHandler<bool>? FollowChanged;
     public event EventHandler<string>? MissionToolChanged;
 
+    /// <summary>Raised when the user clicks the "MAVLink Logs" button; the View opens the window.</summary>
+    public event EventHandler? OpenMavlinkLogsRequested;
+
     // Default center (India)
     private const double DEFAULT_LAT = 20.5937;
     private const double DEFAULT_LNG = 78.9629;
@@ -298,10 +321,16 @@ public partial class LiveMapPageViewModel : ViewModelBase
 
     public LiveMapPageViewModel(
         IConnectionService connectionService,
-        ITelemetryService telemetryService)
+        ITelemetryService telemetryService,
+        IVideoStreamingService videoStreamingService)
     {
         _connectionService = connectionService;
         _telemetryService = telemetryService;
+        _videoStreamingService = videoStreamingService;
+
+        // Wire up video streaming state events
+        _videoStreamingService.StreamingStateChanged += OnVideoStreamingStateChanged;
+        _videoStreamingService.StatusChanged += OnVideoStreamStatusChanged;
 
         // Subscribe to connection events
         _connectionService.ConnectionStateChanged += OnConnectionStateChanged;
@@ -506,6 +535,26 @@ public partial class LiveMapPageViewModel : ViewModelBase
         });
     }
 
+    private void OnVideoStreamingStateChanged(object? sender, bool isStreaming)
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            IsVideoStreaming = isStreaming;
+            if (!isStreaming && IsCameraViewOpen)
+            {
+                // Keep the panel open so the user sees the status message.
+            }
+        });
+    }
+
+    private void OnVideoStreamStatusChanged(object? sender, string status)
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            VideoStreamStatus = status;
+        });
+    }
+
     private void ResetTelemetryDisplay()
     {
         Latitude = 0;
@@ -700,6 +749,39 @@ public partial class LiveMapPageViewModel : ViewModelBase
     private void CloseCameraView()
     {
         IsCameraViewOpen = false;
+    }
+
+    /// <summary>Start the RTSP/UDP video stream from the drone camera.</summary>
+    [RelayCommand]
+    private async System.Threading.Tasks.Task StartVideoStreamAsync()
+    {
+        _videoStreamingService.StreamUrl = VideoStreamUrl;
+        await _videoStreamingService.StartAsync();
+        IsCameraViewOpen = true;
+    }
+
+    /// <summary>Stop the current video stream.</summary>
+    [RelayCommand]
+    private async System.Threading.Tasks.Task StopVideoStreamAsync()
+    {
+        await _videoStreamingService.StopAsync();
+    }
+
+    /// <summary>Toggle the video stream on / off.</summary>
+    [RelayCommand]
+    private async System.Threading.Tasks.Task ToggleVideoStreamAsync()
+    {
+        if (IsVideoStreaming)
+            await StopVideoStreamAsync();
+        else
+            await StartVideoStreamAsync();
+    }
+
+    /// <summary>Open the MAVLink logs window (handled by the View).</summary>
+    [RelayCommand]
+    private void OpenMavlinkLogs()
+    {
+        OpenMavlinkLogsRequested?.Invoke(this, EventArgs.Empty);
     }
 
     [RelayCommand]
@@ -926,6 +1008,8 @@ public partial class LiveMapPageViewModel : ViewModelBase
             _telemetryService.BatteryStatusChanged -= OnBatteryStatusChanged;
             _telemetryService.GpsStatusChanged -= OnGpsStatusChanged;
             _telemetryService.TelemetryAvailabilityChanged -= OnTelemetryAvailabilityChanged;
+            _videoStreamingService.StreamingStateChanged -= OnVideoStreamingStateChanged;
+            _videoStreamingService.StatusChanged -= OnVideoStreamStatusChanged;
         }
         base.Dispose(disposing);
     }
