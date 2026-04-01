@@ -54,6 +54,9 @@ public partial class LiveMapPage : UserControl
 
             Debug.WriteLine("[LiveMapPage] GoogleMap control found, setting up event handlers");
 
+            // Reserve space for the Avalonia overlay toolbar (≈52dp top, 0 elsewhere).
+            _map.SetViewportInsets(top: 52, right: 0, bottom: 0, left: 0);
+
             // Subscribe to map events (only once – these are on the control itself)
             _map.MapReady += OnMapReady;
             _map.MapError += OnMapError;
@@ -84,6 +87,7 @@ public partial class LiveMapPage : UserControl
             vm.FollowChanged += OnFollowChanged;
             vm.MissionToolChanged += OnMissionToolChanged;
             vm.MissionItems.CollectionChanged += OnMissionItemsCollectionChanged;
+            vm.OpenMavlinkLogsRequested += OnOpenMavlinkLogsRequested;
 
             Debug.WriteLine("[LiveMapPage] All event handlers connected");
 
@@ -127,6 +131,7 @@ public partial class LiveMapPage : UserControl
             vm.FollowChanged -= OnFollowChanged;
             vm.MissionToolChanged -= OnMissionToolChanged;
             vm.MissionItems.CollectionChanged -= OnMissionItemsCollectionChanged;
+            vm.OpenMavlinkLogsRequested -= OnOpenMavlinkLogsRequested;
         }
     }
 
@@ -330,6 +335,26 @@ public partial class LiveMapPage : UserControl
         {
             _map?.CenterOnDrone(true);
             Debug.WriteLine("[LiveMapPage] ? Recentered on drone");
+        });
+    }
+
+    private void OnOpenMavlinkLogsRequested(object? sender, EventArgs e)
+    {
+        if (App.Services == null) return;
+
+        Dispatcher.UIThread.Post(() =>
+        {
+            try
+            {
+                var logsVm = App.Services.GetRequiredService<MavlinkLogsViewModel>();
+                var logsWindow = new MavlinkLogsWindow { DataContext = logsVm };
+                var parentWindow = TopLevel.GetTopLevel(this) as Avalonia.Controls.Window;
+                logsWindow.Show(parentWindow);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[LiveMapPage] Failed to open MAVLink logs: {ex.Message}");
+            }
         });
     }
 
