@@ -51,7 +51,6 @@ public interface IConnectionService
     void PrepareForReboot();
     void SendFlashBootloaderCommand(int magicValue);
     void SendArmDisarm(bool arm, bool force = false);
-    void SendReturnToLaunch();
     void SendResetParameters();
     void SendSetMessageInterval(int messageId, int intervalUs);
     void SendRequestDataStream(int streamId, int rateHz, int startStop);
