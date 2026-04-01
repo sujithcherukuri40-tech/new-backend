@@ -220,6 +220,53 @@
                         </StackPanel>
                     </Border>
 
+                    <!-- Stick Position Visualizer -->
+                    <Grid ColumnDefinitions="*,32,*" Margin="0,4,0,0">
+                        <!-- Left Stick: Yaw (X) + Throttle (Y) -->
+                        <StackPanel Grid.Column="0" HorizontalAlignment="Center" Spacing="4">
+                            <TextBlock Text="Left Stick (Yaw / Throttle)" FontSize="12" FontWeight="SemiBold"
+                                       Foreground="#374151" HorizontalAlignment="Center"/>
+                            <Border Width="140" Height="140" CornerRadius="8"
+                                    Background="#F9FAFB" BorderBrush="#D1D5DB" BorderThickness="1"
+                                    ClipToBounds="True">
+                                <Canvas Width="140" Height="140">
+                                    <!-- Crosshair lines -->
+                                    <Line StartPoint="70,0" EndPoint="70,140" Stroke="#E5E7EB" StrokeThickness="1"/>
+                                    <Line StartPoint="0,70" EndPoint="140,70" Stroke="#E5E7EB" StrokeThickness="1"/>
+                                    <!-- Axis labels -->
+                                    <TextBlock Text="Yaw" FontSize="9" Foreground="#9CA3AF" Canvas.Left="2" Canvas.Top="64"/>
+                                    <TextBlock Text="Thr" FontSize="9" Foreground="#9CA3AF" Canvas.Left="64" Canvas.Top="2"/>
+                                    <!-- Stick dot (16×16; ConverterParameter = canvasWidth − ellipseSize = 140 − 16 = 124) -->
+                                    <Ellipse Width="16" Height="16" Fill="#3B82F6" Opacity="0.85"
+                                             Canvas.Left="{Binding YawValue, Converter={x:Static conv:PwmToStickPositionConverter.Instance}, ConverterParameter=124}"
+                                             Canvas.Top="{Binding ThrottleValue, Converter={x:Static conv:PwmToStickPositionInvertedConverter.Instance}, ConverterParameter=124}"/>
+                                </Canvas>
+                            </Border>
+                        </StackPanel>
+
+                        <!-- Right Stick: Roll (X) + Pitch (Y) -->
+                        <StackPanel Grid.Column="2" HorizontalAlignment="Center" Spacing="4">
+                            <TextBlock Text="Right Stick (Roll / Pitch)" FontSize="12" FontWeight="SemiBold"
+                                       Foreground="#374151" HorizontalAlignment="Center"/>
+                            <Border Width="140" Height="140" CornerRadius="8"
+                                    Background="#F9FAFB" BorderBrush="#D1D5DB" BorderThickness="1"
+                                    ClipToBounds="True">
+                                <Canvas Width="140" Height="140">
+                                    <!-- Crosshair lines -->
+                                    <Line StartPoint="70,0" EndPoint="70,140" Stroke="#E5E7EB" StrokeThickness="1"/>
+                                    <Line StartPoint="0,70" EndPoint="140,70" Stroke="#E5E7EB" StrokeThickness="1"/>
+                                    <!-- Axis labels -->
+                                    <TextBlock Text="Roll" FontSize="9" Foreground="#9CA3AF" Canvas.Left="2" Canvas.Top="64"/>
+                                    <TextBlock Text="Pitch" FontSize="9" Foreground="#9CA3AF" Canvas.Left="60" Canvas.Top="2"/>
+                                    <!-- Stick dot (16×16; ConverterParameter = canvasWidth − ellipseSize = 140 − 16 = 124) -->
+                                    <Ellipse Width="16" Height="16" Fill="#3B82F6" Opacity="0.85"
+                                             Canvas.Left="{Binding RollValue, Converter={x:Static conv:PwmToStickPositionConverter.Instance}, ConverterParameter=124}"
+                                             Canvas.Top="{Binding PitchValue, Converter={x:Static conv:PwmToStickPositionInvertedConverter.Instance}, ConverterParameter=124}"/>
+                                </Canvas>
+                            </Border>
+                        </StackPanel>
+                    </Grid>
+
                     <!-- Main Attitude Channels -->
                     <StackPanel Spacing="12" Margin="0,8,0,0">
                         
@@ -260,6 +307,53 @@
                             <TextBlock Text="{Binding IsCalibrating, Converter={StaticResource CalibrationButtonTextConverter}, ConverterParameter='Complete Calibration|Start Calibration'}"/>
                         </Button>
                     </StackPanel>
+
+                    <!-- Calibration Min / Max / Center values (visible during and after calibration) -->
+                    <Border Background="#F0F9FF" CornerRadius="8" Padding="12"
+                            IsVisible="{Binding IsCalibrating}">
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="Calibration Values (Min / Center / Max)" FontSize="12" FontWeight="SemiBold" Foreground="#0369A1"/>
+
+                            <!-- Header row -->
+                            <Grid ColumnDefinitions="90,*,*,*">
+                                <TextBlock Grid.Column="1" Text="MIN"    FontSize="11" Foreground="#64748B" HorizontalAlignment="Center"/>
+                                <TextBlock Grid.Column="2" Text="CENTER" FontSize="11" Foreground="#64748B" HorizontalAlignment="Center"/>
+                                <TextBlock Grid.Column="3" Text="MAX"    FontSize="11" Foreground="#64748B" HorizontalAlignment="Center"/>
+                            </Grid>
+
+                            <!-- Roll -->
+                            <Grid ColumnDefinitions="90,*,*,*">
+                                <TextBlock Grid.Column="0" Text="Roll" Classes="field-label"/>
+                                <TextBlock Grid.Column="1" Text="{Binding RollMin}"    FontSize="12" FontWeight="Medium" Foreground="#0F172A" HorizontalAlignment="Center"/>
+                                <TextBlock Grid.Column="2" Text="{Binding RollCenter}" FontSize="12" FontWeight="Medium" Foreground="#0369A1" HorizontalAlignment="Center"/>
+                                <TextBlock Grid.Column="3" Text="{Binding RollMax}"    FontSize="12" FontWeight="Medium" Foreground="#0F172A" HorizontalAlignment="Center"/>
+                            </Grid>
+
+                            <!-- Pitch -->
+                            <Grid ColumnDefinitions="90,*,*,*">
+                                <TextBlock Grid.Column="0" Text="Pitch" Classes="field-label"/>
+                                <TextBlock Grid.Column="1" Text="{Binding PitchMin}"    FontSize="12" FontWeight="Medium" Foreground="#0F172A" HorizontalAlignment="Center"/>
+                                <TextBlock Grid.Column="2" Text="{Binding PitchCenter}" FontSize="12" FontWeight="Medium" Foreground="#0369A1" HorizontalAlignment="Center"/>
+                                <TextBlock Grid.Column="3" Text="{Binding PitchMax}"    FontSize="12" FontWeight="Medium" Foreground="#0F172A" HorizontalAlignment="Center"/>
+                            </Grid>
+
+                            <!-- Yaw -->
+                            <Grid ColumnDefinitions="90,*,*,*">
+                                <TextBlock Grid.Column="0" Text="Yaw" Classes="field-label"/>
+                                <TextBlock Grid.Column="1" Text="{Binding YawMin}"    FontSize="12" FontWeight="Medium" Foreground="#0F172A" HorizontalAlignment="Center"/>
+                                <TextBlock Grid.Column="2" Text="{Binding YawCenter}" FontSize="12" FontWeight="Medium" Foreground="#0369A1" HorizontalAlignment="Center"/>
+                                <TextBlock Grid.Column="3" Text="{Binding YawMax}"    FontSize="12" FontWeight="Medium" Foreground="#0F172A" HorizontalAlignment="Center"/>
+                            </Grid>
+
+                            <!-- Throttle -->
+                            <Grid ColumnDefinitions="90,*,*,*">
+                                <TextBlock Grid.Column="0" Text="Throttle" Classes="field-label"/>
+                                <TextBlock Grid.Column="1" Text="{Binding ThrottleMin}"    FontSize="12" FontWeight="Medium" Foreground="#0F172A" HorizontalAlignment="Center"/>
+                                <TextBlock Grid.Column="2" Text="{Binding ThrottleCenter}" FontSize="12" FontWeight="Medium" Foreground="#0369A1" HorizontalAlignment="Center"/>
+                                <TextBlock Grid.Column="3" Text="{Binding ThrottleMax}"    FontSize="12" FontWeight="Medium" Foreground="#0F172A" HorizontalAlignment="Center"/>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
             </Border>
 

@@ -81,7 +81,9 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
             MAVLINK_MSG_ID_GPS_RAW_INT,
             MAVLINK_MSG_ID_ATTITUDE,
             MAVLINK_MSG_ID_GLOBAL_POSITION_INT,
-            MAVLINK_MSG_ID_VFR_HUD
+            MAVLINK_MSG_ID_VFR_HUD,
+            MAVLINK_MSG_ID_MAG_CAL_PROGRESS,
+            MAVLINK_MSG_ID_MAG_CAL_REPORT
         };
 
         // MAV_CMD IDs
@@ -972,7 +974,7 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
 
         private void HandleMagCalProgress(byte[] payload)
         {
-            // MAG_CAL_PROGRESS message (27 bytes minimum):
+            // MAG_CAL_PROGRESS message layout:
             // [0-3]   direction_x (float)
             // [4-7]   direction_y (float)
             // [8-11]  direction_z (float)
@@ -980,9 +982,9 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
             // [13]    cal_mask (uint8)
             // [14]    cal_status (uint8)
             // [15]    attempt (uint8)
-            // [16]    completion_pct (uint8)
-            // [17-26] completion_mask (uint8[10])
-            if (payload.Length < 27)
+            // [16]    completion_pct (uint8)  ← minimum required
+            // [17-26] completion_mask (uint8[10]) – may be absent/truncated when all-zero (MAVLink V1 trailing-zero optimization)
+            if (payload.Length < 17)
                 return;
 
             var progressData = new MagCalProgressData
@@ -997,7 +999,16 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
                 CompletionPct = payload[16]
             };
 
-            Array.Copy(payload, 17, progressData.CompletionMask, 0, 10);
+            // Copy completion_mask only if present (may be absent when all zeros)
+            if (payload.Length >= 27)
+            {
+                Array.Copy(payload, 17, progressData.CompletionMask, 0, 10);
+            }
+            else if (payload.Length > 17)
+            {
+                int available = Math.Min(payload.Length - 17, 10);
+                Array.Copy(payload, 17, progressData.CompletionMask, 0, available);
+            }
 
             _logger.LogDebug("MAG_CAL_PROGRESS: compass={CompassId} status={Status} pct={Pct}%",
                 progressData.CompassId, progressData.CalStatus, progressData.CompletionPct);

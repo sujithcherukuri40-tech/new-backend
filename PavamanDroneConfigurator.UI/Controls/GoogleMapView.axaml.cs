@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.Tasks;
@@ -141,7 +142,16 @@ public partial class GoogleMapView : UserControl
 
     private async void OnLoaded(object? sender, RoutedEventArgs e)
     {
-        if (_isInitialized) return;
+        if (_isInitialized)
+        {
+            // Re-show the WebView and update bounds when re-entering the tab
+            if (_webViewController != null)
+            {
+                _webViewController.IsVisible = true;
+                UpdateWebViewBounds();
+            }
+            return;
+        }
         
         try
         {
@@ -156,7 +166,12 @@ public partial class GoogleMapView : UserControl
 
     private void OnUnloaded(object? sender, RoutedEventArgs e)
     {
-        Dispose();
+        // Don't dispose on tab switch - just hide the WebView so state is preserved.
+        // The WebView will be shown again when the control is re-loaded.
+        if (_webViewController != null)
+        {
+            _webViewController.IsVisible = false;
+        }
     }
     
     private void OnRetryClick(object? sender, RoutedEventArgs e)
@@ -565,7 +580,10 @@ public partial class GoogleMapView : UserControl
         double roll = 0,
         bool isArmed = false,
         double groundSpeed = 0,
-        double verticalSpeed = 0)
+        double verticalSpeed = 0,
+        int satelliteCount = 0,
+        string flightMode = "Unknown",
+        double flowRate = 0)
     {
         var data = new DroneUpdateData
         {
@@ -577,7 +595,10 @@ public partial class GoogleMapView : UserControl
             Roll = roll,
             IsArmed = isArmed,
             GroundSpeed = groundSpeed,
-            VerticalSpeed = verticalSpeed
+            VerticalSpeed = verticalSpeed,
+            SatelliteCount = satelliteCount,
+            FlightMode = flightMode,
+            FlowRate = flowRate
         };
 
         if (!_mapReady)
@@ -600,9 +621,10 @@ public partial class GoogleMapView : UserControl
 
         try
         {
+            var flightModeJson = System.Text.Json.JsonSerializer.Serialize(data.FlightMode);
             var script = string.Format(
                 CultureInfo.InvariantCulture,
-                "updateDrone({0}, {1}, {2}, {3}, {4}, {5}, {6}, {7}, {8});",
+                "updateDrone({0}, {1}, {2}, {3}, {4}, {5}, {6}, {7}, {8}, {9}, {10}, {11});",
                 data.Latitude,
                 data.Longitude,
                 data.Altitude,
@@ -611,7 +633,10 @@ public partial class GoogleMapView : UserControl
                 data.Roll,
                 data.IsArmed.ToString().ToLowerInvariant(),
                 data.GroundSpeed,
-                data.VerticalSpeed);
+                data.VerticalSpeed,
+                data.SatelliteCount,
+                flightModeJson,
+                data.FlowRate);
 
             await _webView.ExecuteScriptAsync(script);
             // Only log occasionally to avoid spam
@@ -705,6 +730,28 @@ public partial class GoogleMapView : UserControl
         catch (Exception ex)
         {
             Debug.WriteLine($"[GoogleMapView] Error clearing path: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Restore flight path from ViewModel data (e.g. after tab switch).
+    /// Sends the complete set of coordinates to the JavaScript side so any
+    /// points accumulated while the page was hidden are recovered.
+    /// </summary>
+    public async void RestoreFlightPath(IReadOnlyList<(double Lat, double Lon)> path)
+    {
+        if (_webView == null || !_mapReady || path.Count == 0) return;
+
+        try
+        {
+            var coords = path.Select(p => new { lat = p.Lat, lng = p.Lon }).ToArray();
+            var json = JsonSerializer.Serialize(coords);
+            await _webView.ExecuteScriptAsync($"restoreFlightPath({json});");
+            Debug.WriteLine($"[GoogleMapView] Flight path restored with {path.Count} points");
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[GoogleMapView] Error restoring flight path: {ex.Message}");
         }
     }
 
@@ -914,6 +961,15 @@ public partial class GoogleMapView : UserControl
         await ExecuteScriptAsync($"deleteWaypoint({index});");
     }
 
+    /// <summary>
+    /// Update battery percentage shown in the in-map HUD card.
+    /// </summary>
+    public async void UpdateBattery(int batteryPercent)
+    {
+        if (_webView == null || !_mapReady) return;
+        await ExecuteScriptAsync($"updateBattery({batteryPercent});");
+    }
+
     private async Task ExecuteScriptAsync(string script)
     {
         try
@@ -1038,6 +1094,9 @@ public partial class GoogleMapView : UserControl
         public bool IsArmed { get; set; }
         public double GroundSpeed { get; set; }
         public double VerticalSpeed { get; set; }
+        public int SatelliteCount { get; set; }
+        public string FlightMode { get; set; } = "Unknown";
+        public double FlowRate { get; set; }
     }
 
     public class WaypointData

@@ -254,7 +254,8 @@ public sealed class TelemetryService : ITelemetryService, IDisposable
             _lastPositionPathPointUtc = DateTime.MinValue;
         }
 
-        ClearFlightPath();
+        // Preserve flight path data so it remains visible after disconnect.
+        // Flight path is only cleared explicitly by the user via ClearFlightPath().
         PublishHealthIfChanged();
     }
 

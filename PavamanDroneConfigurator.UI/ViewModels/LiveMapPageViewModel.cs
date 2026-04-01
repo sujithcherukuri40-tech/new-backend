@@ -170,6 +170,9 @@ public partial class LiveMapPageViewModel : ViewModelBase
     private string _waypointStatus = "N/A";
 
     [ObservableProperty]
+    private int _totalWaypointCount;
+
+    [ObservableProperty]
     private double _distanceToHome;
 
     [ObservableProperty]
@@ -263,6 +266,12 @@ public partial class LiveMapPageViewModel : ViewModelBase
         OnPropertyChanged(nameof(LiveStatusText));
     }
 
+    partial void OnMissionItemCountChanged(int value)
+    {
+        TotalWaypointCount = value;
+        WaypointStatus = value > 0 ? value.ToString() : "N/A";
+    }
+
     // Mission waypoints for Plot tab
     public ObservableCollection<MissionItem> MissionItems { get; } = new();
 
@@ -271,6 +280,7 @@ public partial class LiveMapPageViewModel : ViewModelBase
 
     // Events to notify view of updates
     public event EventHandler<DronePositionUpdateEventArgs>? PositionUpdated;
+    public event EventHandler<int>? BatteryUpdated;
     public event EventHandler? FlightPathCleared;
     public event EventHandler? RecenterRequested;
     public event EventHandler<ViewModeChangedEventArgs>? ViewModeChanged;
@@ -426,7 +436,10 @@ public partial class LiveMapPageViewModel : ViewModelBase
                     Roll = Roll,
                     GroundSpeed = GroundSpeed,
                     VerticalSpeed = VerticalSpeed,
-                    IsArmed = IsArmed
+                    IsArmed = IsArmed,
+                    SatelliteCount = SatelliteCount,
+                    FlightMode = FlightMode,
+                    FlowRate = FlowRate
                 });
             }
         });
@@ -453,6 +466,8 @@ public partial class LiveMapPageViewModel : ViewModelBase
             {
                 BatteryStatus = $"{e.Voltage:F1}V";
             }
+
+            BatteryUpdated?.Invoke(this, e.RemainingPercent);
         });
     }
 
@@ -923,6 +938,9 @@ public class DronePositionUpdateEventArgs : EventArgs
     public double GroundSpeed { get; set; }
     public double VerticalSpeed { get; set; }
     public bool IsArmed { get; set; }
+    public int SatelliteCount { get; set; }
+    public string FlightMode { get; set; } = "Unknown";
+    public double FlowRate { get; set; }
 }
 
 /// <summary>

@@ -21,10 +21,6 @@ namespace PavamanDroneConfigurator.UI.Views;
 /// </summary>
 public partial class LiveMapPage : UserControl
 {
-    // Logical UI inset values (DIP) reserved for floating overlays so map interactions remain unobstructed.
-    private const double TopOverlayInset = 108;
-    private const double RightOverlayInset = 84;
-    private const double BottomOverlayInset = 116;
     private const float GeofenceVolumeAltitudeThreshold = 0f;
 
     private GoogleMapView? _map;
@@ -44,37 +40,43 @@ public partial class LiveMapPage : UserControl
 
     private void OnLoaded(object? sender, RoutedEventArgs e)
     {
-        if (_isInitialized) return;
-
         Debug.WriteLine("[LiveMapPage] OnLoaded - Finding GoogleMap control");
-        _map = this.FindControl<GoogleMapView>("MapView");
 
-        if (_map == null)
+        if (!_isInitialized)
         {
-            Debug.WriteLine("[LiveMapPage] ERROR: GoogleMap control not found!");
-            return;
+            _map = this.FindControl<GoogleMapView>("MapView");
+
+            if (_map == null)
+            {
+                Debug.WriteLine("[LiveMapPage] ERROR: GoogleMap control not found!");
+                return;
+            }
+
+            Debug.WriteLine("[LiveMapPage] GoogleMap control found, setting up event handlers");
+
+            // Subscribe to map events (only once – these are on the control itself)
+            _map.MapReady += OnMapReady;
+            _map.MapError += OnMapError;
+            _map.WaypointPlaced += OnWaypointPlaced;
+            _map.WaypointMoved += OnWaypointMoved;
+            _map.WaypointDeleted += OnWaypointDeleted;
+            _map.HomePlaced += OnHomePlaced;
+            _map.LandPlaced += OnLandPlaced;
+            _map.OrbitPlaced += OnOrbitPlaced;
+            _map.SurveyBoundaryCompleted += OnSurveyBoundaryCompleted;
+
+            _safetyService = App.Services?.GetService<ISafetyService>();
+            _isInitialized = true;
         }
 
-        Debug.WriteLine("[LiveMapPage] GoogleMap control found, setting up event handlers");
-        _map.SetViewportInsets(top: TopOverlayInset, right: RightOverlayInset, bottom: BottomOverlayInset, left: 0);
-
-        // Subscribe to map events
-        _map.MapReady += OnMapReady;
-        _map.MapError += OnMapError;
-        _map.WaypointPlaced += OnWaypointPlaced;
-        _map.WaypointMoved += OnWaypointMoved;
-        _map.WaypointDeleted += OnWaypointDeleted;
-        _map.HomePlaced += OnHomePlaced;
-        _map.LandPlaced += OnLandPlaced;
-        _map.OrbitPlaced += OnOrbitPlaced;
-        _map.SurveyBoundaryCompleted += OnSurveyBoundaryCompleted;
-
+        // Always (re-)subscribe to ViewModel events so that telemetry keeps flowing
+        // after the control is re-attached to the visual tree (e.g. tab switch).
         if (DataContext is LiveMapPageViewModel vm)
         {
             Debug.WriteLine($"[LiveMapPage] ViewModel connected. IsConnected={vm.IsConnected}, HasValidPosition={vm.HasValidPosition}");
 
-            // Subscribe to ViewModel events
             vm.PositionUpdated += OnPositionUpdated;
+            vm.BatteryUpdated += OnBatteryUpdated;
             vm.FlightPathCleared += OnFlightPathCleared;
             vm.RecenterRequested += OnRecenterRequested;
             vm.ViewModeChanged += OnViewModeChanged;
@@ -84,23 +86,40 @@ public partial class LiveMapPage : UserControl
             vm.MissionItems.CollectionChanged += OnMissionItemsCollectionChanged;
 
             Debug.WriteLine("[LiveMapPage] All event handlers connected");
+
+            // Restore flight path and waypoints when re-entering the tab.
+            // This covers any points accumulated while the page was hidden.
+            if (_isMapReady && _map != null)
+            {
+                if (vm.FlightPath.Count > 0)
+                {
+                    _map.RestoreFlightPath(vm.FlightPath);
+                }
+
+                SyncMissionOverlays(vm);
+
+                if (vm.HasValidPosition)
+                {
+                    UpdateDroneOnMap(vm);
+                }
+            }
         }
         else
         {
             Debug.WriteLine("[LiveMapPage] WARNING: DataContext is not LiveMapPageViewModel");
         }
-
-        _safetyService = App.Services?.GetService<ISafetyService>();
-        _isInitialized = true;
     }
 
     private void OnUnloaded(object? sender, RoutedEventArgs e)
     {
         Debug.WriteLine("[LiveMapPage] OnUnloaded");
 
+        // Unsubscribe only ViewModel events (they are re-subscribed in OnLoaded).
+        // Map control events stay connected because the control itself persists.
         if (DataContext is LiveMapPageViewModel vm)
         {
             vm.PositionUpdated -= OnPositionUpdated;
+            vm.BatteryUpdated -= OnBatteryUpdated;
             vm.FlightPathCleared -= OnFlightPathCleared;
             vm.RecenterRequested -= OnRecenterRequested;
             vm.ViewModeChanged -= OnViewModeChanged;
@@ -108,19 +127,6 @@ public partial class LiveMapPage : UserControl
             vm.FollowChanged -= OnFollowChanged;
             vm.MissionToolChanged -= OnMissionToolChanged;
             vm.MissionItems.CollectionChanged -= OnMissionItemsCollectionChanged;
-        }
-
-        if (_map != null)
-        {
-            _map.MapReady -= OnMapReady;
-            _map.MapError -= OnMapError;
-            _map.WaypointPlaced -= OnWaypointPlaced;
-            _map.WaypointMoved -= OnWaypointMoved;
-            _map.WaypointDeleted -= OnWaypointDeleted;
-            _map.HomePlaced -= OnHomePlaced;
-            _map.LandPlaced -= OnLandPlaced;
-            _map.OrbitPlaced -= OnOrbitPlaced;
-            _map.SurveyBoundaryCompleted -= OnSurveyBoundaryCompleted;
         }
     }
 
@@ -153,6 +159,13 @@ public partial class LiveMapPage : UserControl
                 Debug.WriteLine("[LiveMapPage] No valid position yet, waiting for telemetry...");
             }
 
+            // Restore flight path if we have any accumulated points
+            if (vm.FlightPath.Count > 0 && _map != null)
+            {
+                _map.RestoreFlightPath(vm.FlightPath);
+                Debug.WriteLine($"[LiveMapPage] Restored {vm.FlightPath.Count} flight path points on map ready");
+            }
+
             SyncMissionOverlays(vm);
             _ = LoadAndRenderGeofenceAsync(vm);
         }
@@ -162,6 +175,12 @@ public partial class LiveMapPage : UserControl
     {
         Debug.WriteLine($"[LiveMapPage] ? Map error: {error}");
         _isMapReady = false;
+    }
+
+    private void OnBatteryUpdated(object? sender, int batteryPercent)
+    {
+        if (!_isMapReady || _map == null) return;
+        _map.UpdateBattery(batteryPercent);
     }
 
     private void OnPositionUpdated(object? sender, DronePositionUpdateEventArgs e)
@@ -193,7 +212,10 @@ public partial class LiveMapPage : UserControl
                     e.Roll,
                     e.IsArmed,
                     e.GroundSpeed,
-                    e.VerticalSpeed
+                    e.VerticalSpeed,
+                    e.SatelliteCount,
+                    e.FlightMode,
+                    e.FlowRate
                 );
 
                 if (!_geofenceLoaded && DataContext is LiveMapPageViewModel vm)
@@ -514,7 +536,10 @@ public partial class LiveMapPage : UserControl
             vm.Roll,
             vm.IsArmed,
             vm.GroundSpeed,
-            vm.VerticalSpeed
+            vm.VerticalSpeed,
+            vm.SatelliteCount,
+            vm.FlightMode,
+            vm.FlowRate
         );
     }
 
@@ -553,15 +578,5 @@ public partial class LiveMapPage : UserControl
         {
             _map.RenderSurveyGrid(gridData.ToArray(), sprayWidth);
         });
-    }
-
-    private void ZoomIn_Click(object? sender, RoutedEventArgs e)
-    {
-        _map?.ZoomIn();
-    }
-
-    private void ZoomOut_Click(object? sender, RoutedEventArgs e)
-    {
-        _map?.ZoomOut();
     }
 }

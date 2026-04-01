@@ -3,6 +3,7 @@ using Avalonia.Interactivity;
 using PavamanDroneConfigurator.UI.ViewModels;
 using PavamanDroneConfigurator.UI.ViewModels.Admin;
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Avalonia.Controls.Notifications;
@@ -15,6 +16,9 @@ public partial class MainWindow : Window
 {
     private Button? _lastActiveButton;
     private WindowNotificationManager? _notificationManager;
+
+    // Cache views so WebView2 and other heavy controls are not recreated on tab switch
+    private readonly Dictionary<Type, Control> _viewCache = new();
 
     // CSS class names for navigation styling
     private const string NavItemClass = "sidebar-nav-item";
@@ -295,7 +299,16 @@ Publisher: Pavaman Aviation";
 
     private Control? CreateView(ViewModelBase vm)
     {
-        return vm switch
+        var vmType = vm.GetType();
+
+        // Return cached view if available (prevents WebView2 leak on tab switch)
+        if (_viewCache.TryGetValue(vmType, out var cached))
+        {
+            cached.DataContext = vm;
+            return cached;
+        }
+
+        Control? view = vm switch
         {
             ConnectionPageViewModel => new views.ConnectionPage { DataContext = vm },
             DroneDetailsPageViewModel => new views.DroneDetailsPage { DataContext = vm },
@@ -324,6 +337,13 @@ Publisher: Pavaman Aviation";
             ParamLogsViewModel => new adminViews.ParamLogsPage { DataContext = vm },
             _ => null
         };
+
+        if (view != null)
+        {
+            _viewCache[vmType] = view;
+        }
+
+        return view;
     }
 
     private void SetActiveButton(Button activeButton)
