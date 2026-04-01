@@ -429,6 +429,17 @@ public class BluetoothMavConnection : IDisposable
     }
 
     /// <summary>
+    /// Send MAV_CMD_NAV_RETURN_TO_LAUNCH command to drone
+    /// </summary>
+    public async Task SendReturnToLaunchAsync(CancellationToken ct = default)
+    {
+        if (!_isConnected || _mavlinkWrapper == null)
+            throw new InvalidOperationException("Bluetooth connection is not active");
+
+        await _mavlinkWrapper.SendReturnToLaunchAsync(ct);
+    }
+
+    /// <summary>
     /// Send MAV_CMD_ACCELCAL_VEHICLE_POS command to tell FC the vehicle is in position
     /// </summary>
     public async Task SendAccelCalVehiclePosAsync(int position, CancellationToken ct = default)
