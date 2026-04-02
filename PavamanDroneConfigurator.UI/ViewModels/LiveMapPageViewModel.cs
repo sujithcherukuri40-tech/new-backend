@@ -22,6 +22,9 @@ public partial class LiveMapPageViewModel : ViewModelBase
     private const string LiveStatusOnline = "LIVE";
     private const string LiveStatusOffline = "OFFLINE";
 
+    /// <summary>Default flow rate value when spray is not active (spray removed from Live Map).</summary>
+    private const double InactiveFlowRate = 0;
+
     private readonly IConnectionService _connectionService;
     private readonly ITelemetryService _telemetryService;
     private readonly IVideoStreamingService _videoStreamingService;
@@ -475,7 +478,7 @@ public partial class LiveMapPageViewModel : ViewModelBase
                     IsArmed = IsArmed,
                     SatelliteCount = SatelliteCount,
                     FlightMode = FlightMode,
-                    FlowRate = 0
+                    FlowRate = InactiveFlowRate
                 });
             }
         });

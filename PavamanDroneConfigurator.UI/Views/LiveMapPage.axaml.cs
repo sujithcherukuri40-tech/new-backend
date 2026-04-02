@@ -564,7 +564,7 @@ public partial class LiveMapPage : UserControl
             vm.VerticalSpeed,
             vm.SatelliteCount,
             vm.FlightMode,
-            0 // FlowRate - spray overlay removed
+            0d // FlowRate: spray removed from Live Map
         );
     }
 
