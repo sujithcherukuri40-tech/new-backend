@@ -242,16 +242,6 @@ public partial class LiveMapPageViewModel : ViewModelBase
     [ObservableProperty]
     private bool _isFreeRoamView;
 
-    // Right panel (Plot / Camera) state
-    [ObservableProperty]
-    private bool _showRightPanel;
-
-    [ObservableProperty]
-    private bool _isPlotTabActive = true;
-
-    [ObservableProperty]
-    private bool _isCameraTabActive;
-
     // Default altitude for new waypoints (metres AGL)
     [ObservableProperty]
     private double _defaultAltitude = 30;
@@ -831,18 +821,6 @@ public partial class LiveMapPageViewModel : ViewModelBase
         GimbalStatus = "Nadir";
     }
 
-    [RelayCommand]
-    private void OpenCameraView()
-    {
-        IsCameraVisible = true;
-    }
-
-    [RelayCommand]
-    private void CloseCameraView()
-    {
-        IsCameraVisible = false;
-    }
-
     /// <summary>Start the RTSP/UDP video stream from the drone camera.</summary>
     [RelayCommand]
     private async System.Threading.Tasks.Task StartVideoStreamAsync()
@@ -870,8 +848,10 @@ public partial class LiveMapPageViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// Toggle the camera panel visibility and start/stop the stream accordingly.
-    /// Shows "Drone not connected" error if MAVLink connection is unavailable.
+    /// Toggle the camera panel visibility.
+    /// When opening, shows "Camera not connected" if drone is offline,
+    /// or "WAITING FOR VIDEO" if connected. User starts stream via play button.
+    /// When closing, stops any active stream.
     /// </summary>
     [RelayCommand]
     private async System.Threading.Tasks.Task ToggleCameraAsync()
@@ -888,22 +868,8 @@ public partial class LiveMapPageViewModel : ViewModelBase
         else
         {
             IsCameraVisible = true;
-
-            if (!IsConnected)
-            {
-                HasStreamError = true;
-                StreamErrorMessage = "Drone not connected";
-                VideoStreamStatus = "MAVLink connection is unavailable. Connect to drone first.";
-                return;
-            }
-
-            if (!IsVideoStreaming)
-            {
-                IsStreamLoading = true;
-                HasStreamError = false;
-                _videoStreamingService.StreamUrl = VideoStreamUrl;
-                await _videoStreamingService.StartAsync();
-            }
+            HasStreamError = false;
+            StreamErrorMessage = string.Empty;
         }
     }
 
@@ -1076,30 +1042,6 @@ public partial class LiveMapPageViewModel : ViewModelBase
         MissionTotalDistanceKm = totalM / 1000.0;
         var secs = totalM / DefaultCruiseSpeedMs;
         MissionEstimatedTime = TimeSpan.FromSeconds(secs).ToString(@"m\:ss");
-    }
-
-    // ── Right panel / tab toggles ──────────────────────────────────────────
-
-    [RelayCommand]
-    private void ToggleRightPanel()
-    {
-        ShowRightPanel = !ShowRightPanel;
-    }
-
-    [RelayCommand]
-    private void ShowPlotTab()
-    {
-        IsPlotTabActive = true;
-        IsCameraTabActive = false;
-        ShowRightPanel = true;
-    }
-
-    [RelayCommand]
-    private void ShowCameraTab()
-    {
-        IsPlotTabActive = false;
-        IsCameraTabActive = true;
-        ShowRightPanel = true;
     }
 
     [RelayCommand]
