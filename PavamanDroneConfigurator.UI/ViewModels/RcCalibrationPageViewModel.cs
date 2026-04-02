@@ -443,9 +443,16 @@ public partial class RcCalibrationPageViewModel : ViewModelBase
                 // Note: These would need proper binding if using ChannelMappingOption
             }
 
-            // Check if calibration is needed
+            // Check if calibration is needed based on parameter ranges
             CalibrationRequired = !await _rcCalibrationService.IsRcCalibratedAsync();
-            CalibrationStatusText = CalibrationRequired ? "Radio calibration required" : "Radio calibrated";
+
+            // Don't overwrite status text with "Radio calibrated" on refresh — 
+            // that status is misleading since ArduPilot defaults pass the range check.
+            // Only show calibration-required warning; otherwise keep it neutral.
+            if (CalibrationRequired)
+            {
+                CalibrationStatusText = "Radio calibration required";
+            }
 
             StatusMessage = "RC configuration loaded";
         }

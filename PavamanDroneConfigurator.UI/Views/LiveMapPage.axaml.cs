@@ -88,6 +88,7 @@ public partial class LiveMapPage : UserControl
             vm.MissionToolChanged += OnMissionToolChanged;
             vm.MissionItems.CollectionChanged += OnMissionItemsCollectionChanged;
             vm.OpenMavlinkLogsRequested += OnOpenMavlinkLogsRequested;
+            vm.OpenLiveCameraRequested += OnOpenLiveCameraRequested;
 
             Debug.WriteLine("[LiveMapPage] All event handlers connected");
 
@@ -132,6 +133,7 @@ public partial class LiveMapPage : UserControl
             vm.MissionToolChanged -= OnMissionToolChanged;
             vm.MissionItems.CollectionChanged -= OnMissionItemsCollectionChanged;
             vm.OpenMavlinkLogsRequested -= OnOpenMavlinkLogsRequested;
+            vm.OpenLiveCameraRequested -= OnOpenLiveCameraRequested;
         }
     }
 
@@ -354,6 +356,26 @@ public partial class LiveMapPage : UserControl
             catch (Exception ex)
             {
                 Debug.WriteLine($"[LiveMapPage] Failed to open MAVLink logs: {ex.Message}");
+            }
+        });
+    }
+
+    private void OnOpenLiveCameraRequested(object? sender, EventArgs e)
+    {
+        if (App.Services == null) return;
+
+        Dispatcher.UIThread.Post(() =>
+        {
+            try
+            {
+                var cameraVm = App.Services.GetRequiredService<LiveCameraViewModel>();
+                var cameraWindow = new LiveCameraWindow { DataContext = cameraVm };
+                var parentWindow = TopLevel.GetTopLevel(this) as Avalonia.Controls.Window;
+                cameraWindow.Show(parentWindow);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[LiveMapPage] Failed to open Live Camera: {ex.Message}");
             }
         });
     }

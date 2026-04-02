@@ -313,6 +313,9 @@ public partial class LiveMapPageViewModel : ViewModelBase
     /// <summary>Raised when the user clicks the "MAVLink Logs" button; the View opens the window.</summary>
     public event EventHandler? OpenMavlinkLogsRequested;
 
+    /// <summary>Raised when the user clicks the "Live Camera" button; the View opens the window.</summary>
+    public event EventHandler? OpenLiveCameraRequested;
+
     // Default center (India)
     private const double DEFAULT_LAT = 20.5937;
     private const double DEFAULT_LNG = 78.9629;
@@ -870,41 +873,14 @@ public partial class LiveMapPageViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// Toggle the camera panel visibility and start/stop the stream accordingly.
-    /// Shows "Drone not connected" error if MAVLink connection is unavailable.
+    /// Open the Live Camera window as a standalone dialog.
+    /// The camera feed cannot be rendered as an inline overlay because WebView2
+    /// always paints on top of Avalonia controls (airspace issue).
     /// </summary>
     [RelayCommand]
-    private async System.Threading.Tasks.Task ToggleCameraAsync()
+    private void ToggleCamera()
     {
-        if (IsCameraVisible)
-        {
-            IsCameraVisible = false;
-            if (IsVideoStreaming || IsStreamLoading)
-                await _videoStreamingService.StopAsync();
-            IsStreamLoading = false;
-            HasStreamError = false;
-            StreamErrorMessage = string.Empty;
-        }
-        else
-        {
-            IsCameraVisible = true;
-
-            if (!IsConnected)
-            {
-                HasStreamError = true;
-                StreamErrorMessage = "Drone not connected";
-                VideoStreamStatus = "MAVLink connection is unavailable. Connect to drone first.";
-                return;
-            }
-
-            if (!IsVideoStreaming)
-            {
-                IsStreamLoading = true;
-                HasStreamError = false;
-                _videoStreamingService.StreamUrl = VideoStreamUrl;
-                await _videoStreamingService.StartAsync();
-            }
-        }
+        OpenLiveCameraRequested?.Invoke(this, EventArgs.Empty);
     }
 
     /// <summary>Retry starting the video stream after an error.</summary>
