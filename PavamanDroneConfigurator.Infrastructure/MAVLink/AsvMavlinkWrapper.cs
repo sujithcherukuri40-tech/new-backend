@@ -87,14 +87,22 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
         };
 
         // MAV_CMD IDs
+        private const ushort MAV_CMD_DO_SET_RELAY = 181;
+        private const ushort MAV_CMD_DO_SET_SERVO = 183;
+        private const ushort MAV_CMD_DO_DIGICAM_CONTROL = 203;
+        private const ushort MAV_CMD_DO_MOUNT_CONTROL = 205;
         private const ushort MAV_CMD_DO_MOTOR_TEST = 209;
         private const ushort MAV_CMD_PREFLIGHT_CALIBRATION = 241;
         private const ushort MAV_CMD_PREFLIGHT_STORAGE = 245;
         private const ushort MAV_CMD_PREFLIGHT_REBOOT_SHUTDOWN = 246;
-        private const ushort MAV_CMD_SET_MESSAGE_INTERVAL = 511;
         private const ushort MAV_CMD_COMPONENT_ARM_DISARM = 400;
-        private const ushort MAV_CMD_ACCELCAL_VEHICLE_POS = 42429;
+        private const ushort MAV_CMD_SET_MESSAGE_INTERVAL = 511;
         private const ushort MAV_CMD_REQUEST_MESSAGE = 512;
+        private const ushort MAV_CMD_IMAGE_START_CAPTURE = 2000;
+        private const ushort MAV_CMD_IMAGE_STOP_CAPTURE = 2001;
+        private const ushort MAV_CMD_VIDEO_START_CAPTURE = 2500;
+        private const ushort MAV_CMD_VIDEO_STOP_CAPTURE = 2501;
+        private const ushort MAV_CMD_ACCELCAL_VEHICLE_POS = 42429;
         private const ushort MAV_CMD_DO_START_MAG_CAL = 42424;
         private const ushort MAV_CMD_DO_ACCEPT_MAG_CAL = 42425;
         private const ushort MAV_CMD_DO_CANCEL_MAG_CAL = 42426;
@@ -1537,6 +1545,136 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
 
             await SendCommandLongFireAndForgetAsync(MAV_CMD_REQUEST_MESSAGE,
                 MAVLINK_MSG_ID_AUTOPILOT_VERSION, 0, 0, 0, 0, 0, 0, ct);
+        }
+
+        // ────────────────────────────────────────────────────────────────────
+        //  Spray System Commands
+        // ────────────────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// Set a relay on or off (MAV_CMD_DO_SET_RELAY = 181).
+        /// Used for spray pump relay control.
+        /// param1 = relay number (0-based), param2 = 1.0 ON / 0.0 OFF.
+        /// CRC: command is sent via COMMAND_LONG (msgId 76, CRC_EXTRA 152).
+        /// </summary>
+        public async Task SendDoSetRelayAsync(int relayNumber, bool on, CancellationToken ct = default)
+        {
+            float state = on ? 1.0f : 0.0f;
+            _logger.LogInformation("MAV_CMD_DO_SET_RELAY: relay={Relay} state={State}",
+                relayNumber, on ? "ON" : "OFF");
+
+            _mavLinkLogger?.LogOutgoing("COMMAND_LONG",
+                $"cmd=MAV_CMD_DO_SET_RELAY(181), relay={relayNumber}, state={state}");
+
+            await SendCommandLongFireAndForgetAsync(MAV_CMD_DO_SET_RELAY,
+                relayNumber, state, 0, 0, 0, 0, 0, ct);
+        }
+
+        /// <summary>
+        /// Set a servo output PWM value (MAV_CMD_DO_SET_SERVO = 183).
+        /// Used for spray pump PWM control and gimbal servo control.
+        /// param1 = servo instance (channel), param2 = PWM value (typically 1000–2000).
+        /// CRC: command is sent via COMMAND_LONG (msgId 76, CRC_EXTRA 152).
+        /// </summary>
+        public async Task SendDoSetServoAsync(int servoChannel, int pwmValue, CancellationToken ct = default)
+        {
+            _logger.LogInformation("MAV_CMD_DO_SET_SERVO: ch={Channel} pwm={Pwm}",
+                servoChannel, pwmValue);
+
+            _mavLinkLogger?.LogOutgoing("COMMAND_LONG",
+                $"cmd=MAV_CMD_DO_SET_SERVO(183), ch={servoChannel}, pwm={pwmValue}");
+
+            await SendCommandLongFireAndForgetAsync(MAV_CMD_DO_SET_SERVO,
+                servoChannel, pwmValue, 0, 0, 0, 0, 0, ct);
+        }
+
+        // ────────────────────────────────────────────────────────────────────
+        //  Camera / Gimbal Commands
+        // ────────────────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// Control gimbal mount orientation (MAV_CMD_DO_MOUNT_CONTROL = 205).
+        /// param1 = tilt (degrees), param2 = roll (degrees), param3 = pan (degrees).
+        /// param7 = MAV_MOUNT_MODE (2 = MAVLINK_TARGETING).
+        /// CRC: command is sent via COMMAND_LONG (msgId 76, CRC_EXTRA 152).
+        /// </summary>
+        public async Task SendDoMountControlAsync(float tiltDeg, float rollDeg, float panDeg,
+            CancellationToken ct = default)
+        {
+            const float MAV_MOUNT_MODE_MAVLINK_TARGETING = 2.0f;
+            _logger.LogInformation("MAV_CMD_DO_MOUNT_CONTROL: tilt={Tilt}° roll={Roll}° pan={Pan}°",
+                tiltDeg, rollDeg, panDeg);
+
+            _mavLinkLogger?.LogOutgoing("COMMAND_LONG",
+                $"cmd=MAV_CMD_DO_MOUNT_CONTROL(205), tilt={tiltDeg}°, roll={rollDeg}°, pan={panDeg}°");
+
+            await SendCommandLongFireAndForgetAsync(MAV_CMD_DO_MOUNT_CONTROL,
+                tiltDeg, rollDeg, panDeg, 0, 0, 0, MAV_MOUNT_MODE_MAVLINK_TARGETING, ct);
+        }
+
+        /// <summary>
+        /// Trigger digital camera (MAV_CMD_DO_DIGICAM_CONTROL = 203).
+        /// param5 = command (1 = single shot).
+        /// CRC: command is sent via COMMAND_LONG (msgId 76, CRC_EXTRA 152).
+        /// </summary>
+        public async Task SendDoDigicamControlAsync(int commandId = 1, CancellationToken ct = default)
+        {
+            _logger.LogInformation("MAV_CMD_DO_DIGICAM_CONTROL: cmd={Cmd}", commandId);
+
+            _mavLinkLogger?.LogOutgoing("COMMAND_LONG",
+                $"cmd=MAV_CMD_DO_DIGICAM_CONTROL(203), shot={commandId}");
+
+            await SendCommandLongFireAndForgetAsync(MAV_CMD_DO_DIGICAM_CONTROL,
+                0, 0, 0, 0, commandId, 0, 0, ct);
+        }
+
+        /// <summary>
+        /// Start image capture (MAV_CMD_IMAGE_START_CAPTURE = 2000).
+        /// param2 = interval (seconds, 0 = single shot).
+        /// param3 = total images (0 = unlimited, 1 = single).
+        /// CRC: command is sent via COMMAND_LONG (msgId 76, CRC_EXTRA 152).
+        /// </summary>
+        public async Task SendImageStartCaptureAsync(float intervalSec = 0, int totalImages = 1,
+            CancellationToken ct = default)
+        {
+            _logger.LogInformation("MAV_CMD_IMAGE_START_CAPTURE: interval={Interval}s count={Count}",
+                intervalSec, totalImages);
+
+            _mavLinkLogger?.LogOutgoing("COMMAND_LONG",
+                $"cmd=MAV_CMD_IMAGE_START_CAPTURE(2000), interval={intervalSec}s, count={totalImages}");
+
+            await SendCommandLongFireAndForgetAsync(MAV_CMD_IMAGE_START_CAPTURE,
+                0, intervalSec, totalImages, 0, 0, 0, 0, ct);
+        }
+
+        /// <summary>
+        /// Start video capture (MAV_CMD_VIDEO_START_CAPTURE = 2500).
+        /// CRC: command is sent via COMMAND_LONG (msgId 76, CRC_EXTRA 152).
+        /// </summary>
+        public async Task SendVideoStartCaptureAsync(CancellationToken ct = default)
+        {
+            _logger.LogInformation("MAV_CMD_VIDEO_START_CAPTURE");
+
+            _mavLinkLogger?.LogOutgoing("COMMAND_LONG",
+                "cmd=MAV_CMD_VIDEO_START_CAPTURE(2500)");
+
+            await SendCommandLongFireAndForgetAsync(MAV_CMD_VIDEO_START_CAPTURE,
+                0, 0, 0, 0, 0, 0, 0, ct);
+        }
+
+        /// <summary>
+        /// Stop video capture (MAV_CMD_VIDEO_STOP_CAPTURE = 2501).
+        /// CRC: command is sent via COMMAND_LONG (msgId 76, CRC_EXTRA 152).
+        /// </summary>
+        public async Task SendVideoStopCaptureAsync(CancellationToken ct = default)
+        {
+            _logger.LogInformation("MAV_CMD_VIDEO_STOP_CAPTURE");
+
+            _mavLinkLogger?.LogOutgoing("COMMAND_LONG",
+                "cmd=MAV_CMD_VIDEO_STOP_CAPTURE(2501)");
+
+            await SendCommandLongFireAndForgetAsync(MAV_CMD_VIDEO_STOP_CAPTURE,
+                0, 0, 0, 0, 0, 0, 0, ct);
         }
 
         private async Task SendCommandLongFireAndForgetAsync(

@@ -59,6 +59,17 @@ public interface IConnectionService
     Task SendAcceptMagCalAsync(int magMask = 0);
     Task SendCancelMagCalAsync(int magMask = 0);
     void SendRequestAutopilotVersion();
+    
+    // Spray system commands
+    void SendDoSetRelay(int relayNumber, bool on);
+    void SendDoSetServo(int servoChannel, int pwmValue);
+    
+    // Camera / gimbal commands
+    void SendDoMountControl(float tiltDeg, float rollDeg, float panDeg);
+    void SendDoDigicamControl(int commandId = 1);
+    void SendImageStartCapture(float intervalSec = 0, int totalImages = 1);
+    void SendVideoStartCapture();
+    void SendVideoStopCapture();
 }
 
 public enum TelemetryNegotiationCommandType

@@ -35,6 +35,25 @@
             <Setter Property="Background" Value="#CC2D3D50"/>
         </Style>
 
+        <!-- Compact control button for camera/spray panels -->
+        <Style Selector="Button.ctrl-btn">
+            <Setter Property="Background" Value="#CC1A2332"/>
+            <Setter Property="Foreground" Value="#CBD5E1"/>
+            <Setter Property="Padding" Value="8,5"/>
+            <Setter Property="CornerRadius" Value="6"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="BorderBrush" Value="#2D3748"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="MinWidth" Value="32"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+        </Style>
+        <Style Selector="Button.ctrl-btn:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="#CC2A3A4D"/>
+        </Style>
+        <Style Selector="Button.ctrl-btn:pressed /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="#CC3A4D63"/>
+        </Style>
+
     </UserControl.Styles>
 
     <!-- Root grid: map + Avalonia overlays stacked in same cell -->
@@ -44,7 +63,7 @@
         <controls:GoogleMapView x:Name="MapView" ClipToBounds="True"/>
 
         <!-- ── Top-right toolbar overlay ──
-             Minimal two-button bar (Live Camera + MAVLink Logs) anchored to the top-right.
+             Minimal toolbar (Live Camera + Spray + MAVLink Logs) anchored to the top-right.
              Height ≈52dp; SetViewportInsets reserves this space in code-behind. -->
         <Border VerticalAlignment="Top"
                 HorizontalAlignment="Right"
@@ -53,12 +72,24 @@
 
             <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
 
-                <!-- 🎥 Live Camera button (always visible) -->
+                <!-- 🎥 Live Camera button -->
                 <Button Classes="overlay-btn"
                         Command="{Binding ToggleCameraCommand}">
                     <StackPanel Orientation="Horizontal" Spacing="6">
                         <TextBlock Text="🎥" FontSize="14"/>
                         <TextBlock Text="Live Camera" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Button>
+
+                <!-- 💧 Spray Control button -->
+                <Button Classes="overlay-btn"
+                        Command="{Binding ToggleSprayPanelCommand}">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <Ellipse Width="8" Height="8" VerticalAlignment="Center"
+                                 Fill="{Binding IsSprayEnabled,
+                                        Converter={StaticResource BoolToColorConverter},
+                                        ConverterParameter='#22c55e|#64748B'}"/>
+                        <TextBlock Text="Spray" VerticalAlignment="Center"/>
                     </StackPanel>
                 </Button>
 
@@ -74,24 +105,25 @@
             </StackPanel>
         </Border>
 
-        <!-- ── Camera feed overlay panel ──
-             Floats over the map at top-right when IsCameraVisible = true.
-             Compact 16:9 card (~320×200) positioned directly below the toolbar buttons.
-             Toggled by ToggleCameraCommand; stream is started/stopped alongside. -->
+        <!-- ═══════════════════════════════════════════════════════════════════
+             CAMERA FEED POPUP  –  Bottom-left floating overlay
+             Shows live drone camera feed with "WAITING FOR VIDEO" placeholder.
+             Includes camera controls (gimbal, photo, record).
+             ═══════════════════════════════════════════════════════════════════ -->
         <Border IsVisible="{Binding IsCameraVisible}"
-                HorizontalAlignment="Right"
-                VerticalAlignment="Top"
-                Margin="0,60,12,0"
-                Width="320" Height="200"
+                HorizontalAlignment="Left"
+                VerticalAlignment="Bottom"
+                Margin="12,0,0,12"
+                Width="480" Height="340"
                 Background="#E60A0E1A"
                 CornerRadius="10"
                 BorderBrush="#2D3748"
                 BorderThickness="1"
                 ClipToBounds="True">
 
-            <Grid RowDefinitions="Auto,*,Auto">
+            <Grid RowDefinitions="Auto,*,Auto,Auto">
 
-                <!-- Header row -->
+                <!-- ── Header bar ── -->
                 <Border Grid.Row="0"
                         Background="#CC111827"
                         Padding="10,7"
@@ -102,11 +134,14 @@
                             <TextBlock Text="🎥 Live Camera"
                                        FontSize="13" FontWeight="SemiBold"
                                        Foreground="#E2E8F0" VerticalAlignment="Center"/>
-                            <!-- Streaming dot -->
+                            <!-- Streaming status dot -->
                             <Ellipse Width="8" Height="8" VerticalAlignment="Center"
                                      Fill="{Binding IsVideoStreaming,
                                             Converter={StaticResource BoolToColorConverter},
                                             ConverterParameter='#22c55e|#64748B'}"/>
+                            <TextBlock Text="{Binding GimbalStatus}"
+                                       FontSize="10" Foreground="#64748B"
+                                       VerticalAlignment="Center"/>
                         </StackPanel>
                         <Button Grid.Column="1"
                                 Content="✕"
@@ -119,21 +154,29 @@
                     </Grid>
                 </Border>
 
-                <!-- Video frame area -->
+                <!-- ── Video frame area ── -->
                 <Border Grid.Row="1" Background="#0D1117">
                     <Grid>
-                        <!-- Not streaming: show placeholder -->
+                        <!-- Not streaming: show "WAITING FOR VIDEO" placeholder -->
                         <StackPanel VerticalAlignment="Center"
                                     HorizontalAlignment="Center"
-                                    Spacing="10"
+                                    Spacing="8"
                                     IsVisible="{Binding !IsVideoStreaming}">
-                            <TextBlock Text="📷" FontSize="36"
-                                       HorizontalAlignment="Center" Opacity="0.4"/>
+                            <Border Background="#88000000"
+                                    CornerRadius="6"
+                                    Padding="24,12"
+                                    HorizontalAlignment="Center">
+                                <TextBlock Text="WAITING FOR VIDEO"
+                                           FontSize="16" FontWeight="Bold"
+                                           Foreground="#94A3B8"
+                                           HorizontalAlignment="Center"
+                                           LetterSpacing="2"/>
+                            </Border>
                             <TextBlock Text="{Binding VideoStreamStatus}"
-                                       FontSize="11" Foreground="#64748B"
+                                       FontSize="11" Foreground="#475569"
                                        HorizontalAlignment="Center"
                                        TextWrapping="Wrap" TextAlignment="Center"
-                                       MaxWidth="260"/>
+                                       MaxWidth="380"/>
                         </StackPanel>
 
                         <!-- Streaming: show active indicator -->
@@ -159,25 +202,235 @@
                                        FontSize="10" FontWeight="Bold"
                                        Foreground="White"/>
                         </Border>
+
+                        <!-- REC badge (top-right overlay when recording) -->
+                        <Border IsVisible="{Binding IsRecording}"
+                                HorizontalAlignment="Right" VerticalAlignment="Top"
+                                Margin="0,6,8,0" Background="#BBEF4444"
+                                CornerRadius="4" Padding="5,2">
+                            <TextBlock Text="● REC"
+                                       FontSize="10" FontWeight="Bold"
+                                       Foreground="White"/>
+                        </Border>
                     </Grid>
                 </Border>
 
-                <!-- Stream URL input -->
+                <!-- ── Camera Controls Row ── -->
                 <Border Grid.Row="2"
+                        Background="#CC111827"
+                        Padding="8,6"
+                        BorderBrush="#1E2433"
+                        BorderThickness="0,1,0,0">
+                    <Grid ColumnDefinitions="Auto,*,Auto">
+                        <!-- Gimbal controls -->
+                        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="4">
+                            <Button Classes="ctrl-btn" Content="⬆" ToolTip.Tip="Tilt Up"
+                                    Command="{Binding GimbalTiltUpCommand}"/>
+                            <Button Classes="ctrl-btn" Content="⬇" ToolTip.Tip="Tilt Down"
+                                    Command="{Binding GimbalTiltDownCommand}"/>
+                            <Button Classes="ctrl-btn" Content="⬅" ToolTip.Tip="Pan Left"
+                                    Command="{Binding GimbalPanLeftCommand}"/>
+                            <Button Classes="ctrl-btn" Content="➡" ToolTip.Tip="Pan Right"
+                                    Command="{Binding GimbalPanRightCommand}"/>
+                            <Button Classes="ctrl-btn" Content="⊙" ToolTip.Tip="Center Gimbal"
+                                    Command="{Binding GimbalCenterCommand}"/>
+                            <Button Classes="ctrl-btn" Content="⏬" ToolTip.Tip="Look Straight Down"
+                                    Command="{Binding GimbalLookDownCommand}"/>
+                        </StackPanel>
+
+                        <!-- Camera actions -->
+                        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="4">
+                            <Button Classes="ctrl-btn" ToolTip.Tip="Take Photo"
+                                    Command="{Binding TakePhotoCommand}">
+                                <StackPanel Orientation="Horizontal" Spacing="4">
+                                    <TextBlock Text="📷" FontSize="12"/>
+                                    <TextBlock Text="{Binding PhotoCount}" FontSize="11"
+                                               Foreground="#94A3B8" VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </Button>
+                            <Button Classes="ctrl-btn" ToolTip.Tip="Toggle Recording"
+                                    Command="{Binding ToggleRecordingCommand}">
+                                <StackPanel Orientation="Horizontal" Spacing="4">
+                                    <Ellipse Width="8" Height="8" VerticalAlignment="Center"
+                                             Fill="{Binding IsRecording,
+                                                    Converter={StaticResource BoolToColorConverter},
+                                                    ConverterParameter='#EF4444|#64748B'}"/>
+                                    <TextBlock Text="{Binding RecordingTime}" FontSize="11"
+                                               Foreground="#CBD5E1" VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </Button>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <!-- ── Stream URL input ── -->
+                <Border Grid.Row="3"
+                        Background="#CC111827"
+                        Padding="8,6"
+                        BorderBrush="#1E2433"
+                        BorderThickness="0,1,0,0">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBox Grid.Column="0"
+                                 Text="{Binding VideoStreamUrl}"
+                                 Watermark="rtsp://…"
+                                 FontSize="11"
+                                 IsEnabled="{Binding !IsVideoStreaming}"
+                                 Background="#0D1117"
+                                 Foreground="#E2E8F0"
+                                 BorderBrush="#2D3748"
+                                 BorderThickness="1"
+                                 CornerRadius="6"
+                                 Padding="8,5"/>
+                        <Button Grid.Column="1" Classes="ctrl-btn"
+                                Margin="6,0,0,0"
+                                Command="{Binding ToggleVideoStreamCommand}">
+                            <TextBlock Text="{Binding IsVideoStreaming,
+                                       Converter={StaticResource BoolToColorConverter},
+                                       ConverterParameter='⏹|▶'}"
+                                       FontSize="14"/>
+                        </Button>
+                    </Grid>
+                </Border>
+
+            </Grid>
+        </Border>
+
+        <!-- ═══════════════════════════════════════════════════════════════════
+             SPRAY CONTROL PANEL  –  Bottom-right floating overlay
+             Controls spray pump, relay, and flow rate.
+             ═══════════════════════════════════════════════════════════════════ -->
+        <Border IsVisible="{Binding IsSprayPanelVisible}"
+                HorizontalAlignment="Right"
+                VerticalAlignment="Bottom"
+                Margin="0,0,12,12"
+                Width="280"
+                Background="#E60A0E1A"
+                CornerRadius="10"
+                BorderBrush="#2D3748"
+                BorderThickness="1"
+                ClipToBounds="True">
+
+            <Grid RowDefinitions="Auto,Auto,Auto,Auto">
+
+                <!-- ── Header bar ── -->
+                <Border Grid.Row="0"
+                        Background="#CC111827"
+                        Padding="10,7"
+                        BorderBrush="#1E2433"
+                        BorderThickness="0,0,0,1">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8">
+                            <TextBlock Text="💧 Spray Control"
+                                       FontSize="13" FontWeight="SemiBold"
+                                       Foreground="#E2E8F0" VerticalAlignment="Center"/>
+                            <Ellipse Width="8" Height="8" VerticalAlignment="Center"
+                                     Fill="{Binding IsSprayEnabled,
+                                            Converter={StaticResource BoolToColorConverter},
+                                            ConverterParameter='#22c55e|#64748B'}"/>
+                        </StackPanel>
+                        <Button Grid.Column="1"
+                                Content="✕"
+                                Command="{Binding ToggleSprayPanelCommand}"
+                                Background="Transparent"
+                                Foreground="#64748B"
+                                Padding="4,2"
+                                BorderThickness="0"
+                                FontSize="13"/>
+                    </Grid>
+                </Border>
+
+                <!-- ── Spray Status ── -->
+                <Border Grid.Row="1"
+                        Background="#CC0D1117"
+                        Padding="10,8">
+                    <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto">
+                        <!-- Status -->
+                        <TextBlock Grid.Row="0" Grid.Column="0"
+                                   Text="Status" FontSize="11" Foreground="#64748B"/>
+                        <TextBlock Grid.Row="0" Grid.Column="1"
+                                   Text="{Binding SprayStatus}" FontSize="11"
+                                   Foreground="#E2E8F0" HorizontalAlignment="Right"
+                                   FontWeight="SemiBold"/>
+
+                        <!-- Flow Rate -->
+                        <TextBlock Grid.Row="1" Grid.Column="0"
+                                   Text="Flow Rate" FontSize="11" Foreground="#64748B"
+                                   Margin="0,4,0,0"/>
+                        <TextBlock Grid.Row="1" Grid.Column="1"
+                                   Text="{Binding FlowRateStatus}" FontSize="11"
+                                   Foreground="#E2E8F0" HorizontalAlignment="Right"
+                                   Margin="0,4,0,0"/>
+
+                        <!-- Tank Level -->
+                        <TextBlock Grid.Row="2" Grid.Column="0"
+                                   Text="Tank" FontSize="11" Foreground="#64748B"
+                                   Margin="0,4,0,0"/>
+                        <TextBlock Grid.Row="2" Grid.Column="1"
+                                   FontSize="11" Foreground="#E2E8F0"
+                                   HorizontalAlignment="Right" Margin="0,4,0,0">
+                            <Run Text="{Binding TankLevel, StringFormat={}{0:F0}}"/>
+                            <Run Text="%" Foreground="#64748B"/>
+                        </TextBlock>
+                    </Grid>
+                </Border>
+
+                <!-- ── Pump Speed Slider ── -->
+                <Border Grid.Row="2"
+                        Background="#CC0D1117"
+                        Padding="10,6"
+                        BorderBrush="#1E2433"
+                        BorderThickness="0,1,0,0">
+                    <StackPanel Spacing="4">
+                        <Grid ColumnDefinitions="*,Auto">
+                            <TextBlock Text="Pump Speed" FontSize="11" Foreground="#94A3B8"/>
+                            <TextBlock Grid.Column="1" FontSize="11" Foreground="#E2E8F0">
+                                <Run Text="{Binding SprayPumpSpeedPercent}"/>
+                                <Run Text="%" Foreground="#64748B"/>
+                            </TextBlock>
+                        </Grid>
+                        <Slider Minimum="0" Maximum="100"
+                                Value="{Binding SprayPumpSpeedPercent}"
+                                Foreground="#00E5C9"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- ── Spray Action Buttons ── -->
+                <Border Grid.Row="3"
                         Background="#CC111827"
                         Padding="10,8"
                         BorderBrush="#1E2433"
                         BorderThickness="0,1,0,0">
-                    <TextBox Text="{Binding VideoStreamUrl}"
-                             Watermark="rtsp://…"
-                             FontSize="11"
-                             IsEnabled="{Binding !IsVideoStreaming}"
-                             Background="#0D1117"
-                             Foreground="#E2E8F0"
-                             BorderBrush="#2D3748"
-                             BorderThickness="1"
-                             CornerRadius="6"
-                             Padding="8,5"/>
+                    <Grid ColumnDefinitions="*,8,*">
+                        <!-- Servo Spray Toggle -->
+                        <Button Grid.Column="0" Classes="ctrl-btn"
+                                HorizontalAlignment="Stretch"
+                                Command="{Binding ToggleSprayCommand}">
+                            <StackPanel Orientation="Horizontal" Spacing="6"
+                                        HorizontalAlignment="Center">
+                                <Ellipse Width="8" Height="8" VerticalAlignment="Center"
+                                         Fill="{Binding IsSprayEnabled,
+                                                Converter={StaticResource BoolToColorConverter},
+                                                ConverterParameter='#22c55e|#EF4444'}"/>
+                                <TextBlock Text="Pump Servo" FontSize="12"
+                                           VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
+
+                        <!-- Relay Spray Toggle -->
+                        <Button Grid.Column="2" Classes="ctrl-btn"
+                                HorizontalAlignment="Stretch"
+                                Command="{Binding ToggleSprayRelayCommand}">
+                            <StackPanel Orientation="Horizontal" Spacing="6"
+                                        HorizontalAlignment="Center">
+                                <Ellipse Width="8" Height="8" VerticalAlignment="Center"
+                                         Fill="{Binding IsSprayRelayEnabled,
+                                                Converter={StaticResource BoolToColorConverter},
+                                                ConverterParameter='#22c55e|#EF4444'}"/>
+                                <TextBlock Text="Pump Relay" FontSize="12"
+                                           VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
+                    </Grid>
                 </Border>
 
             </Grid>
