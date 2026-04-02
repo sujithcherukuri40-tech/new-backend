@@ -17,7 +17,7 @@ namespace PavamanDroneConfigurator.UI.Views;
 /// <summary>
 /// Live Map Page - Real-time drone telemetry visualization with Google Maps
 /// Supports multiple view modes: Top-Down, 3D Chase, Free Roam
-/// Uses Google Maps API for satellite imagery with mission planning and spray overlay
+/// Uses Google Maps API for satellite imagery with mission planning
 /// </summary>
 public partial class LiveMapPage : UserControl
 {
@@ -564,21 +564,8 @@ public partial class LiveMapPage : UserControl
             vm.VerticalSpeed,
             vm.SatelliteCount,
             vm.FlightMode,
-            vm.FlowRate
+            0 // FlowRate - spray overlay removed
         );
-    }
-
-    /// <summary>
-    /// Update spray overlay on map when spray state changes
-    /// </summary>
-    public void SetSprayState(bool active, double sprayWidth = 4.0)
-    {
-        if (!_isMapReady || _map == null) return;
-        
-        Dispatcher.UIThread.Post(() =>
-        {
-            _map.SetSprayActive(active, sprayWidth);
-        });
     }
 
     /// <summary>

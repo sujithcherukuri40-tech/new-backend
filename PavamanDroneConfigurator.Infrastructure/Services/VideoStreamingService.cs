@@ -6,10 +6,11 @@ namespace PavamanDroneConfigurator.Infrastructure.Services;
 /// <summary>
 /// Video streaming service that connects to an RTSP or UDP camera feed.
 ///
-/// This implementation is a clean-architecture stub that manages stream
-/// lifecycle state.  Actual frame decoding can be wired in by replacing
-/// the <c>RunStreamLoopAsync</c> method with a LibVLCSharp / FFmpeg pipe
-/// reader once the relevant native library is available in the deployment.
+/// This implementation manages stream lifecycle state with automatic
+/// reconnection on failure.  Actual frame decoding can be wired in by
+/// replacing the <c>RunStreamLoopAsync</c> method body with a
+/// LibVLCSharp / FFmpeg pipe reader once the relevant native library
+/// is available in the deployment.
 ///
 /// The service is intentionally decoupled from any UI framework so that
 /// the same class works in unit tests and non-Avalonia hosts.
@@ -26,6 +27,12 @@ public sealed class VideoStreamingService : IVideoStreamingService
 
     private CancellationTokenSource? _streamCts;
     private Task? _streamTask;
+
+    /// <summary>Maximum number of automatic reconnection attempts before giving up.</summary>
+    private const int MaxReconnectAttempts = 5;
+
+    /// <summary>Initial delay between reconnection attempts (doubles each retry).</summary>
+    private static readonly TimeSpan InitialReconnectDelay = TimeSpan.FromSeconds(2);
 
     public VideoStreamingService(ILogger<VideoStreamingService> logger)
     {
@@ -124,11 +131,12 @@ public sealed class VideoStreamingService : IVideoStreamingService
     }
 
     // -----------------------------------------------------------------------
-    // Stream loop
+    // Stream loop with reconnection
     // -----------------------------------------------------------------------
 
     /// <summary>
-    /// Main stream loop running on a background thread.
+    /// Main stream loop running on a background thread with automatic
+    /// reconnection on transient failures.
     ///
     /// To integrate a real video library replace the body of this method:
     ///   • LibVLCSharp: create a <c>LibVLC</c> instance, open a <c>MediaPlayer</c>
@@ -137,41 +145,65 @@ public sealed class VideoStreamingService : IVideoStreamingService
     ///     and read JPEG frames from its stdout stream.
     ///
     /// For now the loop simulates a connected-but-no-frame state so that the
-    /// rest of the UI wiring (start/stop, status labels) can be verified.
+    /// rest of the UI wiring (start/stop, status labels, reconnection) can be verified.
     /// </summary>
     private async Task RunStreamLoopAsync(string url, CancellationToken ct)
     {
-        try
+        int reconnectAttempt = 0;
+
+        while (!ct.IsCancellationRequested)
         {
-            // Simulate network handshake delay.
-            await Task.Delay(TimeSpan.FromSeconds(1), ct).ConfigureAwait(false);
-
-            IsStreaming = true;
-            StatusMessage = $"Connected – {url}";
-            _logger.LogInformation("[VideoStream] Stream active: {Url}", url);
-
-            // Keep-alive loop: in a real implementation this would be
-            // replaced by a frame-read / decode loop.
-            while (!ct.IsCancellationRequested)
+            try
             {
-                await Task.Delay(TimeSpan.FromSeconds(5), ct).ConfigureAwait(false);
-                _logger.LogTrace("[VideoStream] Stream heartbeat");
+                if (reconnectAttempt > 0)
+                {
+                    var delay = InitialReconnectDelay * Math.Pow(2, reconnectAttempt - 1);
+                    if (delay > TimeSpan.FromSeconds(30)) delay = TimeSpan.FromSeconds(30);
+                    StatusMessage = $"Reconnecting in {delay.TotalSeconds:F0}s (attempt {reconnectAttempt}/{MaxReconnectAttempts})…";
+                    _logger.LogInformation("[VideoStream] Reconnect attempt {Attempt}/{Max} in {Delay}s",
+                        reconnectAttempt, MaxReconnectAttempts, delay.TotalSeconds);
+                    await Task.Delay(delay, ct).ConfigureAwait(false);
+                    StatusMessage = $"Connecting to {url}…";
+                }
+
+                // Simulate network handshake delay.
+                await Task.Delay(TimeSpan.FromSeconds(1), ct).ConfigureAwait(false);
+
+                IsStreaming = true;
+                reconnectAttempt = 0; // Reset on successful connection
+                StatusMessage = $"Connected – {url}";
+                _logger.LogInformation("[VideoStream] Stream active: {Url}", url);
+
+                // Keep-alive loop: in a real implementation this would be
+                // replaced by a frame-read / decode loop that invokes
+                // FrameReceived?.Invoke(this, jpegBytes) for each decoded frame.
+                while (!ct.IsCancellationRequested)
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(5), ct).ConfigureAwait(false);
+                    _logger.LogTrace("[VideoStream] Stream heartbeat");
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                _logger.LogDebug("[VideoStream] Stream loop cancelled");
+                break;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "[VideoStream] Stream loop error for {Url}", url);
+                IsStreaming = false;
+                reconnectAttempt++;
+
+                if (reconnectAttempt > MaxReconnectAttempts)
+                {
+                    StatusMessage = $"Error: {ex.Message} (max reconnect attempts exceeded)";
+                    _logger.LogWarning("[VideoStream] Max reconnect attempts exceeded, giving up");
+                    break;
+                }
             }
         }
-        catch (OperationCanceledException)
-        {
-            _logger.LogDebug("[VideoStream] Stream loop cancelled");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "[VideoStream] Stream loop error for {Url}", url);
-            IsStreaming = false;
-            StatusMessage = $"Error: {ex.Message}";
-        }
-        finally
-        {
-            IsStreaming = false;
-        }
+
+        IsStreaming = false;
     }
 
     // -----------------------------------------------------------------------
