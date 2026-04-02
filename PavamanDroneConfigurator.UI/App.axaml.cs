@@ -720,6 +720,7 @@ public partial class App : Application
         services.AddTransient<LiveMapPageViewModel>();
         services.AddTransient<TelemetryPageViewModel>();
         services.AddSingleton<MavlinkLogsViewModel>();
+        services.AddSingleton<LiveCameraViewModel>();
         services.AddTransient<ViewModels.Admin.ParamLogsViewModel>();
 
         Console.WriteLine("[App] Building service provider...");

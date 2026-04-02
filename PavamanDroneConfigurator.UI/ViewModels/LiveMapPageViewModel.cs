@@ -22,9 +22,8 @@ public partial class LiveMapPageViewModel : ViewModelBase
     private const string LiveStatusOnline = "LIVE";
     private const string LiveStatusOffline = "OFFLINE";
 
-    // PWM output range for servo-based spray/gimbal control
-    private const int PwmMin = 1000;
-    private const int PwmRange = 1000; // PwmMax (2000) - PwmMin (1000)
+    /// <summary>Default flow rate value when spray is not active (spray removed from Live Map).</summary>
+    private const double InactiveFlowRate = 0;
 
     private readonly IConnectionService _connectionService;
     private readonly ITelemetryService _telemetryService;
@@ -129,52 +128,6 @@ public partial class LiveMapPageViewModel : ViewModelBase
 
     #endregion
 
-    #region Observable Properties - Spray System
-
-    [ObservableProperty]
-    private bool _isSprayEnabled;
-
-    [ObservableProperty]
-    private double _flowRate;
-
-    [ObservableProperty]
-    private string _flowRateStatus = "OFF";
-
-    [ObservableProperty]
-    private double _tankLevel = 100;
-
-    [ObservableProperty]
-    private double _areaSprayedAcres;
-
-    [ObservableProperty]
-    private double _totalConsumedLiters;
-
-    [ObservableProperty]
-    private bool _isSprayPanelVisible;
-
-    [ObservableProperty]
-    private int _sprayPumpChannel = 9;
-
-    [ObservableProperty]
-    private int _sprayPumpPwmOn = 1900;
-
-    [ObservableProperty]
-    private int _sprayPumpPwmOff = 1100;
-
-    [ObservableProperty]
-    private int _sprayRelayNumber;
-
-    [ObservableProperty]
-    private int _sprayPumpSpeedPercent = 80;
-
-    [ObservableProperty]
-    private bool _isSprayRelayEnabled;
-
-    [ObservableProperty]
-    private string _sprayStatus = "Idle";
-
-    #endregion
-
     #region Observable Properties - Camera System
 
     [ObservableProperty]
@@ -200,6 +153,21 @@ public partial class LiveMapPageViewModel : ViewModelBase
 
     [ObservableProperty]
     private string _gimbalStatus = "Idle";
+
+    [ObservableProperty]
+    private bool _isStreamLoading;
+
+    [ObservableProperty]
+    private bool _hasStreamError;
+
+    [ObservableProperty]
+    private string _streamErrorMessage = string.Empty;
+
+    /// <summary>
+    /// Current video frame decoded from the stream for display in the Image control.
+    /// </summary>
+    [ObservableProperty]
+    private Avalonia.Media.Imaging.Bitmap? _currentVideoFrame;
 
     #endregion
 
@@ -243,9 +211,6 @@ public partial class LiveMapPageViewModel : ViewModelBase
 
     [ObservableProperty]
     private bool _showFlightPath = true;
-
-    [ObservableProperty]
-    private bool _showSprayOverlay;
 
     [ObservableProperty]
     private string _mapTypeLabel = "Satellite";
@@ -368,6 +333,7 @@ public partial class LiveMapPageViewModel : ViewModelBase
         // Wire up video streaming state events
         _videoStreamingService.StreamingStateChanged += OnVideoStreamingStateChanged;
         _videoStreamingService.StatusChanged += OnVideoStreamStatusChanged;
+        _videoStreamingService.FrameReceived += OnVideoFrameReceived;
 
         // Subscribe to connection events
         _connectionService.ConnectionStateChanged += OnConnectionStateChanged;
@@ -512,7 +478,7 @@ public partial class LiveMapPageViewModel : ViewModelBase
                     IsArmed = IsArmed,
                     SatelliteCount = SatelliteCount,
                     FlightMode = FlightMode,
-                    FlowRate = FlowRate
+                    FlowRate = InactiveFlowRate
                 });
             }
         });
@@ -577,7 +543,13 @@ public partial class LiveMapPageViewModel : ViewModelBase
         Dispatcher.UIThread.Post(() =>
         {
             IsVideoStreaming = isStreaming;
-            if (!isStreaming && IsCameraVisible)
+            if (isStreaming)
+            {
+                IsStreamLoading = false;
+                HasStreamError = false;
+                StreamErrorMessage = string.Empty;
+            }
+            else if (IsCameraVisible && !HasStreamError)
             {
                 // Keep the panel open so the user sees the status message.
             }
@@ -589,6 +561,39 @@ public partial class LiveMapPageViewModel : ViewModelBase
         Dispatcher.UIThread.Post(() =>
         {
             VideoStreamStatus = status;
+
+            // Detect error states from status message
+            if (status.StartsWith("Error:", StringComparison.OrdinalIgnoreCase))
+            {
+                IsStreamLoading = false;
+                HasStreamError = true;
+                StreamErrorMessage = status;
+            }
+            else if (status.StartsWith("Connecting", StringComparison.OrdinalIgnoreCase))
+            {
+                IsStreamLoading = true;
+                HasStreamError = false;
+                StreamErrorMessage = string.Empty;
+            }
+        });
+    }
+
+    private void OnVideoFrameReceived(object? sender, byte[] frameData)
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            try
+            {
+                using var ms = new System.IO.MemoryStream(frameData);
+                var bitmap = new Avalonia.Media.Imaging.Bitmap(ms);
+                var oldFrame = CurrentVideoFrame;
+                CurrentVideoFrame = bitmap;
+                oldFrame?.Dispose();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[LiveCamera] Frame decode error: {ex.Message}");
+            }
         });
     }
 
@@ -623,19 +628,19 @@ public partial class LiveMapPageViewModel : ViewModelBase
         DistanceToHome = 0;
         _homePosition = null;
         
-        // Reset spray/camera
-        IsSprayEnabled = false;
-        IsSprayRelayEnabled = false;
-        FlowRate = 0;
-        FlowRateStatus = "OFF";
-        SprayStatus = "Idle";
-        IsSprayPanelVisible = false;
+        // Reset camera
         IsCameraConnected = false;
         IsRecording = false;
         CameraStatus = "N/A";
         GimbalTiltAngle = 0;
         GimbalPanAngle = 0;
         GimbalStatus = "Idle";
+        IsStreamLoading = false;
+        HasStreamError = false;
+        StreamErrorMessage = string.Empty;
+        var oldFrame = CurrentVideoFrame;
+        CurrentVideoFrame = null;
+        oldFrame?.Dispose();
     }
 
     #endregion
@@ -748,61 +753,6 @@ public partial class LiveMapPageViewModel : ViewModelBase
     private void ToggleFlightPath()
     {
         ShowFlightPath = !ShowFlightPath;
-    }
-
-    [RelayCommand]
-    private void ToggleSprayOverlay()
-    {
-        ShowSprayOverlay = !ShowSprayOverlay;
-    }
-
-    [RelayCommand]
-    private void ToggleSpray()
-    {
-        IsSprayEnabled = !IsSprayEnabled;
-        if (IsSprayEnabled)
-        {
-            _connectionService.SendDoSetServo(SprayPumpChannel, SprayPumpPwmOn);
-            FlowRateStatus = $"{FlowRate:F1} L/min";
-            SprayStatus = "Spraying";
-        }
-        else
-        {
-            _connectionService.SendDoSetServo(SprayPumpChannel, SprayPumpPwmOff);
-            FlowRateStatus = "OFF";
-            SprayStatus = "Idle";
-        }
-    }
-
-    [RelayCommand]
-    private void ToggleSprayRelay()
-    {
-        IsSprayRelayEnabled = !IsSprayRelayEnabled;
-        _connectionService.SendDoSetRelay(SprayRelayNumber, IsSprayRelayEnabled);
-        FlowRateStatus = IsSprayRelayEnabled ? $"{FlowRate:F1} L/min" : "OFF";
-        SprayStatus = IsSprayRelayEnabled ? "Spraying (Relay)" : "Idle";
-    }
-
-    [RelayCommand]
-    private void ToggleSprayPanel()
-    {
-        IsSprayPanelVisible = !IsSprayPanelVisible;
-    }
-
-    [RelayCommand]
-    private void SetSprayPumpSpeed(string? speedParam)
-    {
-        if (int.TryParse(speedParam, out int speed))
-        {
-            SprayPumpSpeedPercent = Math.Clamp(speed, 0, 100);
-        }
-        int pwm = PwmMin + (int)(SprayPumpSpeedPercent / 100.0 * PwmRange);
-        SprayPumpPwmOn = pwm;
-        if (IsSprayEnabled)
-        {
-            _connectionService.SendDoSetServo(SprayPumpChannel, pwm);
-            SprayStatus = $"Spraying at {SprayPumpSpeedPercent}%";
-        }
     }
 
     [RelayCommand]
@@ -921,7 +871,7 @@ public partial class LiveMapPageViewModel : ViewModelBase
 
     /// <summary>
     /// Toggle the camera panel visibility and start/stop the stream accordingly.
-    /// Satisfies the MVVM requirement: ToggleCameraCommand.
+    /// Shows "Drone not connected" error if MAVLink connection is unavailable.
     /// </summary>
     [RelayCommand]
     private async System.Threading.Tasks.Task ToggleCameraAsync()
@@ -929,18 +879,51 @@ public partial class LiveMapPageViewModel : ViewModelBase
         if (IsCameraVisible)
         {
             IsCameraVisible = false;
-            if (IsVideoStreaming)
+            if (IsVideoStreaming || IsStreamLoading)
                 await _videoStreamingService.StopAsync();
+            IsStreamLoading = false;
+            HasStreamError = false;
+            StreamErrorMessage = string.Empty;
         }
         else
         {
             IsCameraVisible = true;
+
+            if (!IsConnected)
+            {
+                HasStreamError = true;
+                StreamErrorMessage = "Drone not connected";
+                VideoStreamStatus = "MAVLink connection is unavailable. Connect to drone first.";
+                return;
+            }
+
             if (!IsVideoStreaming)
             {
+                IsStreamLoading = true;
+                HasStreamError = false;
                 _videoStreamingService.StreamUrl = VideoStreamUrl;
                 await _videoStreamingService.StartAsync();
             }
         }
+    }
+
+    /// <summary>Retry starting the video stream after an error.</summary>
+    [RelayCommand]
+    private async System.Threading.Tasks.Task RetryStreamAsync()
+    {
+        if (!IsConnected)
+        {
+            HasStreamError = true;
+            StreamErrorMessage = "Drone not connected";
+            VideoStreamStatus = "MAVLink connection is unavailable. Connect to drone first.";
+            return;
+        }
+
+        HasStreamError = false;
+        StreamErrorMessage = string.Empty;
+        IsStreamLoading = true;
+        _videoStreamingService.StreamUrl = VideoStreamUrl;
+        await _videoStreamingService.StartAsync();
     }
 
     /// <summary>Open the MAVLink logs window (handled by the View).</summary>
@@ -1183,6 +1166,8 @@ public partial class LiveMapPageViewModel : ViewModelBase
             _telemetryService.TelemetryAvailabilityChanged -= OnTelemetryAvailabilityChanged;
             _videoStreamingService.StreamingStateChanged -= OnVideoStreamingStateChanged;
             _videoStreamingService.StatusChanged -= OnVideoStreamStatusChanged;
+            _videoStreamingService.FrameReceived -= OnVideoFrameReceived;
+            CurrentVideoFrame?.Dispose();
         }
         base.Dispose(disposing);
     }

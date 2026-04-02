@@ -1,0 +1,202 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="using:PavamanDroneConfigurator.UI.ViewModels"
+        xmlns:converters="using:PavamanDroneConfigurator.UI.Converters"
+        mc:Ignorable="d"
+        d:DesignWidth="720" d:DesignHeight="540"
+        x:Class="PavamanDroneConfigurator.UI.Views.LiveCameraWindow"
+        x:DataType="vm:LiveCameraViewModel"
+        Title="Live Camera"
+        Width="720" Height="540"
+        MinWidth="480" MinHeight="340"
+        CanResize="False"
+        WindowStartupLocation="CenterOwner"
+        Background="#0A0E1A">
+
+    <Window.Resources>
+        <converters:BoolToColorConverter x:Key="BoolToColorConverter"/>
+    </Window.Resources>
+
+    <Window.Styles>
+        <Style Selector="Button.cam-btn">
+            <Setter Property="Background" Value="#1E2433"/>
+            <Setter Property="Foreground" Value="#CBD5E1"/>
+            <Setter Property="Padding" Value="10,6"/>
+            <Setter Property="CornerRadius" Value="6"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="BorderBrush" Value="#2D3748"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Margin" Value="0,0,6,0"/>
+        </Style>
+        <Style Selector="Button.cam-btn:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="#2D3748"/>
+        </Style>
+        <Style Selector="Button.cam-btn:pressed /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="#3A4D63"/>
+        </Style>
+    </Window.Styles>
+
+    <DockPanel>
+
+        <!-- ── Header ── -->
+        <Border DockPanel.Dock="Top"
+                Background="#111827"
+                BorderBrush="#1E2433"
+                BorderThickness="0,0,0,1"
+                Padding="14,10">
+            <Grid ColumnDefinitions="*,Auto">
+                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="10"
+                            VerticalAlignment="Center">
+                    <TextBlock Text="🎥 Live Camera"
+                               FontSize="15" FontWeight="Bold"
+                               Foreground="#E2E8F0"/>
+                    <!-- Streaming indicator dot -->
+                    <Ellipse Width="10" Height="10" VerticalAlignment="Center"
+                             Fill="{Binding IsVideoStreaming,
+                                    Converter={StaticResource BoolToColorConverter},
+                                    ConverterParameter='#22c55e|#64748B'}"/>
+                    <TextBlock Text="{Binding StatusText}"
+                               FontSize="12" Foreground="#94A3B8"
+                               VerticalAlignment="Center"/>
+                </StackPanel>
+                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                    <Button Classes="cam-btn"
+                            Command="{Binding ToggleStreamCommand}">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <TextBlock Text="{Binding IsVideoStreaming,
+                                       Converter={StaticResource BoolToColorConverter},
+                                       ConverterParameter='⏹ Stop|▶ Start'}"
+                                       FontSize="12"/>
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- ── Stream URL bar ── -->
+        <Border DockPanel.Dock="Bottom"
+                Background="#111827"
+                BorderBrush="#1E2433"
+                BorderThickness="0,1,0,0"
+                Padding="14,8">
+            <Grid ColumnDefinitions="Auto,*,Auto">
+                <TextBlock Grid.Column="0"
+                           Text="URL: "
+                           VerticalAlignment="Center"
+                           Foreground="#64748B"
+                           FontSize="12"
+                           Margin="0,0,8,0"/>
+                <TextBox Grid.Column="1"
+                         Text="{Binding VideoStreamUrl}"
+                         Watermark="rtsp://192.168.1.1:8554/live"
+                         IsEnabled="{Binding !IsVideoStreaming}"
+                         Background="#1E2433"
+                         Foreground="#E2E8F0"
+                         BorderBrush="#2D3748"
+                         BorderThickness="1"
+                         CornerRadius="6"
+                         Padding="8,5"
+                         FontSize="12"/>
+                <TextBlock Grid.Column="2"
+                           Text="{Binding VideoStreamStatus}"
+                           FontSize="11" Foreground="#475569"
+                           VerticalAlignment="Center"
+                           Margin="10,0,0,0"
+                           MaxWidth="200"
+                           TextTrimming="CharacterEllipsis"/>
+            </Grid>
+        </Border>
+
+        <!-- ── Main video area ── -->
+        <Border Background="#0D1117">
+            <Grid>
+                <!-- Live video frame -->
+                <Image Source="{Binding CurrentVideoFrame}"
+                       Stretch="Uniform"
+                       IsVisible="{Binding IsVideoStreaming}"/>
+
+                <!-- Loading indicator -->
+                <StackPanel VerticalAlignment="Center"
+                            HorizontalAlignment="Center"
+                            Spacing="12"
+                            IsVisible="{Binding IsStreamLoading}">
+                    <TextBlock Text="⏳" FontSize="36" HorizontalAlignment="Center"/>
+                    <TextBlock Text="CONNECTING..."
+                               FontSize="16" FontWeight="Bold"
+                               Foreground="#94A3B8"
+                               HorizontalAlignment="Center"
+                               LetterSpacing="2"/>
+                    <TextBlock Text="{Binding VideoStreamStatus}"
+                               FontSize="12" Foreground="#475569"
+                               HorizontalAlignment="Center"
+                               TextWrapping="Wrap" TextAlignment="Center"
+                               MaxWidth="400"/>
+                </StackPanel>
+
+                <!-- Error state -->
+                <StackPanel VerticalAlignment="Center"
+                            HorizontalAlignment="Center"
+                            Spacing="10"
+                            IsVisible="{Binding HasStreamError}">
+                    <TextBlock Text="⚠" FontSize="36" HorizontalAlignment="Center"
+                               Foreground="#EF4444"/>
+                    <TextBlock Text="{Binding StreamErrorMessage}"
+                               FontSize="16" FontWeight="Bold"
+                               Foreground="#EF4444"
+                               HorizontalAlignment="Center"/>
+                    <TextBlock Text="{Binding VideoStreamStatus}"
+                               FontSize="12" Foreground="#475569"
+                               HorizontalAlignment="Center"
+                               TextWrapping="Wrap" TextAlignment="Center"
+                               MaxWidth="400"/>
+                    <Button Content="↻ Retry"
+                            Command="{Binding RetryStreamCommand}"
+                            HorizontalAlignment="Center"
+                            Background="#1E2433"
+                            Foreground="#E2E8F0"
+                            Padding="20,8"
+                            CornerRadius="6"
+                            BorderThickness="1"
+                            BorderBrush="#2D3748"
+                            FontSize="13"
+                            Margin="0,6,0,0"/>
+                </StackPanel>
+
+                <!-- Idle state: waiting -->
+                <StackPanel VerticalAlignment="Center"
+                            HorizontalAlignment="Center"
+                            Spacing="8">
+                    <StackPanel.IsVisible>
+                        <MultiBinding Converter="{x:Static BoolConverters.And}">
+                            <Binding Path="!IsVideoStreaming"/>
+                            <Binding Path="!IsStreamLoading"/>
+                            <Binding Path="!HasStreamError"/>
+                        </MultiBinding>
+                    </StackPanel.IsVisible>
+                    <TextBlock Text="📡" FontSize="42" HorizontalAlignment="Center"/>
+                    <TextBlock Text="WAITING FOR VIDEO"
+                               FontSize="18" FontWeight="Bold"
+                               Foreground="#94A3B8"
+                               HorizontalAlignment="Center"
+                               LetterSpacing="2"/>
+                    <TextBlock Text="Press ▶ Start or enter an RTSP URL to begin streaming"
+                               FontSize="12" Foreground="#475569"
+                               HorizontalAlignment="Center"/>
+                </StackPanel>
+
+                <!-- LIVE badge -->
+                <Border IsVisible="{Binding IsVideoStreaming}"
+                        HorizontalAlignment="Left" VerticalAlignment="Top"
+                        Margin="12,10" Background="#BB22c55e"
+                        CornerRadius="4" Padding="8,3">
+                    <TextBlock Text="● LIVE"
+                               FontSize="11" FontWeight="Bold"
+                               Foreground="White"/>
+                </Border>
+            </Grid>
+        </Border>
+
+    </DockPanel>
+</Window>
