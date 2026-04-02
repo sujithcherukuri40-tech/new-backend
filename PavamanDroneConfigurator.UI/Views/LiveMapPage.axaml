@@ -74,8 +74,7 @@
 
                 <!-- 🎥 Live Camera button -->
                 <Button Classes="overlay-btn"
-                        Command="{Binding ToggleCameraCommand}"
-                        IsEnabled="{Binding IsConnected}">
+                        Command="{Binding ToggleCameraCommand}">
                     <StackPanel Orientation="Horizontal" Spacing="6">
                         <TextBlock Text="🎥" FontSize="14"/>
                         <TextBlock Text="Live Camera" VerticalAlignment="Center"/>
@@ -144,7 +143,7 @@
                 </Border>
 
                 <!-- ── Video frame area ── -->
-                <Border Grid.Row="1" Background="#0D1117">
+                <Border Grid.Row="1" Background="#000000">
                     <Grid>
                         <!-- Live video frame (rendered from FrameReceived) -->
                         <Image Source="{Binding CurrentVideoFrame}"
@@ -156,83 +155,85 @@
                                     HorizontalAlignment="Center"
                                     Spacing="10"
                                     IsVisible="{Binding IsStreamLoading}">
-                            <Border Background="#88000000"
-                                    CornerRadius="6"
-                                    Padding="24,12"
-                                    HorizontalAlignment="Center">
-                                <StackPanel Spacing="8" HorizontalAlignment="Center">
-                                    <TextBlock Text="⏳" FontSize="28" HorizontalAlignment="Center"/>
-                                    <TextBlock Text="CONNECTING..."
-                                               FontSize="14" FontWeight="Bold"
-                                               Foreground="#94A3B8"
-                                               HorizontalAlignment="Center"
-                                               LetterSpacing="2"/>
-                                    <TextBlock Text="{Binding VideoStreamStatus}"
-                                               FontSize="11" Foreground="#475569"
-                                               HorizontalAlignment="Center"
-                                               TextWrapping="Wrap" TextAlignment="Center"
-                                               MaxWidth="380"/>
-                                </StackPanel>
-                            </Border>
+                            <StackPanel Spacing="8" HorizontalAlignment="Center">
+                                <TextBlock Text="⏳" FontSize="28" HorizontalAlignment="Center"/>
+                                <TextBlock Text="CONNECTING..."
+                                           FontSize="14" FontWeight="Bold"
+                                           Foreground="#94A3B8"
+                                           HorizontalAlignment="Center"
+                                           LetterSpacing="2"/>
+                                <TextBlock Text="{Binding VideoStreamStatus}"
+                                           FontSize="11" Foreground="#475569"
+                                           HorizontalAlignment="Center"
+                                           TextWrapping="Wrap" TextAlignment="Center"
+                                           MaxWidth="380"/>
+                            </StackPanel>
                         </StackPanel>
 
-                        <!-- Error state: Drone not connected -->
+                        <!-- Camera not connected state (drone not connected) -->
                         <StackPanel VerticalAlignment="Center"
                                     HorizontalAlignment="Center"
                                     Spacing="8"
-                                    IsVisible="{Binding HasStreamError}">
-                            <Border Background="#88000000"
-                                    CornerRadius="6"
-                                    Padding="24,12"
-                                    HorizontalAlignment="Center">
-                                <StackPanel Spacing="8" HorizontalAlignment="Center">
-                                    <TextBlock Text="⚠" FontSize="28" HorizontalAlignment="Center"
-                                               Foreground="#EF4444"/>
-                                    <TextBlock Text="{Binding StreamErrorMessage}"
-                                               FontSize="14" FontWeight="Bold"
-                                               Foreground="#EF4444"
-                                               HorizontalAlignment="Center"/>
-                                    <TextBlock Text="{Binding VideoStreamStatus}"
-                                               FontSize="11" Foreground="#475569"
-                                               HorizontalAlignment="Center"
-                                               TextWrapping="Wrap" TextAlignment="Center"
-                                               MaxWidth="380"/>
-                                    <Button Content="↻ Retry"
-                                            Command="{Binding RetryStreamCommand}"
-                                            HorizontalAlignment="Center"
-                                            Background="#1E2433"
-                                            Foreground="#E2E8F0"
-                                            Padding="16,6"
-                                            CornerRadius="6"
-                                            BorderThickness="1"
-                                            BorderBrush="#2D3748"
-                                            FontSize="12"
-                                            Margin="0,4,0,0"/>
-                                </StackPanel>
-                            </Border>
+                                    IsVisible="{Binding !IsConnected}">
+                            <TextBlock Text="📷" FontSize="32" HorizontalAlignment="Center"
+                                       Foreground="#64748B"/>
+                            <TextBlock Text="Camera not connected"
+                                       FontSize="16" FontWeight="SemiBold"
+                                       Foreground="#94A3B8"
+                                       HorizontalAlignment="Center"/>
                         </StackPanel>
 
-                        <!-- Not streaming and not loading and no error: show "WAITING FOR VIDEO" placeholder -->
+                        <!-- Error state: stream error while connected -->
                         <StackPanel VerticalAlignment="Center"
                                     HorizontalAlignment="Center"
                                     Spacing="8">
                             <StackPanel.IsVisible>
                                 <MultiBinding Converter="{x:Static BoolConverters.And}">
+                                    <Binding Path="IsConnected"/>
+                                    <Binding Path="HasStreamError"/>
+                                </MultiBinding>
+                            </StackPanel.IsVisible>
+                            <TextBlock Text="⚠" FontSize="28" HorizontalAlignment="Center"
+                                       Foreground="#EF4444"/>
+                            <TextBlock Text="{Binding StreamErrorMessage}"
+                                       FontSize="14" FontWeight="Bold"
+                                       Foreground="#EF4444"
+                                       HorizontalAlignment="Center"/>
+                            <TextBlock Text="{Binding VideoStreamStatus}"
+                                       FontSize="11" Foreground="#475569"
+                                       HorizontalAlignment="Center"
+                                       TextWrapping="Wrap" TextAlignment="Center"
+                                       MaxWidth="380"/>
+                            <Button Content="↻ Retry"
+                                    Command="{Binding RetryStreamCommand}"
+                                    HorizontalAlignment="Center"
+                                    Background="#1E2433"
+                                    Foreground="#E2E8F0"
+                                    Padding="16,6"
+                                    CornerRadius="6"
+                                    BorderThickness="1"
+                                    BorderBrush="#2D3748"
+                                    FontSize="12"
+                                    Margin="0,4,0,0"/>
+                        </StackPanel>
+
+                        <!-- Connected, not streaming, not loading, no error: show "WAITING FOR VIDEO" -->
+                        <StackPanel VerticalAlignment="Center"
+                                    HorizontalAlignment="Center"
+                                    Spacing="8">
+                            <StackPanel.IsVisible>
+                                <MultiBinding Converter="{x:Static BoolConverters.And}">
+                                    <Binding Path="IsConnected"/>
                                     <Binding Path="!IsVideoStreaming"/>
                                     <Binding Path="!IsStreamLoading"/>
                                     <Binding Path="!HasStreamError"/>
                                 </MultiBinding>
                             </StackPanel.IsVisible>
-                            <Border Background="#88000000"
-                                    CornerRadius="6"
-                                    Padding="24,12"
-                                    HorizontalAlignment="Center">
-                                <TextBlock Text="WAITING FOR VIDEO"
-                                           FontSize="16" FontWeight="Bold"
-                                           Foreground="#94A3B8"
-                                           HorizontalAlignment="Center"
-                                           LetterSpacing="2"/>
-                            </Border>
+                            <TextBlock Text="WAITING FOR VIDEO"
+                                       FontSize="16" FontWeight="Bold"
+                                       Foreground="#94A3B8"
+                                       HorizontalAlignment="Center"
+                                       LetterSpacing="2"/>
                             <TextBlock Text="{Binding VideoStreamStatus}"
                                        FontSize="11" Foreground="#475569"
                                        HorizontalAlignment="Center"
