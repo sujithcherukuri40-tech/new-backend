@@ -11,14 +11,14 @@ namespace PavamanDroneConfigurator.UI.ViewModels;
 /// <summary>
 /// ViewModel for the standalone Live Camera modal window.
 /// Manages video stream lifecycle, connection-aware error states,
-/// and live frame rendering.
+/// live frame rendering, gimbal controls, and camera actions.
 /// </summary>
 public partial class LiveCameraViewModel : ViewModelBase
 {
     private readonly IConnectionService _connectionService;
     private readonly IVideoStreamingService _videoStreamingService;
 
-    #region Observable Properties
+    #region Observable Properties – Stream
 
     [ObservableProperty]
     private bool _isConnected;
@@ -50,6 +50,28 @@ public partial class LiveCameraViewModel : ViewModelBase
 
     #endregion
 
+    #region Observable Properties – Gimbal & Camera
+
+    [ObservableProperty]
+    private float _gimbalTiltAngle;
+
+    [ObservableProperty]
+    private float _gimbalPanAngle;
+
+    [ObservableProperty]
+    private string _gimbalStatus = "Idle";
+
+    [ObservableProperty]
+    private bool _isRecording;
+
+    [ObservableProperty]
+    private int _photoCount;
+
+    [ObservableProperty]
+    private string _cameraStatus = "Ready";
+
+    #endregion
+
     public LiveCameraViewModel(
         IConnectionService connectionService,
         IVideoStreamingService videoStreamingService)
@@ -64,6 +86,8 @@ public partial class LiveCameraViewModel : ViewModelBase
 
         IsConnected = _connectionService.IsConnected;
     }
+
+    #region Event Handlers
 
     private void OnConnectionStateChanged(object? sender, bool connected)
     {
@@ -140,6 +164,10 @@ public partial class LiveCameraViewModel : ViewModelBase
         });
     }
 
+    #endregion
+
+    #region Stream Commands
+
     [RelayCommand]
     private async System.Threading.Tasks.Task StartStreamAsync()
     {
@@ -180,6 +208,90 @@ public partial class LiveCameraViewModel : ViewModelBase
     {
         await StartStreamAsync();
     }
+
+    #endregion
+
+    #region Gimbal Commands
+
+    [RelayCommand]
+    private void GimbalTiltUp()
+    {
+        GimbalTiltAngle = Math.Clamp(GimbalTiltAngle + 5f, -90f, 30f);
+        _connectionService.SendDoMountControl(GimbalTiltAngle, 0, GimbalPanAngle);
+        GimbalStatus = $"Tilt: {GimbalTiltAngle:F0}°";
+    }
+
+    [RelayCommand]
+    private void GimbalTiltDown()
+    {
+        GimbalTiltAngle = Math.Clamp(GimbalTiltAngle - 5f, -90f, 30f);
+        _connectionService.SendDoMountControl(GimbalTiltAngle, 0, GimbalPanAngle);
+        GimbalStatus = $"Tilt: {GimbalTiltAngle:F0}°";
+    }
+
+    [RelayCommand]
+    private void GimbalPanLeft()
+    {
+        GimbalPanAngle = Math.Clamp(GimbalPanAngle - 5f, -180f, 180f);
+        _connectionService.SendDoMountControl(GimbalTiltAngle, 0, GimbalPanAngle);
+        GimbalStatus = $"Pan: {GimbalPanAngle:F0}°";
+    }
+
+    [RelayCommand]
+    private void GimbalPanRight()
+    {
+        GimbalPanAngle = Math.Clamp(GimbalPanAngle + 5f, -180f, 180f);
+        _connectionService.SendDoMountControl(GimbalTiltAngle, 0, GimbalPanAngle);
+        GimbalStatus = $"Pan: {GimbalPanAngle:F0}°";
+    }
+
+    [RelayCommand]
+    private void GimbalCenter()
+    {
+        GimbalTiltAngle = 0;
+        GimbalPanAngle = 0;
+        _connectionService.SendDoMountControl(0, 0, 0);
+        GimbalStatus = "Centered";
+    }
+
+    [RelayCommand]
+    private void GimbalLookDown()
+    {
+        GimbalTiltAngle = -90;
+        GimbalPanAngle = 0;
+        _connectionService.SendDoMountControl(-90, 0, 0);
+        GimbalStatus = "Nadir";
+    }
+
+    #endregion
+
+    #region Camera Action Commands
+
+    [RelayCommand]
+    private void TakePhoto()
+    {
+        _connectionService.SendImageStartCapture(0, 1);
+        PhotoCount++;
+        CameraStatus = "Photo taken";
+    }
+
+    [RelayCommand]
+    private void ToggleRecording()
+    {
+        IsRecording = !IsRecording;
+        if (IsRecording)
+        {
+            _connectionService.SendVideoStartCapture();
+            CameraStatus = "Recording";
+        }
+        else
+        {
+            _connectionService.SendVideoStopCapture();
+            CameraStatus = "Ready";
+        }
+    }
+
+    #endregion
 
     protected override void Dispose(bool disposing)
     {

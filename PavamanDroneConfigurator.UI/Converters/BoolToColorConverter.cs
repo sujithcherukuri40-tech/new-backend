@@ -47,6 +47,12 @@ public class BoolToColorConverter : IValueConverter
         falseColorStr ??= FalseColor;
         
         var colorStr = boolValue ? trueColorStr : falseColorStr;
+
+        // If the target expects a string (e.g. TextBlock.Text), return the raw text
+        if (targetType == typeof(string))
+        {
+            return colorStr;
+        }
         
         if (Color.TryParse(colorStr, out var color))
         {
