@@ -35,7 +35,7 @@
             <Setter Property="Background" Value="#CC2D3D50"/>
         </Style>
 
-        <!-- Compact control button for camera/spray panels -->
+        <!-- Compact control button for camera/gimbal panels -->
         <Style Selector="Button.ctrl-btn">
             <Setter Property="Background" Value="#CC1A2332"/>
             <Setter Property="Foreground" Value="#CBD5E1"/>
@@ -62,9 +62,7 @@
         <!-- ── Live Map (WebView2) ── -->
         <controls:GoogleMapView x:Name="MapView" ClipToBounds="True"/>
 
-        <!-- ── Top-right toolbar overlay ──
-             Minimal toolbar (Live Camera + Spray + MAVLink Logs) anchored to the top-right.
-             Height ≈52dp; SetViewportInsets reserves this space in code-behind. -->
+        <!-- ── Top-right toolbar overlay ── -->
         <Border VerticalAlignment="Top"
                 HorizontalAlignment="Right"
                 Background="Transparent"
@@ -72,7 +70,7 @@
 
             <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
 
-                <!-- 🎥 Live Camera button -->
+                <!-- 🎥 Live Camera button (opens full window) -->
                 <Button Classes="overlay-btn"
                         Command="{Binding ToggleCameraCommand}">
                     <StackPanel Orientation="Horizontal" Spacing="6">
@@ -93,6 +91,298 @@
             </StackPanel>
         </Border>
 
+
+        <!-- ═══════════════════════════════════════════════════════════════
+             ── Camera &amp; Gimbal Control Panel (bottom-right overlay) ──
+             ═══════════════════════════════════════════════════════════════ -->
+        <Border VerticalAlignment="Bottom"
+                HorizontalAlignment="Right"
+                Margin="0,0,12,12"
+                Background="#E6101828"
+                BorderBrush="#334155"
+                BorderThickness="1"
+                CornerRadius="12"
+                Padding="0"
+                MaxWidth="340"
+                ClipToBounds="True">
+
+            <StackPanel Spacing="0">
+
+                <!-- ── Panel Header ── -->
+                <Border Background="#1A2332"
+                        Padding="12,8"
+                        CornerRadius="12,12,0,0">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8"
+                                    VerticalAlignment="Center">
+                            <TextBlock Text="🎯" FontSize="14"/>
+                            <TextBlock Text="Camera &amp; Gimbal"
+                                       FontSize="13" FontWeight="Bold"
+                                       Foreground="#E2E8F0"/>
+                            <!-- Stream indicator dot -->
+                            <Ellipse Width="8" Height="8" VerticalAlignment="Center"
+                                     Fill="{Binding IsVideoStreaming,
+                                            Converter={StaticResource BoolToColorConverter},
+                                            ConverterParameter='#22c55e|#64748B'}"/>
+                            <TextBlock Text="{Binding GimbalStatus}"
+                                       FontSize="11" Foreground="#94A3B8"
+                                       VerticalAlignment="Center"/>
+                        </StackPanel>
+                        <!-- Stream toggle button -->
+                        <Button Grid.Column="1" Classes="ctrl-btn"
+                                Command="{Binding ToggleVideoStreamCommand}"
+                                ToolTip.Tip="Toggle camera stream">
+                            <TextBlock Text="{Binding IsVideoStreaming,
+                                       Converter={StaticResource BoolToColorConverter},
+                                       ConverterParameter='⏹|▶'}"
+                                       FontSize="12"/>
+                        </Button>
+                    </Grid>
+                </Border>
+
+                <!-- ── Camera Live Preview ── -->
+                <Border Background="#0D1117"
+                        Height="140"
+                        Margin="8,6,8,0"
+                        CornerRadius="8"
+                        ClipToBounds="True">
+                    <Grid>
+                        <!-- Live video frame (thumbnail) -->
+                        <Image Source="{Binding CurrentVideoFrame}"
+                               Stretch="Uniform"
+                               IsVisible="{Binding IsVideoStreaming}"/>
+
+                        <!-- Loading state -->
+                        <StackPanel VerticalAlignment="Center"
+                                    HorizontalAlignment="Center"
+                                    Spacing="4"
+                                    IsVisible="{Binding IsStreamLoading}">
+                            <TextBlock Text="⏳" FontSize="20" HorizontalAlignment="Center"/>
+                            <TextBlock Text="CONNECTING..."
+                                       FontSize="10" FontWeight="Bold"
+                                       Foreground="#94A3B8"
+                                       HorizontalAlignment="Center"/>
+                        </StackPanel>
+
+                        <!-- Idle state -->
+                        <StackPanel VerticalAlignment="Center"
+                                    HorizontalAlignment="Center"
+                                    Spacing="4">
+                            <StackPanel.IsVisible>
+                                <MultiBinding Converter="{x:Static BoolConverters.And}">
+                                    <Binding Path="!IsVideoStreaming"/>
+                                    <Binding Path="!IsStreamLoading"/>
+                                    <Binding Path="!HasStreamError"/>
+                                </MultiBinding>
+                            </StackPanel.IsVisible>
+                            <TextBlock Text="📷" FontSize="22" HorizontalAlignment="Center"/>
+                            <TextBlock Text="NO FEED"
+                                       FontSize="10" FontWeight="Bold"
+                                       Foreground="#475569"
+                                       HorizontalAlignment="Center"
+                                       LetterSpacing="1"/>
+                            <TextBlock Text="Press ▶ to start"
+                                       FontSize="9" Foreground="#374151"
+                                       HorizontalAlignment="Center"/>
+                        </StackPanel>
+
+                        <!-- Error state -->
+                        <StackPanel VerticalAlignment="Center"
+                                    HorizontalAlignment="Center"
+                                    Spacing="3"
+                                    IsVisible="{Binding HasStreamError}">
+                            <TextBlock Text="⚠" FontSize="18" HorizontalAlignment="Center"
+                                       Foreground="#EF4444"/>
+                            <TextBlock Text="STREAM ERROR"
+                                       FontSize="10" FontWeight="Bold"
+                                       Foreground="#EF4444"
+                                       HorizontalAlignment="Center"/>
+                            <Button Content="↻ Retry"
+                                    Command="{Binding RetryStreamCommand}"
+                                    HorizontalAlignment="Center"
+                                    Background="#1E2433"
+                                    Foreground="#E2E8F0"
+                                    Padding="12,4"
+                                    CornerRadius="4"
+                                    BorderThickness="1"
+                                    BorderBrush="#2D3748"
+                                    FontSize="10"/>
+                        </StackPanel>
+
+                        <!-- LIVE badge -->
+                        <Border IsVisible="{Binding IsVideoStreaming}"
+                                HorizontalAlignment="Left" VerticalAlignment="Top"
+                                Margin="6,5" Background="#BB22c55e"
+                                CornerRadius="3" Padding="5,2">
+                            <TextBlock Text="● LIVE"
+                                       FontSize="9" FontWeight="Bold"
+                                       Foreground="White"/>
+                        </Border>
+
+                        <!-- Angle overlay on the video -->
+                        <Border IsVisible="{Binding IsVideoStreaming}"
+                                HorizontalAlignment="Right" VerticalAlignment="Top"
+                                Margin="6,5" Background="#AA0F172A"
+                                CornerRadius="3" Padding="5,2">
+                            <TextBlock FontSize="9" Foreground="#94A3B8">
+                                <TextBlock.Text>
+                                    <MultiBinding StringFormat="T:{0:F0}° P:{1:F0}°">
+                                        <Binding Path="GimbalTiltAngle"/>
+                                        <Binding Path="GimbalPanAngle"/>
+                                    </MultiBinding>
+                                </TextBlock.Text>
+                            </TextBlock>
+                        </Border>
+                    </Grid>
+                </Border>
+
+                <!-- ── Gimbal D-Pad + Camera Actions ── -->
+                <Grid Margin="8,8,8,4" ColumnDefinitions="*,Auto">
+
+                    <!-- Left: Gimbal D-Pad -->
+                    <Grid Grid.Column="0"
+                          RowDefinitions="Auto,Auto,Auto"
+                          ColumnDefinitions="*,Auto,Auto,Auto,*"
+                          HorizontalAlignment="Center">
+
+                        <!-- Tilt Up -->
+                        <Button Grid.Row="0" Grid.Column="2"
+                                Classes="ctrl-btn"
+                                Command="{Binding GimbalTiltUpCommand}"
+                                ToolTip.Tip="Tilt Up (+5°)"
+                                Margin="2" MinWidth="36" MinHeight="28">
+                            <TextBlock Text="▲" FontSize="12" Foreground="#60A5FA"/>
+                        </Button>
+
+                        <!-- Pan Left -->
+                        <Button Grid.Row="1" Grid.Column="1"
+                                Classes="ctrl-btn"
+                                Command="{Binding GimbalPanLeftCommand}"
+                                ToolTip.Tip="Pan Left (-5°)"
+                                Margin="2" MinWidth="36" MinHeight="28">
+                            <TextBlock Text="◀" FontSize="12" Foreground="#60A5FA"/>
+                        </Button>
+
+                        <!-- Center (D-pad center) -->
+                        <Button Grid.Row="1" Grid.Column="2"
+                                Classes="ctrl-btn"
+                                Command="{Binding GimbalCenterCommand}"
+                                ToolTip.Tip="Center Gimbal (0°, 0°)"
+                                Margin="2" MinWidth="36" MinHeight="28"
+                                Background="#CC1E3A5F">
+                            <TextBlock Text="⊙" FontSize="14" Foreground="#38BDF8" FontWeight="Bold"/>
+                        </Button>
+
+                        <!-- Pan Right -->
+                        <Button Grid.Row="1" Grid.Column="3"
+                                Classes="ctrl-btn"
+                                Command="{Binding GimbalPanRightCommand}"
+                                ToolTip.Tip="Pan Right (+5°)"
+                                Margin="2" MinWidth="36" MinHeight="28">
+                            <TextBlock Text="▶" FontSize="12" Foreground="#60A5FA"/>
+                        </Button>
+
+                        <!-- Tilt Down -->
+                        <Button Grid.Row="2" Grid.Column="2"
+                                Classes="ctrl-btn"
+                                Command="{Binding GimbalTiltDownCommand}"
+                                ToolTip.Tip="Tilt Down (-5°)"
+                                Margin="2" MinWidth="36" MinHeight="28">
+                            <TextBlock Text="▼" FontSize="12" Foreground="#60A5FA"/>
+                        </Button>
+                    </Grid>
+
+                    <!-- Right: Camera Action Buttons -->
+                    <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center"
+                                Margin="8,0,0,0">
+                        <!-- Take Photo -->
+                        <Button Classes="ctrl-btn"
+                                Command="{Binding TakePhotoCommand}"
+                                ToolTip.Tip="Take Photo"
+                                MinWidth="68" Padding="8,6">
+                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                <TextBlock Text="📸" FontSize="12"/>
+                                <TextBlock Text="Photo" FontSize="10" VerticalAlignment="Center"
+                                           Foreground="#CBD5E1"/>
+                            </StackPanel>
+                        </Button>
+
+                        <!-- Toggle Recording -->
+                        <Button Classes="ctrl-btn"
+                                Command="{Binding ToggleRecordingCommand}"
+                                ToolTip.Tip="Start/Stop Recording"
+                                MinWidth="68" Padding="8,6">
+                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                <TextBlock Text="{Binding IsRecording,
+                                           Converter={StaticResource BoolToColorConverter},
+                                           ConverterParameter='⏹|🔴'}"
+                                           FontSize="12"/>
+                                <TextBlock Text="{Binding IsRecording,
+                                           Converter={StaticResource BoolToColorConverter},
+                                           ConverterParameter='Stop|Record'}"
+                                           FontSize="10" VerticalAlignment="Center"
+                                           Foreground="#CBD5E1"/>
+                            </StackPanel>
+                        </Button>
+
+                        <!-- Photo counter badge -->
+                        <Border Background="#0D1117" CornerRadius="4" Padding="6,3"
+                                HorizontalAlignment="Stretch">
+                            <TextBlock HorizontalAlignment="Center"
+                                       FontSize="9" Foreground="#64748B">
+                                <TextBlock.Text>
+                                    <Binding Path="PhotoCount" StringFormat="📷 {0} shots"/>
+                                </TextBlock.Text>
+                            </TextBlock>
+                        </Border>
+                    </StackPanel>
+                </Grid>
+
+                <!-- ── Gimbal Presets Row ── -->
+                <StackPanel Orientation="Horizontal" Spacing="4"
+                            Margin="8,2,8,8"
+                            HorizontalAlignment="Center">
+
+                    <!-- Nadir / Look Down -->
+                    <Button Classes="ctrl-btn"
+                            Command="{Binding GimbalLookDownCommand}"
+                            ToolTip.Tip="Look Straight Down (-90°)"
+                            Padding="8,5">
+                        <StackPanel Orientation="Horizontal" Spacing="4">
+                            <TextBlock Text="⬇" FontSize="11" Foreground="#F59E0B"/>
+                            <TextBlock Text="Nadir" FontSize="10" Foreground="#CBD5E1"/>
+                        </StackPanel>
+                    </Button>
+
+                    <!-- Center / Level -->
+                    <Button Classes="ctrl-btn"
+                            Command="{Binding GimbalCenterCommand}"
+                            ToolTip.Tip="Level / Center (0°, 0°)"
+                            Padding="8,5">
+                        <StackPanel Orientation="Horizontal" Spacing="4">
+                            <TextBlock Text="⊕" FontSize="11" Foreground="#34D399"/>
+                            <TextBlock Text="Level" FontSize="10" Foreground="#CBD5E1"/>
+                        </StackPanel>
+                    </Button>
+
+                    <!-- Gimbal angle readout -->
+                    <Border Background="#0D1117"
+                            CornerRadius="4"
+                            Padding="8,4"
+                            VerticalAlignment="Center">
+                        <TextBlock FontSize="10" Foreground="#64748B">
+                            <TextBlock.Text>
+                                <MultiBinding StringFormat="Tilt: {0:F0}°  Pan: {1:F0}°">
+                                    <Binding Path="GimbalTiltAngle"/>
+                                    <Binding Path="GimbalPanAngle"/>
+                                </MultiBinding>
+                            </TextBlock.Text>
+                        </TextBlock>
+                    </Border>
+                </StackPanel>
+
+            </StackPanel>
+        </Border>
 
     </Grid>
 </UserControl>
