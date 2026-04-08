@@ -619,5 +619,5 @@ public class ActivityDataItem
 {
     public string Activity { get; set; } = string.Empty;
     public int Count { get; set; }
-    public string Color { get; set; } = "#667EEA";
+    public string Color { get; set; } = "#919ccdff";
 }
