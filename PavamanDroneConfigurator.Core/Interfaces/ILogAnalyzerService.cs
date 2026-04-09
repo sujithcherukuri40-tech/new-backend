@@ -35,6 +35,11 @@ public interface ILogAnalyzerService
     /// </summary>
     event EventHandler<LogParseResult>? LogParsed;
 
+    /// <summary>
+    /// Event raised when parse progress changes (0-100 percent).
+    /// </summary>
+    event EventHandler<int>? ParseProgressChanged;
+
     #endregion
 
     #region Status Properties
@@ -118,7 +123,8 @@ public interface ILogAnalyzerService
     /// <param name="logFilePath">Path to the log file.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>Parse result with available message types and fields.</returns>
-    Task<LogParseResult> LoadLogFileAsync(string logFilePath, CancellationToken cancellationToken = default);
+    Task<LogParseResult> LoadLogFileAsync(string logFilePath, CancellationToken cancellationToken = default,
+        IProgress<int>? parseProgress = null);
 
     /// <summary>
     /// Unloads the current log file.

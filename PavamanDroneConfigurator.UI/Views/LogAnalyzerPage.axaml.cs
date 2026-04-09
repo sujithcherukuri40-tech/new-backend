@@ -12,7 +12,7 @@ namespace PavamanDroneConfigurator.UI.Views
     public partial class LogAnalyzerPage : UserControl
     {
         private LogGraphControl? _graphControl;
-        private LogMapControl? _mapControl;
+        private LogGoogleMapControl? _mapControl;
 
         public LogAnalyzerPage()
         {
@@ -26,7 +26,7 @@ namespace PavamanDroneConfigurator.UI.Views
             _graphControl = this.FindControl<LogGraphControl>("GraphControl");
             
             // Get reference to map control
-            _mapControl = this.FindControl<LogMapControl>("MapControl");
+            _mapControl = this.FindControl<LogGoogleMapControl>("MapControl");
 
             // Find the parent window and set it on the ViewModel
             if (DataContext is LogAnalyzerPageViewModel viewModel)

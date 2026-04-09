@@ -31,20 +31,27 @@ public partial class AirframePageViewModel : ViewModelBase
     [ObservableProperty]
     private string _currentFrameName = "Not loaded";
 
-    // Available frame classes
+    // Available frame classes - Complete ArduPilot FRAME_CLASS list
     public List<FrameClassOption> AvailableFrameClasses { get; } = new()
     {
+        new FrameClassOption(0, "Undefined", "Not configured"),
         new FrameClassOption(1, "Quad", "Standard quadcopter with 4 motors"),
         new FrameClassOption(2, "Hexa", "Hexacopter with 6 motors"),
         new FrameClassOption(3, "Octa", "Octocopter with 8 motors"),
         new FrameClassOption(4, "OctaQuad", "Octo-Quad configuration"),
         new FrameClassOption(5, "Y6", "Y6 configuration"),
+        new FrameClassOption(6, "Heli", "Traditional helicopter"),
         new FrameClassOption(7, "Tri", "Tricopter with 3 motors"),
-        new FrameClassOption(10, "BiCopter", "Dual rotor helicopter"),
-        new FrameClassOption(13, "HeliQuad", "Helicopter-Quad hybrid")
+        new FrameClassOption(8, "SingleCopter", "Single motor copter"),
+        new FrameClassOption(9, "CoaxCopter", "Coaxial copter"),
+        new FrameClassOption(10, "BiCopter", "Dual rotor copter"),
+        new FrameClassOption(11, "Heli Dual", "Dual rotor helicopter"),
+        new FrameClassOption(12, "DodecaHexa", "12-motor hexacopter"),
+        new FrameClassOption(13, "HeliQuad", "Helicopter-Quad hybrid"),
+        new FrameClassOption(14, "Deca", "Decacopter with 10 motors")
     };
 
-    // Available frame types (configurations)
+    // Available frame types (configurations) - Complete ArduPilot FRAME_TYPE list
     public List<FrameTypeOption> AvailableFrameTypes { get; } = new()
     {
         new FrameTypeOption(0, "Plus (+)", "Plus configuration"),
@@ -52,7 +59,16 @@ public partial class AirframePageViewModel : ViewModelBase
         new FrameTypeOption(2, "V", "V configuration"),
         new FrameTypeOption(3, "H", "H configuration"),
         new FrameTypeOption(4, "V-Tail", "V-Tail configuration"),
-        new FrameTypeOption(5, "A-Tail", "A-Tail configuration")
+        new FrameTypeOption(5, "A-Tail", "A-Tail configuration"),
+        new FrameTypeOption(6, "Y6B (Reversed)", "Y6B reversed motor order"),
+        new FrameTypeOption(7, "Y6F2", "Y6 forward variant 2"),
+        new FrameTypeOption(8, "BetaFlight X", "BetaFlight X motor order"),
+        new FrameTypeOption(9, "DJI X", "DJI X motor order"),
+        new FrameTypeOption(10, "Y6B", "Y6B motor order"),
+        new FrameTypeOption(11, "Y6F", "Y6 forward motor order"),
+        new FrameTypeOption(12, "ClockWise X", "Clockwise X motor order"),
+        new FrameTypeOption(13, "NanoQuad", "Nano quadcopter layout"),
+        new FrameTypeOption(14, "Deca CW X", "Deca clockwise X layout")
     };
 
     public AirframePageViewModel(IAirframeService airframeService, IConnectionService connectionService, IParameterService parameterService)

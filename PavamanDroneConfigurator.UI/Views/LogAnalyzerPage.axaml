@@ -596,7 +596,7 @@
                                 
                                 <!-- Map Display -->
                                 <Grid Grid.Row="1" IsVisible="{Binding ShowMap}">
-                                    <controls:LogMapControl TrackPoints="{Binding GpsTrackPoints}"
+                                    <controls:LogGoogleMapControl TrackPoints="{Binding GpsTrackPoints}"
                                                             CriticalEvents="{Binding CriticalMapEvents}"
                                                             CenterLatitude="{Binding MapCenterLat}"
                                                             CenterLongitude="{Binding MapCenterLng}"
@@ -627,7 +627,7 @@
             <!-- MAP TAB -->
             <TabItem Header="Map">
                 <Grid>
-                    <controls:LogMapControl
+                    <controls:LogGoogleMapControl x:Name="MapControl"
                         TrackPoints="{Binding GpsTrackPoints}"
                         CriticalEvents="{Binding CriticalMapEvents}"
                         CenterLatitude="{Binding MapCenterLat}"
@@ -1271,10 +1271,21 @@
                         </ItemsControl>
                     </ScrollViewer>
                     
-                    <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Center" Spacing="12" Margin="0,16,0,0">
-                        <Button Classes="ToolbarButton" Content="Cancel" Width="120" Command="{Binding CloseDownloadDialogCommand}"/>
-                        <Button Classes="ToolbarButton" Content="Refresh" Width="120" Command="{Binding RefreshLogsCommand}"/>
-                        <Button Classes="ToolbarButton" Content="Download" Width="120" Command="{Binding DownloadSelectedCommand}"/>
+                    <StackPanel Grid.Row="3" Margin="0,16,0,0" Spacing="12">
+                        <!-- Download Progress Bar -->
+                        <StackPanel IsVisible="{Binding IsDownloading}" Spacing="4">
+                            <TextBlock Text="{Binding DownloadProgressText}" Foreground="#666666" FontSize="11" HorizontalAlignment="Center"/>
+                            <ProgressBar Value="{Binding DownloadProgress}" Maximum="100" Height="6" Margin="0,4"/>
+                        </StackPanel>
+                        
+                        <!-- Action Buttons -->
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="12">
+                            <Button Classes="ToolbarButton" Content="Cancel" Width="120" Command="{Binding CloseDownloadDialogCommand}"/>
+                            <Button Classes="ToolbarButton" Content="Refresh" Width="120" Command="{Binding RefreshLogsCommand}"/>
+                            <Button Classes="ToolbarButton" Content="Download &amp; Load" Width="140" 
+                                    Command="{Binding DownloadSelectedCommand}"
+                                    IsEnabled="{Binding !IsDownloading}"/>
+                        </StackPanel>
                     </StackPanel>
                 </Grid>
             </Border>
@@ -1296,6 +1307,13 @@
                            HorizontalAlignment="Center"
                            TextAlignment="Center"
                            MaxWidth="300"/>
+                <!-- Parse Progress Bar for large files -->
+                <ProgressBar Value="{Binding ParseProgress}" 
+                             Maximum="100" 
+                             Height="6" 
+                             Width="250"
+                             IsVisible="{Binding ParseProgress}"
+                             Margin="0,4,0,0"/>
             </StackPanel>
         </Border>
     </Grid>

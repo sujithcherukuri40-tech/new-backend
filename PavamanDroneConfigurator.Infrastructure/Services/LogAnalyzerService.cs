@@ -45,6 +45,7 @@ public sealed class LogAnalyzerService : ILogAnalyzerService, IDisposable
     public event EventHandler<(LogFileInfo File, bool Success, string? Error)>? DownloadCompleted;
     public event EventHandler<LogAnalysisResult>? AnalysisCompleted;
     public event EventHandler<LogParseResult>? LogParsed;
+    public event EventHandler<int>? ParseProgressChanged;
 
     public bool IsDownloading => _isDownloading;
     public bool IsAnalyzing => _isAnalyzing;
@@ -363,7 +364,8 @@ public sealed class LogAnalyzerService : ILogAnalyzerService, IDisposable
 
     #region Log Parsing and Loading
 
-    public async Task<LogParseResult> LoadLogFileAsync(string logFilePath, CancellationToken cancellationToken = default)
+    public async Task<LogParseResult> LoadLogFileAsync(string logFilePath, CancellationToken cancellationToken = default,
+        IProgress<int>? parseProgress = null)
     {
         var result = new LogParseResult
         {
@@ -391,9 +393,17 @@ public sealed class LogAnalyzerService : ILogAnalyzerService, IDisposable
             _logger.LogInformation("Detected log format: {Format} (confidence: {Confidence}%)", 
                 detectionResult.Format, detectionResult.Confidence);
 
-            // Create parser and parse the file based on detected format
+            // Create progress wrapper that also fires our event
+            var progressReporter = parseProgress != null 
+                ? new Progress<int>(pct => {
+                    parseProgress.Report(pct);
+                    ParseProgressChanged?.Invoke(this, pct);
+                })
+                : new Progress<int>(pct => ParseProgressChanged?.Invoke(this, pct));
+
+            // Create parser and parse the file using streaming
             _parser = new DataFlashLogParser();
-            _currentLog = await _parser.ParseAsync(logFilePath, cancellationToken);
+            _currentLog = await _parser.ParseAsync(logFilePath, cancellationToken, progressReporter);
 
             if (!_currentLog.IsSuccess)
             {

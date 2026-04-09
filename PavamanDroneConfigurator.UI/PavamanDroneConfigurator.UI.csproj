@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net9.0-windows</TargetFramework>
@@ -62,8 +62,7 @@
     <PackageReference Include="DotNetEnv" Version="3.1.1" />
     <PackageReference Include="HarfBuzzSharp" Version="8.3.1.1" />
     <PackageReference Include="HarfBuzzSharp.NativeAssets.WebAssembly" Version="8.3.1.1" />
-    <!-- Mapsui for Log Analyzer 2D map (LogMapControl), Google Maps for Live Map 3D -->
-    <PackageReference Include="Mapsui.Avalonia" Version="5.0.0-beta.1" />
+
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.0" />
 
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.0">

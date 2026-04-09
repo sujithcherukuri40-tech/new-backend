@@ -56,7 +56,7 @@ public sealed class ConnectionService : IConnectionService, IDisposable
     private List<SerialPortInfo> _cachedPorts = new();
     private DateTime _lastDataReceivedTime;
     private const int CONNECTION_MONITOR_INTERVAL_MS = 1000;
-    private const int CONNECTION_TIMEOUT_SECONDS = 1;
+    private const int CONNECTION_TIMEOUT_SECONDS = 5;
 
     public bool IsConnected => _isConnected;
     public bool IsArmed => _isArmed;

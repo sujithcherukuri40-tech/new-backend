@@ -111,7 +111,7 @@ public class AirframeService : IAirframeService
             _ => $"Unknown ({frameClass})"
         };
 
-        // Frame type mapping (configuration)
+        // Frame type mapping (configuration) - Complete ArduPilot FRAME_TYPE list
         var typeName = frameType switch
         {
             0 => "Plus",
@@ -120,9 +120,16 @@ public class AirframeService : IAirframeService
             3 => "H",
             4 => "V-Tail",
             5 => "A-Tail",
+            6 => "Y6B (Reversed)",
+            7 => "Y6F2",
+            8 => "BetaFlight X",
+            9 => "DJI X",
             10 => "Y6B",
             11 => "Y6F",
-            _ => $"Type {frameType}"
+            12 => "ClockWise X",
+            13 => "NanoQuad",
+            14 => "Deca CW X",
+            _ => $"Custom ({frameType})"
         };
 
         return $"{className} {typeName}";

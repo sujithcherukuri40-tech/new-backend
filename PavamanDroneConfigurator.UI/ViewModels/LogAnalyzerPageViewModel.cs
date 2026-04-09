@@ -42,6 +42,9 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
     private bool _isAnalyzing;
 
     [ObservableProperty]
+    private int _parseProgress;
+
+    [ObservableProperty]
     private string _statusMessage = "Select a log file to analyze.";
 
     [ObservableProperty]
@@ -469,6 +472,7 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
         _logAnalyzerService.DownloadProgressChanged += OnDownloadProgressChanged;
         _logAnalyzerService.DownloadCompleted += OnDownloadCompleted;
         _logAnalyzerService.LogParsed += OnLogParsed;
+        _logAnalyzerService.ParseProgressChanged += OnParseProgressChanged;
 
         IsConnected = _connectionService.IsConnected;
 
@@ -530,18 +534,25 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
 
     private void OnDownloadCompleted(object? sender, (LogFileInfo File, bool Success, String? Error) e)
     {
-        _ = Dispatcher.UIThread.InvokeAsync(async () =>
+        Dispatcher.UIThread.Post(() =>
         {
             if (e.Success)
             {
                 StatusMessage = $"Downloaded: {e.File.FileName}";
-                SelectedFilePath = e.File.LocalPath ?? string.Empty;
-                await LoadLogAsync();
+                // Don't auto-load here — DownloadSelectedAsync handles loading to avoid race condition
             }
             else
             {
                 StatusMessage = $"Download failed: {e.Error}";
             }
+        });
+    }
+
+    private void OnParseProgressChanged(object? sender, int percent)
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            ParseProgress = percent;
         });
     }
 
@@ -594,14 +605,12 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
                     {
                         StatusMessage = $"GPS loaded ({gpsData.Count} points), loading events...";
                         
-                        // Update GPS collections
-                        GpsTrack.Clear();
-                        GpsTrackPoints.Clear();
-                        foreach (var pt in gpsData.Take(10000)) // Limit for performance
-                        {
-                            GpsTrack.Add(new GpsPoint { Latitude = pt.Lat, Longitude = pt.Lng, Altitude = pt.Alt, Timestamp = pt.Timestamp });
-                            GpsTrackPoints.Add(new Controls.GpsTrackPoint { Latitude = pt.Lat, Longitude = pt.Lng, Altitude = pt.Alt, Timestamp = pt.Timestamp, Speed = pt.Speed });
-                        }
+                        // Batch-replace GPS collections (avoids per-item CollectionChanged events)
+                        var limitedGps = gpsData.Take(10000).ToList();
+                        GpsTrack = new ObservableCollection<GpsPoint>(
+                            limitedGps.Select(pt => new GpsPoint { Latitude = pt.Lat, Longitude = pt.Lng, Altitude = pt.Alt, Timestamp = pt.Timestamp }));
+                        GpsTrackPoints = new ObservableCollection<Controls.GpsTrackPoint>(
+                            limitedGps.Select(pt => new Controls.GpsTrackPoint { Latitude = pt.Lat, Longitude = pt.Lng, Altitude = pt.Alt, Timestamp = pt.Timestamp, Speed = pt.Speed }));
                         
                         HasGpsData = GpsTrack.Count > 0;
                         if (GpsTrack.Count > 0)
@@ -622,11 +631,8 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
                     {
                         StatusMessage = $"Events loaded ({events.Count}), loading fields...";
                         
-                        DetectedEvents.Clear();
-                        foreach (var evt in events.Take(1000)) // Limit for performance
-                        {
-                            DetectedEvents.Add(evt);
-                        }
+                        // Batch-replace events collection (avoids per-item CollectionChanged)
+                        DetectedEvents = new ObservableCollection<LogEvent>(events.Take(1000));
                         
                         // Update summary
                         EventSummary = new EventSummary
@@ -1643,11 +1649,22 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
         }
 
         IsBusy = true;
-        StatusMessage = $"Loading {Path.GetFileName(SelectedFilePath)}...";
+        ParseProgress = 0;
+        var fileSize = new FileInfo(SelectedFilePath).Length;
+        var fileSizeMB = fileSize / (1024.0 * 1024.0);
+        StatusMessage = $"Loading {Path.GetFileName(SelectedFilePath)} ({fileSizeMB:F1} MB)...";
 
         try
         {
-            var result = await _logAnalyzerService.LoadLogFileAsync(SelectedFilePath);
+            // Create progress reporter for large files
+            var progress = new Progress<int>(pct =>
+            {
+                ParseProgress = pct;
+                if (pct % 10 == 0) // Update status every 10%
+                    StatusMessage = $"Parsing {Path.GetFileName(SelectedFilePath)}... {pct}%";
+            });
+
+            var result = await _logAnalyzerService.LoadLogFileAsync(SelectedFilePath, default, progress);
             if (!result.IsSuccess)
             {
                 StatusMessage = $"Failed to load: {result.ErrorMessage}";
@@ -1661,6 +1678,7 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
         finally
         {
             IsBusy = false;
+            ParseProgress = 0;
         }
     }
 
@@ -2038,21 +2056,24 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
 
         IsDownloading = true;
         DownloadProgress = 0;
+        StatusMessage = $"Downloading {selectedFiles.Count} file(s)...";
 
         try
         {
             var count = await _logAnalyzerService.DownloadLogFilesAsync(selectedFiles, DownloadFolder);
-            StatusMessage = $"Downloaded {count} files";
+            StatusMessage = $"Downloaded {count} of {selectedFiles.Count} file(s)";
             
+            // Find the first successfully downloaded file and auto-load it
             var downloaded = selectedFiles.FirstOrDefault(f => f.IsDownloaded);
-            if (downloaded != null)
+            if (downloaded != null && !string.IsNullOrEmpty(downloaded.LocalPath))
             {
-                SelectedFilePath = downloaded.LocalPath ?? string.Empty;
+                SelectedFilePath = downloaded.LocalPath;
                 IsDownloadDialogOpen = false;
-                if (!string.IsNullOrEmpty(SelectedFilePath))
-                {
-                    await LoadLogAsync();
-                }
+                await LoadLogAsync();
+            }
+            else if (count == 0)
+            {
+                StatusMessage = "Download failed. Check connection and try again.";
             }
         }
         catch (Exception ex)
@@ -2077,6 +2098,7 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
             _logAnalyzerService.DownloadProgressChanged -= OnDownloadProgressChanged;
             _logAnalyzerService.DownloadCompleted -= OnDownloadCompleted;
             _logAnalyzerService.LogParsed -= OnLogParsed;
+            _logAnalyzerService.ParseProgressChanged -= OnParseProgressChanged;
         }
         base.Dispose(disposing);
     }
