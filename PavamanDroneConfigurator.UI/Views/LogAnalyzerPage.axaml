@@ -1284,19 +1284,28 @@
                     </ScrollViewer>
                     
                     <StackPanel Grid.Row="3" Margin="0,16,0,0" Spacing="12">
-                        <!-- Download Progress Bar -->
+                        <!-- Download/Load Progress Bar -->
                         <StackPanel IsVisible="{Binding IsDownloading}" Spacing="4">
                             <TextBlock Text="{Binding DownloadProgressText}" Foreground="#666666" FontSize="11" HorizontalAlignment="Center"/>
-                            <ProgressBar Value="{Binding DownloadProgress}" Maximum="100" Height="6" Margin="0,4"/>
+                            <ProgressBar Value="{Binding DownloadProgress}" Minimum="0" Maximum="100" Height="6" Margin="0,4"
+                                         Foreground="#3B82F6" Background="#E1E1E1"/>
                         </StackPanel>
                         
                         <!-- Action Buttons -->
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="12">
                             <Button Classes="ToolbarButton" Content="Cancel" Width="120" Command="{Binding CloseDownloadDialogCommand}"/>
                             <Button Classes="ToolbarButton" Content="Refresh" Width="120" Command="{Binding RefreshLogsCommand}"/>
+                            <!-- Load: downloads to temp and loads (no permanent save) -->
+                            <Button Background="#2563EB" Foreground="White" Content="⏩ Load" Width="120"
+                                    Padding="12,8" CornerRadius="4" BorderThickness="0" FontSize="13" FontWeight="SemiBold"
+                                    Command="{Binding LoadFromFcCommand}"
+                                    IsEnabled="{Binding !IsDownloading}"
+                                    ToolTip.Tip="Load selected log directly (downloaded to temp, no permanent save)"/>
+                            <!-- Download &amp; Load: downloads to permanent folder then loads -->
                             <Button Classes="ToolbarButton" Content="Download &amp; Load" Width="140" 
                                     Command="{Binding DownloadSelectedCommand}"
-                                    IsEnabled="{Binding !IsDownloading}"/>
+                                    IsEnabled="{Binding !IsDownloading}"
+                                    ToolTip.Tip="Download to your logs folder and load"/>
                         </StackPanel>
                     </StackPanel>
                 </Grid>
@@ -1335,21 +1344,17 @@
                     <StackPanel IsVisible="{Binding ParseProgress}"
                                 Spacing="6">
                         <Grid ColumnDefinitions="*,Auto">
-                            <TextBlock Grid.Column="0" Text="Parsing..." Foreground="#64748B" FontSize="11"/>
+                            <TextBlock Grid.Column="0" Text="{Binding ParseProgressText}" Foreground="#64748B" FontSize="11"/>
                             <TextBlock Grid.Column="1" Text="{Binding ParseProgress, StringFormat='{}{0}%'}" 
                                        Foreground="#3B82F6" FontSize="11" FontWeight="Bold"/>
                         </Grid>
-                        <Border CornerRadius="4" Height="6" Background="#334155">
-                            <Border CornerRadius="4" Height="6" HorizontalAlignment="Left"
-                                    Width="{Binding ParseProgress}">
-                                <Border.Background>
-                                    <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,0%">
-                                        <GradientStop Color="#3B82F6" Offset="0"/>
-                                        <GradientStop Color="#06B6D4" Offset="1"/>
-                                    </LinearGradientBrush>
-                                </Border.Background>
-                            </Border>
-                        </Border>
+                        <!-- Proper percentage-based progress bar -->
+                        <ProgressBar Value="{Binding ParseProgress}" 
+                                     Minimum="0" Maximum="100"
+                                     Height="6"
+                                     CornerRadius="3"
+                                     Foreground="#3B82F6"
+                                     Background="#334155"/>
                     </StackPanel>
                 </StackPanel>
             </Border>

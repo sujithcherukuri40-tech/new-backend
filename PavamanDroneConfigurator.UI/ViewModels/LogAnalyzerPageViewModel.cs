@@ -50,6 +50,11 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
 
     [ObservableProperty]
     private int _parseProgress;
+    
+    /// <summary>
+    /// Parse progress text shown in loading overlay (e.g. "Parsing... 42%").
+    /// </summary>
+    public string ParseProgressText => ParseProgress > 0 ? $"Parsing... {ParseProgress}%" : "Loading...";
 
     [ObservableProperty]
     private string _statusMessage = "Select a log file to analyze.";
@@ -62,6 +67,12 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
 
     [ObservableProperty]
     private int _loadProgress;
+    
+    /// <summary>
+    /// Tracks whether we're loading a file directly from FC (download+load flow).
+    /// Used to identify temp files for cleanup after loading.
+    /// </summary>
+    private string? _tempLoadPath;
 
     #endregion
 
@@ -560,6 +571,7 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
         Dispatcher.UIThread.Post(() =>
         {
             ParseProgress = percent;
+            OnPropertyChanged(nameof(ParseProgressText));
         });
     }
 
@@ -574,9 +586,10 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
             {
                 if (result.IsSuccess)
                 {
-                    // Update UI with initial state
+                    // Update UI with initial state - keep IsBusy=true throughout analysis
                     await Dispatcher.UIThread.InvokeAsync(() =>
                     {
+                        IsBusy = true;  // Ensure busy state during full analysis pipeline
                         IsLogLoaded = true;
                         IsAnalyzing = true;
                         LoadedLogInfo = $"{result.FileName} - {result.MessageCount:N0} messages, {result.DurationDisplay}";
@@ -721,12 +734,22 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
                     await Dispatcher.UIThread.InvokeAsync(() =>
                     {
                         IsAnalyzing = false;
+                        IsBusy = false;  // Now safe to dismiss overlay - all data is ready
+                        ParseProgress = 0;
+                        OnPropertyChanged(nameof(ParseProgressText));
                         StatusMessage = $"Log loaded in {sw.ElapsedMilliseconds/1000.0:F1}s: {result.MessageCount:N0} msgs, {GpsTrack.Count} GPS pts, {DetectedEvents.Count} events";
                         
                         OnPropertyChanged(nameof(HasGpsData));
                         OnPropertyChanged(nameof(HasFilteredEvents));
                         OnPropertyChanged(nameof(ShowNoEventsMessage));
                         OnPropertyChanged(nameof(HasLogParameters));
+                        
+                        // Clean up temp file if we loaded from FC using the "Load" flow
+                        if (!string.IsNullOrEmpty(_tempLoadPath) && File.Exists(_tempLoadPath))
+                        {
+                            try { File.Delete(_tempLoadPath); } catch { /* best effort */ }
+                            _tempLoadPath = null;
+                        }
                     });
                 }
                 else
@@ -735,6 +758,9 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
                     {
                         IsLogLoaded = false;
                         IsAnalyzing = false;
+                        IsBusy = false;
+                        ParseProgress = 0;
+                        OnPropertyChanged(nameof(ParseProgressText));
                         StatusMessage = $"Failed to load log: {result.ErrorMessage}";
                     });
                 }
@@ -746,6 +772,9 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
                 {
                     IsLogLoaded = false;
                     IsAnalyzing = false;
+                    IsBusy = false;
+                    ParseProgress = 0;
+                    OnPropertyChanged(nameof(ParseProgressText));
                     StatusMessage = $"Error: {ex.Message}";
                 });
             }
@@ -1711,35 +1740,44 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
 
         IsBusy = true;
         ParseProgress = 0;
+        OnPropertyChanged(nameof(ParseProgressText));
         var fileSize = new FileInfo(SelectedFilePath).Length;
         var fileSizeMB = fileSize / (1024.0 * 1024.0);
         StatusMessage = $"Loading {Path.GetFileName(SelectedFilePath)} ({fileSizeMB:F1} MB)...";
 
         try
         {
-            // Create progress reporter for large files
+            // Progress reporter updates ParseProgress for real-time bar display
+            // IsBusy will be turned off by OnLogParsed after full analysis completes
             var progress = new Progress<int>(pct =>
             {
-                ParseProgress = pct;
-                if (pct % 10 == 0) // Update status every 10%
+                Dispatcher.UIThread.Post(() =>
+                {
+                    ParseProgress = pct;
+                    OnPropertyChanged(nameof(ParseProgressText));
                     StatusMessage = $"Parsing {Path.GetFileName(SelectedFilePath)}... {pct}%";
+                });
             });
 
             var result = await _logAnalyzerService.LoadLogFileAsync(SelectedFilePath, default, progress);
             if (!result.IsSuccess)
             {
+                // On failure, dismiss busy state immediately
+                IsBusy = false;
+                ParseProgress = 0;
+                OnPropertyChanged(nameof(ParseProgressText));
                 StatusMessage = $"Failed to load: {result.ErrorMessage}";
             }
+            // On success: IsBusy is left true - OnLogParsed will set it to false
+            // after the full analysis pipeline completes
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to load log");
-            StatusMessage = $"Error: {ex.Message}";
-        }
-        finally
-        {
             IsBusy = false;
             ParseProgress = 0;
+            OnPropertyChanged(nameof(ParseProgressText));
+            StatusMessage = $"Error: {ex.Message}";
         }
     }
 
@@ -2142,6 +2180,99 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
         {
             _logger.LogError(ex, "Download failed");
             StatusMessage = $"Download failed: {ex.Message}";
+        }
+        finally
+        {
+            IsDownloading = false;
+        }
+    }
+
+    /// <summary>
+    /// Downloads the selected FC log file to a temp location and immediately loads it.
+    /// The temp file is automatically deleted after loading completes.
+    /// This avoids permanently saving the file to disk.
+    /// </summary>
+    [RelayCommand]
+    private async Task LoadFromFcAsync()
+    {
+        var selectedFile = LogFiles.FirstOrDefault(f => f.IsSelected);
+        if (selectedFile == null)
+        {
+            StatusMessage = "No log selected. Please select a log file.";
+            return;
+        }
+
+        IsDownloadDialogOpen = false;
+        IsDownloading = true;
+        DownloadProgress = 0;
+        IsBusy = true;
+        ParseProgress = 0;
+        OnPropertyChanged(nameof(ParseProgressText));
+        StatusMessage = $"Loading {selectedFile.FileName} ({selectedFile.FileSizeDisplay}) from FC...";
+
+        try
+        {
+            // Download to temp path
+            var tempDir = Path.Combine(Path.GetTempPath(), "KFTDroneLogs");
+            Directory.CreateDirectory(tempDir);
+            var tempPath = Path.Combine(tempDir, $"temp_{selectedFile.FileName}");
+            _tempLoadPath = tempPath;
+
+            StatusMessage = $"Downloading {selectedFile.FileName} from FC...";
+            var downloadSuccess = await _logAnalyzerService.DownloadLogFileAsync(selectedFile, tempPath);
+
+            IsDownloading = false;
+
+            if (!downloadSuccess || !File.Exists(tempPath))
+            {
+                IsBusy = false;
+                ParseProgress = 0;
+                OnPropertyChanged(nameof(ParseProgressText));
+                _tempLoadPath = null;
+                StatusMessage = $"Failed to load {selectedFile.FileName} from FC.";
+                return;
+            }
+
+            // Now parse the downloaded temp file
+            SelectedFilePath = tempPath;
+            StatusMessage = $"Parsing {selectedFile.FileName}...";
+
+            var progress = new Progress<int>(pct =>
+            {
+                Dispatcher.UIThread.Post(() =>
+                {
+                    ParseProgress = pct;
+                    OnPropertyChanged(nameof(ParseProgressText));
+                    StatusMessage = $"Parsing {selectedFile.FileName}... {pct}%";
+                });
+            });
+
+            var result = await _logAnalyzerService.LoadLogFileAsync(tempPath, default, progress);
+            if (!result.IsSuccess)
+            {
+                IsBusy = false;
+                ParseProgress = 0;
+                OnPropertyChanged(nameof(ParseProgressText));
+                StatusMessage = $"Failed to parse: {result.ErrorMessage}";
+                // Clean up temp
+                try { File.Delete(tempPath); } catch { }
+                _tempLoadPath = null;
+            }
+            // On success: IsBusy stays true, OnLogParsed will dismiss it and clean temp
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Load from FC failed");
+            IsBusy = false;
+            IsDownloading = false;
+            ParseProgress = 0;
+            OnPropertyChanged(nameof(ParseProgressText));
+            StatusMessage = $"Error: {ex.Message}";
+            if (!string.IsNullOrEmpty(_tempLoadPath))
+            {
+                try { File.Delete(_tempLoadPath); } catch { }
+                _tempLoadPath = null;
+            }
         }
         finally
         {

@@ -5,6 +5,7 @@ using PavamanDroneConfigurator.Core.Models;
 using PavamanDroneConfigurator.Infrastructure.Logging;
 using PavamanDroneConfigurator.Infrastructure.MAVLink;
 using System.Diagnostics;
+using System.Reflection;
 using System.Text;
 
 namespace PavamanDroneConfigurator.Infrastructure.Services;
@@ -19,7 +20,6 @@ public sealed class LogAnalyzerService : ILogAnalyzerService, IDisposable
     private readonly IConnectionService _connectionService;
     private readonly ILogEventDetector? _eventDetector;
     
-    private MavFtpClient? _ftpClient;
     private CancellationTokenSource? _downloadCts;
     private readonly List<LogFileInfo> _logFiles = new();
     private bool _isDownloading;
@@ -29,16 +29,6 @@ public sealed class LogAnalyzerService : ILogAnalyzerService, IDisposable
     // DataFlash log parser for current loaded log
     private DataFlashLogParser? _parser;
     private ParsedLog? _currentLog;
-    
-    // Common log directories on ArduPilot flight controllers
-    private static readonly string[] LogDirectories = new[]
-    {
-        "/APM/LOGS",
-        "/APM/logs",
-        "@SYS/logs",
-        "/LOGS",
-        "/logs"
-    };
 
     public event EventHandler<List<LogFileInfo>>? LogFilesUpdated;
     public event EventHandler<LogDownloadProgress>? DownloadProgressChanged;
@@ -61,46 +51,24 @@ public sealed class LogAnalyzerService : ILogAnalyzerService, IDisposable
         _logger = logger;
         _connectionService = connectionService;
         _eventDetector = eventDetector;
-        
-        _connectionService.ConnectionStateChanged += OnConnectionStateChanged;
     }
 
-    private void OnConnectionStateChanged(object? sender, bool connected)
-    {
-        if (!connected)
-        {
-            _ftpClient?.Dispose();
-            _ftpClient = null;
-            _logFiles.Clear();
-        }
-    }
-
-    private void EnsureFtpClient()
-    {
-        if (_ftpClient != null) return;
-        
-        var stream = _connectionService.GetTransportStream();
-        if (stream == null)
-        {
-            throw new InvalidOperationException("No connection available for FTP operations");
-        }
-
-        _ftpClient = new MavFtpClient(_logger);
-        _ftpClient.Initialize(stream, stream);
-        _ftpClient.ProgressChanged += OnFtpProgressChanged;
-    }
-
-    private void OnFtpProgressChanged(object? sender, (long BytesDownloaded, long TotalBytes) e)
-    {
-        var progress = new LogDownloadProgress
-        {
-            BytesDownloaded = e.BytesDownloaded,
-            TotalBytes = e.TotalBytes
-        };
-        DownloadProgressChanged?.Invoke(this, progress);
-    }
 
     #region FC Log File Operations
+
+    /// <summary>
+    /// Gets the AsvMavlinkWrapper from the connection service so we can send LOG messages.
+    /// Returns null when not connected or when using Bluetooth.
+    /// </summary>
+    private AsvMavlinkWrapper? GetMavlinkWrapper()
+    {
+        // We use reflection to access the internal wrapper from ConnectionService
+        // because IConnectionService doesn't expose it directly.
+        // The alternative is to pass it via constructor injection.
+        var field = _connectionService.GetType()
+            .GetField("_mavlink", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        return field?.GetValue(_connectionService) as AsvMavlinkWrapper;
+    }
 
     public async Task<List<LogFileInfo>> GetLogFilesAsync(CancellationToken cancellationToken = default)
     {
@@ -115,41 +83,68 @@ public sealed class LogAnalyzerService : ILogAnalyzerService, IDisposable
             return;
         }
 
+        var mavlink = GetMavlinkWrapper();
+        if (mavlink == null)
+        {
+            _logger.LogWarning("Cannot refresh logs - MAVLink wrapper not available (Bluetooth not supported for log listing)");
+            return;
+        }
+
         try
         {
-            EnsureFtpClient();
-            
             _logFiles.Clear();
-            _logger.LogInformation("Refreshing log file list from flight controller");
+            _logger.LogInformation("Requesting log list from FC via MAVLink LOG_REQUEST_LIST");
 
-            foreach (var dir in LogDirectories)
+            var entries = new List<LogEntryData>();
+            ushort expectedCount = 0;
+
+            var tcs = new TaskCompletionSource<bool>();
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            cts.CancelAfter(TimeSpan.FromSeconds(10));
+
+            void OnLogEntry(object? sender, LogEntryData entry)
             {
-                try
-                {
-                    var entries = await _ftpClient!.ListDirectoryAsync(dir, cancellationToken);
-                    
-                    foreach (var entry in entries.Where(e => !e.IsDirectory))
-                    {
-                        var logFile = CreateLogFileInfo(entry);
-                        if (logFile != null)
-                        {
-                            _logFiles.Add(logFile);
-                        }
-                    }
+                if (!entries.Any(e => e.Id == entry.Id))
+                    entries.Add(entry);
 
-                    if (_logFiles.Count > 0)
-                    {
-                        _logger.LogInformation("Found {Count} log files in {Dir}", _logFiles.Count, dir);
-                        break;
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogDebug("Directory {Dir} not accessible: {Error}", dir, ex.Message);
-                }
+                expectedCount = entry.NumLogs;
+
+                // Check if we've received all entries
+                if (expectedCount > 0 && entries.Count >= expectedCount)
+                    tcs.TrySetResult(true);
             }
 
-            _logFiles.Sort((a, b) => string.Compare(b.FileName, a.FileName, StringComparison.Ordinal));
+            mavlink.LogEntryReceived += OnLogEntry;
+            cts.Token.Register(() => tcs.TrySetResult(false));
+
+            try
+            {
+                await mavlink.SendLogRequestListAsync(0, ushort.MaxValue, cancellationToken);
+                await tcs.Task;
+            }
+            finally
+            {
+                mavlink.LogEntryReceived -= OnLogEntry;
+            }
+
+            // Convert LogEntryData → LogFileInfo
+            foreach (var entry in entries.OrderByDescending(e => e.Id))
+            {
+                var logFile = new LogFileInfo
+                {
+                    LogId = entry.Id,
+                    FileName = $"log_{entry.Id:D4}.bin",
+                    FilePath = entry.Id.ToString(), // Use ID as path identifier for MAVLink protocol
+                    FileSize = entry.Size,
+                    FileType = LogFileType.DataFlashLog,
+                    DownloadStatus = LogDownloadStatus.Pending
+                };
+
+                if (entry.TimeUtc > 0)
+                    logFile.CreatedDate = DateTimeOffset.FromUnixTimeSeconds(entry.TimeUtc).UtcDateTime;
+
+                _logFiles.Add(logFile);
+            }
 
             LogFilesUpdated?.Invoke(this, _logFiles.ToList());
             _logger.LogInformation("Log refresh complete: {Count} files found", _logFiles.Count);
@@ -161,34 +156,6 @@ public sealed class LogAnalyzerService : ILogAnalyzerService, IDisposable
         }
     }
 
-    private LogFileInfo? CreateLogFileInfo(FtpDirectoryEntry entry)
-    {
-        var ext = Path.GetExtension(entry.Name).ToLowerInvariant();
-        
-        var fileType = ext switch
-        {
-            ".bin" => LogFileType.DataFlashLog,
-            ".log" => LogFileType.DataFlashLog,
-            ".tlog" => LogFileType.TelemetryLog,
-            ".param" => LogFileType.ParamFile,
-            ".lua" => LogFileType.ScriptFile,
-            ".waypoints" => LogFileType.WaypointFile,
-            _ => LogFileType.Unknown
-        };
-
-        if (fileType == LogFileType.Unknown)
-            return null;
-
-        return new LogFileInfo
-        {
-            FileName = entry.Name,
-            FilePath = entry.FullPath,
-            FileSize = entry.Size,
-            FileType = fileType,
-            DownloadStatus = LogDownloadStatus.Pending
-        };
-    }
-
     public async Task<bool> DownloadLogFileAsync(LogFileInfo logFile, string destinationPath, CancellationToken cancellationToken = default)
     {
         if (!_connectionService.IsConnected)
@@ -197,56 +164,173 @@ public sealed class LogAnalyzerService : ILogAnalyzerService, IDisposable
             return false;
         }
 
-        _downloadCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        var mavlink = GetMavlinkWrapper();
+        if (mavlink == null)
+        {
+            _logger.LogWarning("Cannot download log - MAVLink wrapper not available");
+            return false;
+        }
+
+        if (!ushort.TryParse(logFile.FilePath, out var logId))
+        {
+            _logger.LogWarning("Invalid log ID in FilePath: {Path}", logFile.FilePath);
+            return false;
+        }
+
         _isDownloading = true;
+        _downloadCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 
         try
         {
-            EnsureFtpClient();
-            
             logFile.DownloadStatus = LogDownloadStatus.Downloading;
             logFile.DownloadProgress = 0;
 
-            var progress = new LogDownloadProgress
-            {
-                CurrentFile = logFile.FileName,
-                TotalBytes = logFile.FileSize
-            };
-            
+            // Ensure destination directory exists
+            var dir = Path.GetDirectoryName(destinationPath);
+            if (!string.IsNullOrEmpty(dir))
+                Directory.CreateDirectory(dir);
+
+            _logger.LogInformation("Downloading log {Id} ({Size} bytes) via MAVLink LOG protocol", logId, logFile.FileSize);
+
+            const uint chunkSize = 90 * 100; // Request 100 chunks at a time (9000 bytes)
+            uint totalSize = (uint)logFile.FileSize;
+            uint bytesReceived = 0;
             var startTime = DateTime.UtcNow;
-            
-            _ftpClient!.ProgressChanged += (s, e) =>
+
+            // Buffer to assemble the file — use memory if small, otherwise a temp file
+            using var fileStream = new FileStream(destinationPath, FileMode.Create, FileAccess.Write, FileShare.None, 65536);
+
+            // Dictionary to track received chunks by offset
+            var receivedChunks = new SortedDictionary<uint, byte[]>();
+            uint nextExpectedOffset = 0;
+            uint requestOffset = 0;
+
+            var chunkTcs = new TaskCompletionSource<bool>();
+            using var dlCts = CancellationTokenSource.CreateLinkedTokenSource(_downloadCts.Token);
+
+            void OnLogData(object? sender, LogDataChunk chunk)
             {
-                var elapsed = (DateTime.UtcNow - startTime).TotalSeconds;
-                progress.BytesDownloaded = e.BytesDownloaded;
-                progress.BytesPerSecond = elapsed > 0 ? (long)(e.BytesDownloaded / elapsed) : 0;
-                
-                if (progress.BytesPerSecond > 0)
+                if (chunk.LogId != logId || chunk.Count == 0) return;
+
+                lock (receivedChunks)
                 {
-                    var remaining = (progress.TotalBytes - progress.BytesDownloaded) / progress.BytesPerSecond;
-                    progress.EstimatedTimeRemaining = TimeSpan.FromSeconds(remaining);
+                    if (!receivedChunks.ContainsKey(chunk.Offset))
+                    {
+                        receivedChunks[chunk.Offset] = chunk.Data.Take(chunk.Count).ToArray();
+                    }
                 }
 
-                logFile.DownloadProgress = progress.ProgressPercent;
-                DownloadProgressChanged?.Invoke(this, progress);
-            };
+                // If this chunk indicates end-of-file (count < 90 bytes, the max payload)
+                if (chunk.Count < 90)
+                {
+                    chunkTcs.TrySetResult(true);
+                }
+            }
 
-            var success = await _ftpClient.DownloadFileAsync(logFile.FilePath, destinationPath, _downloadCts.Token);
+            mavlink.LogDataReceived += OnLogData;
 
+            try
+            {
+                // Request data in windows — ArduPilot may not send all at once
+                // We request from offset 0 with a large count and wait for EOF
+                // Retry if we get gaps
+                int maxRetries = 5;
+                int retryCount = 0;
+
+                while (nextExpectedOffset < totalSize || totalSize == 0)
+                {
+                    chunkTcs = new TaskCompletionSource<bool>();
+                    dlCts.CancelAfter(TimeSpan.FromSeconds(8));
+
+                    // Request the next window of data
+                    uint remaining = totalSize > 0 ? totalSize - nextExpectedOffset : chunkSize;
+                    uint requestCount = Math.Min(chunkSize, remaining > 0 ? remaining : chunkSize);
+
+                    await mavlink.SendLogRequestDataAsync(logId, nextExpectedOffset, requestCount, _downloadCts.Token);
+
+                    try
+                    {
+                        await chunkTcs.Task.WaitAsync(TimeSpan.FromSeconds(8), _downloadCts.Token);
+                    }
+                    catch (TimeoutException)
+                    {
+                        retryCount++;
+                        if (retryCount > maxRetries)
+                        {
+                            _logger.LogWarning("Log download timed out after {Retries} retries at offset {Offset}", retryCount, nextExpectedOffset);
+                            break;
+                        }
+                        _logger.LogDebug("Log data timeout, retrying at offset {Offset}", nextExpectedOffset);
+                        continue;
+                    }
+
+                    // Flush contiguous received chunks to file
+                    lock (receivedChunks)
+                    {
+                        while (receivedChunks.Count > 0 && receivedChunks.ContainsKey(nextExpectedOffset))
+                        {
+                            var data = receivedChunks[nextExpectedOffset];
+                            receivedChunks.Remove(nextExpectedOffset);
+                            fileStream.Write(data, 0, data.Length);
+                            bytesReceived += (uint)data.Length;
+                            nextExpectedOffset += (uint)data.Length;
+                        }
+                    }
+
+                    // Report progress
+                    if (totalSize > 0)
+                    {
+                        var pct = (int)(bytesReceived * 100 / totalSize);
+                        logFile.DownloadProgress = pct;
+                        var progress = new LogDownloadProgress
+                        {
+                            CurrentFile = logFile.FileName,
+                            BytesDownloaded = bytesReceived,
+                            TotalBytes = totalSize,
+                            BytesPerSecond = (long)(bytesReceived / Math.Max(1, (DateTime.UtcNow - startTime).TotalSeconds))
+                        };
+                        DownloadProgressChanged?.Invoke(this, progress);
+                    }
+
+                    // Check if we're done (EOF received)
+                    if (bytesReceived >= totalSize && totalSize > 0)
+                        break;
+
+                    retryCount = 0;
+                }
+
+                await fileStream.FlushAsync(_downloadCts.Token);
+            }
+            finally
+            {
+                mavlink.LogDataReceived -= OnLogData;
+                await mavlink.SendLogRequestEndAsync(_downloadCts.Token);
+            }
+
+            var success = bytesReceived > 0;
             if (success)
             {
                 logFile.DownloadStatus = LogDownloadStatus.Completed;
                 logFile.LocalPath = destinationPath;
                 logFile.DownloadProgress = 100;
-                _logger.LogInformation("Downloaded: {File}", logFile.FileName);
+                _logger.LogInformation("Downloaded log {Id}: {Bytes} bytes to {Path}", logId, bytesReceived, destinationPath);
             }
             else
             {
                 logFile.DownloadStatus = LogDownloadStatus.Failed;
-                _logger.LogWarning("Download failed: {File}", logFile.FileName);
+                _logger.LogWarning("Download produced 0 bytes for log {Id}", logId);
             }
 
             DownloadCompleted?.Invoke(this, (logFile, success, success ? null : "Download failed"));
+
+            var finalProgress = new LogDownloadProgress
+            {
+                CurrentFile = logFile.FileName,
+                BytesDownloaded = bytesReceived,
+                TotalBytes = Math.Max(totalSize, bytesReceived)
+            };
+            DownloadProgressChanged?.Invoke(this, finalProgress);
+
             return success;
         }
         catch (OperationCanceledException)
@@ -258,7 +342,7 @@ public sealed class LogAnalyzerService : ILogAnalyzerService, IDisposable
         catch (Exception ex)
         {
             logFile.DownloadStatus = LogDownloadStatus.Failed;
-            _logger.LogError(ex, "Error downloading {File}", logFile.FileName);
+            _logger.LogError(ex, "Error downloading log {File}", logFile.FileName);
             DownloadCompleted?.Invoke(this, (logFile, false, ex.Message));
             return false;
         }
@@ -295,69 +379,20 @@ public sealed class LogAnalyzerService : ILogAnalyzerService, IDisposable
 
     public async Task<bool> DeleteLogFileAsync(LogFileInfo logFile, CancellationToken cancellationToken = default)
     {
-        if (!_connectionService.IsConnected)
-        {
-            _logger.LogWarning("Cannot delete - not connected");
-            return false;
-        }
-
-        try
-        {
-            EnsureFtpClient();
-            
-            var success = await _ftpClient!.DeleteFileAsync(logFile.FilePath, cancellationToken);
-            
-            if (success)
-            {
-                _logFiles.Remove(logFile);
-                LogFilesUpdated?.Invoke(this, _logFiles.ToList());
-            }
-
-            return success;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error deleting {File}", logFile.FileName);
-            return false;
-        }
+        _logger.LogWarning("DeleteLogFileAsync: MAVLink LOG erase not yet implemented");
+        return await Task.FromResult(false);
     }
 
     public async Task<int> DeleteAllLogFilesAsync(CancellationToken cancellationToken = default)
     {
-        var files = _logFiles.ToList();
-        int deleteCount = 0;
-
-        foreach (var file in files)
-        {
-            if (cancellationToken.IsCancellationRequested)
-                break;
-
-            if (await DeleteLogFileAsync(file, cancellationToken))
-            {
-                deleteCount++;
-            }
-        }
-
-        return deleteCount;
+        _logger.LogWarning("DeleteAllLogFilesAsync: MAVLink LOG erase not yet implemented");
+        return await Task.FromResult(0);
     }
 
     public async Task<List<FtpDirectoryEntry>> GetDirectoryListingAsync(string path, CancellationToken cancellationToken = default)
     {
-        if (!_connectionService.IsConnected)
-        {
-            return new List<FtpDirectoryEntry>();
-        }
-
-        try
-        {
-            EnsureFtpClient();
-            return await _ftpClient!.ListDirectoryAsync(path, cancellationToken);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to list directory: {Path}", path);
-            return new List<FtpDirectoryEntry>();
-        }
+        // Not applicable for LOG protocol - return empty
+        return await Task.FromResult(new List<FtpDirectoryEntry>());
     }
 
     #endregion
@@ -1037,9 +1072,7 @@ public sealed class LogAnalyzerService : ILogAnalyzerService, IDisposable
         if (_disposed) return;
         _disposed = true;
 
-        _connectionService.ConnectionStateChanged -= OnConnectionStateChanged;
         _downloadCts?.Cancel();
         _downloadCts?.Dispose();
-        _ftpClient?.Dispose();
     }
 }

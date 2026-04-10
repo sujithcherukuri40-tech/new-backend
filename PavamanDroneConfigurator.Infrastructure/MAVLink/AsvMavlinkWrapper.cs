@@ -69,6 +69,20 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
         private const byte MAVLINK_MSG_ID_GLOBAL_POSITION_INT = 33;
         private const byte MAVLINK_MSG_ID_VFR_HUD = 74;
 
+        // Log download message IDs (ArduPilot LOG_* protocol)
+        private const byte MAVLINK_MSG_ID_LOG_REQUEST_LIST = 117;
+        private const byte MAVLINK_MSG_ID_LOG_ENTRY = 118;
+        private const byte MAVLINK_MSG_ID_LOG_REQUEST_DATA = 119;
+        private const byte MAVLINK_MSG_ID_LOG_DATA = 120;
+        private const byte MAVLINK_MSG_ID_LOG_ERASE = 121;
+        private const byte MAVLINK_MSG_ID_LOG_REQUEST_END = 122;
+        // CRC extras for log messages
+        private const byte CRC_EXTRA_LOG_REQUEST_LIST = 128;
+        private const byte CRC_EXTRA_LOG_ENTRY = 56;
+        private const byte CRC_EXTRA_LOG_REQUEST_DATA = 116;
+        private const byte CRC_EXTRA_LOG_DATA = 134;
+        private const byte CRC_EXTRA_LOG_REQUEST_END = 203;
+
         /// <summary>
         /// Set of message IDs that carry live telemetry.
         /// CRC failures on these messages are logged but do NOT drop the frame,
@@ -140,6 +154,10 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
         public event EventHandler<VfrHudData>? VfrHudReceived;
         public event EventHandler<GpsRawIntData>? GpsRawIntReceived;
         public event EventHandler<SysStatusData>? SysStatusReceived;
+
+        // Log download events (MAVLink LOG protocol, msg IDs 118/120)
+        public event EventHandler<LogEntryData>? LogEntryReceived;
+        public event EventHandler<LogDataChunk>? LogDataReceived;
 
         public AsvMavlinkWrapper(ILogger logger, IMavLinkMessageLogger? mavLinkLogger = null)
         {
@@ -644,6 +662,12 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
                     break;
                 case MAVLINK_MSG_ID_MAG_CAL_REPORT:
                     HandleMagCalReport(payload);
+                    break;
+                case MAVLINK_MSG_ID_LOG_ENTRY:
+                    HandleLogEntry(payload);
+                    break;
+                case MAVLINK_MSG_ID_LOG_DATA:
+                    HandleLogData(payload);
                     break;
             }
         }
@@ -1273,6 +1297,118 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
             };
 
             SysStatusReceived?.Invoke(this, data);
+        }
+
+        private void HandleLogEntry(byte[] payload)
+        {
+            // LOG_ENTRY (118) layout (34 bytes):
+            // [0-3]   time_utc (uint32)
+            // [4-7]   size (uint32)
+            // [8-9]   id (uint16)
+            // [10-11] num_logs (uint16)
+            // [12-13] last_log_num (uint16)
+            if (payload.Length < 14)
+            {
+                _logger.LogWarning("LOG_ENTRY payload too short: {Len}", payload.Length);
+                return;
+            }
+
+            var entry = new LogEntryData
+            {
+                TimeUtc = BitConverter.ToUInt32(payload, 0),
+                Size = BitConverter.ToUInt32(payload, 4),
+                Id = BitConverter.ToUInt16(payload, 8),
+                NumLogs = BitConverter.ToUInt16(payload, 10),
+                LastLogNum = BitConverter.ToUInt16(payload, 12)
+            };
+
+            _logger.LogInformation("LOG_ENTRY: id={Id}, size={Size} bytes, numLogs={Num}", entry.Id, entry.Size, entry.NumLogs);
+            LogEntryReceived?.Invoke(this, entry);
+        }
+
+        private void HandleLogData(byte[] payload)
+        {
+            // LOG_DATA (120) layout (97 bytes):
+            // [0-3]   ofs (uint32)  — byte offset in the file
+            // [4-5]   id (uint16)   — log id
+            // [6]     count (uint8) — number of valid bytes in data[90]
+            // [7-96]  data (uint8[90])
+            if (payload.Length < 7)
+            {
+                _logger.LogWarning("LOG_DATA payload too short: {Len}", payload.Length);
+                return;
+            }
+
+            var chunk = new LogDataChunk
+            {
+                Offset = BitConverter.ToUInt32(payload, 0),
+                LogId = BitConverter.ToUInt16(payload, 4),
+                Count = payload[6],
+                Data = new byte[Math.Min(payload[6], payload.Length - 7)]
+            };
+
+            if (chunk.Count > 0)
+            {
+                Array.Copy(payload, 7, chunk.Data, 0, chunk.Data.Length);
+            }
+
+            LogDataReceived?.Invoke(this, chunk);
+        }
+
+        /// <summary>
+        /// Sends LOG_REQUEST_LIST (117) to request the list of logs from the FC.
+        /// The FC responds with LOG_ENTRY (118) messages.
+        /// </summary>
+        public async Task SendLogRequestListAsync(ushort start = 0, ushort end = ushort.MaxValue, CancellationToken ct = default)
+        {
+            // LOG_REQUEST_LIST payload (6 bytes):
+            // [0-1] start (uint16)
+            // [2-3] end   (uint16)
+            // [4]   target_system
+            // [5]   target_component
+            var payload = new byte[6];
+            BitConverter.GetBytes(start).CopyTo(payload, 0);
+            BitConverter.GetBytes(end).CopyTo(payload, 2);
+            payload[4] = _targetSystemId != 0 ? _targetSystemId : (byte)1;
+            payload[5] = _targetComponentId != 0 ? _targetComponentId : (byte)1;
+
+            _logger.LogInformation("Sending LOG_REQUEST_LIST start={Start} end={End}", start, end);
+            await SendMessageAsync(MAVLINK_MSG_ID_LOG_REQUEST_LIST, payload, ct);
+        }
+
+        /// <summary>
+        /// Sends LOG_REQUEST_DATA (119) to request a chunk of a specific log file.
+        /// The FC responds with LOG_DATA (120) messages.
+        /// </summary>
+        public async Task SendLogRequestDataAsync(ushort logId, uint offset, uint count, CancellationToken ct = default)
+        {
+            // LOG_REQUEST_DATA payload (12 bytes):
+            // [0-3]  ofs  (uint32)
+            // [4-7]  count (uint32)
+            // [8-9]  id (uint16)
+            // [10]   target_system
+            // [11]   target_component
+            var payload = new byte[12];
+            BitConverter.GetBytes(offset).CopyTo(payload, 0);
+            BitConverter.GetBytes(count).CopyTo(payload, 4);
+            BitConverter.GetBytes(logId).CopyTo(payload, 8);
+            payload[10] = _targetSystemId != 0 ? _targetSystemId : (byte)1;
+            payload[11] = _targetComponentId != 0 ? _targetComponentId : (byte)1;
+
+            await SendMessageAsync(MAVLINK_MSG_ID_LOG_REQUEST_DATA, payload, ct);
+        }
+
+        /// <summary>
+        /// Sends LOG_REQUEST_END (122) to tell the FC we are done downloading logs.
+        /// </summary>
+        public async Task SendLogRequestEndAsync(CancellationToken ct = default)
+        {
+            var payload = new byte[2];
+            payload[0] = _targetSystemId != 0 ? _targetSystemId : (byte)1;
+            payload[1] = _targetComponentId != 0 ? _targetComponentId : (byte)1;
+
+            _logger.LogInformation("Sending LOG_REQUEST_END");
+            await SendMessageAsync(MAVLINK_MSG_ID_LOG_REQUEST_END, payload, ct);
         }
 
         #region Send Methods
@@ -2184,5 +2320,37 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
         public ushort DropRateComm { get; set; }
         public ushort ErrorsComm { get; set; }
         public bool CrcValid { get; set; } = true;
+    }
+
+    /// <summary>
+    /// Data from a LOG_ENTRY (118) message — describes one log file on the FC.
+    /// </summary>
+    public class LogEntryData
+    {
+        /// <summary>UTC timestamp of the log (seconds since epoch, or 0 if unknown).</summary>
+        public uint TimeUtc { get; set; }
+        /// <summary>Size of the log file in bytes.</summary>
+        public uint Size { get; set; }
+        /// <summary>Log ID (1-based).</summary>
+        public ushort Id { get; set; }
+        /// <summary>Total number of logs on the FC.</summary>
+        public ushort NumLogs { get; set; }
+        /// <summary>Highest log number.</summary>
+        public ushort LastLogNum { get; set; }
+    }
+
+    /// <summary>
+    /// Data from a LOG_DATA (120) message — one chunk of a downloaded log file.
+    /// </summary>
+    public class LogDataChunk
+    {
+        /// <summary>Byte offset of this chunk within the log file.</summary>
+        public uint Offset { get; set; }
+        /// <summary>Log ID this chunk belongs to.</summary>
+        public ushort LogId { get; set; }
+        /// <summary>Number of valid bytes in <see cref="Data"/>.</summary>
+        public byte Count { get; set; }
+        /// <summary>Up to 90 bytes of file data.</summary>
+        public byte[] Data { get; set; } = Array.Empty<byte>();
     }
 }
