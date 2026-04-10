@@ -87,6 +87,7 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
         /// Set of message IDs that carry live telemetry.
         /// CRC failures on these messages are logged but do NOT drop the frame,
         /// so the telemetry stream is never silently blocked by a CRC mismatch.
+        /// LOG_ENTRY and LOG_DATA also included so log downloads are robust.
         /// </summary>
         private static readonly HashSet<int> TelemetryMessageIds = new()
         {
@@ -97,7 +98,9 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
             MAVLINK_MSG_ID_GLOBAL_POSITION_INT,
             MAVLINK_MSG_ID_VFR_HUD,
             MAVLINK_MSG_ID_MAG_CAL_PROGRESS,
-            MAVLINK_MSG_ID_MAG_CAL_REPORT
+            MAVLINK_MSG_ID_MAG_CAL_REPORT,
+            MAVLINK_MSG_ID_LOG_ENTRY,   // 118 – log download entries
+            MAVLINK_MSG_ID_LOG_DATA,    // 120 – log data chunks
         };
 
         // MAV_CMD IDs

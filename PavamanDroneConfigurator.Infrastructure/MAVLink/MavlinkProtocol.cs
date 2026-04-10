@@ -33,6 +33,8 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
         /// <summary>
         /// CRC_EXTRA values for known MAVLink messages
         /// Generated from official MAVLink XML definitions
+        /// Verified against: https://mavlink.io/en/guide/serialization.html
+        /// and ArduPilot source: libraries/GCS_MAVLink/include/mavlink/v2.0/common/
         /// </summary>
         private static readonly Dictionary<int, byte> CrcExtraTable = new()
         {
@@ -45,17 +47,16 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
             { 6, 104 },   // CHANGE_OPERATOR_CONTROL_ACK
             { 7, 119 },   // AUTH_KEY
             { 11, 89 },   // SET_MODE
-            
+
             // Parameter protocol
             { 20, 214 },  // PARAM_REQUEST_READ
             { 21, 159 },  // PARAM_REQUEST_LIST
             { 22, 220 },  // PARAM_VALUE
             { 23, 168 },  // PARAM_SET
-            { 24, 24 },   // GPS_RAW_INT
-            { 50, 119 },  // PARAM_MAP_RC
-            
-            // Mission protocol
-            { 25, 153 },  // MISSION_WRITE_PARTIAL_LIST
+
+            // Sensor/status messages
+            { 24, 24 },   // GPS_RAW_INT  (CRC_EXTRA = 24  per MAVLink spec)
+            { 25, 153 },  // GPS_STATUS
             { 26, 170 },  // SCALED_IMU
             { 27, 144 },  // RAW_IMU
             { 28, 237 },  // RAW_PRESSURE
@@ -67,7 +68,8 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
             { 34, 233 },  // RC_CHANNELS_SCALED
             { 35, 118 },  // RC_CHANNELS_RAW
             { 36, 21 },   // SERVO_OUTPUT_RAW
-            
+            { 50, 119 },  // PARAM_MAP_RC
+
             // Mission items
             { 39, 254 },  // MISSION_ITEM
             { 40, 158 },  // MISSION_REQUEST
@@ -78,14 +80,15 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
             { 45, 64 },   // MISSION_CLEAR_ALL
             { 46, 12 },   // MISSION_ITEM_REACHED
             { 47, 106 },  // MISSION_ACK
-            
-            // GPS
+
+            // RC and telemetry
             { 65, 118 },  // RC_CHANNELS
+            { 66, 148 },  // REQUEST_DATA_STREAM
             { 74, 20 },   // VFR_HUD
             { 76, 152 },  // COMMAND_LONG
             { 77, 143 },  // COMMAND_ACK
             { 87, 138 },  // POSITION_TARGET_GLOBAL_INT
-            
+
             // Sensor data
             { 100, 154 }, // OPTICAL_FLOW
             { 101, 208 }, // GLOBAL_VISION_POSITION_ESTIMATE
@@ -94,21 +97,27 @@ namespace PavamanDroneConfigurator.Infrastructure.MAVLink
             { 104, 211 }, // VICON_POSITION_ESTIMATE
             { 105, 93 },  // HIGHRES_IMU
             { 106, 156 }, // OPTICAL_FLOW_RAD
-            
+            { 110, 84 },  // FILE_TRANSFER_PROTOCOL (MAVLink FTP)
+
+            // Log download protocol (ArduPilot LOG_* messages, mandatory for FC log download)
+            { 117, 128 }, // LOG_REQUEST_LIST
+            { 118, 56 },  // LOG_ENTRY
+            { 119, 116 }, // LOG_REQUEST_DATA
+            { 120, 134 }, // LOG_DATA
+            { 121, 237 }, // LOG_ERASE
+            { 122, 203 }, // LOG_REQUEST_END
+
             // Battery
             { 147, 154 }, // BATTERY_STATUS
             { 148, 49 },  // AUTOPILOT_VERSION
-            
+
             // Magnetometer calibration (ArduPilotMega dialect)
             { 191, 92 },  // MAG_CAL_PROGRESS
             { 192, 36 },  // MAG_CAL_REPORT
-            
-            // Terrain
+
+            // Status text and debug
             { 253, 83 },  // STATUSTEXT
             { 254, 8 },   // DEBUG
-            
-            // ArduPilot specific
-            { 42429, 140 }, // MAV_CMD_ACCELCAL_VEHICLE_POS (special command ACK)
         };
 
         /// <summary>
