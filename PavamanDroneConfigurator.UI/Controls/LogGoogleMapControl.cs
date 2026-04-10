@@ -41,14 +41,12 @@ public class LogGoogleMapControl : UserControl
     private List<WaypointPoint>? _pendingWaypoints;
 
     // Performance limits
-    private const int MaxTrackPointsForRender = 3000;
-    private const int MaxEvents = 100;
-    private const int MaxWaypoints = 100;
+    private const int MaxTrackPointsForRender = 5000;
+    private const int MaxEvents = 200;
+    private const int MaxWaypoints = 200;
 
-    // Refresh throttle
-    private DateTime _lastTrackRefresh = DateTime.MinValue;
-    private DateTime _lastEventRefresh = DateTime.MinValue;
-    private const int MinRefreshIntervalMs = 100;
+    // Track whether we need to re-send data after becoming visible
+    private bool _needsDataRefreshAfterVisible = false;
 
     #region Styled Properties
 
@@ -173,12 +171,22 @@ public class LogGoogleMapControl : UserControl
 
     private async void OnLoaded(object? sender, RoutedEventArgs e)
     {
-        if (_isInitialized)
+        if (_isInitialized && !_isDisposed)
         {
+            // Tab was switched back - just make visible and update bounds
             if (_webViewController != null)
             {
                 _webViewController.IsVisible = true;
                 UpdateWebViewBounds();
+            }
+
+            // Re-send data if needed (e.g. data arrived while tab was hidden)
+            if (_needsDataRefreshAfterVisible && _mapReady)
+            {
+                _needsDataRefreshAfterVisible = false;
+                SendTrackToMapImmediate();
+                SendEventsToMapImmediate();
+                SendWaypointsToMapImmediate();
             }
             return;
         }
@@ -209,6 +217,9 @@ public class LogGoogleMapControl : UserControl
 
     private void OnUnloaded(object? sender, RoutedEventArgs e)
     {
+        // IMPORTANT: Only hide the WebView, do NOT dispose it.
+        // Disposing here causes the map to be permanently destroyed when the user
+        // switches tabs. Actual disposal happens in OnUnloaded(RoutedEventArgs e).
         if (_webViewController != null)
             _webViewController.IsVisible = false;
     }
@@ -336,9 +347,39 @@ public class LogGoogleMapControl : UserControl
                     Debug.WriteLine("[LogGoogleMapControl] Map is ready!");
 
                     // Send any pending data
-                    if (_pendingTrack != null) { SendTrackToMapInternal(_pendingTrack); _pendingTrack = null; }
-                    if (_pendingEvents != null) { SendEventsToMapInternal(_pendingEvents); _pendingEvents = null; }
-                    if (_pendingWaypoints != null) { SendWaypointsToMapInternal(_pendingWaypoints); _pendingWaypoints = null; }
+                    if (_pendingTrack != null)
+                    {
+                        var track = _pendingTrack;
+                        _pendingTrack = null;
+                        SendTrackToMapInternal(track);
+                    }
+                    else
+                    {
+                        // No pending track - check if we have current data to send
+                        SendTrackToMapImmediate();
+                    }
+
+                    if (_pendingEvents != null)
+                    {
+                        var events = _pendingEvents;
+                        _pendingEvents = null;
+                        SendEventsToMapInternal(events);
+                    }
+                    else
+                    {
+                        SendEventsToMapImmediate();
+                    }
+
+                    if (_pendingWaypoints != null)
+                    {
+                        var waypoints = _pendingWaypoints;
+                        _pendingWaypoints = null;
+                        SendWaypointsToMapInternal(waypoints);
+                    }
+                    else
+                    {
+                        SendWaypointsToMapImmediate();
+                    }
                 });
             }
             else if (typeString == "error")
@@ -355,13 +396,12 @@ public class LogGoogleMapControl : UserControl
 
     #region Data Sending
 
+    /// <summary>
+    /// Called when TrackPoints property changes. Sends data to map or queues it as pending.
+    /// </summary>
     private void SendTrackToMap()
     {
         if (_isDisposed) return;
-
-        var now = DateTime.Now;
-        if ((now - _lastTrackRefresh).TotalMilliseconds < MinRefreshIntervalMs) return;
-        _lastTrackRefresh = now;
 
         var points = TrackPoints?.Where(p => IsValidCoordinate(p.Latitude, p.Longitude))
             .Take(MaxTrackPointsForRender * 2).ToList();
@@ -378,9 +418,41 @@ public class LogGoogleMapControl : UserControl
 
         if (!_mapReady)
         {
+            // Store as pending - will be sent when map is ready
             _pendingTrack = points;
+
+            // Mark that we need to refresh when control becomes visible
+            if (!IsVisible)
+                _needsDataRefreshAfterVisible = true;
             return;
         }
+
+        // If control is not visible (tab switched away), queue data for when it becomes visible
+        if (!IsVisible)
+        {
+            _pendingTrack = points;
+            _needsDataRefreshAfterVisible = true;
+            return;
+        }
+
+        SendTrackToMapInternal(points);
+    }
+
+    /// <summary>
+    /// Immediately sends the current TrackPoints to the map without any throttle/visibility check.
+    /// Used when the map first becomes ready or when the control becomes visible.
+    /// </summary>
+    private void SendTrackToMapImmediate()
+    {
+        if (_isDisposed || !_mapReady) return;
+
+        var points = TrackPoints?.Where(p => IsValidCoordinate(p.Latitude, p.Longitude))
+            .Take(MaxTrackPointsForRender * 2).ToList();
+
+        if (points == null || points.Count == 0) return;
+
+        if (points.Count > MaxTrackPointsForRender)
+            points = DownsamplePoints(points, MaxTrackPointsForRender);
 
         SendTrackToMapInternal(points);
     }
@@ -413,10 +485,6 @@ public class LogGoogleMapControl : UserControl
     {
         if (_isDisposed) return;
 
-        var now = DateTime.Now;
-        if ((now - _lastEventRefresh).TotalMilliseconds < MinRefreshIntervalMs) return;
-        _lastEventRefresh = now;
-
         var events = CriticalEvents?.Where(e => e.HasLocation &&
             IsValidCoordinate(e.Latitude!.Value, e.Longitude!.Value))
             .Take(MaxEvents).ToList();
@@ -430,8 +498,29 @@ public class LogGoogleMapControl : UserControl
         if (!_mapReady)
         {
             _pendingEvents = events;
+            if (!IsVisible) _needsDataRefreshAfterVisible = true;
             return;
         }
+
+        if (!IsVisible)
+        {
+            _pendingEvents = events;
+            _needsDataRefreshAfterVisible = true;
+            return;
+        }
+
+        SendEventsToMapInternal(events);
+    }
+
+    private void SendEventsToMapImmediate()
+    {
+        if (_isDisposed || !_mapReady) return;
+
+        var events = CriticalEvents?.Where(e => e.HasLocation &&
+            IsValidCoordinate(e.Latitude!.Value, e.Longitude!.Value))
+            .Take(MaxEvents).ToList();
+
+        if (events == null || events.Count == 0) return;
 
         SendEventsToMapInternal(events);
     }
@@ -477,8 +566,28 @@ public class LogGoogleMapControl : UserControl
         if (!_mapReady)
         {
             _pendingWaypoints = waypoints;
+            if (!IsVisible) _needsDataRefreshAfterVisible = true;
             return;
         }
+
+        if (!IsVisible)
+        {
+            _pendingWaypoints = waypoints;
+            _needsDataRefreshAfterVisible = true;
+            return;
+        }
+
+        SendWaypointsToMapInternal(waypoints);
+    }
+
+    private void SendWaypointsToMapImmediate()
+    {
+        if (_isDisposed || !_mapReady) return;
+
+        var waypoints = Waypoints?.Where(w => IsValidCoordinate(w.Latitude, w.Longitude))
+            .Take(MaxWaypoints).ToList();
+
+        if (waypoints == null || waypoints.Count == 0) return;
 
         SendWaypointsToMapInternal(waypoints);
     }
@@ -587,12 +696,32 @@ public class LogGoogleMapControl : UserControl
         if (change.Property == IsVisibleProperty && _webViewController != null)
         {
             _webViewController.IsVisible = IsVisible;
-            if (IsVisible) UpdateWebViewBounds();
+            if (IsVisible)
+            {
+                UpdateWebViewBounds();
+
+                // Re-send data when control becomes visible in case it changed while hidden
+                if (_mapReady && _needsDataRefreshAfterVisible)
+                {
+                    _needsDataRefreshAfterVisible = false;
+                    SendTrackToMapImmediate();
+                    SendEventsToMapImmediate();
+                    SendWaypointsToMapImmediate();
+                }
+                else if (_mapReady)
+                {
+                    // Always re-send current data when tab is switched back to ensure map is up to date
+                    SendTrackToMapImmediate();
+                }
+            }
         }
     }
 
     protected override void OnUnloaded(RoutedEventArgs e)
     {
+        // NOTE: This override is called when the control is permanently removed from the visual tree
+        // (e.g., the whole window closes). Tab navigation triggers the instance `OnUnloaded` event
+        // handler (registered in ctor), NOT this override - so we only dispose here.
         if (!_isDisposed)
         {
             _isDisposed = true;
@@ -611,6 +740,7 @@ public class LogGoogleMapControl : UserControl
             _webViewController?.Close();
             _webViewController = null;
             _webView = null;
+            _mapReady = false;
         }
 
         base.OnUnloaded(e);

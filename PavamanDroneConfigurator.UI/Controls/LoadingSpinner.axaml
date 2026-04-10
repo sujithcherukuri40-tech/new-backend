@@ -3,10 +3,10 @@
              x:Class="PavamanDroneConfigurator.UI.Controls.LoadingSpinner">
     
     <UserControl.Styles>
-        <!-- Rotating animation for spinner -->
-        <Style Selector="Border.spinner">
+        <!-- Outer ring rotates clockwise -->
+        <Style Selector="Border.outerRing">
             <Style.Animations>
-                <Animation Duration="0:0:0.8" IterationCount="INFINITE">
+                <Animation Duration="0:0:1.1" IterationCount="INFINITE" Easing="LinearEasing">
                     <KeyFrame Cue="0%">
                         <Setter Property="RotateTransform.Angle" Value="0"/>
                     </KeyFrame>
@@ -16,20 +16,49 @@
                 </Animation>
             </Style.Animations>
         </Style>
+        <!-- Inner ring rotates counter-clockwise, faster -->
+        <Style Selector="Border.innerRing">
+            <Style.Animations>
+                <Animation Duration="0:0:0.7" IterationCount="INFINITE" Easing="LinearEasing">
+                    <KeyFrame Cue="0%">
+                        <Setter Property="RotateTransform.Angle" Value="360"/>
+                    </KeyFrame>
+                    <KeyFrame Cue="100%">
+                        <Setter Property="RotateTransform.Angle" Value="0"/>
+                    </KeyFrame>
+                </Animation>
+            </Style.Animations>
+        </Style>
+        <!-- Pulse animation for center dot -->
+        <Style Selector="Ellipse.centerDot">
+            <Style.Animations>
+                <Animation Duration="0:0:1.1" IterationCount="INFINITE" Easing="SineEaseInOut">
+                    <KeyFrame Cue="0%">
+                        <Setter Property="Opacity" Value="1.0"/>
+                    </KeyFrame>
+                    <KeyFrame Cue="50%">
+                        <Setter Property="Opacity" Value="0.3"/>
+                    </KeyFrame>
+                    <KeyFrame Cue="100%">
+                        <Setter Property="Opacity" Value="1.0"/>
+                    </KeyFrame>
+                </Animation>
+            </Style.Animations>
+        </Style>
     </UserControl.Styles>
     
-    <Grid Width="40" Height="40">
-        <!-- Circular spinner using Arc -->
-        <Border Classes="spinner"
-                Width="40" Height="40"
-                CornerRadius="20"
-                BorderThickness="3"
+    <Grid Width="48" Height="48">
+        <!-- Outer ring (blue arc, clockwise) -->
+        <Border Classes="outerRing"
+                Width="48" Height="48"
+                CornerRadius="24"
+                BorderThickness="3.5"
                 RenderTransformOrigin="0.5,0.5">
             <Border.BorderBrush>
                 <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
                     <GradientStop Color="#3B82F6" Offset="0"/>
-                    <GradientStop Color="#06B6D4" Offset="0.5"/>
-                    <GradientStop Color="Transparent" Offset="0.5"/>
+                    <GradientStop Color="#06B6D4" Offset="0.45"/>
+                    <GradientStop Color="Transparent" Offset="0.46"/>
                     <GradientStop Color="Transparent" Offset="1"/>
                 </LinearGradientBrush>
             </Border.BorderBrush>
@@ -37,13 +66,40 @@
                 <RotateTransform Angle="0"/>
             </Border.RenderTransform>
         </Border>
-        
-        <!-- Inner circle -->
-        <Border Width="32" Height="32"
+
+        <!-- Inner ring (cyan arc, counter-clockwise) -->
+        <Border Classes="innerRing"
+                Width="32" Height="32"
                 CornerRadius="16"
-                Background="#F1F5F9"
+                BorderThickness="2.5"
                 HorizontalAlignment="Center"
-                VerticalAlignment="Center"/>
+                VerticalAlignment="Center"
+                RenderTransformOrigin="0.5,0.5">
+            <Border.BorderBrush>
+                <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
+                    <GradientStop Color="Transparent" Offset="0"/>
+                    <GradientStop Color="Transparent" Offset="0.5"/>
+                    <GradientStop Color="#8B5CF6" Offset="0.51"/>
+                    <GradientStop Color="#EC4899" Offset="1"/>
+                </LinearGradientBrush>
+            </Border.BorderBrush>
+            <Border.RenderTransform>
+                <RotateTransform Angle="360"/>
+            </Border.RenderTransform>
+        </Border>
+        
+        <!-- Center pulsing dot -->
+        <Ellipse Classes="centerDot"
+                 Width="8" Height="8"
+                 HorizontalAlignment="Center"
+                 VerticalAlignment="Center">
+            <Ellipse.Fill>
+                <RadialGradientBrush>
+                    <GradientStop Color="#60A5FA" Offset="0"/>
+                    <GradientStop Color="#3B82F6" Offset="1"/>
+                </RadialGradientBrush>
+            </Ellipse.Fill>
+        </Ellipse>
     </Grid>
     
 </UserControl>

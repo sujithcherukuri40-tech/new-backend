@@ -41,6 +41,13 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
     [ObservableProperty]
     private bool _isAnalyzing;
 
+    /// <summary>
+    /// Indicates that the download dialog is loading its file list.
+    /// Unlike IsBusy, this does NOT show the full-screen loading overlay.
+    /// </summary>
+    [ObservableProperty]
+    private bool _isDialogLoading;
+
     [ObservableProperty]
     private int _parseProgress;
 
@@ -746,7 +753,8 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
     }
     
     /// <summary>
-    /// Optimized GPS track loading - runs on background thread
+    /// Optimized GPS track loading - runs on background thread.
+    /// Tries multiple GPS message types and field name variants for broad ArduPilot compatibility.
     /// </summary>
     private List<(double Lat, double Lng, double Alt, double Timestamp, double Speed)> LoadGpsTrackOptimized()
     {
@@ -754,31 +762,84 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
         
         try
         {
-            var gpsData = _logAnalyzerService.GetFieldData("GPS", "Lat");
-            if (gpsData == null || gpsData.Count == 0) return results;
-            
-            var lngData = _logAnalyzerService.GetFieldData("GPS", "Lng");
-            if (lngData == null || lngData.Count == 0) return results;
-            
-            var altData = _logAnalyzerService.GetFieldData("GPS", "Alt");
-            var spdData = _logAnalyzerService.GetFieldData("GPS", "Spd");
-            
-            var count = Math.Min(gpsData.Count, lngData.Count);
-            
-            for (int i = 0; i < count; i++)
+            // Try GPS message first, then GPS2 as fallback
+            var gpsMessageTypes = new[] { "GPS", "GPS2" };
+
+            // Field name variants used by different ArduPilot versions
+            var latFieldNames = new[] { "Lat", "lat", "Latitude" };
+            var lngFieldNames = new[] { "Lng", "lng", "Lon", "lon", "Longitude" };
+            var altFieldNames = new[] { "Alt", "alt", "RAlt", "Altitude" };
+            var spdFieldNames = new[] { "Spd", "spd", "GSpd", "Speed" };
+
+            foreach (var msgType in gpsMessageTypes)
             {
-                var lat = gpsData[i].Value;
-                var lng = lngData[i].Value;
-                
-                // Skip invalid coordinates
-                if (Math.Abs(lat) < 0.001 && Math.Abs(lng) < 0.001) continue;
-                if (Math.Abs(lat) > 90 || Math.Abs(lng) > 180) continue;
-                
-                var alt = altData != null && i < altData.Count ? altData[i].Value : 0;
-                var spd = spdData != null && i < spdData.Count ? spdData[i].Value : 0;
-                var timestamp = gpsData[i].Timestamp / 1_000_000.0;
-                
-                results.Add((lat, lng, alt, timestamp, spd));
+                List<LogDataPoint>? gpsData = null;
+                List<LogDataPoint>? lngData = null;
+
+                foreach (var latField in latFieldNames)
+                {
+                    var data = _logAnalyzerService.GetFieldData(msgType, latField);
+                    if (data != null && data.Count > 0) { gpsData = data; break; }
+                }
+
+                foreach (var lngField in lngFieldNames)
+                {
+                    var data = _logAnalyzerService.GetFieldData(msgType, lngField);
+                    if (data != null && data.Count > 0) { lngData = data; break; }
+                }
+
+                if (gpsData == null || gpsData.Count == 0 || lngData == null || lngData.Count == 0)
+                    continue;
+
+                List<LogDataPoint>? altData = null;
+                List<LogDataPoint>? spdData = null;
+
+                foreach (var altField in altFieldNames)
+                {
+                    var data = _logAnalyzerService.GetFieldData(msgType, altField);
+                    if (data != null && data.Count > 0) { altData = data; break; }
+                }
+
+                foreach (var spdField in spdFieldNames)
+                {
+                    var data = _logAnalyzerService.GetFieldData(msgType, spdField);
+                    if (data != null && data.Count > 0) { spdData = data; break; }
+                }
+
+                var count = Math.Min(gpsData.Count, lngData.Count);
+                _logger.LogInformation("GPS track: {MsgType} - {Count} points found", msgType, count);
+
+                for (int i = 0; i < count; i++)
+                {
+                    var lat = gpsData[i].Value;
+                    var lng = lngData[i].Value;
+
+                    // Skip invalid coordinates
+                    if (Math.Abs(lat) < 0.001 && Math.Abs(lng) < 0.001) continue;
+                    if (Math.Abs(lat) > 90 || Math.Abs(lng) > 180) continue;
+
+                    // Some FC firmware stores GPS in degrees * 1e7 - detect and convert
+                    if (Math.Abs(lat) > 90)
+                        lat /= 1e7;
+                    if (Math.Abs(lng) > 180)
+                        lng /= 1e7;
+
+                    // Re-validate after potential conversion
+                    if (Math.Abs(lat) < 0.001 || Math.Abs(lat) > 90) continue;
+                    if (Math.Abs(lng) < 0.001 || Math.Abs(lng) > 180) continue;
+
+                    var alt = altData != null && i < altData.Count ? altData[i].Value : 0;
+                    var spd = spdData != null && i < spdData.Count ? spdData[i].Value : 0;
+                    var timestamp = gpsData[i].Timestamp / 1_000_000.0;
+
+                    results.Add((lat, lng, alt, timestamp, spd));
+                }
+
+                if (results.Count > 0)
+                {
+                    _logger.LogInformation("GPS track loaded from {MsgType}: {Count} valid points", msgType, results.Count);
+                    break; // Use first GPS message type that has data
+                }
             }
         }
         catch (Exception ex)
@@ -1692,7 +1753,7 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
         }
 
         IsDownloadDialogOpen = true;
-        IsBusy = true;
+        IsDialogLoading = true;
         StatusMessage = "Loading log files from flight controller...";
 
         try
@@ -1706,7 +1767,7 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
         }
         finally
         {
-            IsBusy = false;
+            IsDialogLoading = false;
         }
     }
 
@@ -2028,7 +2089,8 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
     {
         if (!IsConnected) return;
 
-        IsBusy = true;
+        IsDialogLoading = true;
+        StatusMessage = "Refreshing log list...";
         try
         {
             await _logAnalyzerService.RefreshLogFilesAsync();
@@ -2040,7 +2102,7 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
         }
         finally
         {
-            IsBusy = false;
+            IsDialogLoading = false;
         }
     }
 
