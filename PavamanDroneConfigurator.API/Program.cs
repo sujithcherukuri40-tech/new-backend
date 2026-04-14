@@ -1,5 +1,7 @@
 using System.Text;
 using System.Threading.RateLimiting;
+using Amazon;
+using Amazon.SimpleEmail;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
@@ -8,6 +10,7 @@ using Microsoft.OpenApi.Models;
 using PavamanDroneConfigurator.API.Data;
 using PavamanDroneConfigurator.API.Middleware;
 using PavamanDroneConfigurator.API.Services;
+using PavamanDroneConfigurator.Infrastructure.Services.Aws;
 using DotNetEnv;
 
 // Load .env file if exists (for local development)
@@ -133,6 +136,14 @@ builder.Services.AddRateLimiter(options =>
 builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IAdminService, AdminService>();
+builder.Services.AddSingleton<IAmazonSimpleEmailService>(_ =>
+{
+    var region = builder.Configuration["AWS:Region"]
+        ?? Environment.GetEnvironmentVariable("AWS_REGION")
+        ?? "ap-south-1";
+    return new AmazonSimpleEmailServiceClient(RegionEndpoint.GetBySystemName(region));
+});
+builder.Services.AddScoped<PavamanDroneConfigurator.Core.Interfaces.IEmailService, SesEmailService>();
 builder.Services.AddSingleton<PavamanDroneConfigurator.Infrastructure.Services.AwsS3Service>();
 
 // Controllers & Swagger

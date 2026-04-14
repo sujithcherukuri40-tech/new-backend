@@ -209,6 +209,34 @@ public class AuthController : ControllerBase
     }
 
     /// <summary>
+    /// Initiate forgot password flow.
+    /// Always returns success message to avoid user enumeration.
+    /// </summary>
+    [HttpPost("forgot-password")]
+    [AllowAnonymous]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status500InternalServerError)]
+    [ProducesResponseType(StatusCodes.Status429TooManyRequests)]
+    public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequest request)
+    {
+        try
+        {
+            await _authService.ForgotPasswordAsync(request.Email);
+            return Ok(new { message = "If the email exists, a password reset link has been sent." });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Forgot password request failed for {Email}", request.Email);
+            return StatusCode(StatusCodes.Status500InternalServerError,
+                new ErrorResponse
+                {
+                    Message = "Unable to process forgot password request",
+                    Code = "FORGOT_PASSWORD_FAILED"
+                });
+        }
+    }
+
+    /// <summary>
     /// Get the current user's ID from JWT claims.
     /// </summary>
     private Guid? GetCurrentUserId()

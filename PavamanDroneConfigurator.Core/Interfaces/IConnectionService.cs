@@ -70,6 +70,13 @@ public interface IConnectionService
     void SendImageStartCapture(float intervalSec = 0, int totalImages = 1);
     void SendVideoStartCapture();
     void SendVideoStopCapture();
+
+    /// <summary>
+    /// Returns the internal MAVLink wrapper for services that need direct protocol access
+    /// (e.g. log download via the MAVLink LOG_* protocol).
+    /// Returns null if not connected or not using a MAVLink transport.
+    /// </summary>
+    object? GetMavlinkWrapperInternal();
 }
 
 public enum TelemetryNegotiationCommandType

@@ -1,4 +1,5 @@
 using Amazon.S3;
+using Amazon.S3;
 using Amazon.S3.Model;
 using Amazon.Runtime;
 using Microsoft.Extensions.Configuration;
@@ -7,6 +8,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -33,15 +35,23 @@ public class AwsS3Service : IDisposable
         
         // Get bucket name from configuration/environment
         _bucketName = Environment.GetEnvironmentVariable("AWS_S3_BUCKET_NAME")
+            ?? configuration?["S3:BucketName"]
             ?? configuration?["AWS:S3:BucketName"]
             ?? "drone-config-param-logs";
             
         _region = Environment.GetEnvironmentVariable("AWS_S3_REGION")
             ?? Environment.GetEnvironmentVariable("AWS_REGION")
+            ?? configuration?["AWS:Region"]
             ?? configuration?["AWS:S3:Region"]
             ?? "ap-south-1";
             
         _logger.LogInformation("[S3] Service created - Bucket: {Bucket}, Region: {Region}", _bucketName, _region);
+    }
+
+    public string GeneratePreSignedUrl(string key, int expiryMinutes)
+    {
+        var safeExpiryMinutes = Math.Max(expiryMinutes, 1);
+        return GeneratePresignedUrl(key, TimeSpan.FromMinutes(safeExpiryMinutes));
     }
     
     private IAmazonS3 GetS3Client()
@@ -303,6 +313,82 @@ public class AwsS3Service : IDisposable
         catch (Exception ex)
         {
             _logger.LogError(ex, "[S3] Failed to upload firmware");
+            throw;
+        }
+    }
+
+    public async Task<string> UploadFirmwareAsync(Stream fileStream, string fileName, string version)
+    {
+        if (fileStream == null) throw new ArgumentNullException(nameof(fileStream));
+        if (string.IsNullOrWhiteSpace(fileName)) throw new ArgumentException("File name is required", nameof(fileName));
+        if (string.IsNullOrWhiteSpace(version)) throw new ArgumentException("Version is required", nameof(version));
+
+        try
+        {
+            var client = GetS3Client();
+            var safeFileName = Path.GetFileName(fileName.Trim());
+            var safeVersion = version.Trim().Replace("/", "-").Replace("\\", "-");
+            var key = $"firmware/{safeVersion}/{safeFileName}";
+
+            var request = new PutObjectRequest
+            {
+                BucketName = _bucketName,
+                Key = key,
+                InputStream = fileStream,
+                ContentType = "application/octet-stream",
+                AutoCloseStream = false,
+                ServerSideEncryptionMethod = ServerSideEncryptionMethod.AES256
+            };
+
+            await client.PutObjectAsync(request);
+            _logger.LogInformation("[S3] Firmware stream uploaded: {Key}", key);
+            return key;
+        }
+        catch (AmazonS3Exception ex)
+        {
+            _logger.LogError(ex, "[S3] AWS error uploading firmware stream: {ErrorCode}", ex.ErrorCode);
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "[S3] Failed to upload firmware stream");
+            throw;
+        }
+    }
+
+    public async Task BackupParamsAsync(string deviceId, string jsonData)
+    {
+        if (string.IsNullOrWhiteSpace(deviceId)) throw new ArgumentException("Device ID is required", nameof(deviceId));
+        if (jsonData == null) throw new ArgumentNullException(nameof(jsonData));
+
+        try
+        {
+            var client = GetS3Client();
+            var safeDeviceId = deviceId.Trim().Replace("/", "-").Replace("\\", "-");
+            var timestamp = DateTime.UtcNow.ToString("yyyyMMdd_HHmmss");
+            var key = $"params-backup/{safeDeviceId}/{timestamp}.json";
+
+            using var stream = new MemoryStream(Encoding.UTF8.GetBytes(jsonData));
+            var request = new PutObjectRequest
+            {
+                BucketName = _bucketName,
+                Key = key,
+                InputStream = stream,
+                ContentType = "application/json",
+                ServerSideEncryptionMethod = ServerSideEncryptionMethod.AES256
+            };
+
+            await client.PutObjectAsync(request);
+            _logger.LogInformation("[S3] Parameter backup uploaded: {Key}", key);
+        }
+        catch (AmazonS3Exception ex)
+        {
+            _logger.LogError(ex, "[S3] AWS error uploading parameter backup: {ErrorCode}", ex.ErrorCode);
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "[S3] Failed to upload parameter backup");
             throw;
         }
     }

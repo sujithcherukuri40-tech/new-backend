@@ -282,6 +282,11 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
     public bool HasFilteredEvents => FilteredEvents.Count > 0;
     
     /// <summary>
+    /// Indicates whether there are critical events in the log
+    /// </summary>
+    public bool HasCriticalEvents => DetectedEvents.Any(e => e.Severity == LogEventSeverity.Critical);
+    
+    /// <summary>
     /// Indicates whether to show the "No events present in this log" message.
     /// Shows when log is loaded but no events were detected.
     /// </summary>
@@ -346,6 +351,9 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
     
     [ObservableProperty]
     private string _rawDataRowCount = "0 rows";
+    
+    [ObservableProperty]
+    private bool _showRawLogPreview;
 
     #endregion
 
@@ -403,6 +411,9 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
     /// </summary>
     [ObservableProperty]
     private ObservableCollection<Controls.WaypointPoint> _mapWaypoints = new();
+    
+    [ObservableProperty]
+    private string _mapCoordinatesDisplay = "Hover over map for coordinates";
 
     #endregion
 
@@ -592,8 +603,10 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
                         IsBusy = true;  // Ensure busy state during full analysis pipeline
                         IsLogLoaded = true;
                         IsAnalyzing = true;
+                        ParseProgress = 100; // Parser completed, now post-processing
+                        OnPropertyChanged(nameof(ParseProgressText));
                         LoadedLogInfo = $"{result.FileName} - {result.MessageCount:N0} messages, {result.DurationDisplay}";
-                        StatusMessage = "Loading log data...";
+                        StatusMessage = "Analyzing log data...";
                         
                         // Update overview
                         UpdateOverview(result);
@@ -671,6 +684,7 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
                         FilterEvents();
                         UpdateEventDisplaySummary();
                         PopulateCriticalMapEvents();
+                        OnPropertyChanged(nameof(HasCriticalEvents));
                     });
 
                     // Wait for fields
@@ -727,8 +741,8 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
                         HasLogParameters = LogParameters.Count > 0;
                     });
 
-                    // Load raw messages sample (fast, limited)
-                    await Dispatcher.UIThread.InvokeAsync(LoadRawLogMessages);
+                    // Load raw messages sample (fast, limited) - only if needed
+                    // await Dispatcher.UIThread.InvokeAsync(LoadRawLogMessages);
 
                     sw.Stop();
                     await Dispatcher.UIThread.InvokeAsync(() =>
@@ -1969,6 +1983,12 @@ public partial class LogAnalyzerPageViewModel : ViewModelBase
         ShowCriticalEvents = true;
         FilterEvents();
         UpdateEventDisplaySummary();
+    }
+    
+    [RelayCommand]
+    private void GoToEventsTab()
+    {
+        SelectedTabIndex = TAB_EVENTS;
     }
 
     [RelayCommand]

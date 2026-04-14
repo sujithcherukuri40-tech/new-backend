@@ -30,6 +30,7 @@
     
     <!-- AWS SDK for S3 - Use latest v4 for .NET 9 compatibility -->
     <PackageReference Include="AWSSDK.S3" Version="4.0.0.3" />
+    <PackageReference Include="AWSSDK.SimpleEmail" Version="4.0.0.3" />
     
     <!-- System packages -->
     <PackageReference Include="System.IO.Ports" Version="9.0.0" />

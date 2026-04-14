@@ -3,6 +3,7 @@ using PavamanDroneConfigurator.API.Data;
 using PavamanDroneConfigurator.API.DTOs;
 using PavamanDroneConfigurator.API.Exceptions;
 using PavamanDroneConfigurator.API.Models;
+using PavamanDroneConfigurator.Core.Interfaces;
 
 namespace PavamanDroneConfigurator.API.Services;
 
@@ -15,6 +16,7 @@ public class AuthService : IAuthService
     private readonly ITokenService _tokenService;
     private readonly IConfiguration _configuration;
     private readonly ILogger<AuthService> _logger;
+    private readonly IEmailService _emailService;
 
     // Account lockout settings
     private readonly int _maxFailedAttempts;
@@ -39,12 +41,14 @@ public class AuthService : IAuthService
         AppDbContext context,
         ITokenService tokenService,
         IConfiguration configuration,
-        ILogger<AuthService> logger)
+        ILogger<AuthService> logger,
+        IEmailService emailService)
     {
         _context = context;
         _tokenService = tokenService;
         _configuration = configuration;
         _logger = logger;
+        _emailService = emailService;
 
         // Load security settings from configuration
         var lockoutConfig = configuration.GetSection("Security:AccountLockout");
@@ -98,6 +102,17 @@ public class AuthService : IAuthService
         await _context.SaveChangesAsync();
 
         _logger.LogInformation("New user registered: {Email} (pending approval)", user.Email);
+
+        // Generate and send OTP
+        var otp = new Random().Next(100000, 999999).ToString();
+        try
+        {
+            await _emailService.SendOtpEmailAsync(request.Email, otp);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to send OTP to new user {Email}", request.Email);
+        }
 
         // Return response without tokens (user is pending approval)
         return new AuthResponse
@@ -389,5 +404,37 @@ public class AuthService : IAuthService
         }
 
         return false;
+    }
+
+    /// <inheritdoc />
+    public async Task ForgotPasswordAsync(string email)
+    {
+        var user = await _context.Users
+            .FirstOrDefaultAsync(u => u.Email.ToLower() == email.ToLower());
+
+        if (user == null)
+        {
+            // Do not leak user existence
+            _logger.LogWarning("Forgot password requested for non-existent email {Email}", email);
+            return;
+        }
+
+        var resetToken = Guid.NewGuid().ToString("N");
+        // A full implementation would save this reset token/expiry to the database.
+        
+        var resetBaseUrl = _configuration["App:PasswordResetBaseUrl"]?.TrimEnd('/')
+            ?? "https://app.pavamandrone.com/reset-password";
+        var resetLink = $"{resetBaseUrl}?token={resetToken}";
+
+        try
+        {
+            await _emailService.SendPasswordResetEmailAsync(email, resetLink);
+            _logger.LogInformation("Password reset email sent to {Email}", email);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to send password reset email to {Email}", email);
+            throw;
+        }
     }
 }

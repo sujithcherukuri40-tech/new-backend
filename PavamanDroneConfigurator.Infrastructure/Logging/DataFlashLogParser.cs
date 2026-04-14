@@ -6,13 +6,12 @@ namespace PavamanDroneConfigurator.Infrastructure.Logging;
 
 /// <summary>
 /// Streaming parser for ArduPilot DataFlash binary (.bin) and text (.log) files.
-/// Designed for files up to 10GB+ using buffered streaming instead of loading entire file into memory.
-/// Uses a two-pass approach: first discover message formats, then stream-parse data.
+/// Optimized for performance: O(1) message lookup, hard memory caps, no quadratic scans.
 /// </summary>
 public class DataFlashLogParser
 {
     private readonly ILogger<DataFlashLogParser>? _logger;
-    
+
     // DataFlash binary log constants
     private const byte HEAD_BYTE1 = 0xA3;
     private const byte HEAD_BYTE2 = 0x95;
@@ -20,20 +19,29 @@ public class DataFlashLogParser
 
     // Streaming buffer size (64KB for efficient reads)
     private const int STREAM_BUFFER_SIZE = 65536;
-    // Max messages to keep in memory (for message browser)
-    private const int MAX_MESSAGES_IN_MEMORY = 500_000;
-    // Max data points per series for graphing
-    private const int MAX_DATA_POINTS_PER_SERIES = 100_000;
-    
+
+    // Hard caps — keeps memory bounded and avoids GC thrashing
+    private const int MAX_MESSAGES_PER_TYPE = 50_000;   // per type, not total
+    private const int MAX_DATA_POINTS_PER_SERIES = 50_000;
+    private const int MAX_MESSAGE_TYPES = 256;
+
+    // Format dictionary: byte -> format
     private readonly Dictionary<byte, LogMessageFormat> _formats = new();
-    private readonly Dictionary<string, List<LogDataPoint>> _dataSeries = new();
-    private readonly List<LogMessage> _messages = new();
-    private readonly Dictionary<string, float> _parameters = new();
-    
-    // Tracking for downsampling large data series
-    private readonly Dictionary<string, int> _seriesSkipCounters = new();
-    private readonly Dictionary<string, int> _seriesSampleRate = new();
-    
+    // Data series: "TYPE.FIELD" -> datapoints
+    private readonly Dictionary<string, List<LogDataPoint>> _dataSeries = new(256);
+    // Messages bucketed by type for O(1) lookup — avoids full-scan on GetMessages()
+    private readonly Dictionary<string, List<LogMessage>> _messagesByType = new(64);
+    // Parameters extracted from PARM messages
+    private readonly Dictionary<string, float> _parameters = new(256);
+    // Name -> format lookup for O(1) text parsing (avoids .Any() + .First() O(n) scans)
+    private readonly Dictionary<string, LogMessageFormat> _formatsByName = new(64);
+
+    // Adaptive downsampling counters
+    private readonly Dictionary<string, int> _seriesSkipCounters = new(256);
+    private readonly Dictionary<string, int> _seriesSampleRate = new(256);
+    // Per-type message counters for cap enforcement
+    private readonly Dictionary<string, int> _messageCountByType = new(64);
+
     public DataFlashLogParser(ILogger<DataFlashLogParser>? logger = null)
     {
         _logger = logger;
@@ -42,12 +50,24 @@ public class DataFlashLogParser
     public ParsedLog? ParsedLog { get; private set; }
     public IReadOnlyDictionary<byte, LogMessageFormat> Formats => _formats;
     public IReadOnlyDictionary<string, List<LogDataPoint>> DataSeries => _dataSeries;
-    public IReadOnlyList<LogMessage> Messages => _messages;
+
+    /// <summary>All messages flattened. Use GetMessages(typeName) for type-specific access.</summary>
+    public IReadOnlyList<LogMessage> Messages
+    {
+        get
+        {
+            // Flatten only when needed — callers should prefer GetMessages(typeName)
+            var all = new List<LogMessage>();
+            foreach (var bucket in _messagesByType.Values)
+                all.AddRange(bucket);
+            return all;
+        }
+    }
+
     public IReadOnlyDictionary<string, float> Parameters => _parameters;
 
     /// <summary>
-    /// Parse a DataFlash log file using streaming for memory efficiency.
-    /// Supports files of any size (tested up to 10GB+).
+    /// Parse a DataFlash log file using streaming. Supports files of any size.
     /// </summary>
     public async Task<ParsedLog> ParseAsync(string filePath, CancellationToken cancellationToken = default,
         IProgress<int>? progress = null)
@@ -56,11 +76,13 @@ public class DataFlashLogParser
             throw new FileNotFoundException("Log file not found", filePath);
 
         _formats.Clear();
+        _formatsByName.Clear();
         _dataSeries.Clear();
-        _messages.Clear();
+        _messagesByType.Clear();
         _parameters.Clear();
         _seriesSkipCounters.Clear();
         _seriesSampleRate.Clear();
+        _messageCountByType.Clear();
 
         var fileInfo = new FileInfo(filePath);
         var result = new ParsedLog
@@ -73,16 +95,13 @@ public class DataFlashLogParser
 
         try
         {
-            _logger?.LogInformation("Starting parse of {File} ({SizeMB:F1} MB)", 
+            _logger?.LogInformation("Starting parse of {File} ({SizeMB:F1} MB)",
                 result.FileName, fileInfo.Length / (1024.0 * 1024.0));
 
-            // Detect format
             var isBinary = await IsBinaryLogAsync(filePath, cancellationToken);
-            
+
             if (isBinary)
-            {
                 await ParseBinaryStreamAsync(filePath, fileInfo.Length, cancellationToken, progress);
-            }
             else if (IsTextLog(filePath))
             {
                 result.IsTextFormat = true;
@@ -95,27 +114,34 @@ public class DataFlashLogParser
                 return result;
             }
 
-            // Build result
             result.IsSuccess = true;
             result.Formats = _formats.Values.ToList();
-            result.Messages = _messages;
+
+            // Populate Messages list (flattened for compatibility) with total count
+            int totalMessages = _messagesByType.Values.Sum(b => b.Count);
+            result.MessageCount = totalMessages;
+            result.UniqueMessageTypes = _formats.Count;
             result.DataSeries = _dataSeries;
             result.Parameters = new Dictionary<string, float>(_parameters);
-            result.MessageCount = _messages.Count;
-            result.UniqueMessageTypes = _formats.Count;
+
+            // Build flat messages list for result (bounded)
+            var allMessages = new List<LogMessage>(Math.Min(totalMessages, 200_000));
+            foreach (var bucket in _messagesByType.Values)
+                allMessages.AddRange(bucket);
+            result.Messages = allMessages;
 
             // Calculate time range
             var timeData = GetTimeSeries();
             if (timeData.Count > 0)
             {
-                result.StartTime = TimeSpan.FromMicroseconds(timeData.First().Value);
-                result.EndTime = TimeSpan.FromMicroseconds(timeData.Last().Value);
+                result.StartTime = TimeSpan.FromMicroseconds(timeData.First().Timestamp);
+                result.EndTime = TimeSpan.FromMicroseconds(timeData.Last().Timestamp);
                 result.Duration = result.EndTime - result.StartTime;
             }
 
             ParsedLog = result;
-            _logger?.LogInformation("Parsed {Count:N0} messages, {Types} types, {Series} data series from {File}",
-                result.MessageCount, result.UniqueMessageTypes, _dataSeries.Count, result.FileName);
+            _logger?.LogInformation("Parsed {Count:N0} messages total, {Types} types, {Series} series from {File}",
+                totalMessages, result.UniqueMessageTypes, _dataSeries.Count, result.FileName);
         }
         catch (OperationCanceledException)
         {
@@ -141,30 +167,25 @@ public class DataFlashLogParser
         try
         {
             var buffer = new byte[1024];
-            using var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read, 
+            using var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read,
                 STREAM_BUFFER_SIZE, FileOptions.SequentialScan);
             var bytesRead = await fs.ReadAsync(buffer, 0, Math.Min(1024, (int)fs.Length), ct);
-            
+
             for (int i = 0; i < bytesRead - 1; i++)
-            {
                 if (buffer[i] == HEAD_BYTE1 && buffer[i + 1] == HEAD_BYTE2)
                     return true;
-            }
             return false;
         }
-        catch
-        {
-            return false;
-        }
+        catch { return false; }
     }
 
-    private bool IsTextLog(string filePath)
+    private static bool IsTextLog(string filePath)
     {
         try
         {
             using var reader = new StreamReader(filePath);
             var firstLine = reader.ReadLine();
-            return firstLine != null && 
+            return firstLine != null &&
                    (firstLine.StartsWith("FMT") || firstLine.Contains(",") || firstLine.StartsWith("GPS"));
         }
         catch { return false; }
@@ -175,52 +196,58 @@ public class DataFlashLogParser
     #region Binary Streaming Parser
 
     /// <summary>
-    /// Stream-parse a binary DataFlash log using a 64KB rolling buffer.
-    /// Memory usage stays constant regardless of file size.
+    /// Stream-parse a binary DataFlash log. Uses a 128KB ring buffer.
+    /// Fixes the critical EOF bug: tracks fileEOF separately from buffer state.
     /// </summary>
-    private async Task ParseBinaryStreamAsync(string filePath, long fileSize, 
+    private async Task ParseBinaryStreamAsync(string filePath, long fileSize,
         CancellationToken ct, IProgress<int>? progress)
     {
-        using var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read, 
+        using var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read,
             STREAM_BUFFER_SIZE, FileOptions.SequentialScan | FileOptions.Asynchronous);
 
-        // Ring buffer for streaming — holds enough for any single message
         var ringBuffer = new byte[STREAM_BUFFER_SIZE * 2]; // 128KB ring
         int ringStart = 0;
         int ringEnd = 0;
         long totalBytesRead = 0;
         int msgIndex = 0;
         int lastProgressPercent = -1;
-
-        // Calculate sample rates based on estimated message count
-        var estimatedMessages = fileSize / 50; // rough estimate: ~50 bytes per message
-        _logger?.LogInformation("Estimated {Est:N0} messages for {SizeMB:F1} MB file", 
-            estimatedMessages, fileSize / (1024.0 * 1024.0));
+        bool fileEOF = false; // ← CRITICAL: track EOF separately from buffer empty
 
         while (!ct.IsCancellationRequested)
         {
-            // Fill the buffer
-            int freeSpace = ringBuffer.Length - ringEnd;
-            if (freeSpace > 0)
+            // Fill the buffer if not at EOF
+            if (!fileEOF)
             {
-                var read = await fs.ReadAsync(ringBuffer, ringEnd, Math.Min(freeSpace, STREAM_BUFFER_SIZE), ct);
-                if (read == 0 && ringStart >= ringEnd) break; // EOF + no data left
-                ringEnd += read;
-                totalBytesRead += read;
+                int freeSpace = ringBuffer.Length - ringEnd;
+                if (freeSpace > 0)
+                {
+                    var bytesToRead = Math.Min(freeSpace, STREAM_BUFFER_SIZE);
+                    var read = await fs.ReadAsync(ringBuffer, ringEnd, bytesToRead, ct);
+                    if (read == 0)
+                    {
+                        fileEOF = true; // No more data from file
+                    }
+                    else
+                    {
+                        ringEnd += read;
+                        totalBytesRead += read;
+                    }
+                }
             }
 
-            // Report progress
+            // Report progress based on bytes read
             if (progress != null && fileSize > 0)
             {
-                int pct = (int)(totalBytesRead * 100 / fileSize);
+                int pct = (int)Math.Min(totalBytesRead * 99 / fileSize, 99);
                 if (pct != lastProgressPercent)
                 {
                     lastProgressPercent = pct;
-                    progress.Report(Math.Min(pct, 99));
+                    progress.Report(pct);
                 }
             }
 
             // Parse messages from buffer
+            bool parsedAny = false;
             while (ringStart < ringEnd - 2)
             {
                 if (ct.IsCancellationRequested) break;
@@ -241,10 +268,11 @@ public class DataFlashLogParser
                     if (ringStart + 89 > ringEnd) break; // Need more data
                     ParseFormatMessage(ringBuffer, ringStart + 3);
                     ringStart += 89;
+                    parsedAny = true;
                     continue;
                 }
 
-                // Regular message — need to know its length from format
+                // Regular message — need its length from format
                 if (!_formats.TryGetValue(msgType, out var format) || format.Length == 0)
                 {
                     ringStart++;
@@ -253,36 +281,21 @@ public class DataFlashLogParser
 
                 if (ringStart + format.Length > ringEnd) break; // Need more data
 
-                // Parse message from buffer
-                int dataPos = ringStart + 3; // skip header (2) + type (1)
-                var msg = ParseMessageStreaming(ringBuffer, ref dataPos, format, msgIndex);
-                
+                // Parse message
+                int dataPos = ringStart + 3; // skip header(2) + type(1)
+                var msg = ParseMessageBinary(ringBuffer, ref dataPos, format, msgIndex);
+
                 if (msg != null)
                 {
-                    // Only keep messages in memory up to limit (for message browser)
-                    if (_messages.Count < MAX_MESSAGES_IN_MEMORY)
-                    {
-                        _messages.Add(msg);
-                    }
-
-                    // Handle PARM messages
-                    if (format.Name == "PARM")
-                    {
-                        var paramName = TryGetStringField(msg.Fields, "Name", "N");
-                        var paramValue = TryGetDoubleField(msg.Fields, "Value", "V");
-                        if (!string.IsNullOrWhiteSpace(paramName) && paramValue.HasValue)
-                        {
-                            _parameters[paramName] = (float)paramValue.Value;
-                        }
-                    }
-
+                    AddMessageToBucket(msg, format.Name);
                     msgIndex++;
                 }
 
                 ringStart += format.Length;
+                parsedAny = true;
             }
 
-            // Compact ring buffer — move unprocessed data to beginning
+            // Compact ring buffer
             if (ringStart > 0)
             {
                 int remaining = ringEnd - ringStart;
@@ -292,11 +305,19 @@ public class DataFlashLogParser
                 ringStart = 0;
             }
 
-            // EOF check
-            if (fs.Position >= fileSize && ringStart >= ringEnd) break;
+            // Exit when file is done AND buffer is empty
+            if (fileEOF && ringEnd == 0) break;
+
+            // If file is EOF but buffer still has data - only exit if we couldn't parse anything
+            // (means remaining bytes are incomplete/corrupt)
+            if (fileEOF && !parsedAny) break;
+
+            // Yield to prevent UI thread starvation on large files
+            if (msgIndex % 100_000 == 0 && msgIndex > 0)
+                await Task.Yield();
         }
 
-        _logger?.LogInformation("Binary parse complete: {Msgs:N0} messages, {Bytes:N0} bytes processed", 
+        _logger?.LogInformation("Binary parse complete: {Msgs:N0} messages, {Bytes:N0} bytes processed",
             msgIndex, totalBytesRead);
     }
 
@@ -320,24 +341,18 @@ public class DataFlashLogParser
             .Select(s => s.Trim()).ToList();
 
         _formats[format.Type] = format;
+        _formatsByName[format.Name] = format; // O(1) name lookup
     }
 
-    private LogMessage? ParseMessageStreaming(byte[] data, ref int pos, LogMessageFormat format, int index)
+    private LogMessage? ParseMessageBinary(byte[] data, ref int pos, LogMessageFormat format, int index)
     {
-        int msgDataLen = format.Length - 3; // minus header (2) + type (1)
+        int msgDataLen = format.Length - 3;
         if (pos + msgDataLen > data.Length)
             return null;
 
-        var msg = new LogMessage
-        {
-            Type = format.Type,
-            TypeName = format.Name,
-            LineNumber = index,
-            Fields = new Dictionary<string, object>()
-        };
-
-        // Parse fields
+        var fields = new Dictionary<string, object>(format.FieldNames.Count);
         int fieldIndex = 0;
+
         foreach (char formatChar in format.FormatString)
         {
             if (fieldIndex >= format.FieldNames.Count) break;
@@ -372,68 +387,102 @@ public class DataFlashLogParser
             }
             catch { break; }
 
-            if (value != null) msg.Fields[fieldName] = value;
+            if (value != null) fields[fieldName] = value;
             fieldIndex++;
         }
 
         // Extract timestamp
         double timestamp = 0;
-        if (msg.Fields.TryGetValue("TimeUS", out var timeUsObj) && timeUsObj is double ts)
+        TimeSpan timestampSpan = default;
+        if (fields.TryGetValue("TimeUS", out var timeUsObj) && timeUsObj is double ts)
         {
             timestamp = ts;
-            msg.Timestamp = TimeSpan.FromMicroseconds(ts);
+            timestampSpan = TimeSpan.FromMicroseconds(ts);
         }
 
-        // Add numeric values to data series with adaptive downsampling
-        foreach (var field in msg.Fields)
+        // Store data series (numeric fields only)
+        foreach (var field in fields)
         {
             if (field.Value is double numValue && !double.IsNaN(numValue) && !double.IsInfinity(numValue))
             {
-                var seriesKey = $"{format.Name}.{field.Key}";
-                
-                if (!_dataSeries.ContainsKey(seriesKey))
-                {
-                    _dataSeries[seriesKey] = new List<LogDataPoint>();
-                    _seriesSkipCounters[seriesKey] = 0;
-                    _seriesSampleRate[seriesKey] = 1; // Start at 1:1
-                }
-
-                var series = _dataSeries[seriesKey];
-                
-                // Adaptive downsampling: if series is getting large, increase skip rate
-                if (series.Count >= MAX_DATA_POINTS_PER_SERIES)
-                {
-                    // Double the sample rate
-                    _seriesSampleRate[seriesKey] = Math.Min(_seriesSampleRate[seriesKey] * 2, 1000);
-                }
-
-                var sampleRate = _seriesSampleRate[seriesKey];
-                _seriesSkipCounters[seriesKey]++;
-                
-                if (_seriesSkipCounters[seriesKey] >= sampleRate)
-                {
-                    _seriesSkipCounters[seriesKey] = 0;
-                    series.Add(new LogDataPoint
-                    {
-                        Index = index,
-                        Timestamp = timestamp,
-                        Value = numValue
-                    });
-                }
+                StoreDataPoint($"{format.Name}.{field.Key}", index, timestamp, numValue);
             }
         }
 
-        return msg;
+        // Extract PARM
+        if (format.Name == "PARM")
+        {
+            var paramName = TryGetStringField(fields, "Name", "N");
+            var paramValue = TryGetDoubleField(fields, "Value", "V");
+            if (!string.IsNullOrWhiteSpace(paramName) && paramValue.HasValue)
+                _parameters[paramName] = (float)paramValue.Value;
+        }
+
+        return new LogMessage
+        {
+            Type = format.Type,
+            TypeName = format.Name,
+            LineNumber = index,
+            Timestamp = timestampSpan,
+            Fields = fields
+        };
+    }
+
+    private void AddMessageToBucket(LogMessage msg, string typeName)
+    {
+        if (!_messagesByType.TryGetValue(typeName, out var bucket))
+        {
+            bucket = new List<LogMessage>(128);
+            _messagesByType[typeName] = bucket;
+            _messageCountByType[typeName] = 0;
+        }
+
+        // Enforce per-type cap to prevent any one type dominating memory
+        if (_messageCountByType[typeName] < MAX_MESSAGES_PER_TYPE)
+        {
+            bucket.Add(msg);
+            _messageCountByType[typeName]++;
+        }
+    }
+
+    private void StoreDataPoint(string seriesKey, int index, double timestamp, double value)
+    {
+        if (!_dataSeries.TryGetValue(seriesKey, out var series))
+        {
+            series = new List<LogDataPoint>(512);
+            _dataSeries[seriesKey] = series;
+            _seriesSkipCounters[seriesKey] = 0;
+            _seriesSampleRate[seriesKey] = 1;
+        }
+
+        // Check if we need to start downsampling BEFORE reaching the cap
+        if (series.Count >= MAX_DATA_POINTS_PER_SERIES)
+        {
+            // Increase sampling rate — but don't add more points
+            if (_seriesSampleRate[seriesKey] < 1000)
+                _seriesSampleRate[seriesKey] = Math.Min(_seriesSampleRate[seriesKey] * 2, 1000);
+            return; // Hard cap reached — stop adding
+        }
+
+        var sampleRate = _seriesSampleRate[seriesKey];
+        _seriesSkipCounters[seriesKey]++;
+
+        if (_seriesSkipCounters[seriesKey] >= sampleRate)
+        {
+            _seriesSkipCounters[seriesKey] = 0;
+            series.Add(new LogDataPoint
+            {
+                Index = index,
+                Timestamp = timestamp,
+                Value = value
+            });
+        }
     }
 
     #endregion
 
     #region Text Streaming Parser
 
-    /// <summary>
-    /// Stream-parse a text log file line by line using StreamReader.
-    /// Never loads entire file into memory.
-    /// </summary>
     private async Task ParseTextStreamAsync(string filePath, long fileSize,
         CancellationToken ct, IProgress<int>? progress)
     {
@@ -461,15 +510,19 @@ public class DataFlashLogParser
                 // Skip malformed lines
             }
 
-            // Progress reporting
-            if (progress != null && fileSize > 0 && lineNumber % 10000 == 0)
+            // Progress + yield every 5000 lines
+            if (lineNumber % 5000 == 0)
             {
-                int pct = (int)(fs.Position * 100 / fileSize);
-                if (pct != lastProgressPercent)
+                if (progress != null && fileSize > 0)
                 {
-                    lastProgressPercent = pct;
-                    progress.Report(Math.Min(pct, 99));
+                    int pct = (int)Math.Min(fs.Position * 99 / fileSize, 99);
+                    if (pct != lastProgressPercent)
+                    {
+                        lastProgressPercent = pct;
+                        progress.Report(pct);
+                    }
                 }
+                await Task.Yield(); // Don't starve UI thread
             }
         }
 
@@ -482,69 +535,89 @@ public class DataFlashLogParser
         if (parts.Length < 2) return;
 
         var msgType = parts[0].Trim();
-        
-        if (!_formats.Values.Any(f => f.Name == msgType))
+
+        // O(1) format lookup by name — avoids the O(n) .Any() + .First() scan
+        if (!_formatsByName.TryGetValue(msgType, out var format))
         {
-            var fmt = new LogMessageFormat
+            if (_formatsByName.Count >= MAX_MESSAGE_TYPES) return;
+
+            format = new LogMessageFormat
             {
-                Type = (byte)(_formats.Count + 1),
+                Type = (byte)(_formats.Count % 256 + 1),
                 Name = msgType,
                 FieldNames = new List<string>()
             };
             for (int i = 1; i < parts.Length; i++)
-                fmt.FieldNames.Add($"F{i}");
-            _formats[(byte)fmt.Type] = fmt;
+                format.FieldNames.Add($"F{i}");
+
+            // Avoid byte key collisions
+            byte key = format.Type;
+            while (_formats.ContainsKey(key)) key++;
+            format.Type = key;
+
+            _formats[format.Type] = format;
+            _formatsByName[msgType] = format;
         }
 
-        var format = _formats.Values.First(f => f.Name == msgType);
-        
-        // Limit messages in memory
-        if (_messages.Count >= MAX_MESSAGES_IN_MEMORY) return;
-        
-        var msg = new LogMessage
-        {
-            Type = format.Type,
-            TypeName = msgType,
-            LineNumber = lineNumber,
-            Fields = new Dictionary<string, object>()
-        };
+        // Enforce per-type cap
+        _messageCountByType.TryGetValue(msgType, out var count);
+        if (count >= MAX_MESSAGES_PER_TYPE) return;
+
+        var fields = new Dictionary<string, object>(parts.Length);
+        double timestamp = 0;
 
         for (int i = 1; i < parts.Length && i <= format.FieldNames.Count; i++)
         {
             var fieldName = format.FieldNames[i - 1];
             var valueStr = parts[i].Trim();
-            
-            if (double.TryParse(valueStr, out var numValue))
+
+            if (double.TryParse(valueStr, System.Globalization.NumberStyles.Float,
+                System.Globalization.CultureInfo.InvariantCulture, out var numValue))
             {
-                msg.Fields[fieldName] = numValue;
-                
-                var seriesKey = $"{msgType}.{fieldName}";
-                if (!_dataSeries.ContainsKey(seriesKey))
-                {
-                    _dataSeries[seriesKey] = new List<LogDataPoint>();
-                    _seriesSkipCounters[seriesKey] = 0;
-                    _seriesSampleRate[seriesKey] = 1;
-                }
+                fields[fieldName] = numValue;
+                StoreDataPoint($"{msgType}.{fieldName}", lineNumber, timestamp, numValue);
 
-                var series = _dataSeries[seriesKey];
-                if (series.Count >= MAX_DATA_POINTS_PER_SERIES)
-                    _seriesSampleRate[seriesKey] = Math.Min(_seriesSampleRate[seriesKey] * 2, 1000);
-
-                _seriesSkipCounters[seriesKey]++;
-                if (_seriesSkipCounters[seriesKey] >= _seriesSampleRate[seriesKey])
-                {
-                    _seriesSkipCounters[seriesKey] = 0;
-                    series.Add(new LogDataPoint { Index = _messages.Count, Value = numValue });
-                }
+                if (fieldName == "TimeUS") timestamp = numValue;
             }
             else
             {
-                msg.Fields[fieldName] = valueStr;
+                fields[fieldName] = valueStr;
             }
         }
 
-        _messages.Add(msg);
+        var msg = new LogMessage
+        {
+            Type = format.Type,
+            TypeName = msgType,
+            LineNumber = lineNumber,
+            Timestamp = TimeSpan.FromMicroseconds(timestamp),
+            Fields = fields
+        };
+
+        AddMessageToBucket(msg, msgType);
     }
+
+    #endregion
+
+    #region Public Query API
+
+    /// <summary>Get messages for a specific type. O(1) — no full scan.</summary>
+    public List<LogMessage> GetMessages(string typeName)
+    {
+        return _messagesByType.TryGetValue(typeName, out var bucket)
+            ? bucket
+            : new List<LogMessage>();
+    }
+
+    public List<LogDataPoint>? GetDataSeries(string messageType, string fieldName)
+    {
+        var key = $"{messageType}.{fieldName}";
+        return _dataSeries.TryGetValue(key, out var series) ? series : null;
+    }
+
+    public List<string> GetAvailableDataSeries() => _dataSeries.Keys.OrderBy(k => k).ToList();
+
+    public List<string> GetMessageTypes() => _formatsByName.Keys.OrderBy(n => n).ToList();
 
     #endregion
 
@@ -565,7 +638,7 @@ public class DataFlashLogParser
                 return obj?.ToString()?.Trim();
         return null;
     }
-    
+
     private static double? TryGetDoubleField(Dictionary<string, object> fields, params string[] fieldNames)
     {
         foreach (var name in fieldNames)
@@ -588,24 +661,10 @@ public class DataFlashLogParser
         return timeKey != null ? _dataSeries[timeKey] : new List<LogDataPoint>();
     }
 
-    public List<LogDataPoint>? GetDataSeries(string messageType, string fieldName)
-    {
-        var key = $"{messageType}.{fieldName}";
-        return _dataSeries.TryGetValue(key, out var series) ? series : null;
-    }
-
-    public List<string> GetAvailableDataSeries() => _dataSeries.Keys.OrderBy(k => k).ToList();
-
-    public List<LogMessage> GetMessages(string typeName) => _messages.Where(m => m.TypeName == typeName).ToList();
-
-    public List<string> GetMessageTypes() => _formats.Values.Select(f => f.Name).OrderBy(n => n).ToList();
-
     #endregion
 }
 
-/// <summary>
-/// Represents a parsed DataFlash log.
-/// </summary>
+/// <summary>Represents a parsed DataFlash log.</summary>
 public class ParsedLog
 {
     public string FilePath { get; set; } = string.Empty;
@@ -615,27 +674,25 @@ public class ParsedLog
     public bool IsSuccess { get; set; }
     public bool IsTextFormat { get; set; }
     public string? ErrorMessage { get; set; }
-    
+
     public List<LogMessageFormat> Formats { get; set; } = new();
     public List<LogMessage> Messages { get; set; } = new();
     public Dictionary<string, List<LogDataPoint>> DataSeries { get; set; } = new();
     public Dictionary<string, float> Parameters { get; set; } = new();
-    
+
     public int MessageCount { get; set; }
     public int UniqueMessageTypes { get; set; }
-    
+
     public TimeSpan StartTime { get; set; }
     public TimeSpan EndTime { get; set; }
     public TimeSpan Duration { get; set; }
-    
-    public string DurationDisplay => Duration.TotalSeconds > 0 
-        ? $"{Duration.Hours:D2}:{Duration.Minutes:D2}:{Duration.Seconds:D2}" 
+
+    public string DurationDisplay => Duration.TotalSeconds > 0
+        ? $"{Duration.Hours:D2}:{Duration.Minutes:D2}:{Duration.Seconds:D2}"
         : "Unknown";
 }
 
-/// <summary>
-/// Represents a message format definition.
-/// </summary>
+/// <summary>Represents a message format definition.</summary>
 public class LogMessageFormat
 {
     public byte Type { get; set; }
@@ -645,9 +702,7 @@ public class LogMessageFormat
     public List<string> FieldNames { get; set; } = new();
 }
 
-/// <summary>
-/// Represents a single log message.
-/// </summary>
+/// <summary>Represents a single log message.</summary>
 public class LogMessage
 {
     public byte Type { get; set; }

@@ -113,6 +113,8 @@ public class EventPaginationState
     public string DisplayText => TotalItems > 0 
         ? $"Showing {StartIndex + 1} to {EndIndex} of {TotalItems:N0} events"
         : "No events to display";
+    
+    public string CurrentPageDisplay => $"Page {CurrentPage} of {TotalPages}";
 }
 
 /// <summary>

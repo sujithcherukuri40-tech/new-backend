@@ -53,4 +53,10 @@ public interface IAuthService
     /// <param name="userId">The user's ID.</param>
     /// <returns>The user entity or null.</returns>
     Task<User?> GetUserByIdAsync(Guid userId);
+
+    /// <summary>
+    /// Initiate the forgot password process for a user.
+    /// </summary>
+    /// <param name="email">The user's email address.</param>
+    Task ForgotPasswordAsync(string email);
 }

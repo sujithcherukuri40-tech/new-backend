@@ -1508,6 +1508,11 @@ public sealed class ConnectionService : IConnectionService, IDisposable
         }
     }
 
+    public object? GetMavlinkWrapperInternal()
+    {
+        return _mavlink;
+    }
+
     public void Dispose()
     {
         if (_disposed) return;
