@@ -1,0 +1,308 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:PavamanDroneConfigurator.UI.ViewModels.Admin"
+             xmlns:models="using:PavamanDroneConfigurator.UI.Models"
+             x:Class="PavamanDroneConfigurator.UI.Views.Admin.ParameterLockManagementPage"
+             x:DataType="vm:ParameterLockManagementViewModel">
+
+    <UserControl.Styles>
+        <Style Selector="Border.Panel">
+            <Setter Property="Background" Value="White"/>
+            <Setter Property="BorderBrush" Value="#E1E1E1"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="8"/>
+        </Style>
+
+        <Style Selector="Button.ActionButton">
+            <Setter Property="Background" Value="#007ACC"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Padding" Value="12,8"/>
+            <Setter Property="CornerRadius" Value="4"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+        </Style>
+
+        <Style Selector="Button.ActionButton:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="#005A9E"/>
+        </Style>
+
+        <Style Selector="Button.DangerButton">
+            <Setter Property="Background" Value="#DC3545"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Padding" Value="10,6"/>
+            <Setter Property="CornerRadius" Value="4"/>
+        </Style>
+
+        <Style Selector="Button.SecondaryButton">
+            <Setter Property="Background" Value="#6C757D"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Padding" Value="12,8"/>
+            <Setter Property="CornerRadius" Value="4"/>
+        </Style>
+
+        <Style Selector="TextBox.SearchBox">
+            <Setter Property="Watermark" Value="&#x1F50D; Search..."/>
+            <Setter Property="Padding" Value="10,8"/>
+            <Setter Property="BorderBrush" Value="#CED4DA"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="4"/>
+        </Style>
+
+        <Style Selector="CheckBox.ParamCheckbox">
+            <Setter Property="Margin" Value="0,4"/>
+        </Style>
+    </UserControl.Styles>
+
+    <Grid RowDefinitions="Auto,Auto,*,Auto" Margin="20">
+
+        <!-- Header -->
+        <Border Grid.Row="0" Classes="Panel" Padding="20" Margin="0,0,0,20">
+            <Grid ColumnDefinitions="Auto,*,Auto,Auto">
+                <TextBlock Grid.Column="0" Text="&#x1F512; Parameter Lock Management" 
+                           FontSize="24" FontWeight="Bold" VerticalAlignment="Center"/>
+
+                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+                    <Button Classes="ActionButton" Command="{Binding RefreshLocksCommand}">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <TextBlock Text="&#x27F3;"/>
+                            <TextBlock Text="Refresh"/>
+                        </StackPanel>
+                    </Button>
+                    <Button Classes="ActionButton" Command="{Binding OpenCreateDialogCommand}">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <TextBlock Text="&#x2B;"/>
+                            <TextBlock Text="Create Lock"/>
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- Statistics Cards -->
+        <Grid Grid.Row="1" ColumnDefinitions="*,*,*" Margin="0,0,0,20">
+            <Border Grid.Column="0" Classes="Panel" Padding="16" Margin="0,0,10,0">
+                <StackPanel>
+                    <TextBlock Text="Total Locks" Foreground="#666" FontSize="12"/>
+                    <TextBlock Text="{Binding TotalLocksCount}" FontSize="32" FontWeight="Bold" Foreground="#007ACC"/>
+                </StackPanel>
+            </Border>
+            <Border Grid.Column="1" Classes="Panel" Padding="16" Margin="0,0,10,0">
+                <StackPanel>
+                    <TextBlock Text="Users with Locks" Foreground="#666" FontSize="12"/>
+                    <TextBlock Text="{Binding TotalUsersWithLocks}" FontSize="32" FontWeight="Bold" Foreground="#28A745"/>
+                </StackPanel>
+            </Border>
+            <Border Grid.Column="2" Classes="Panel" Padding="16">
+                <StackPanel>
+                    <TextBlock Text="Total Locked Parameters" Foreground="#666" FontSize="12"/>
+                    <TextBlock Text="{Binding TotalLockedParams}" FontSize="32" FontWeight="Bold" Foreground="#FFC107"/>
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <!-- Main Content -->
+        <Border Grid.Row="2" Classes="Panel">
+            <Grid RowDefinitions="Auto,*">
+                <!-- Search Bar -->
+                <Border Grid.Row="0" Background="#F8F9FA" Padding="16" BorderBrush="#E1E1E1" BorderThickness="0,0,0,1">
+                    <TextBox Classes="SearchBox" Text="{Binding SearchText}" Width="300" HorizontalAlignment="Left"/>
+                </Border>
+
+                <!-- Locks List -->
+                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                    <ItemsControl ItemsSource="{Binding FilteredLocks}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="models:ParamLockModel">
+                                <Border Background="White" BorderBrush="#E1E1E1" BorderThickness="0,0,0,1" 
+                                        Padding="16" Cursor="Hand">
+                                    <Border.Styles>
+                                        <Style Selector="Border:pointerover">
+                                            <Setter Property="Background" Value="#F8F9FA"/>
+                                        </Style>
+                                    </Border.Styles>
+
+                                    <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto">
+                                        <!-- Lock Icon -->
+                                        <Border Grid.Column="0" Background="#FFC107" Width="40" Height="40" 
+                                                CornerRadius="20" Margin="0,0,12,0">
+                                            <TextBlock Text="&#x1F512;" FontSize="20" HorizontalAlignment="Center" 
+                                                       VerticalAlignment="Center"/>
+                                        </Border>
+
+                                        <!-- User Info -->
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding UserName}" FontWeight="SemiBold" FontSize="14"/>
+                                            <TextBlock Text="{Binding UserEmail}" Foreground="#666" FontSize="12"/>
+                                            <StackPanel Orientation="Horizontal" Spacing="12" Margin="0,4,0,0">
+                                                <TextBlock Text="{Binding DeviceDisplay}" Foreground="#007ACC" FontSize="11"/>
+                                                <TextBlock Text="&#x2022;" Foreground="#CCC"/>
+                                                <TextBlock Text="{Binding ParamCountDisplay}" Foreground="#28A745" FontSize="11"/>
+                                                <TextBlock Text="&#x2022;" Foreground="#CCC"/>
+                                                <TextBlock Text="{Binding CreatedAtDisplay}" Foreground="#666" FontSize="11"/>
+                                            </StackPanel>
+                                        </StackPanel>
+
+                                        <!-- Parameters Preview -->
+                                        <Border Grid.Column="2" Background="#E7F3FF" Padding="8,4" CornerRadius="4" 
+                                                Margin="0,0,12,0" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding LockedParamsPreview}" FontSize="11" 
+                                                       Foreground="#007ACC" MaxWidth="200" TextTrimming="CharacterEllipsis"/>
+                                        </Border>
+
+                                        <!-- Edit Button -->
+                                        <Button Grid.Column="3" Content="Edit" Padding="8,4" Margin="0,0,8,0"
+                                                Command="{Binding $parent[UserControl].((vm:ParameterLockManagementViewModel)DataContext).OpenEditDialogCommand}"
+                                                CommandParameter="{Binding}"/>
+
+                                        <!-- Delete Button -->
+                                        <Button Grid.Column="4" Classes="DangerButton" Content="&#x2717; Delete"
+                                                Command="{Binding $parent[UserControl].((vm:ParameterLockManagementViewModel)DataContext).DeleteLockCommand}"
+                                                CommandParameter="{Binding}"/>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+
+                <!-- Empty State -->
+                <Border Grid.Row="1" IsVisible="{Binding !FilteredLocks.Count}">
+                    <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                        <TextBlock Text="&#x1F512;" FontSize="64" Opacity="0.3" HorizontalAlignment="Center"/>
+                        <TextBlock Text="No parameter locks found" FontSize="18" FontWeight="SemiBold" 
+                                   Foreground="#666" HorizontalAlignment="Center" Margin="0,12,0,0"/>
+                        <TextBlock Text="Create a lock to restrict parameter access for users" 
+                                   Foreground="#999" HorizontalAlignment="Center" Margin="0,8,0,0"/>
+                        <Button Content="Create First Lock" Classes="ActionButton" Margin="0,16,0,0"
+                                Command="{Binding OpenCreateDialogCommand}"/>
+                    </StackPanel>
+                </Border>
+            </Grid>
+        </Border>
+
+        <!-- Status Bar -->
+        <Border Grid.Row="3" Background="#007ACC" Padding="12,8" Margin="0,20,0,0" CornerRadius="4">
+            <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Grid.Column="0" Text="{Binding StatusMessage}" Foreground="White" FontSize="12"/>
+                <ProgressBar Grid.Column="1" IsIndeterminate="True" Width="120" Height="6" 
+                             IsVisible="{Binding IsBusy}" Margin="12,0,0,0"/>
+            </Grid>
+        </Border>
+
+        <!-- Create/Edit Dialog Overlay -->
+        <Border Grid.RowSpan="4" Background="#CC000000" IsVisible="{Binding IsCreateDialogOpen}" 
+                ZIndex="1000">
+            <Border Background="White" MaxWidth="900" MaxHeight="700" Padding="0"
+                    HorizontalAlignment="Center" VerticalAlignment="Center" 
+                    BorderBrush="#CCC" BorderThickness="1" CornerRadius="8">
+                
+                <Grid RowDefinitions="Auto,*,Auto">
+                    <!-- Dialog Header -->
+                    <Border Grid.Row="0" Background="#007ACC" Padding="20">
+                        <Grid ColumnDefinitions="*,Auto">
+                            <TextBlock Grid.Column="0" Text="{Binding DialogTitle}" 
+                                       FontSize="20" FontWeight="Bold" Foreground="White"/>
+                            <Button Grid.Column="1" Content="&#x2715;" FontSize="20" 
+                                    Background="Transparent" Foreground="White" BorderThickness="0"
+                                    Command="{Binding CloseDialogCommand}" Cursor="Hand"/>
+                        </Grid>
+                    </Border>
+
+                    <!-- Dialog Content -->
+                    <ScrollViewer Grid.Row="1" Padding="20">
+                        <StackPanel Spacing="20">
+                            <!-- User Selection (Create Mode Only) -->
+                            <StackPanel IsVisible="{Binding !IsEditMode}">
+                                <TextBlock Text="Select User" FontWeight="SemiBold" Margin="0,0,0,8"/>
+                                <ComboBox ItemsSource="{Binding AvailableUsers}" 
+                                          SelectedItem="{Binding SelectedUser}"
+                                          HorizontalAlignment="Stretch">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate DataType="models:UserItemModel">
+                                            <Grid ColumnDefinitions="*,Auto">
+                                                <TextBlock Grid.Column="0" Text="{Binding DisplayText}"/>
+                                                <TextBlock Grid.Column="1" Text="{Binding LocksInfo}" 
+                                                           Foreground="#999" FontSize="11" Margin="12,0,0,0"/>
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
+                            </StackPanel>
+
+                            <!-- Device ID -->
+                            <StackPanel>
+                                <CheckBox Content="Apply to all devices" IsChecked="{Binding ApplyToAllDevices}" 
+                                          Margin="0,0,0,8"/>
+                                <TextBox Text="{Binding DeviceId}" Watermark="Device ID (e.g., drone_123)" 
+                                         IsEnabled="{Binding !ApplyToAllDevices}"/>
+                            </StackPanel>
+
+                            <!-- Parameter Selection -->
+                            <StackPanel>
+                                <Grid ColumnDefinitions="*,Auto,Auto,Auto" Margin="0,0,0,8">
+                                    <TextBlock Grid.Column="0" Text="Select Parameters to Lock" FontWeight="SemiBold"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding SelectedParamCount, StringFormat='({0} selected)'}" 
+                                               Foreground="#007ACC" FontWeight="SemiBold" Margin="8,0"/>
+                                    <Button Grid.Column="2" Content="Select All" Padding="6,2" Margin="8,0,0,0"
+                                            Command="{Binding SelectAllParametersCommand}"/>
+                                    <Button Grid.Column="3" Content="Clear All" Padding="6,2" Margin="4,0,0,0"
+                                            Command="{Binding ClearAllParametersCommand}"/>
+                                </Grid>
+
+                                <TextBox Classes="SearchBox" Text="{Binding ParamSearchText}" 
+                                         Watermark="&#x1F50D; Search parameters..." Margin="0,0,0,8"/>
+
+                                <Border BorderBrush="#E1E1E1" BorderThickness="1" CornerRadius="4" MaxHeight="300">
+                                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                        <ItemsControl ItemsSource="{Binding FilteredParameters}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate DataType="models:ParameterItemModel">
+                                                    <Border Background="White" Padding="8" Cursor="Hand"
+                                                            BorderBrush="#F0F0F0" BorderThickness="0,0,0,1">
+                                                        <Border.Styles>
+                                                            <Style Selector="Border:pointerover">
+                                                                <Setter Property="Background" Value="#F8F9FA"/>
+                                                            </Style>
+                                                        </Border.Styles>
+                                                        
+                                                        <CheckBox IsChecked="{Binding IsSelected}"
+                                                                  Command="{Binding $parent[UserControl].((vm:ParameterLockManagementViewModel)DataContext).ToggleParameterCommand}"
+                                                                  CommandParameter="{Binding}">
+                                                            <Grid ColumnDefinitions="Auto,*">
+                                                                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8">
+                                                                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold" 
+                                                                               FontFamily="Consolas" Width="160"/>
+                                                                    <TextBlock Text="{Binding Group}" Foreground="#999" 
+                                                                               FontSize="11" VerticalAlignment="Center"/>
+                                                                </StackPanel>
+                                                                <TextBlock Grid.Column="1" Text="{Binding Description}" 
+                                                                           Foreground="#666" FontSize="11" 
+                                                                           TextTrimming="CharacterEllipsis" Margin="12,0,0,0"/>
+                                                            </Grid>
+                                                        </CheckBox>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </ScrollViewer>
+                                </Border>
+                            </StackPanel>
+                        </StackPanel>
+                    </ScrollViewer>
+
+                    <!-- Dialog Footer -->
+                    <Border Grid.Row="2" Background="#F8F9FA" Padding="20" BorderBrush="#E1E1E1" BorderThickness="0,1,0,0">
+                        <Grid ColumnDefinitions="*,Auto,Auto">
+                            <ProgressBar Grid.Column="0" IsIndeterminate="True" Width="120" Height="6"
+                                         IsVisible="{Binding IsBusy}" VerticalAlignment="Center"/>
+                            <Button Grid.Column="1" Classes="SecondaryButton" Content="Cancel" 
+                                    Command="{Binding CloseDialogCommand}" Margin="0,0,8,0"/>
+                            <Button Grid.Column="2" Classes="ActionButton" Content="Save Lock" 
+                                    Command="{Binding SaveLockCommand}" 
+                                    IsEnabled="{Binding !IsBusy}"/>
+                        </Grid>
+                    </Border>
+                </Grid>
+            </Border>
+        </Border>
+    </Grid>
+</UserControl>

@@ -693,6 +693,18 @@ public partial class App : Application
         Console.WriteLine("[App] Adding TelemetryService...");
         services.AddSingleton<ITelemetryService, TelemetryService>();
 
+        Console.WriteLine("[App] Adding Parameter Lock services...");
+        services.AddSingleton<ParameterLockValidator>();
+        services.AddSingleton<ParamLockApiService>(sp =>
+        {
+            var httpClient = new System.Net.Http.HttpClient
+            {
+                BaseAddress = new Uri(EMBEDDED_API_URL)
+            };
+            var logger = sp.GetRequiredService<ILogger<ParamLockApiService>>();
+            return new ParamLockApiService(httpClient, logger);
+        });
+
         Console.WriteLine("[App] Adding ViewModels...");
         services.AddTransient<MainWindowViewModel>();
         services.AddTransient<ConnectionPageViewModel>();
@@ -722,6 +734,7 @@ public partial class App : Application
         services.AddSingleton<MavlinkLogsViewModel>();
         services.AddSingleton<LiveCameraViewModel>();
         services.AddTransient<ViewModels.Admin.ParamLogsViewModel>();
+        services.AddTransient<ViewModels.Admin.ParameterLockManagementViewModel>();
 
         Console.WriteLine("[App] Building service provider...");
         Services = services.BuildServiceProvider();

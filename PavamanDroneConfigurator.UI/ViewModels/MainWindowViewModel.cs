@@ -65,6 +65,7 @@ public partial class MainWindowViewModel : ViewModelBase
     public Admin.AdminDashboardViewModel? AdminDashboardPage { get; private set; }
     public Admin.FirmwareManagementViewModel? FirmwareManagementPage { get; private set; }
     public Admin.ParamLogsViewModel? ParamLogsPage { get; private set; }
+    public Admin.ParameterLockManagementViewModel? ParameterLockManagementPage { get; private set; }
 
     private readonly IParameterService _parameterService;
     private readonly IConnectionService _connectionService;
@@ -153,6 +154,7 @@ public partial class MainWindowViewModel : ViewModelBase
                 AdminPanelPage = App.Services.GetService<Admin.AdminPanelViewModel>();
                 FirmwareManagementPage = App.Services.GetService<Admin.FirmwareManagementViewModel>();
                 ParamLogsPage = App.Services.GetService<Admin.ParamLogsViewModel>();
+                ParameterLockManagementPage = App.Services.GetService<Admin.ParameterLockManagementViewModel>();
             }
             catch (Exception ex)
             {

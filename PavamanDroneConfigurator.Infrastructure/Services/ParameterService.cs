@@ -9,12 +9,14 @@ namespace PavamanDroneConfigurator.Infrastructure.Services;
 /// Parameter service that downloads parameters from drone like Mission Planner.
 /// Uses aggressive retry strategy for missing parameters.
 /// Enriches parameters with metadata immediately upon receipt.
+/// Includes parameter lock enforcement.
 /// </summary>
 public class ParameterService : IParameterService
 {
     private readonly ILogger<ParameterService> _logger;
     private readonly IConnectionService _connectionService;
     private readonly IParameterMetadataService _metadataService;
+    private readonly ParameterLockValidator? _paramLockValidator;
     private readonly ConcurrentDictionary<string, DroneParameter> _parameters = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, TaskCompletionSource<DroneParameter>> _pendingWrites = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<int> _receivedIndices = new();
@@ -40,11 +42,13 @@ public class ParameterService : IParameterService
     public ParameterService(
         ILogger<ParameterService> logger, 
         IConnectionService connectionService,
-        IParameterMetadataService metadataService)
+        IParameterMetadataService metadataService,
+        ParameterLockValidator? paramLockValidator = null)
     {
         _logger = logger;
         _connectionService = connectionService;
         _metadataService = metadataService;
+        _paramLockValidator = paramLockValidator;
         _connectionService.ParamValueReceived += OnParamReceived;
         _connectionService.ConnectionStateChanged += OnConnectionChanged;
     }
@@ -150,6 +154,13 @@ public class ParameterService : IParameterService
 
         // Normalize the parameter name to uppercase for consistency
         var normalizedName = name.ToUpperInvariant();
+
+        // ?? CRITICAL: Check if parameter is locked by admin
+        if (_paramLockValidator != null && _paramLockValidator.IsParameterLocked(normalizedName))
+        {
+            _logger.LogWarning("SetParameterAsync: Parameter {Name} is locked by administrator. Modification blocked.", normalizedName);
+            throw new InvalidOperationException($"Parameter '{normalizedName}' is locked by administrator and cannot be modified.");
+        }
         
         _logger.LogInformation("SetParameterAsync: Sending {Name}={Value}", normalizedName, value);
 

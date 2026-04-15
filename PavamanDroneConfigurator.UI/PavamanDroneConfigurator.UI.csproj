@@ -29,7 +29,6 @@
 
   <ItemGroup>
     <Folder Include="Documentation\" />
-    <Folder Include="Models\" />
   </ItemGroup>
 
   <ItemGroup>
