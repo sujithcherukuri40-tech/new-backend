@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using PavamanDroneConfigurator.API.Data.Entities;
 using PavamanDroneConfigurator.API.Models;
 
 namespace PavamanDroneConfigurator.API.Data;
@@ -21,6 +22,11 @@ public class AppDbContext : DbContext
     /// Refresh tokens table.
     /// </summary>
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+
+    /// <summary>
+    /// Parameter locks table.
+    /// </summary>
+    public DbSet<ParameterLockEntity> ParameterLocks => Set<ParameterLockEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

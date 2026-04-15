@@ -10,6 +10,7 @@ using Microsoft.OpenApi.Models;
 using PavamanDroneConfigurator.API.Data;
 using PavamanDroneConfigurator.API.Middleware;
 using PavamanDroneConfigurator.API.Services;
+using PavamanDroneConfigurator.Core.Interfaces;
 using PavamanDroneConfigurator.Infrastructure.Services.Aws;
 using DotNetEnv;
 
@@ -133,9 +134,10 @@ builder.Services.AddRateLimiter(options =>
 });
 
 // Application Services
-builder.Services.AddScoped<ITokenService, TokenService>();
-builder.Services.AddScoped<IAuthService, AuthService>();
-builder.Services.AddScoped<IAdminService, AdminService>();
+builder.Services.AddScoped<PavamanDroneConfigurator.API.Services.ITokenService, TokenService>();
+builder.Services.AddScoped<PavamanDroneConfigurator.API.Services.IAuthService, AuthService>();
+builder.Services.AddScoped<PavamanDroneConfigurator.API.Services.IAdminService, AdminService>();
+builder.Services.AddScoped<PavamanDroneConfigurator.Core.Interfaces.IParamLockService, ParamLockService>();
 builder.Services.AddSingleton<IAmazonSimpleEmailService>(_ =>
 {
     var region = builder.Configuration["AWS:Region"]
