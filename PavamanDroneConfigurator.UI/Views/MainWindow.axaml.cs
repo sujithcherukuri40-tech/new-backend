@@ -335,6 +335,7 @@ Publisher: Pavaman Aviation";
             AdminPanelViewModel => new adminViews.AdminPanelView { DataContext = vm },
             FirmwareManagementViewModel => new adminViews.FirmwareManagementPage { DataContext = vm },
             ParamLogsViewModel => new adminViews.ParamLogsPage { DataContext = vm },
+            ParameterLockManagementViewModel => new adminViews.ParameterLockManagementPage { DataContext = vm },
             _ => null
         };
 

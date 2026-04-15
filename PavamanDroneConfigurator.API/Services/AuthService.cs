@@ -414,27 +414,78 @@ public class AuthService : IAuthService
 
         if (user == null)
         {
-            // Do not leak user existence
+            // Do not leak user existence - return silently
             _logger.LogWarning("Forgot password requested for non-existent email {Email}", email);
             return;
         }
 
-        var resetToken = Guid.NewGuid().ToString("N");
-        // A full implementation would save this reset token/expiry to the database.
-        
-        var resetBaseUrl = _configuration["App:PasswordResetBaseUrl"]?.TrimEnd('/')
-            ?? "https://app.pavamandrone.com/reset-password";
-        var resetLink = $"{resetBaseUrl}?token={resetToken}";
+        // Generate a 6-digit OTP code
+        var code = Random.Shared.Next(100000, 999999).ToString();
+
+        // Store hashed code + expiry (15-minute window)
+        user.PasswordResetToken = BCrypt.Net.BCrypt.HashPassword(code);
+        user.PasswordResetTokenExpiry = DateTimeOffset.UtcNow.AddMinutes(15);
+        await _context.SaveChangesAsync();
 
         try
         {
-            await _emailService.SendPasswordResetEmailAsync(email, resetLink);
-            _logger.LogInformation("Password reset email sent to {Email}", email);
+            await _emailService.SendPasswordResetEmailAsync(email, user.FullName, code);
+            _logger.LogInformation("Password reset OTP sent to {Email}", email);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to send password reset email to {Email}", email);
             throw;
         }
+    }
+
+    /// <inheritdoc />
+    public async Task ResetPasswordAsync(string email, string code, string newPassword)
+    {
+        var user = await _context.Users
+            .FirstOrDefaultAsync(u => u.Email.ToLower() == email.ToLower());
+
+        if (user == null
+            || string.IsNullOrEmpty(user.PasswordResetToken)
+            || user.PasswordResetTokenExpiry == null
+            || user.PasswordResetTokenExpiry < DateTimeOffset.UtcNow)
+        {
+            throw new AuthException("Invalid or expired reset code. Please request a new one.", "INVALID_RESET_CODE");
+        }
+
+        // Verify the code against the stored hash
+        if (!BCrypt.Net.BCrypt.Verify(code, user.PasswordResetToken))
+        {
+            throw new AuthException("Invalid or expired reset code. Please request a new one.", "INVALID_RESET_CODE");
+        }
+
+        // Validate new password complexity
+        var passwordValidation = ValidatePassword(newPassword, email, user.FullName);
+        if (!passwordValidation.IsValid)
+        {
+            throw new AuthException(passwordValidation.ErrorMessage!, "WEAK_PASSWORD");
+        }
+
+        // Update password and clear reset token
+        user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(newPassword);
+        user.PasswordResetToken = null;
+        user.PasswordResetTokenExpiry = null;
+        user.MustChangePassword = false;
+        user.FailedLoginAttempts = 0;
+        user.LockoutEnd = null;
+
+        // Revoke all refresh tokens so existing sessions are invalidated
+        var refreshTokens = await _context.RefreshTokens
+            .Where(t => t.UserId == user.Id && !t.Revoked)
+            .ToListAsync();
+        foreach (var token in refreshTokens)
+        {
+            token.Revoked = true;
+            token.RevokedAt = DateTimeOffset.UtcNow;
+            token.RevokedReason = "Password reset";
+        }
+
+        await _context.SaveChangesAsync();
+        _logger.LogInformation("Password reset successfully for {Email}", email);
     }
 }

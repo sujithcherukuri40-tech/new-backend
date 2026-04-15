@@ -455,18 +455,6 @@
                                     CommandParameter="{Binding AdminDashboardPage}"
                                     Click="NavButton_Click"
                                     IsVisible="{Binding IsAdmin}" />
-                            <Button Content="🚀  Firmware Mgmt"
-                                    Classes="sidebar-nav-item"
-                                    Tag="FirmwareManagementPage"
-                                    CommandParameter="{Binding FirmwareManagementPage}"
-                                    Click="NavButton_Click"
-                                    IsVisible="{Binding IsAdmin}" />
-                            <Button Content="📋  Param Logs"
-                                    Classes="sidebar-nav-item"
-                                    Tag="ParamLogsPage"
-                                    CommandParameter="{Binding ParamLogsPage}"
-                                    Click="NavButton_Click"
-                                    IsVisible="{Binding IsAdmin}" />
                             
                             <!-- Bottom Spacer -->
                             <Border Height="12"/>

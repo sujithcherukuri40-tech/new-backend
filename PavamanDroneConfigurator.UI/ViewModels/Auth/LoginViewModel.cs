@@ -106,6 +106,15 @@ public sealed partial class LoginViewModel : ViewModelBase
         NavigateToRegisterRequested?.Invoke(this, EventArgs.Empty);
     }
 
+    public event EventHandler? NavigateToForgotPasswordRequested;
+
+    [RelayCommand]
+    private void NavigateToForgotPassword()
+    {
+        ClearError();
+        NavigateToForgotPasswordRequested?.Invoke(this, EventArgs.Empty);
+    }
+
     [RelayCommand]
     private void ViewTerms()
     {

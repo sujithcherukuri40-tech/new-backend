@@ -90,6 +90,13 @@ public class AppDbContext : DbContext
             entity.Property(e => e.LockoutEnd)
                 .HasColumnName("lockout_end");
 
+            entity.Property(e => e.PasswordResetToken)
+                .HasColumnName("password_reset_token")
+                .HasMaxLength(512);
+
+            entity.Property(e => e.PasswordResetTokenExpiry)
+                .HasColumnName("password_reset_token_expiry");
+
             // Relationship to refresh tokens
             entity.HasMany(e => e.RefreshTokens)
                 .WithOne(e => e.User)

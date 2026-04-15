@@ -222,7 +222,7 @@ public class AuthController : ControllerBase
         try
         {
             await _authService.ForgotPasswordAsync(request.Email);
-            return Ok(new { message = "If the email exists, a password reset link has been sent." });
+            return Ok(new { message = "If the email exists, a password reset code has been sent." });
         }
         catch (Exception ex)
         {
@@ -232,6 +232,37 @@ public class AuthController : ControllerBase
                 {
                     Message = "Unable to process forgot password request",
                     Code = "FORGOT_PASSWORD_FAILED"
+                });
+        }
+    }
+
+    /// <summary>
+    /// Reset password using the 6-digit OTP code sent by email.
+    /// </summary>
+    [HttpPost("reset-password")]
+    [AllowAnonymous]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status429TooManyRequests)]
+    public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordRequest request)
+    {
+        try
+        {
+            await _authService.ResetPasswordAsync(request.Email, request.Code, request.NewPassword);
+            return Ok(new { message = "Password reset successfully. You can now sign in with your new password." });
+        }
+        catch (AuthException ex)
+        {
+            return BadRequest(new ErrorResponse { Message = ex.Message, Code = ex.Code });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Reset password failed for {Email}", request.Email);
+            return StatusCode(StatusCodes.Status500InternalServerError,
+                new ErrorResponse
+                {
+                    Message = "Unable to reset password",
+                    Code = "RESET_PASSWORD_FAILED"
                 });
         }
     }
