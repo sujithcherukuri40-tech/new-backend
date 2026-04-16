@@ -9,6 +9,7 @@ using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 using PavamanDroneConfigurator.Core.Interfaces;
 using PavamanDroneConfigurator.Infrastructure.Services;
+using PavamanDroneConfigurator.Infrastructure.Services.Auth;
 
 namespace PavamanDroneConfigurator.UI.ViewModels.Admin;
 
@@ -20,10 +21,16 @@ public sealed partial class AdminDashboardViewModel : ViewModelBase
     private readonly IAdminService _adminService;
     private readonly FirmwareApiService? _firmwareApiService;
     private readonly ILogger<AdminDashboardViewModel> _logger;
+    private readonly ITokenStorage _tokenStorage;
     private bool _isInitialized;
     
     // Navigation callback - set by MainWindow
     public Action<string>? NavigateToPage { get; set; }
+
+    /// <summary>
+    /// Embedded Param Lock management sub-viewmodel for the Param Lock tab.
+    /// </summary>
+    public ParameterLockManagementViewModel ParamLockVm { get; }
 
     [ObservableProperty]
     private ObservableCollection<UserListItem> _users = new();
@@ -110,10 +117,14 @@ public sealed partial class AdminDashboardViewModel : ViewModelBase
     public AdminDashboardViewModel(
         IAdminService adminService,
         ILogger<AdminDashboardViewModel> logger,
+        ITokenStorage tokenStorage,
+        ParameterLockManagementViewModel paramLockVm,
         FirmwareApiService? firmwareApiService = null)
     {
         _adminService = adminService;
         _logger = logger;
+        _tokenStorage = tokenStorage;
+        ParamLockVm = paramLockVm;
         _firmwareApiService = firmwareApiService;
 
         PropertyChanged += (s, e) =>
@@ -134,6 +145,20 @@ public sealed partial class AdminDashboardViewModel : ViewModelBase
         
         await RefreshAsync();
         await LoadAnalyticsAsync();
+
+        // Initialize embedded Param Lock VM
+        try
+        {
+            var token = await _tokenStorage.GetAccessTokenAsync();
+            if (!string.IsNullOrEmpty(token))
+            {
+                await ParamLockVm.InitializeAsync(token);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to initialize Param Lock VM");
+        }
     }
     
     private async Task LoadAnalyticsAsync()

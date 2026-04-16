@@ -358,6 +358,74 @@ public sealed class AuthApiService : IAuthService
         };
     }
 
+    public async Task<AuthResult> ForgotPasswordAsync(string email, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var response = await _httpClient.PostAsJsonAsync(
+                "/auth/forgot-password",
+                new { email },
+                JsonOptions,
+                cancellationToken
+            );
+
+            if (response.IsSuccessStatusCode)
+                return AuthResult.Succeeded(AuthState.CreateUnauthenticated());
+
+            var content = await response.Content.ReadAsStringAsync(cancellationToken);
+            return await HandleErrorResponseAsync(response.StatusCode, content);
+        }
+        catch (HttpRequestException ex)
+        {
+            _logger.LogWarning(ex, "Network error during forgot password");
+            return AuthResult.NetworkError();
+        }
+        catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException)
+        {
+            _logger.LogWarning(ex, "Timeout during forgot password");
+            return AuthResult.Timeout();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unexpected error during forgot password");
+            return AuthResult.Failed("An unexpected error occurred. Please try again.", AuthErrorCode.Unknown);
+        }
+    }
+
+    public async Task<AuthResult> ResetPasswordAsync(string email, string code, string newPassword, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var response = await _httpClient.PostAsJsonAsync(
+                "/auth/reset-password",
+                new { email, code, newPassword },
+                JsonOptions,
+                cancellationToken
+            );
+
+            if (response.IsSuccessStatusCode)
+                return AuthResult.Succeeded(AuthState.CreateUnauthenticated());
+
+            var content = await response.Content.ReadAsStringAsync(cancellationToken);
+            return await HandleErrorResponseAsync(response.StatusCode, content);
+        }
+        catch (HttpRequestException ex)
+        {
+            _logger.LogWarning(ex, "Network error during reset password");
+            return AuthResult.NetworkError();
+        }
+        catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException)
+        {
+            _logger.LogWarning(ex, "Timeout during reset password");
+            return AuthResult.Timeout();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unexpected error during reset password");
+            return AuthResult.Failed("An unexpected error occurred. Please try again.", AuthErrorCode.Unknown);
+        }
+    }
+
     #region API Response Models
 
     private sealed class AuthApiResponse

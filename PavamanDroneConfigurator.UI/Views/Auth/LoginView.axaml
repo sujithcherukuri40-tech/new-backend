@@ -143,13 +143,30 @@
                                             Cursor="Hand"/>
                                 </WrapPanel>
                             </StackPanel>
-                            <!-- Terms Error Message -->
-                            <TextBlock Text="{Binding AcceptedTermsError}"
-                                       FontSize="12"
-                                       Foreground="#EF4444"
-                                       TextWrapping="Wrap"
-                                       IsVisible="{Binding AcceptedTermsError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
-                                       Margin="28,4,0,0"/>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <!-- Terms Error Message -->
+                                <TextBlock Grid.Column="0"
+                                           Text="{Binding AcceptedTermsError}"
+                                           FontSize="12"
+                                           Foreground="#EF4444"
+                                           TextWrapping="Wrap"
+                                           IsVisible="{Binding AcceptedTermsError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                                           Margin="28,4,0,0"/>
+                                <!-- Forgot Password Link -->
+                                <Button Grid.Column="1"
+                                        Classes="btn-ghost"
+                                        Content="Forgot password?"
+                                        Command="{Binding NavigateToForgotPasswordCommand}"
+                                        IsEnabled="{Binding !IsLoading}"
+                                        Foreground="{DynamicResource PrimaryBrush}"
+                                        FontSize="13"
+                                        Padding="4,0"
+                                        Cursor="Hand"/>
+                            </Grid>
                         </StackPanel>
 
                         <!-- Login Button -->

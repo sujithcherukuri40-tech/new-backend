@@ -69,6 +69,18 @@ public class User
     /// Navigation property for refresh tokens.
     /// </summary>
     public ICollection<RefreshToken> RefreshTokens { get; set; } = new List<RefreshToken>();
+
+    /// <summary>
+    /// Hashed password reset token sent via email (6-digit OTP or UUID).
+    /// Null when no reset is in progress.
+    /// </summary>
+    public string? PasswordResetToken { get; set; }
+
+    /// <summary>
+    /// UTC expiry time for the password reset token.
+    /// Token is invalid after this time.
+    /// </summary>
+    public DateTimeOffset? PasswordResetTokenExpiry { get; set; }
 }
 
 /// <summary>

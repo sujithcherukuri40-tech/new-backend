@@ -60,34 +60,72 @@ public class SesEmailService : IEmailService
         }
     }
 
-    public async Task SendPasswordResetEmailAsync(string email, string resetLink)
+    public async Task SendPasswordResetEmailAsync(string email, string fullName, string code)
     {
         if (string.IsNullOrWhiteSpace(email)) throw new ArgumentException("Email is required", nameof(email));
-        if (string.IsNullOrWhiteSpace(resetLink)) throw new ArgumentException("Reset link is required", nameof(resetLink));
+        if (string.IsNullOrWhiteSpace(code)) throw new ArgumentException("Code is required", nameof(code));
 
         try
         {
-            var subject = "Password Reset Request";
-            var safeLink = HtmlEncoder.Default.Encode(resetLink.Trim());
+            var subject = "Your Password Reset Code — Kapil Future Tech";
+            var encodedCode = HtmlEncoder.Default.Encode(code.Trim());
+            var encodedName = HtmlEncoder.Default.Encode((fullName ?? "User").Trim());
             var htmlBody = $"""
-                <html>
-                  <body style=\"font-family:Arial,Helvetica,sans-serif;background:#f8fafc;color:#0f172a;padding:24px;\">
-                    <div style=\"max-width:560px;margin:auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;padding:24px;\">
-                      <h2 style=\"margin-top:0;color:#1e40af;\">Reset your password</h2>
-                      <p>We received a request to reset your password.</p>
-                      <p style=\"margin:24px 0;\">
-                        <a href=\"{safeLink}\" style=\"background:#2563eb;color:#ffffff;padding:10px 16px;border-radius:8px;text-decoration:none;\">Reset Password</a>
-                      </p>
-                      <p>If the button does not work, copy and paste this link into your browser:</p>
-                      <p><a href=\"{safeLink}\">{safeLink}</a></p>
-                      <p>If you did not request this, you can safely ignore this email.</p>
-                    </div>
-                  </body>
+                <!DOCTYPE html>
+                <html lang="en">
+                <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+                <body style="margin:0;padding:0;background:#F0F4FF;font-family:'Segoe UI',Arial,Helvetica,sans-serif;">
+                  <table width="100%" cellpadding="0" cellspacing="0" style="background:#F0F4FF;padding:40px 0;">
+                    <tr><td align="center">
+                      <table width="560" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);">
+                        <!-- Header -->
+                        <tr>
+                          <td style="background:linear-gradient(135deg,#1E3A8A 0%,#3B82F6 100%);padding:32px 40px;text-align:center;">
+                            <h1 style="margin:0;color:#ffffff;font-size:24px;font-weight:700;letter-spacing:-0.5px;">Kapil Future Tech</h1>
+                            <p style="margin:6px 0 0;color:#BFDBFE;font-size:13px;">Drone Configurator</p>
+                          </td>
+                        </tr>
+                        <!-- Body -->
+                        <tr>
+                          <td style="padding:36px 40px;">
+                            <p style="margin:0 0 8px;color:#6B7280;font-size:14px;">Hello, {encodedName}</p>
+                            <h2 style="margin:0 0 20px;color:#111827;font-size:20px;font-weight:600;">Reset your password</h2>
+                            <p style="margin:0 0 24px;color:#374151;font-size:15px;line-height:1.6;">
+                              We received a request to reset your password. Use the 6-digit code below to continue.
+                              This code will expire in <strong>15 minutes</strong>.
+                            </p>
+                            <!-- OTP Box -->
+                            <table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 28px;">
+                              <tr><td align="center">
+                                <div style="display:inline-block;background:#EFF6FF;border:2px solid #93C5FD;border-radius:12px;padding:20px 48px;">
+                                  <span style="font-size:40px;font-weight:800;color:#1E40AF;letter-spacing:12px;font-family:'Courier New',monospace;">{encodedCode}</span>
+                                </div>
+                              </td></tr>
+                            </table>
+                            <p style="margin:0 0 16px;color:#6B7280;font-size:13px;line-height:1.5;">
+                              Enter this code in the Kapil Future Tech Drone Configurator app when prompted.
+                              Do <strong>not</strong> share this code with anyone.
+                            </p>
+                            <p style="margin:0;color:#9CA3AF;font-size:12px;">
+                              If you did not request a password reset, you can safely ignore this email. Your account remains secure.
+                            </p>
+                          </td>
+                        </tr>
+                        <!-- Footer -->
+                        <tr>
+                          <td style="background:#F8FAFC;padding:20px 40px;border-top:1px solid #E2E8F0;text-align:center;">
+                            <p style="margin:0;color:#9CA3AF;font-size:12px;">&copy; 2025 Kapil Future Tech. All rights reserved.</p>
+                          </td>
+                        </tr>
+                      </table>
+                    </td></tr>
+                  </table>
+                </body>
                 </html>
                 """;
 
             await SendEmailInternalAsync(email, subject, htmlBody);
-            _logger.LogInformation("Password reset email sent to {Email}", email);
+            _logger.LogInformation("Password reset OTP email sent to {Email}", email);
         }
         catch (Exception ex)
         {

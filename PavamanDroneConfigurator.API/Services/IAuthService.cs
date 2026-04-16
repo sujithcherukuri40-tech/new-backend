@@ -56,7 +56,16 @@ public interface IAuthService
 
     /// <summary>
     /// Initiate the forgot password process for a user.
+    /// Always returns without error to avoid user enumeration.
     /// </summary>
     /// <param name="email">The user's email address.</param>
     Task ForgotPasswordAsync(string email);
+
+    /// <summary>
+    /// Reset a user's password using the 6-digit OTP sent by email.
+    /// </summary>
+    /// <param name="email">The user's email address.</param>
+    /// <param name="code">The 6-digit reset code from the email.</param>
+    /// <param name="newPassword">The new password to set.</param>
+    Task ResetPasswordAsync(string email, string code, string newPassword);
 }

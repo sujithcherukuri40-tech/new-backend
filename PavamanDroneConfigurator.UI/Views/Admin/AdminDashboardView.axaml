@@ -1,11 +1,38 @@
 <UserControl xmlns="https://github.com/avaloniaui"
 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
 xmlns:vm="using:PavamanDroneConfigurator.UI.ViewModels.Admin"
+xmlns:adminViews="using:PavamanDroneConfigurator.UI.Views.Admin"
 x:Class="PavamanDroneConfigurator.UI.Views.Admin.AdminDashboardView"
 x:DataType="vm:AdminDashboardViewModel"
 Background="#F9FAFB">
-    
 
+    <UserControl.Styles>
+        <Style Selector="TabControl">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Padding" Value="0"/>
+        </Style>
+        <Style Selector="TabItem">
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Padding" Value="20,12"/>
+            <Setter Property="Foreground" Value="#64748B"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+        </Style>
+        <Style Selector="TabItem:selected">
+            <Setter Property="Foreground" Value="#1E40AF"/>
+            <Setter Property="Background" Value="Transparent"/>
+        </Style>
+        <Style Selector="TabItem:pointerover">
+            <Setter Property="Foreground" Value="#3B82F6"/>
+        </Style>
+    </UserControl.Styles>
+
+    <TabControl TabStripPlacement="Top">
+
+        <!-- ═══════════════ TAB 1: DASHBOARD ═══════════════ -->
+        <TabItem Header="📊  Dashboard">
     <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
         <StackPanel Margin="32" MaxWidth="1400" Spacing="24">
             
@@ -302,4 +329,12 @@ Background="#F9FAFB">
             
         </StackPanel>
     </ScrollViewer>
+        </TabItem>
+
+        <!-- ═══════════════ TAB 2: PARAM LOCK ═══════════════ -->
+        <TabItem Header="🔒  Param Lock">
+            <adminViews:ParameterLockManagementPage DataContext="{Binding ParamLockVm}"/>
+        </TabItem>
+
+    </TabControl>
 </UserControl>

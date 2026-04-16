@@ -24,6 +24,7 @@ public sealed partial class AuthShellViewModel : ViewModelBase
     private LoginViewModel? _loginViewModel;
     private RegisterViewModel? _registerViewModel;
     private PendingApprovalViewModel? _pendingApprovalViewModel;
+    private ForgotPasswordViewModel? _forgotPasswordViewModel;
 
     /// <summary>
     /// Event raised when authentication is successful and app should proceed.
@@ -124,6 +125,14 @@ public sealed partial class AuthShellViewModel : ViewModelBase
         _logger.LogDebug("Login view displayed");
     }
 
+    private void ShowForgotPassword()
+    {
+        _forgotPasswordViewModel ??= CreateForgotPasswordViewModel();
+        _forgotPasswordViewModel.Reset();
+        CurrentView = _forgotPasswordViewModel;
+        _logger.LogDebug("Forgot password view displayed");
+    }
+
     private void ShowRegister()
     {
         _registerViewModel ??= CreateRegisterViewModel();
@@ -143,6 +152,7 @@ public sealed partial class AuthShellViewModel : ViewModelBase
     {
         var vm = _services.GetRequiredService<LoginViewModel>();
         vm.NavigateToRegisterRequested += (_, _) => ShowRegister();
+        vm.NavigateToForgotPasswordRequested += (_, _) => ShowForgotPassword();
         vm.LoginSucceeded += (_, state) =>
         {
             if (state.IsAuthenticated)
@@ -172,6 +182,14 @@ public sealed partial class AuthShellViewModel : ViewModelBase
         var vm = _services.GetRequiredService<PendingApprovalViewModel>();
         vm.LogoutCompleted += (_, _) => ShowLogin();
         vm.ApprovalGranted += (_, _) => AuthenticationCompleted?.Invoke(this, EventArgs.Empty);
+        return vm;
+    }
+
+    private ForgotPasswordViewModel CreateForgotPasswordViewModel()
+    {
+        var vm = _services.GetRequiredService<ForgotPasswordViewModel>();
+        vm.NavigateToLoginRequested += (_, _) => ShowLogin();
+        vm.ResetSucceeded += (_, _) => ShowLogin();
         return vm;
     }
 

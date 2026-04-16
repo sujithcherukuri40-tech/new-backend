@@ -48,4 +48,15 @@ public interface IAuthService
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>Authentication result with refreshed state.</returns>
     Task<AuthResult> RefreshTokenAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Initiates forgot password flow — sends a 6-digit OTP to the given email.
+    /// Never reveals whether the email exists (returns success regardless).
+    /// </summary>
+    Task<AuthResult> ForgotPasswordAsync(string email, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Completes the password reset using the OTP code received by email.
+    /// </summary>
+    Task<AuthResult> ResetPasswordAsync(string email, string code, string newPassword, CancellationToken cancellationToken = default);
 }

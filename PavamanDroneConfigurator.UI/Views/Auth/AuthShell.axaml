@@ -36,6 +36,9 @@
             <DataTemplate DataType="vm:PendingApprovalViewModel">
                 <views:PendingApprovalView />
             </DataTemplate>
+            <DataTemplate DataType="vm:ForgotPasswordViewModel">
+                <views:ForgotPasswordView />
+            </DataTemplate>
         </ContentControl.DataTemplates>
     </ContentControl>
 </Window>
