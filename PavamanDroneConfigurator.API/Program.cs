@@ -240,7 +240,7 @@ using (var scope = app.Services.CreateScope())
     var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     try
     {
-        //await dbContext.Database.MigrateAsync();
+        await dbContext.Database.MigrateAsync();
         app.Logger.LogInformation("[OK] Database migrations applied");
         await DatabaseSeeder.SeedAsync(dbContext, app.Logger);
     }
