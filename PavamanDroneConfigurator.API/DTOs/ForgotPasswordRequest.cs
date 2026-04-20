@@ -20,6 +20,6 @@ public class ResetPasswordRequest
     public required string Code { get; set; }
 
     [Required(ErrorMessage = "New password is required")]
-    [StringLength(100, MinimumLength = 8, ErrorMessage = "Password must be at least 8 characters")]
+    [StringLength(100, MinimumLength = 12, ErrorMessage = "Password must be at least 12 characters")]
     public required string NewPassword { get; set; }
 }

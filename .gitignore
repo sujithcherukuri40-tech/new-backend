@@ -107,7 +107,6 @@ appsettings.*.LOCAL.json
 .env.local
 .env.*.local
 
-<<<<<<< HEAD
 # MSIX packaging outputs
 **/AppPackages/
 **/*.msix
@@ -118,15 +117,3 @@ appsettings.*.LOCAL.json
 **/*.appxsym
 **/*.cer
 **/BundleArtifacts/
-=======
-
-PavamanDroneConfigurator.Package/
-AppPackages/
-*.msix
-*.msixupload
-*.appx
-*.appxbundle
-bin/
-obj/
-.vs/
->>>>>>> 1371cdda26488c6e1db8dc6f532319a8ae280a14

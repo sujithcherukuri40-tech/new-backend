@@ -34,3 +34,14 @@ public class ErrorResponse
     /// </summary>
     public Dictionary<string, string[]>? Errors { get; set; }
 }
+
+/// <summary>
+/// Request DTO for logout.
+/// </summary>
+public class LogoutRequest
+{
+    /// <summary>
+    /// Optional refresh token to revoke. If not provided, all user tokens are revoked.
+    /// </summary>
+    public string? RefreshToken { get; set; }
+}

@@ -138,7 +138,7 @@ public class AuthController : ControllerBase
     [EnableRateLimiting("fixed")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status401Unauthorized)]
-    public async Task<IActionResult> Logout()
+    public async Task<IActionResult> Logout([FromBody] LogoutRequest? request)
     {
         var userId = GetCurrentUserId();
         if (userId == null)
@@ -150,27 +150,7 @@ public class AuthController : ControllerBase
             });
         }
 
-        // Get refresh token from request body if provided
-        string? refreshToken = null;
-        try
-        {
-            using var reader = new StreamReader(Request.Body);
-            var body = await reader.ReadToEndAsync();
-            if (!string.IsNullOrEmpty(body))
-            {
-                var json = System.Text.Json.JsonDocument.Parse(body);
-                if (json.RootElement.TryGetProperty("refreshToken", out var tokenElement))
-                {
-                    refreshToken = tokenElement.GetString();
-                }
-            }
-        }
-        catch
-        {
-            // Ignore parsing errors, will revoke all tokens
-        }
-
-        await _authService.LogoutAsync(userId.Value, refreshToken);
+        await _authService.LogoutAsync(userId.Value, request?.RefreshToken);
 
         _logger.LogInformation("User {UserId} logged out", userId);
         return Ok(new { message = "Logged out successfully" });

@@ -25,7 +25,7 @@ public class RegisterRequest
     /// User's password.
     /// </summary>
     [Required(ErrorMessage = "Password is required")]
-    [StringLength(100, MinimumLength = 8, ErrorMessage = "Password must be at least 8 characters")]
+    [StringLength(100, MinimumLength = 12, ErrorMessage = "Password must be at least 12 characters")]
     public required string Password { get; set; }
 
     /// <summary>

@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using Microsoft.EntityFrameworkCore;
 using PavamanDroneConfigurator.API.Data;
 using PavamanDroneConfigurator.API.DTOs;
@@ -101,18 +102,7 @@ public class AuthService : IAuthService
         _context.Users.Add(user);
         await _context.SaveChangesAsync();
 
-        _logger.LogInformation("New user registered: {Email} (pending approval)", user.Email);
-
-        // Generate and send OTP
-        var otp = new Random().Next(100000, 999999).ToString();
-        try
-        {
-            await _emailService.SendOtpEmailAsync(request.Email, otp);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Failed to send OTP to new user {Email}", request.Email);
-        }
+        _logger.LogInformation("New user registered (pending approval)");
 
         // Return response without tokens (user is pending approval)
         return new AuthResponse
@@ -409,18 +399,25 @@ public class AuthService : IAuthService
     /// <inheritdoc />
     public async Task ForgotPasswordAsync(string email)
     {
+        // Measure start time for constant-time response (prevents user enumeration via timing)
+        var startTime = DateTimeOffset.UtcNow;
+        const int minResponseTimeMs = 1500; // Minimum response time to mask timing differences
+
         var user = await _context.Users
             .FirstOrDefaultAsync(u => u.Email.ToLower() == email.ToLower());
 
         if (user == null)
         {
-            // Do not leak user existence - return silently
-            _logger.LogWarning("Forgot password requested for non-existent email {Email}", email);
+            // Do not leak user existence - add delay to match typical processing time
+            _logger.LogWarning("Forgot password requested for non-existent email");
+            var elapsed = (DateTimeOffset.UtcNow - startTime).TotalMilliseconds;
+            if (elapsed < minResponseTimeMs)
+                await Task.Delay(TimeSpan.FromMilliseconds(minResponseTimeMs - elapsed));
             return;
         }
 
-        // Generate a 6-digit OTP code
-        var code = Random.Shared.Next(100000, 999999).ToString();
+        // Generate a cryptographically secure 6-digit OTP code
+        var code = RandomNumberGenerator.GetInt32(100000, 1000000).ToString();
 
         // Store hashed code + expiry (15-minute window)
         user.PasswordResetToken = BCrypt.Net.BCrypt.HashPassword(code);
@@ -430,11 +427,11 @@ public class AuthService : IAuthService
         try
         {
             await _emailService.SendPasswordResetEmailAsync(email, user.FullName, code);
-            _logger.LogInformation("Password reset OTP sent to {Email}", email);
+            _logger.LogInformation("Password reset OTP sent");
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to send password reset email to {Email}", email);
+            _logger.LogError(ex, "Failed to send password reset email");
             throw;
         }
     }

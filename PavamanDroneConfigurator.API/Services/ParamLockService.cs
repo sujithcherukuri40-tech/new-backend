@@ -147,8 +147,15 @@ public class ParamLockService : IParamLockService
             await _s3Service.UploadJsonAsync(s3Key, json);
             _logger.LogInformation("Uploaded updated parameter lock to S3: {S3Key}", s3Key);
 
-            // Delete old S3 object (optional cleanup)
-            _ = _s3Service.DeleteObjectAsync(lockEntity.S3Key);
+            // Delete old S3 object (cleanup, non-critical)
+            try
+            {
+                await _s3Service.DeleteObjectAsync(lockEntity.S3Key);
+            }
+            catch (Exception deleteEx)
+            {
+                _logger.LogWarning(deleteEx, "Failed to clean up old S3 lock object: {S3Key}", lockEntity.S3Key);
+            }
 
             // Update database record
             lockEntity.S3Key = s3Key;

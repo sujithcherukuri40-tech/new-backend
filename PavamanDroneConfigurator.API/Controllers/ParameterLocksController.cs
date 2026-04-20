@@ -227,7 +227,7 @@ public class ParameterLocksController : ControllerBase
     /// <param name="request">Check request</param>
     /// <returns>List of locked parameters</returns>
     [HttpPost("check")]
-    [AllowAnonymous] // Allow authenticated users to check their own locks
+    [Authorize] // Allow any authenticated user to check their own locks, admins can check any
     [ProducesResponseType(typeof(LockedParamsResponse), StatusCodes.Status200OK)]
     public async Task<ActionResult<LockedParamsResponse>> CheckLockedParams([FromBody] CheckLockedParamsRequest request)
     {

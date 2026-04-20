@@ -147,6 +147,7 @@ builder.Services.AddSingleton<IAmazonSimpleEmailService>(_ =>
 });
 builder.Services.AddScoped<PavamanDroneConfigurator.Core.Interfaces.IEmailService, SesEmailService>();
 builder.Services.AddSingleton<PavamanDroneConfigurator.Infrastructure.Services.AwsS3Service>();
+builder.Services.AddHostedService<TokenCleanupService>();
 
 // Controllers & Swagger
 builder.Services.AddControllers();
@@ -220,6 +221,7 @@ app.Use(async (context, next) =>
     context.Response.Headers.Append("X-Frame-Options", "DENY");
     context.Response.Headers.Append("X-XSS-Protection", "1; mode=block");
     context.Response.Headers.Append("Referrer-Policy", "strict-origin-when-cross-origin");
+    context.Response.Headers.Append("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'");
     if (!app.Environment.IsDevelopment())
         context.Response.Headers.Append("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
     await next();
@@ -232,7 +234,7 @@ app.MapControllers();
 
 // Health check endpoint
 app.MapGet("/health", () => Results.Ok(new { status = "healthy", timestamp = DateTime.UtcNow }))
-    .WithName("HealthCheck").WithTags("Health");
+    .WithName("HealthCheck").WithTags("Health").RequireRateLimiting("fixed");
 
 // Database migration and seeding
 using (var scope = app.Services.CreateScope())

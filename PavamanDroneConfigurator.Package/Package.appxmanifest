@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<Package
+  xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+  xmlns:uap18="http://schemas.microsoft.com/appx/manifest/uap/windows10/18"
+  xmlns:desktop="http://schemas.microsoft.com/appx/manifest/desktop/windows10"
+  IgnorableNamespaces="uap rescap uap18">
+
+  <Identity
+    Name="PavamanAviation.PavamanConfigurator"
+    Publisher="CN=A7BF50BB-909C-4C03-853A-F8D91060E232"
+    Version="1.6.1.0" />
+
+  <Properties>
+    <DisplayName>KFT Configurator</DisplayName>
+    <PublisherDisplayName>Pavaman Aviation</PublisherDisplayName>
+    <Logo>Images\StoreLogo.png</Logo>
+  </Properties>
+
+  <Dependencies>
+    <TargetDeviceFamily Name="Windows.Universal" MinVersion="10.0.0.0" MaxVersionTested="10.0.0.0" />
+    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.14393.0" MaxVersionTested="10.0.14393.0" />
+  </Dependencies>
+
+  <Resources>
+    <Resource Language="x-generate"/>
+  </Resources>
+
+  <Applications>
+    <Application Id="App"
+      Executable="$targetnametoken$.exe"
+      EntryPoint="$targetentrypoint$" uap18:TrustLevel="mediumIL" uap18:RuntimeBehavior="packagedClassicApp">
+      <uap:VisualElements
+        DisplayName="KFT Configurator"
+        Description="KFT Drone Configurator allows users to connect, configure, and manage UAV flight controllers, firmware, and telemetry securely through a desktop interface integrated with cloud services."
+        BackgroundColor="transparent"
+        Square150x150Logo="Images\Square150x150Logo.png"
+        Square44x44Logo="Images\Square44x44Logo.png">
+        <uap:DefaultTile Wide310x150Logo="Images\Wide310x150Logo.png"  Square71x71Logo="Images\SmallTile.png" Square310x310Logo="Images\LargeTile.png" ShortName="KFT"/>
+        <uap:SplashScreen Image="Images\SplashScreen.png" />
+        <uap:InitialRotationPreference>
+          <uap:Rotation Preference="landscapeFlipped"/>
+          <uap:Rotation Preference="landscape"/></uap:InitialRotationPreference>
+      </uap:VisualElements>
+    </Application>
+  </Applications>
+
+  <Capabilities>
+    <Capability Name="internetClient" />
+    <rescap:Capability Name="runFullTrust" />
+    <Capability Name="privateNetworkClientServer"/>
+    <uap:Capability Name="removableStorage"/>
+	<DeviceCapability Name="serialcommunication">
+		<Device Id="any">
+		<Function Type="name:serialPort" />
+		</Device>
+	</DeviceCapability>
+  </Capabilities>
+</Package>

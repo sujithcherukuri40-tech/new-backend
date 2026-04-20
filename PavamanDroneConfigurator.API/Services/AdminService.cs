@@ -100,6 +100,9 @@ public class AdminService : IAdminService
         user.Role = newRole;
         await _context.SaveChangesAsync();
 
+        // Revoke all tokens so user must re-authenticate with new role claims
+        await _tokenService.RevokeAllUserTokensAsync(userId, $"Role changed to {newRole} by admin");
+
         _logger.LogInformation("User {UserId} ({Email}) role changed to {Role} by admin",
             userId, user.Email, newRole);
 
