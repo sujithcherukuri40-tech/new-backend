@@ -1,3 +1,4 @@
+﻿using System;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -6,11 +7,24 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace PavamanDroneConfigurator.API.Data.Migrations
 {
     /// <inheritdoc />
-    public partial class AddParameterLocks : Migration
+    public partial class CompleteDatabaseSchema : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.AddColumn<string>(
+                name: "password_reset_token",
+                table: "users",
+                type: "character varying(512)",
+                maxLength: 512,
+                nullable: true);
+
+            migrationBuilder.AddColumn<DateTimeOffset>(
+                name: "password_reset_token_expiry",
+                table: "users",
+                type: "timestamp with time zone",
+                nullable: true);
+
             migrationBuilder.CreateTable(
                 name: "parameter_locks",
                 columns: table => new
@@ -49,14 +63,14 @@ namespace PavamanDroneConfigurator.API.Data.Migrations
                 column: "created_by");
 
             migrationBuilder.CreateIndex(
-                name: "IX_parameter_locks_user_id_device_id",
-                table: "parameter_locks",
-                columns: new[] { "user_id", "device_id" });
-
-            migrationBuilder.CreateIndex(
                 name: "IX_parameter_locks_is_active",
                 table: "parameter_locks",
                 column: "is_active");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_parameter_locks_user_id_device_id",
+                table: "parameter_locks",
+                columns: new[] { "user_id", "device_id" });
         }
 
         /// <inheritdoc />
@@ -64,6 +78,14 @@ namespace PavamanDroneConfigurator.API.Data.Migrations
         {
             migrationBuilder.DropTable(
                 name: "parameter_locks");
+
+            migrationBuilder.DropColumn(
+                name: "password_reset_token",
+                table: "users");
+
+            migrationBuilder.DropColumn(
+                name: "password_reset_token_expiry",
+                table: "users");
         }
     }
 }

@@ -153,5 +153,70 @@ public class AppDbContext : DbContext
             // Index for cleanup queries
             entity.HasIndex(e => new { e.UserId, e.Revoked, e.ExpiresAt });
         });
+
+        // ParameterLock configuration
+        modelBuilder.Entity<ParameterLockEntity>(entity =>
+        {
+            entity.ToTable("parameter_locks");
+
+            entity.HasKey(e => e.Id);
+
+            entity.Property(e => e.Id)
+                .HasColumnName("id")
+                .ValueGeneratedOnAdd();
+
+            entity.Property(e => e.UserId)
+                .HasColumnName("user_id")
+                .IsRequired();
+
+            entity.Property(e => e.DeviceId)
+                .HasColumnName("device_id")
+                .HasMaxLength(100);
+
+            entity.Property(e => e.S3Key)
+                .HasColumnName("s3_key")
+                .HasMaxLength(500)
+                .IsRequired();
+
+            entity.Property(e => e.ParamCount)
+                .HasColumnName("param_count")
+                .IsRequired();
+
+            entity.Property(e => e.CreatedAt)
+                .HasColumnName("created_at")
+                .IsRequired();
+
+            entity.Property(e => e.CreatedBy)
+                .HasColumnName("created_by")
+                .IsRequired();
+
+            entity.Property(e => e.UpdatedAt)
+                .HasColumnName("updated_at");
+
+            entity.Property(e => e.IsActive)
+                .HasColumnName("is_active")
+                .HasDefaultValue(true);
+
+            // Indexes
+            entity.HasIndex(e => new { e.UserId, e.DeviceId })
+                .HasDatabaseName("IX_parameter_locks_user_id_device_id");
+
+            entity.HasIndex(e => e.IsActive)
+                .HasDatabaseName("IX_parameter_locks_is_active");
+
+            entity.HasIndex(e => e.CreatedBy)
+                .HasDatabaseName("IX_parameter_locks_created_by");
+
+            // Foreign keys
+            entity.HasOne(e => e.User)
+                .WithMany()
+                .HasForeignKey(e => e.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(e => e.CreatedByUser)
+                .WithMany()
+                .HasForeignKey(e => e.CreatedBy)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
     }
 }
