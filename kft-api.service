@@ -1,0 +1,26 @@
+[Unit]
+Description=KFT Drone Configurator API
+After=network.target
+
+[Service]
+Type=notify
+User=ubuntu
+WorkingDirectory=/opt/drone-configurator
+ExecStart=/usr/bin/dotnet /opt/drone-configurator/PavamanDroneConfigurator.API.dll --urls http://0.0.0.0:5000
+Restart=always
+RestartSec=10
+SyslogIdentifier=kft-api
+Environment=ASPNETCORE_ENVIRONMENT=Production
+Environment=DOTNET_PRINT_TELEMETRY_MESSAGE=false
+EnvironmentFile=/etc/drone-configurator/.env
+
+# Security
+NoNewPrivileges=true
+PrivateTmp=true
+
+# Logs
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

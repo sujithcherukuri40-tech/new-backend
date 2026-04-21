@@ -1,103 +1,118 @@
-﻿CREATE TABLE IF NOT EXISTS "__EFMigrationsHistory" (
+-- ============================================================
+-- Drone Configurator - Complete Database Init Script
+-- USE THIS if you want to set up the database MANUALLY
+-- (Normally the app does this automatically on startup)
+-- ============================================================
+-- Run this against your drone_configurator database:
+--   psql -h YOUR_RDS_HOST -U kftadmin -d drone_configurator -f init.sql
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS "__EFMigrationsHistory" (
     "MigrationId" character varying(150) NOT NULL,
     "ProductVersion" character varying(32) NOT NULL,
     CONSTRAINT "PK___EFMigrationsHistory" PRIMARY KEY ("MigrationId")
 );
 
-START TRANSACTION;
-CREATE TABLE users (
-    id uuid NOT NULL DEFAULT (gen_random_uuid()),
-    full_name character varying(100) NOT NULL,
-    email character varying(256) NOT NULL,
-    password_hash character varying(256) NOT NULL,
-    is_approved boolean NOT NULL DEFAULT FALSE,
-    role character varying(20) NOT NULL DEFAULT 'User',
-    created_at timestamp with time zone NOT NULL DEFAULT (CURRENT_TIMESTAMP),
-    last_login_at timestamp with time zone,
-    CONSTRAINT "PK_users" PRIMARY KEY (id)
-);
+-- Only run the rest if migrations haven't been applied yet
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM "__EFMigrationsHistory" WHERE "MigrationId" = '20260128052124_InitialAuthMigration') THEN
 
-CREATE TABLE refresh_tokens (
-    id uuid NOT NULL DEFAULT (gen_random_uuid()),
-    user_id uuid NOT NULL,
-    token character varying(512) NOT NULL,
-    expires_at timestamp with time zone NOT NULL,
-    revoked boolean NOT NULL DEFAULT FALSE,
-    created_at timestamp with time zone NOT NULL DEFAULT (CURRENT_TIMESTAMP),
-    created_by_ip character varying(45),
-    revoked_at timestamp with time zone,
-    revoked_reason character varying(256),
-    CONSTRAINT "PK_refresh_tokens" PRIMARY KEY (id),
-    CONSTRAINT "FK_refresh_tokens_users_user_id" FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
-);
+        -- Migration 1: InitialAuthMigration
+        CREATE TABLE users (
+            id uuid NOT NULL DEFAULT (gen_random_uuid()),
+            full_name character varying(100) NOT NULL,
+            email character varying(256) NOT NULL,
+            password_hash character varying(256) NOT NULL,
+            is_approved boolean NOT NULL DEFAULT FALSE,
+            role character varying(20) NOT NULL DEFAULT 'User',
+            created_at timestamp with time zone NOT NULL DEFAULT (CURRENT_TIMESTAMP),
+            last_login_at timestamp with time zone,
+            CONSTRAINT "PK_users" PRIMARY KEY (id)
+        );
 
-CREATE UNIQUE INDEX "IX_refresh_tokens_token" ON refresh_tokens (token);
+        CREATE TABLE refresh_tokens (
+            id uuid NOT NULL DEFAULT (gen_random_uuid()),
+            user_id uuid NOT NULL,
+            token character varying(512) NOT NULL,
+            expires_at timestamp with time zone NOT NULL,
+            revoked boolean NOT NULL DEFAULT FALSE,
+            created_at timestamp with time zone NOT NULL DEFAULT (CURRENT_TIMESTAMP),
+            created_by_ip character varying(45),
+            revoked_at timestamp with time zone,
+            revoked_reason character varying(256),
+            CONSTRAINT "PK_refresh_tokens" PRIMARY KEY (id),
+            CONSTRAINT "FK_refresh_tokens_users_user_id" FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+        );
 
-CREATE INDEX "IX_refresh_tokens_user_id_revoked_expires_at" ON refresh_tokens (user_id, revoked, expires_at);
+        CREATE UNIQUE INDEX "IX_refresh_tokens_token" ON refresh_tokens (token);
+        CREATE INDEX "IX_refresh_tokens_user_id_revoked_expires_at" ON refresh_tokens (user_id, revoked, expires_at);
+        CREATE UNIQUE INDEX "IX_users_email" ON users (email);
 
-CREATE UNIQUE INDEX "IX_users_email" ON users (email);
+        INSERT INTO "__EFMigrationsHistory" ("MigrationId", "ProductVersion")
+        VALUES ('20260128052124_InitialAuthMigration', '9.0.0');
 
-INSERT INTO "__EFMigrationsHistory" ("MigrationId", "ProductVersion")
-VALUES ('20260128052124_InitialAuthMigration', '9.0.0');
+    END IF;
 
-ALTER TABLE users ADD failed_login_attempts integer NOT NULL DEFAULT 0;
+    -- Migration 2: SecurityEnhancements
+    IF NOT EXISTS (SELECT 1 FROM "__EFMigrationsHistory" WHERE "MigrationId" = '20260212105046_SecurityEnhancements') THEN
 
-ALTER TABLE users ADD lockout_end timestamp with time zone;
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS failed_login_attempts integer NOT NULL DEFAULT 0;
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS lockout_end timestamp with time zone;
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS must_change_password boolean NOT NULL DEFAULT FALSE;
 
-ALTER TABLE users ADD must_change_password boolean NOT NULL DEFAULT FALSE;
+        INSERT INTO "__EFMigrationsHistory" ("MigrationId", "ProductVersion")
+        VALUES ('20260212105046_SecurityEnhancements', '9.0.0');
 
-INSERT INTO "__EFMigrationsHistory" ("MigrationId", "ProductVersion")
-VALUES ('20260212105046_SecurityEnhancements', '9.0.0');
+    END IF;
 
-ALTER TABLE users ADD password_reset_token character varying(512);
+    -- Migration 3: CompleteDatabaseSchema
+    IF NOT EXISTS (SELECT 1 FROM "__EFMigrationsHistory" WHERE "MigrationId" = '20260417052819_CompleteDatabaseSchema') THEN
 
-ALTER TABLE users ADD password_reset_token_expiry timestamp with time zone;
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS password_reset_token character varying(512);
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS password_reset_token_expiry timestamp with time zone;
 
-CREATE TABLE parameter_locks (
-    id integer GENERATED BY DEFAULT AS IDENTITY,
-    user_id uuid NOT NULL,
-    device_id character varying(100),
-    s3_key character varying(500) NOT NULL,
-    param_count integer NOT NULL,
-    created_at timestamp with time zone NOT NULL,
-    created_by uuid NOT NULL,
-    updated_at timestamp with time zone,
-    is_active boolean NOT NULL DEFAULT TRUE,
-    CONSTRAINT "PK_parameter_locks" PRIMARY KEY (id),
-    CONSTRAINT "FK_parameter_locks_users_created_by" FOREIGN KEY (created_by) REFERENCES users (id) ON DELETE RESTRICT,
-    CONSTRAINT "FK_parameter_locks_users_user_id" FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
-);
+        CREATE TABLE IF NOT EXISTS parameter_locks (
+            id integer GENERATED BY DEFAULT AS IDENTITY,
+            user_id uuid NOT NULL,
+            device_id character varying(100),
+            s3_key character varying(500) NOT NULL,
+            param_count integer NOT NULL,
+            created_at timestamp with time zone NOT NULL,
+            created_by uuid NOT NULL,
+            updated_at timestamp with time zone,
+            is_active boolean NOT NULL DEFAULT TRUE,
+            CONSTRAINT "PK_parameter_locks" PRIMARY KEY (id),
+            CONSTRAINT "FK_parameter_locks_users_created_by" FOREIGN KEY (created_by) REFERENCES users (id) ON DELETE RESTRICT,
+            CONSTRAINT "FK_parameter_locks_users_user_id" FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+        );
 
-CREATE INDEX "IX_parameter_locks_created_by" ON parameter_locks (created_by);
+        CREATE INDEX IF NOT EXISTS "IX_parameter_locks_created_by" ON parameter_locks (created_by);
+        CREATE INDEX IF NOT EXISTS "IX_parameter_locks_is_active" ON parameter_locks (is_active);
+        CREATE INDEX IF NOT EXISTS "IX_parameter_locks_user_id_device_id" ON parameter_locks (user_id, device_id);
 
-CREATE INDEX "IX_parameter_locks_is_active" ON parameter_locks (is_active);
+        INSERT INTO "__EFMigrationsHistory" ("MigrationId", "ProductVersion")
+        VALUES ('20260417052819_CompleteDatabaseSchema', '9.0.0');
 
-CREATE INDEX "IX_parameter_locks_user_id_device_id" ON parameter_locks (user_id, device_id);
+    END IF;
 
-INSERT INTO "__EFMigrationsHistory" ("MigrationId", "ProductVersion")
-VALUES ('20260417052819_CompleteDatabaseSchema', '9.0.0');
+    -- Migration 4: FixPendingChanges
+    IF NOT EXISTS (SELECT 1 FROM "__EFMigrationsHistory" WHERE "MigrationId" = '20260420052949_FixPendingChanges') THEN
 
-CREATE TABLE parameter_locks (
-    id integer GENERATED BY DEFAULT AS IDENTITY,
-    user_id uuid NOT NULL,
-    device_id character varying(100),
-    s3_key character varying(500) NOT NULL,
-    param_count integer NOT NULL,
-    created_at timestamp with time zone NOT NULL,
-    created_by uuid NOT NULL,
-    updated_at timestamp with time zone,
-    is_active boolean NOT NULL,
-    CONSTRAINT "PK_parameter_locks" PRIMARY KEY (id),
-    CONSTRAINT "FK_parameter_locks_users_created_by" FOREIGN KEY (created_by) REFERENCES users (id) ON DELETE CASCADE,
-    CONSTRAINT "FK_parameter_locks_users_user_id" FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
-);
+        -- Indexes only (table already exists from CompleteDatabaseSchema)
+        CREATE INDEX IF NOT EXISTS "IX_parameter_locks_is_active" ON parameter_locks (is_active);
+        CREATE INDEX IF NOT EXISTS "IX_parameter_locks_user_id_device_id" ON parameter_locks (user_id, device_id);
 
-CREATE INDEX "IX_parameter_locks_created_by" ON parameter_locks (created_by);
+        INSERT INTO "__EFMigrationsHistory" ("MigrationId", "ProductVersion")
+        VALUES ('20260420052949_FixPendingChanges', '9.0.0');
 
-CREATE INDEX "IX_parameter_locks_user_id" ON parameter_locks (user_id);
+    END IF;
 
-INSERT INTO "__EFMigrationsHistory" ("MigrationId", "ProductVersion")
-VALUES ('20260420052949_FixPendingChanges', '9.0.0');
+END $$;
 
-COMMIT;
+-- Verify everything was created
+SELECT table_name FROM information_schema.tables
+WHERE table_schema = 'public'
+ORDER BY table_name;
 
+SELECT "MigrationId" FROM "__EFMigrationsHistory" ORDER BY "MigrationId";

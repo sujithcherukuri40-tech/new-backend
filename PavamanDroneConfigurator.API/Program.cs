@@ -240,19 +240,50 @@ app.MapGet("/health", () => Results.Ok(new { status = "healthy", timestamp = Dat
 using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    var skipMigration = Environment.GetEnvironmentVariable("SKIP_MIGRATION");
+
     try
     {
-      if (Environment.GetEnvironmentVariable("SKIP_MIGRATION") != "true"){
-         await dbContext.Database.MigrateAsync();
-}
+        // Check if we can connect to the database first
+        app.Logger.LogInformation("Testing database connection...");
+        var canConnect = await dbContext.Database.CanConnectAsync();
 
-        app.Logger.LogInformation("[OK] Database migrations applied");
-        await DatabaseSeeder.SeedAsync(dbContext, app.Logger);
+        if (!canConnect)
+        {
+            app.Logger.LogWarning("[WARNING] Cannot connect to database. API will start but database operations will fail.");
+        }
+        else
+        {
+            app.Logger.LogInformation("[OK] Database connection successful");
+
+            // Run migrations if not skipped
+            if (skipMigration != "true")
+            {
+                app.Logger.LogInformation("Applying database migrations...");
+                await dbContext.Database.MigrateAsync();
+                app.Logger.LogInformation("[OK] Database migrations applied");
+            }
+            else
+            {
+                app.Logger.LogInformation("[SKIP] Database migrations skipped (SKIP_MIGRATION=true)");
+            }
+
+            // Seed database
+            await DatabaseSeeder.SeedAsync(dbContext, app.Logger);
+            app.Logger.LogInformation("[OK] Database seeding completed");
+        }
+    }
+    catch (Npgsql.NpgsqlException npgEx)
+    {
+        app.Logger.LogError(npgEx, "[ERROR] PostgreSQL connection or query failed: {Message}", npgEx.Message);
+        app.Logger.LogWarning("[WARNING] Starting API anyway - database operations will fail until connection is fixed");
+        // Don't throw - allow the API to start so it can be diagnosed
     }
     catch (Exception ex)
     {
-        app.Logger.LogError(ex, "[ERROR] Database migration failed");
-        throw;
+        app.Logger.LogError(ex, "[ERROR] Database migration/seeding failed: {Message}", ex.Message);
+        app.Logger.LogWarning("[WARNING] Starting API anyway - check database configuration");
+        // Don't throw - allow the API to start so it can be diagnosed
     }
 }
 
