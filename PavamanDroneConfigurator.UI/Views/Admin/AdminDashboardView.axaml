@@ -331,8 +331,18 @@ Background="#F9FAFB">
     </ScrollViewer>
         </TabItem>
 
-        <!-- ═══════════════ TAB 2: PARAM LOCK ═══════════════ -->
-        <TabItem Header="🔒  Param Lock">
+        <!-- ═══════════════ TAB 2: FIRMWARE MANAGEMENT ═══════════════ -->
+        <TabItem Header="📦  Firmware Management">
+            <adminViews:FirmwareManagementPage DataContext="{Binding FirmwareManagementVm}"/>
+        </TabItem>
+
+        <!-- ═══════════════ TAB 3: PARAMETER LOGS ═══════════════ -->
+        <TabItem Header="📋  Parameter Logs">
+            <adminViews:ParamLogsPage DataContext="{Binding ParamLogsVm}"/>
+        </TabItem>
+
+        <!-- ═══════════════ TAB 4: PARAM LOCK ═══════════════ -->
+        <TabItem Header="🔒  Parameter Locking">
             <adminViews:ParameterLockManagementPage DataContext="{Binding ParamLockVm}"/>
         </TabItem>
 

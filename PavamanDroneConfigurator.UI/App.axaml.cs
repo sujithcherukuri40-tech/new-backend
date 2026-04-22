@@ -41,7 +41,7 @@ public partial class App : Application
     private static EventHandler<bool>? _currentConnectionHandler;
 
     // EMBEDDED API URL - No external config file needed
-    private const string EMBEDDED_API_URL = "http://13.233.82.9:5000";
+    private const string EMBEDDED_API_URL = "http://13.235.13.233:5000";
 
     public override void Initialize()
     {

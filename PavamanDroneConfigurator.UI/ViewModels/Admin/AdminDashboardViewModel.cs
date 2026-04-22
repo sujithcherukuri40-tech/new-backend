@@ -32,6 +32,16 @@ public sealed partial class AdminDashboardViewModel : ViewModelBase
     /// </summary>
     public ParameterLockManagementViewModel ParamLockVm { get; }
 
+    /// <summary>
+    /// Embedded Firmware Management sub-viewmodel for the Firmware Management tab.
+    /// </summary>
+    public FirmwareManagementViewModel FirmwareManagementVm { get; }
+
+    /// <summary>
+    /// Embedded Parameter Logs sub-viewmodel for the Parameter Logs tab.
+    /// </summary>
+    public ParamLogsViewModel ParamLogsVm { get; }
+
     [ObservableProperty]
     private ObservableCollection<UserListItem> _users = new();
 
@@ -119,12 +129,16 @@ public sealed partial class AdminDashboardViewModel : ViewModelBase
         ILogger<AdminDashboardViewModel> logger,
         ITokenStorage tokenStorage,
         ParameterLockManagementViewModel paramLockVm,
+        FirmwareManagementViewModel firmwareManagementVm,
+        ParamLogsViewModel paramLogsVm,
         FirmwareApiService? firmwareApiService = null)
     {
         _adminService = adminService;
         _logger = logger;
         _tokenStorage = tokenStorage;
         ParamLockVm = paramLockVm;
+        FirmwareManagementVm = firmwareManagementVm;
+        ParamLogsVm = paramLogsVm;
         _firmwareApiService = firmwareApiService;
 
         PropertyChanged += (s, e) =>
@@ -142,7 +156,7 @@ public sealed partial class AdminDashboardViewModel : ViewModelBase
     {
         if (_isInitialized) return;
         _isInitialized = true;
-        
+
         await RefreshAsync();
         await LoadAnalyticsAsync();
 
@@ -158,6 +172,26 @@ public sealed partial class AdminDashboardViewModel : ViewModelBase
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Failed to initialize Param Lock VM");
+        }
+
+        // Initialize Firmware Management VM
+        try
+        {
+            await FirmwareManagementVm.InitializeAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to initialize Firmware Management VM");
+        }
+
+        // Initialize Param Logs VM
+        try
+        {
+            await ParamLogsVm.InitializeAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to initialize Param Logs VM");
         }
     }
     

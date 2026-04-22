@@ -1,4 +1,4 @@
-#!/bin/bash
+﻿#!/bin/bash
 #===============================================================================
 # EC2 DEPLOYMENT SCRIPT FOR KFT DRONE CONFIGURATOR
 # IP: 13.235.13.233
@@ -27,7 +27,7 @@ PEM_FILE="$1"  # Pass as first argument
 
 if [ -z "$PEM_FILE" ]; then
     echo -e "${RED}ERROR: Please provide the path to your .pem file${NC}"
-    echo "Usage: ./deploy-fix-ec2.sh /path/to/your-key.pem"
+    echo "Usage: ./deploy-fix-ec2.sh C:\Pavaman\kft-comfig/kft-config.pem"
     exit 1
 fi
 
@@ -36,7 +36,7 @@ if [ ! -f "$PEM_FILE" ]; then
     exit 1
 fi
 
-echo -e "${GREEN}? PEM file found${NC}"
+echo -e "${GREEN}✓ PEM file found${NC}"
 
 # Test SSH connection
 echo -e "\n${YELLOW}Testing SSH connection...${NC}"
@@ -48,7 +48,7 @@ if ! ssh -i "$PEM_FILE" -o ConnectTimeout=10 -o StrictHostKeyChecking=no "$EC2_U
     echo "  3. EC2 instance is running"
     exit 1
 fi
-echo -e "${GREEN}? SSH connection successful${NC}"
+echo -e "${GREEN}✓ SSH connection successful${NC}"
 
 # Create remote fix script
 echo -e "\n${YELLOW}Creating fix script on EC2...${NC}"
@@ -63,10 +63,10 @@ echo "================================================================"
 
 # Check if service exists
 if systemctl list-units --full -all | grep -q "kft-api.service"; then
-    echo "? kft-api.service exists"
+    echo "✓ kft-api.service exists"
     sudo systemctl status kft-api.service --no-pager || true
 else
-    echo "? kft-api.service not found"
+    echo "⚠ kft-api.service not found"
 fi
 
 echo ""
@@ -83,20 +83,20 @@ echo "================================================================"
 # Load environment variables
 if [ -f /etc/drone-configurator/.env ]; then
     source /etc/drone-configurator/.env
-    echo "? Loaded environment variables"
+    echo "✓ Loaded environment variables"
 
     # Test database connection
     if command -v psql &> /dev/null; then
         echo "Testing database connection..."
         if PGPASSWORD="$DB_PASSWORD" psql -h "$DB_HOST" -U "$DB_USER" -d "$DB_NAME" -c "SELECT version();" > /dev/null 2>&1; then
-            echo "? Database connection successful"
+            echo "✓ Database connection successful"
         else
-            echo "? Warning: Database connection test failed"
+            echo "⚠ Warning: Database connection test failed"
             echo "  This might be due to psql not being configured, but the app should still work"
         fi
     fi
 else
-    echo "? Warning: /etc/drone-configurator/.env not found"
+    echo "⚠ Warning: /etc/drone-configurator/.env not found"
 fi
 
 echo ""
@@ -104,10 +104,10 @@ echo "================================================================"
 echo "STEP 4: Checking Application Files"
 echo "================================================================"
 if [ -d /opt/drone-configurator ]; then
-    echo "? Application directory exists"
+    echo "✓ Application directory exists"
     ls -lh /opt/drone-configurator/*.dll 2>/dev/null | head -5
 else
-    echo "? Application directory not found!"
+    echo "✗ Application directory not found!"
     exit 1
 fi
 
@@ -183,7 +183,7 @@ StandardError=journal
 WantedBy=multi-user.target
 SERVICE_EOF
 
-echo "? Service file updated"
+echo "✓ Service file updated"
 
 echo ""
 echo "================================================================"
@@ -215,10 +215,10 @@ echo "STEP 10: Testing API Health"
 echo "================================================================"
 sleep 3
 if curl -s http://localhost:5000/health > /dev/null; then
-    echo "? API is responding!"
+    echo "✓ API is responding!"
     curl -s http://localhost:5000/health | python3 -m json.tool 2>/dev/null || curl -s http://localhost:5000/health
 else
-    echo "? API is not responding yet. Check logs above for errors."
+    echo "⚠ API is not responding yet. Check logs above for errors."
 fi
 
 echo ""
