@@ -1,6 +1,8 @@
 using System;
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using PavamanDroneConfigurator.Core.Models.Auth;
 using PavamanDroneConfigurator.UI.ViewModels.Auth;
 
 namespace PavamanDroneConfigurator.UI.ViewModels;
@@ -68,6 +70,18 @@ public partial class EntryPageViewModel : ViewModelBase
     public EntryPageViewModel(AuthSessionViewModel authSession)
     {
         _authSession = authSession;
+
+        // Subscribe so IsAdmin re-evaluates after login completes
+        _authSession.StateChanged += OnAuthStateChanged;
+    }
+
+    private void OnAuthStateChanged(object? sender, AuthState state)
+    {
+        // Must notify on UI thread since this may fire from background
+        Dispatcher.UIThread.Post(() =>
+        {
+            OnPropertyChanged(nameof(IsAdmin));
+        });
     }
 
     /// <summary>
@@ -103,10 +117,15 @@ public partial class EntryPageViewModel : ViewModelBase
     [RelayCommand]
     private void OpenAdminDashboard()
     {
-        if (IsAdmin)
+        if (!IsAdmin)
         {
-            AdminDashboardRequested?.Invoke(this, EventArgs.Empty);
+            Console.WriteLine("[EntryPage] OpenAdminDashboard called but user is not admin. Role: " +
+                (_authSession.CurrentState.User?.Role ?? "(null)"));
+            return;
         }
+
+        Console.WriteLine("[EntryPage] Navigating to Admin Dashboard");
+        AdminDashboardRequested?.Invoke(this, EventArgs.Empty);
     }
 
     /// <summary>
