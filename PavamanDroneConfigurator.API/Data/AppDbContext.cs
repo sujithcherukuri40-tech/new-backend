@@ -28,6 +28,11 @@ public class AppDbContext : DbContext
     /// </summary>
     public DbSet<ParameterLockEntity> ParameterLocks => Set<ParameterLockEntity>();
 
+    /// <summary>
+    /// User-specific firmwares table.
+    /// </summary>
+    public DbSet<UserFirmwareEntity> UserFirmwares => Set<UserFirmwareEntity>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -216,6 +221,108 @@ public class AppDbContext : DbContext
             entity.HasOne(e => e.CreatedByUser)
                 .WithMany()
                 .HasForeignKey(e => e.CreatedBy)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // UserFirmware configuration
+        modelBuilder.Entity<UserFirmwareEntity>(entity =>
+        {
+            entity.ToTable("user_firmwares");
+
+            entity.HasKey(e => e.Id);
+
+            entity.Property(e => e.Id)
+                .HasColumnName("id")
+                .ValueGeneratedOnAdd();
+
+            entity.Property(e => e.UserId)
+                .HasColumnName("user_id")
+                .IsRequired();
+
+            entity.Property(e => e.S3Key)
+                .HasColumnName("s3_key")
+                .HasMaxLength(500)
+                .IsRequired();
+
+            entity.Property(e => e.FileName)
+                .HasColumnName("file_name")
+                .HasMaxLength(255)
+                .IsRequired();
+
+            entity.Property(e => e.DisplayName)
+                .HasColumnName("display_name")
+                .HasMaxLength(255);
+
+            entity.Property(e => e.FirmwareName)
+                .HasColumnName("firmware_name")
+                .HasMaxLength(255);
+
+            entity.Property(e => e.FirmwareVersion)
+                .HasColumnName("firmware_version")
+                .HasMaxLength(50);
+
+            entity.Property(e => e.Description)
+                .HasColumnName("description")
+                .HasMaxLength(1000);
+
+            entity.Property(e => e.VehicleType)
+                .HasColumnName("vehicle_type")
+                .HasMaxLength(50)
+                .IsRequired()
+                .HasDefaultValue("Copter");
+
+            entity.Property(e => e.FileSize)
+                .HasColumnName("file_size")
+                .IsRequired();
+
+            entity.Property(e => e.UploadedAt)
+                .HasColumnName("uploaded_at")
+                .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+            entity.Property(e => e.UploadedBy)
+                .HasColumnName("uploaded_by")
+                .IsRequired();
+
+            entity.Property(e => e.AssignedAt)
+                .HasColumnName("assigned_at")
+                .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+            entity.Property(e => e.IsActive)
+                .HasColumnName("is_active")
+                .HasDefaultValue(true);
+
+            entity.Property(e => e.LastDownloaded)
+                .HasColumnName("last_downloaded");
+
+            entity.Property(e => e.DownloadCount)
+                .HasColumnName("download_count")
+                .HasDefaultValue(0);
+
+            // Indexes
+            entity.HasIndex(e => e.UserId)
+                .HasDatabaseName("IX_user_firmwares_user_id");
+
+            entity.HasIndex(e => e.S3Key)
+                .HasDatabaseName("IX_user_firmwares_s3_key");
+
+            entity.HasIndex(e => new { e.UserId, e.IsActive })
+                .HasDatabaseName("IX_user_firmwares_user_id_is_active");
+
+            entity.HasIndex(e => e.UploadedBy)
+                .HasDatabaseName("IX_user_firmwares_uploaded_by");
+
+            entity.HasIndex(e => e.VehicleType)
+                .HasDatabaseName("IX_user_firmwares_vehicle_type");
+
+            // Foreign keys
+            entity.HasOne(e => e.User)
+                .WithMany()
+                .HasForeignKey(e => e.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(e => e.UploadedByUser)
+                .WithMany()
+                .HasForeignKey(e => e.UploadedBy)
                 .OnDelete(DeleteBehavior.Restrict);
         });
     }

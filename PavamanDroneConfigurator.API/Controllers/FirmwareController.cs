@@ -1,9 +1,12 @@
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.EntityFrameworkCore;
 using PavamanDroneConfigurator.Infrastructure.Services;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -422,7 +425,304 @@ public class FirmwareController : ControllerBase
             return StatusCode(500, new { error = "Upload failed. Please try again." });
         }
     }
-    
+
+    // ========================================
+    // USER-SPECIFIC FIRMWARE ENDPOINTS
+    // ========================================
+
+    /// <summary>
+    /// ADMIN: POST /api/firmware/admin/upload-for-user
+    /// Upload firmware file to S3 and assign to specific user (Admin only)
+    /// </summary>
+    [HttpPost("admin/upload-for-user")]
+    [Authorize(Roles = "Admin")]
+    [EnableRateLimiting("admin")]
+    [RequestSizeLimit(52_428_800)] // 50MB limit
+    public async Task<ActionResult> UploadFirmwareForUser(
+        [FromForm] IFormFile file,
+        [FromForm] string userId,
+        [FromForm] string firmwareName,
+        [FromForm] string firmwareVersion,
+        [FromForm] string vehicleType,
+        [FromForm] string? description,
+        [FromForm] string? customFileName,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            // Validate file
+            if (file == null || file.Length == 0)
+            {
+                return BadRequest(new { error = "No file uploaded" });
+            }
+
+            if (!Guid.TryParse(userId, out var userGuid))
+            {
+                return BadRequest(new { error = "Invalid user ID" });
+            }
+
+            // Security validation
+            var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
+            if (!AllowedExtensions.Contains(extension))
+            {
+                return BadRequest(new { error = $"Invalid file type. Allowed: {string.Join(", ", AllowedExtensions)}" });
+            }
+
+            const long maxFileSize = 50 * 1024 * 1024;
+            if (file.Length > maxFileSize)
+            {
+                return BadRequest(new { error = "File too large (max 50MB)" });
+            }
+
+            var sanitizedFileName = SanitizeFileName(customFileName ?? file.FileName);
+            if (string.IsNullOrEmpty(sanitizedFileName))
+            {
+                return BadRequest(new { error = "Invalid file name" });
+            }
+
+            _logger.LogInformation("Admin uploading firmware for user {UserId}: {FileName}", userId, sanitizedFileName);
+
+            // Save to temp file and upload to S3
+            var tempPath = Path.GetTempFileName();
+            try
+            {
+                using (var stream = new FileStream(tempPath, FileMode.Create))
+                {
+                    await file.CopyToAsync(stream, cancellationToken);
+                }
+
+                // Validate file content
+                if (extension == ".apj" && !await ValidateFileContentAsync(tempPath, extension))
+                {
+                    return BadRequest(new { error = "File content does not match expected format" });
+                }
+
+                // Upload to S3
+                var s3Info = await _s3Service.UploadFirmwareAsync(
+                    tempPath,
+                    sanitizedFileName,
+                    firmwareName,
+                    firmwareVersion,
+                    description,
+                    cancellationToken);
+
+                // Create database record
+                using var scope = HttpContext.RequestServices.CreateScope();
+                var dbContext = scope.ServiceProvider.GetRequiredService<PavamanDroneConfigurator.API.Data.AppDbContext>();
+
+                var adminIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+                if (string.IsNullOrEmpty(adminIdClaim) || !Guid.TryParse(adminIdClaim, out var adminId))
+                {
+                    return Unauthorized(new { error = "User ID not found in token" });
+                }
+
+                var userFirmware = new PavamanDroneConfigurator.API.Data.Entities.UserFirmwareEntity
+                {
+                    UserId = userGuid,
+                    S3Key = s3Info.Key,
+                    FileName = s3Info.FileName,
+                    DisplayName = s3Info.DisplayName,
+                    FirmwareName = firmwareName,
+                    FirmwareVersion = firmwareVersion,
+                    Description = description,
+                    VehicleType = vehicleType,
+                    FileSize = file.Length,
+                    UploadedBy = adminId,
+                    UploadedAt = DateTime.UtcNow,
+                    AssignedAt = DateTime.UtcNow,
+                    IsActive = true
+                };
+
+                dbContext.UserFirmwares.Add(userFirmware);
+                await dbContext.SaveChangesAsync(cancellationToken);
+
+                _logger.LogInformation("Firmware uploaded and assigned to user {UserId} successfully", userId);
+
+                return Ok(new
+                {
+                    id = userFirmware.Id,
+                    userId = userFirmware.UserId,
+                    fileName = userFirmware.FileName,
+                    firmwareName = userFirmware.FirmwareName,
+                    firmwareVersion = userFirmware.FirmwareVersion,
+                    vehicleType = userFirmware.VehicleType,
+                    fileSize = userFirmware.FileSize,
+                    uploadedAt = userFirmware.UploadedAt,
+                    downloadUrl = _s3Service.GeneratePresignedUrl(s3Info.Key, TimeSpan.FromHours(1))
+                });
+            }
+            finally
+            {
+                try { System.IO.File.Delete(tempPath); } catch { }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to upload firmware for user");
+            return StatusCode(500, new { error = "Upload failed. Please try again." });
+        }
+    }
+
+    /// <summary>
+    /// GET /api/firmware/my-firmwares
+    /// Get firmwares assigned to the current logged-in user
+    /// </summary>
+    [HttpGet("my-firmwares")]
+    [Authorize]
+    [EnableRateLimiting("fixed")]
+    public async Task<ActionResult> GetMyFirmwares(
+        [FromQuery] string? vehicleType = null,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
+            {
+                return Unauthorized(new { error = "User ID not found in token" });
+            }
+
+            _logger.LogInformation("User {UserId} requesting their firmwares", userId);
+
+            using var scope = HttpContext.RequestServices.CreateScope();
+            var dbContext = scope.ServiceProvider.GetRequiredService<PavamanDroneConfigurator.API.Data.AppDbContext>();
+
+            var query = dbContext.UserFirmwares
+                .Where(f => f.UserId == userId && f.IsActive);
+
+            if (!string.IsNullOrWhiteSpace(vehicleType))
+            {
+                query = query.Where(f => f.VehicleType == vehicleType);
+            }
+
+            var firmwares = await query.ToListAsync(cancellationToken);
+
+            var result = firmwares.Select(f => new
+            {
+                id = f.Id,
+                fileName = f.FileName,
+                displayName = f.DisplayName,
+                firmwareName = f.FirmwareName,
+                firmwareVersion = f.FirmwareVersion,
+                description = f.Description,
+                vehicleType = f.VehicleType,
+                fileSize = f.FileSize,
+                uploadedAt = f.UploadedAt,
+                assignedAt = f.AssignedAt,
+                lastDownloaded = f.LastDownloaded,
+                downloadCount = f.DownloadCount,
+                downloadUrl = _s3Service.GeneratePresignedUrl(f.S3Key, TimeSpan.FromHours(1))
+            }).ToList();
+
+            return Ok(new { firmwares = result, totalCount = result.Count });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to get user firmwares");
+            return StatusCode(500, new { error = "Failed to retrieve firmwares" });
+        }
+    }
+
+    /// <summary>
+    /// ADMIN: GET /api/firmware/admin/user-firmwares
+    /// Get all user-firmware assignments (Admin only)
+    /// </summary>
+    [HttpGet("admin/user-firmwares")]
+    [Authorize(Roles = "Admin")]
+    [EnableRateLimiting("admin")]
+    public async Task<ActionResult> GetAllUserFirmwares(
+        [FromQuery] string? userId = null,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            using var scope = HttpContext.RequestServices.CreateScope();
+            var dbContext = scope.ServiceProvider.GetRequiredService<PavamanDroneConfigurator.API.Data.AppDbContext>();
+
+            var query = dbContext.UserFirmwares
+                .Include(f => f.User)
+                .Where(f => f.IsActive);
+
+            if (!string.IsNullOrEmpty(userId) && Guid.TryParse(userId, out var userGuid))
+            {
+                query = query.Where(f => f.UserId == userGuid);
+            }
+
+            var firmwares = await query.ToListAsync(cancellationToken);
+
+            // Group by user
+            var grouped = firmwares.GroupBy(f => f.UserId);
+
+            var result = grouped.Select(g => new
+            {
+                userId = g.Key,
+                userName = g.First().User.FullName,
+                userEmail = g.First().User.Email,
+                firmwareCount = g.Count(),
+                firmwares = g.Select(f => new
+                {
+                    id = f.Id,
+                    fileName = f.FileName,
+                    firmwareName = f.FirmwareName,
+                    firmwareVersion = f.FirmwareVersion,
+                    vehicleType = f.VehicleType,
+                    fileSize = f.FileSize,
+                    uploadedAt = f.UploadedAt,
+                    downloadUrl = _s3Service.GeneratePresignedUrl(f.S3Key, TimeSpan.FromHours(1))
+                }).ToList()
+            }).ToList();
+
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to get all user firmwares");
+            return StatusCode(500, new { error = "Failed to retrieve firmwares" });
+        }
+    }
+
+    /// <summary>
+    /// ADMIN: DELETE /api/firmware/admin/user-firmware/{id}
+    /// Delete user firmware assignment (Admin only)
+    /// </summary>
+    [HttpDelete("admin/user-firmware/{id}")]
+    [Authorize(Roles = "Admin")]
+    [EnableRateLimiting("admin")]
+    public async Task<ActionResult> DeleteUserFirmware(string id, CancellationToken cancellationToken)
+    {
+        try
+        {
+            if (!Guid.TryParse(id, out var firmwareId))
+            {
+                return BadRequest(new { error = "Invalid firmware ID" });
+            }
+
+            using var scope = HttpContext.RequestServices.CreateScope();
+            var dbContext = scope.ServiceProvider.GetRequiredService<PavamanDroneConfigurator.API.Data.AppDbContext>();
+
+            var firmware = await dbContext.UserFirmwares.FindAsync(firmwareId);
+            if (firmware == null)
+            {
+                return NotFound(new { error = "Firmware assignment not found" });
+            }
+
+            // Delete from S3
+            await _s3Service.DeleteFirmwareAsync(firmware.S3Key, cancellationToken);
+
+            // Delete from database
+            dbContext.UserFirmwares.Remove(firmware);
+            await dbContext.SaveChangesAsync(cancellationToken);
+
+            _logger.LogInformation("Deleted user firmware assignment {Id}", id);
+            return Ok(new { message = "Firmware deleted successfully" });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to delete user firmware {Id}", id);
+            return StatusCode(500, new { error = "Failed to delete firmware" });
+        }
+    }
+
     /// <summary>
     /// Sanitizes file name to prevent path traversal attacks.
     /// </summary>

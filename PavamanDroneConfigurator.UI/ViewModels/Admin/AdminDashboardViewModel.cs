@@ -63,6 +63,9 @@ public sealed partial class AdminDashboardViewModel : ViewModelBase
     [ObservableProperty]
     private string _statusMessage = "Ready";
 
+    [ObservableProperty]
+    private int _selectedTabIndex = 0;
+
     // S3 Storage Analytics
     
     private string _s3TotalStorageValue = "Unlimited";
@@ -348,13 +351,13 @@ public sealed partial class AdminDashboardViewModel : ViewModelBase
     [RelayCommand]
     private void NavigateToParamLogs()
     {
-        NavigateToPage?.Invoke("ParamLogsPage");
+        SelectedTabIndex = 2; // Switch to Parameter Logs tab
     }
     
     [RelayCommand]
     private void NavigateToFirmware()
     {
-        NavigateToPage?.Invoke("FirmwareManagementPage");
+        SelectedTabIndex = 1; // Switch to Firmware Management tab
     }
     
     /// <summary>
@@ -532,7 +535,7 @@ public sealed partial class AdminDashboardViewModel : ViewModelBase
     [RelayCommand]
     private void NavigateToFirmwareManagement()
     {
-        NavigateToPage?.Invoke("FirmwareManagementPage");
+        SelectedTabIndex = 1; // Switch to Firmware Management tab
     }
 
     [RelayCommand]
