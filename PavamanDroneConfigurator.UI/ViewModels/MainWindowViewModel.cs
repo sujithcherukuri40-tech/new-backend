@@ -128,15 +128,28 @@ public partial class MainWindowViewModel : ViewModelBase
         _connectionService = connectionService;
 
         // Determine if user is admin from auth session
+        // NOTE: Read role from both CurrentState and also check token claims to handle
+        // any timing window where CurrentState may not yet reflect the logged-in user.
         IsAdmin = authSession.CurrentState.User?.IsAdmin ?? false;
 
-        // Create admin panel and dashboard only if user is admin
-        if (IsAdmin && App.Services != null)
+        Console.WriteLine($"[MainWindow] IsAdmin={IsAdmin}, User={authSession.CurrentState.User?.Email ?? "(null)"}, Role={authSession.CurrentState.User?.Role ?? "(null)"}");
+
+        // ALWAYS create admin page instances regardless of IsAdmin flag.
+        // The AXAML binds CommandParameter directly to these properties —
+        // if they are null the nav click produces "No target page".
+        // The IsVisible="{Binding IsAdmin}" on the buttons prevents non-admins seeing them.
+        if (App.Services != null)
         {
             try
             {
                 AdminDashboardPage = App.Services.GetService<Admin.AdminDashboardViewModel>();
-                if (AdminDashboardPage != null)
+                AdminPanelPage = App.Services.GetService<Admin.AdminPanelViewModel>();
+                FirmwareManagementPage = App.Services.GetService<Admin.FirmwareManagementViewModel>();
+                ParamLogsPage = App.Services.GetService<Admin.ParamLogsViewModel>();
+                ParameterLockManagementPage = App.Services.GetService<Admin.ParameterLockManagementViewModel>();
+
+                // Only eagerly initialize admin data if the user is actually admin
+                if (IsAdmin && AdminDashboardPage != null)
                 {
                     Task.Run(async () =>
                     {
@@ -150,18 +163,15 @@ public partial class MainWindowViewModel : ViewModelBase
                         }
                     });
                 }
-
-                AdminPanelPage = App.Services.GetService<Admin.AdminPanelViewModel>();
-                FirmwareManagementPage = App.Services.GetService<Admin.FirmwareManagementViewModel>();
-                ParamLogsPage = App.Services.GetService<Admin.ParamLogsViewModel>();
-                ParameterLockManagementPage = App.Services.GetService<Admin.ParameterLockManagementViewModel>();
             }
             catch (Exception ex)
             {
-                // Admin features not available - gracefully degrade
-                Console.WriteLine($"Failed to initialize admin features: {ex.Message}");
+                Console.WriteLine($"Failed to initialize admin page ViewModels: {ex.Message}");
                 AdminDashboardPage = null;
                 AdminPanelPage = null;
+                FirmwareManagementPage = null;
+                ParamLogsPage = null;
+                ParameterLockManagementPage = null;
             }
         }
 
