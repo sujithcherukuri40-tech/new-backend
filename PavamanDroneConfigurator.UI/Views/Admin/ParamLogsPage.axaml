@@ -32,42 +32,22 @@
     </Style>
         
     <Style Selector="Button.log-row:pointerover">
-        <Setter Property="Background">
-            <Setter.Value>
-                <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,0%">
-                    <GradientStop Color="#08667EEA" Offset="0"/>
-                    <GradientStop Color="#04667EEA" Offset="1"/>
-                </LinearGradientBrush>
-            </Setter.Value>
-        </Setter>
-        <Setter Property="RenderTransform" Value="scale(1.01)"/>
+        <Setter Property="Background" Value="#F0F9FF"/>
     </Style>
         
-    <!-- Gradient Primary Button -->
+    <!-- Primary Gradient Button -->
     <Style Selector="Button.btn-gradient">
-        <Setter Property="Background">
-            <Setter.Value>
-                <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,0%">
-                    <GradientStop Color="#667EEA" Offset="0"/>
-                    <GradientStop Color="#764BA2" Offset="1"/>
-                </LinearGradientBrush>
-            </Setter.Value>
-        </Setter>
+        <Setter Property="Background" Value="#3B82F6"/>
         <Setter Property="Foreground" Value="White"/>
         <Setter Property="Padding" Value="20,10"/>
         <Setter Property="CornerRadius" Value="10"/>
         <Setter Property="Cursor" Value="Hand"/>
         <Setter Property="FontWeight" Value="SemiBold"/>
-        <Setter Property="Transitions">
-            <Transitions>
-                <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.2"/>
-            </Transitions>
-        </Setter>
+        <Setter Property="BorderThickness" Value="0"/>
     </Style>
     
     <Style Selector="Button.btn-gradient:pointerover">
-        <Setter Property="RenderTransform" Value="translateY(-2px)"/>
-        <Setter Property="Opacity" Value="0.9"/>
+        <Setter Property="Background" Value="#2563EB"/>
     </Style>
         
     <!-- Ghost Button -->
@@ -107,7 +87,7 @@
     </Style>
     
     <Style Selector="TextBox.search-box:focus">
-        <Setter Property="BorderBrush" Value="#667EEA"/>
+        <Setter Property="BorderBrush" Value="#3B82F6"/>
         <Setter Property="BorderThickness" Value="2"/>
     </Style>
     
@@ -129,19 +109,13 @@
     
     <!-- Primary Button for download -->
     <Style Selector="Button.btn-primary">
-        <Setter Property="Background">
-            <Setter.Value>
-                <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,0%">
-                    <GradientStop Color="#667EEA" Offset="0"/>
-                    <GradientStop Color="#764BA2" Offset="1"/>
-                </LinearGradientBrush>
-            </Setter.Value>
-        </Setter>
+        <Setter Property="Background" Value="#3B82F6"/>
         <Setter Property="Foreground" Value="White"/>
         <Setter Property="Padding" Value="16,10"/>
         <Setter Property="CornerRadius" Value="8"/>
         <Setter Property="FontWeight" Value="SemiBold"/>
         <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="BorderThickness" Value="0"/>
     </Style>
 
 </UserControl.Styles>
@@ -153,10 +127,7 @@
     <!-- Responsive Grid Layout -->
     <Grid RowDefinitions="*">
         <Grid.Background>
-            <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
-                <GradientStop Color="#F9FAFB" Offset="0"/>
-                <GradientStop Color="#F3F4F6" Offset="1"/>
-            </LinearGradientBrush>
+            <SolidColorBrush Color="#F9FAFB"/>
         </Grid.Background>
         
         <!-- Responsive Main Content -->

@@ -255,7 +255,7 @@
                         <!-- Profile Button -->
                         <Button x:Name="NavbarProfileButton"
                                 Classes="navbar-btn"
-                                CommandParameter="{Binding ProfilePage}"
+                                Tag="ProfilePage"
                                 Click="NavButton_Click"
                                 Foreground="White">
                             <Button.Background>

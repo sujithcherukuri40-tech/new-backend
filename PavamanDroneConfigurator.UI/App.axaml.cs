@@ -617,6 +617,16 @@ public partial class App : Application
         })
         .AddHttpMessageHandler<TokenAuthenticationHandler>();
 
+        // Also register AdminApiService as a concrete type so ParameterLockManagementViewModel
+        // (which injects AdminApiService directly rather than IAdminService) can be resolved by DI.
+        services.AddHttpClient<AdminApiService>(client =>
+        {
+            client.BaseAddress = new Uri(apiUrl);
+            client.DefaultRequestHeaders.Add("Accept", "application/json");
+            client.Timeout = TimeSpan.FromSeconds(30);
+        })
+        .AddHttpMessageHandler<TokenAuthenticationHandler>();
+
         services.AddHttpClient<FirmwareApiService>(client =>
         {
             client.BaseAddress = new Uri(apiUrl);
@@ -734,7 +744,11 @@ public partial class App : Application
         services.AddTransient<TelemetryPageViewModel>();
         services.AddSingleton<MavlinkLogsViewModel>();
         services.AddSingleton<LiveCameraViewModel>();
-        services.AddTransient<ViewModels.Admin.ParamLogsViewModel>();
+        services.AddTransient<ViewModels.Admin.ParamLogsViewModel>(sp =>
+            new ViewModels.Admin.ParamLogsViewModel(
+                sp.GetRequiredService<PavamanDroneConfigurator.Infrastructure.Services.FirmwareApiService>(),
+                sp.GetService<PavamanDroneConfigurator.Infrastructure.Services.Auth.AdminApiService>(),
+                sp.GetService<Microsoft.Extensions.Logging.ILogger<ViewModels.Admin.ParamLogsViewModel>>()));
         services.AddTransient<ViewModels.Admin.ParameterLockManagementViewModel>();
 
         Console.WriteLine("[App] Building service provider...");

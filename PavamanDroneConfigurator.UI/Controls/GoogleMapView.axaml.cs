@@ -302,8 +302,12 @@ public partial class GoogleMapView : UserControl
             }
 
             Debug.WriteLine($"[GoogleMapView] Navigating to: {mapPath}");
-            var uri = new Uri(mapPath).AbsoluteUri;
-            _webView.Navigate(uri);
+            // Map a virtual HTTPS hostname so the page has a proper HTTP origin.
+            // This allows the Google Maps API key to be restricted to "https://kftapp.local/*"
+            // in Google Cloud Console under API key → Application restrictions → HTTP referrers.
+            var mapFolder = Path.GetDirectoryName(mapPath)!;
+            _webView.SetVirtualHostNameToFolderMapping("kftapp.local", mapFolder, CoreWebView2HostResourceAccessKind.Allow);
+            _webView.Navigate("https://kftapp.local/google-map.html");
             _isInitialized = true;
 
             Debug.WriteLine("[GoogleMapView] Navigation started successfully");

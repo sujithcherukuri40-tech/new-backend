@@ -6,6 +6,7 @@ using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
+using PavamanDroneConfigurator.Core.Interfaces;
 using PavamanDroneConfigurator.Infrastructure.Services.Auth;
 using PavamanDroneConfigurator.UI.Models;
 
@@ -20,6 +21,7 @@ public partial class ParameterLockManagementViewModel : ViewModelBase
     private readonly ParamLockApiService _paramLockApiService;
     private readonly AdminApiService _adminApiService;
     private readonly ILogger<ParameterLockManagementViewModel> _logger;
+    private readonly IParameterService _parameterService;
     private string? _currentToken;
 
     [ObservableProperty]
@@ -86,13 +88,28 @@ public partial class ParameterLockManagementViewModel : ViewModelBase
     [ObservableProperty]
     private bool _applyToAllDevices = true;
 
+    [ObservableProperty]
+    private string _usersLoadError = string.Empty;
+
+    // Dialog user search/filter
+    [ObservableProperty]
+    private string _dialogUserSearchText = string.Empty;
+
+    [ObservableProperty]
+    private ObservableCollection<UserItemModel> _filteredDialogUsers = new();
+
+    [ObservableProperty]
+    private string _dialogStatusMessage = string.Empty;
+
     public ParameterLockManagementViewModel(
         ParamLockApiService paramLockApiService,
         AdminApiService adminApiService,
+        IParameterService parameterService,
         ILogger<ParameterLockManagementViewModel> logger)
     {
         _paramLockApiService = paramLockApiService;
         _adminApiService = adminApiService;
+        _parameterService = parameterService;
         _logger = logger;
     }
 
@@ -100,7 +117,6 @@ public partial class ParameterLockManagementViewModel : ViewModelBase
     {
         _currentToken = token;
         await RefreshLocksAsync();
-        LoadCommonParameters();
     }
 
     [RelayCommand]
@@ -165,7 +181,9 @@ public partial class ParameterLockManagementViewModel : ViewModelBase
         DeviceId = string.Empty;
         ApplyToAllDevices = true;
         ParamSearchText = string.Empty;
+        DialogUserSearchText = string.Empty;
         SelectedUser = null;
+        DialogStatusMessage = string.Empty;
 
         // Clear parameter selections
         foreach (var param in AvailableParameters)
@@ -174,12 +192,17 @@ public partial class ParameterLockManagementViewModel : ViewModelBase
             param.IsCurrentlyLocked = false;
         }
 
-        // Load users if needed
-        if (AvailableUsers.Count == 0)
-        {
-            await LoadUsersAsync();
-        }
+        // Load live parameters from the connected drone, or fall back to hardcoded list
+        await LoadParametersAsync();
 
+        // Always reload users fresh
+        await LoadUsersAsync();
+
+        // Clear any previous user selection highlight
+        foreach (var u in AvailableUsers)
+            u.IsSelected = false;
+
+        FilterDialogUsers();
         FilterParameters();
         UpdateSelectedParamCount();
         IsCreateDialogOpen = true;
@@ -195,6 +218,11 @@ public partial class ParameterLockManagementViewModel : ViewModelBase
         SelectedLock = lockModel;
         DeviceId = lockModel.DeviceId ?? string.Empty;
         ApplyToAllDevices = string.IsNullOrWhiteSpace(lockModel.DeviceId);
+        ParamSearchText = string.Empty;
+        DialogStatusMessage = string.Empty;
+
+        // Load live parameters
+        await LoadParametersAsync();
 
         // Set parameter selections
         foreach (var param in AvailableParameters)
@@ -220,13 +248,13 @@ public partial class ParameterLockManagementViewModel : ViewModelBase
     {
         if (string.IsNullOrEmpty(_currentToken))
         {
-            StatusMessage = "Not authenticated";
+            DialogStatusMessage = "Not authenticated";
             return;
         }
 
         if (SelectedUser == null && !IsEditMode)
         {
-            StatusMessage = "Please select a user";
+            DialogStatusMessage = "Please select a user";
             return;
         }
 
@@ -234,12 +262,12 @@ public partial class ParameterLockManagementViewModel : ViewModelBase
 
         if (selectedParams.Count == 0)
         {
-            StatusMessage = "Please select at least one parameter to lock";
+            DialogStatusMessage = "Please select at least one parameter to lock";
             return;
         }
 
         IsBusy = true;
-        StatusMessage = IsEditMode ? "Updating lock..." : "Creating lock...";
+        DialogStatusMessage = IsEditMode ? "Updating lock..." : "Creating lock...";
 
         try
         {
@@ -269,19 +297,19 @@ public partial class ParameterLockManagementViewModel : ViewModelBase
 
             if (response?.Success == true)
             {
-                StatusMessage = response.Message ?? "Lock saved successfully";
+                DialogStatusMessage = response.Message ?? "Lock saved successfully";
                 IsCreateDialogOpen = false;
                 await RefreshLocksAsync();
             }
             else
             {
-                StatusMessage = response?.Message ?? "Failed to save lock";
+                DialogStatusMessage = response?.Message ?? "Failed to save lock";
             }
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to save parameter lock");
-            StatusMessage = "Error saving lock";
+            DialogStatusMessage = "Error saving lock";
         }
         finally
         {
@@ -331,6 +359,11 @@ public partial class ParameterLockManagementViewModel : ViewModelBase
     partial void OnParamSearchTextChanged(string value)
     {
         FilterParameters();
+    }
+
+    partial void OnDialogUserSearchTextChanged(string value)
+    {
+        FilterDialogUsers();
     }
 
     private void FilterLocks()
@@ -395,107 +428,188 @@ public partial class ParameterLockManagementViewModel : ViewModelBase
 
     private async Task LoadUsersAsync()
     {
-        if (string.IsNullOrEmpty(_currentToken)) return;
-
+        UsersLoadError = string.Empty;
         try
         {
             var response = await _adminApiService.GetAllUsersAsync();
 
-            AvailableUsers.Clear();
-            foreach (var user in response.Users.Where(u => u.Role != "Admin"))
+            await Dispatcher.UIThread.InvokeAsync(() =>
             {
-                if (!Guid.TryParse(user.Id, out var userId))
-                    continue;
-
-                AvailableUsers.Add(new UserItemModel
+                AvailableUsers.Clear();
+                foreach (var user in response.Users)
                 {
-                    UserId = userId,
-                    FullName = user.FullName,
-                    Email = user.Email,
-                    Role = user.Role,
-                    ExistingLocksCount = ParamLocks.Count(l => l.UserId == userId)
-                });
-            }
+                    if (!Guid.TryParse(user.Id, out var userId))
+                        continue;
+
+                    AvailableUsers.Add(new UserItemModel
+                    {
+                        UserId = userId,
+                        FullName = user.FullName,
+                        Email = user.Email,
+                        Role = user.Role,
+                        ExistingLocksCount = ParamLocks.Count(l => l.UserId == userId)
+                    });
+                }
+
+                if (AvailableUsers.Count == 0)
+                    UsersLoadError = "No users found on the server.";
+
+                FilterDialogUsers();
+            });
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to load users");
+            UsersLoadError = $"Failed to load users: {ex.Message}";
         }
     }
 
-    private void LoadCommonParameters()
+    private void FilterDialogUsers()
     {
-        // Common ArduPilot/PX4 parameters that are typically locked
+        FilteredDialogUsers.Clear();
+        var query = AvailableUsers.AsEnumerable();
+        if (!string.IsNullOrWhiteSpace(DialogUserSearchText))
+        {
+            var s = DialogUserSearchText.ToLower();
+            query = query.Where(u =>
+                u.FullName.ToLower().Contains(s) ||
+                u.Email.ToLower().Contains(s));
+        }
+        foreach (var user in query.OrderBy(u => u.FullName))
+            FilteredDialogUsers.Add(user);
+    }
+
+    [RelayCommand]
+    private void SelectDialogUser(UserItemModel? user)
+    {
+        if (user == null) return;
+        foreach (var u in AvailableUsers)
+            u.IsSelected = false;
+        user.IsSelected = true;
+        SelectedUser = user;
+    }
+
+    private async Task LoadParametersAsync()
+    {
+        AvailableParameters.Clear();
+
+        if (_parameterService.IsParameterDownloadComplete)
+        {
+            // Load all live parameters from the connected drone
+            var droneParams = await _parameterService.GetAllParametersAsync();
+            foreach (var dp in droneParams.OrderBy(p => p.Name))
+            {
+                var item = new ParameterItemModel
+                {
+                    Name = dp.Name,
+                    Description = dp.Description ?? string.Empty,
+                    Group = GetGroupFromName(dp.Name),
+                    IsSelected = false
+                };
+                item.PropertyChanged += (_, args) =>
+                {
+                    if (args.PropertyName == nameof(ParameterItemModel.IsSelected))
+                        UpdateSelectedParamCount();
+                };
+                AvailableParameters.Add(item);
+            }
+        }
+        else
+        {
+            // Drone not connected — load hardcoded fallback list
+            LoadFallbackParameters();
+        }
+
+        FilterParameters();
+    }
+
+    private static string GetGroupFromName(string name)
+    {
+        if (string.IsNullOrEmpty(name)) return "General";
+        var prefix = name.Contains('_') ? name[..name.IndexOf('_')] : name;
+        return prefix switch
+        {
+            "ACCEL" or "ACC" or "INS" or "COMPASS" => "Calibration",
+            "ATC" or "PSC" or "PID" or "ANGLE" or "RATE" => "PID Tuning",
+            "ARMING" or "BRD" or "FENCE" or "FS" => "Safety",
+            "BATT" => "Battery",
+            "EK2" or "EK3" => "EKF",
+            "FLTMODE" or "SCHED" => "Flight Modes",
+            "GPS" => "GPS",
+            "MOT" or "ESC" => "Motors",
+            "RC" or "RCMAP" => "RC Input",
+            "SERVO" => "Servo",
+            "SERIAL" => "Serial",
+            "SYSID" or "SYS" => "System",
+            "TERRAIN" => "Terrain",
+            "WPNAV" or "LOIT" or "LAND" or "RTL" => "Navigation",
+            "LOG" => "Logging",
+            "NTF" => "Notifications",
+            "RNG" or "RNGFND" => "RangeFinder",
+            "BARO" => "Barometer",
+            "CAN" or "UAVCAN" or "DRONE" => "CAN",
+            "CAM" => "Camera",
+            "MNT" => "Gimbal",
+            "FLOW" => "OpticalFlow",
+            "MAG" => "Magnetometer",
+            "VISO" or "VISUAL" => "VisualOdometry",
+            "AVOID" or "OA" => "ObjectAvoidance",
+            "SPRAY" => "Spraying",
+            _ => prefix.Length > 0 ? char.ToUpperInvariant(prefix[0]) + prefix[1..].ToLowerInvariant() : "General"
+        };
+    }
+
+    private void LoadFallbackParameters()
+    {
         var commonParams = new[]
         {
-            // Flight Controller Type
             ("SYSID_THISMAV", "MAVLink system ID", "System"),
-            ("SYSID_MYGCS", "Ground station MAVLink ID", "System"),
-            
-            // Safety
             ("ARMING_CHECK", "Arming safety checks", "Safety"),
             ("BRD_SAFETYENABLE", "Enable hardware safety switch", "Safety"),
             ("FENCE_ENABLE", "Geofence enable", "Safety"),
-            ("FENCE_ACTION", "Geofence breach action", "Safety"),
             ("FS_THR_ENABLE", "Throttle failsafe enable", "Safety"),
             ("FS_GCS_ENABLE", "GCS failsafe enable", "Safety"),
-            
-            // Calibration
             ("COMPASS_USE", "Use compass for navigation", "Calibration"),
             ("COMPASS_AUTODEC", "Auto declination", "Calibration"),
             ("INS_GYR_CAL", "Gyro calibration", "Calibration"),
             ("INS_ACC_BODYFIX", "Accelerometer body-fixed", "Calibration"),
-            
-            // Flight Modes
             ("FLTMODE1", "Flight mode 1", "Flight Modes"),
             ("FLTMODE2", "Flight mode 2", "Flight Modes"),
             ("FLTMODE3", "Flight mode 3", "Flight Modes"),
             ("FLTMODE4", "Flight mode 4", "Flight Modes"),
             ("FLTMODE5", "Flight mode 5", "Flight Modes"),
             ("FLTMODE6", "Flight mode 6", "Flight Modes"),
-            
-            // Battery
             ("BATT_CAPACITY", "Battery capacity (mAh)", "Battery"),
             ("BATT_LOW_VOLT", "Low battery voltage", "Battery"),
             ("BATT_CRT_VOLT", "Critical battery voltage", "Battery"),
             ("BATT_FS_LOW_ACT", "Low battery failsafe action", "Battery"),
-            
-            // GPS
             ("GPS_TYPE", "GPS type", "GPS"),
             ("GPS_AUTO_SWITCH", "Auto GPS switching", "GPS"),
-            
-            // RC
-            ("RC1_MIN", "RC channel 1 minimum", "RC Input"),
-            ("RC1_MAX", "RC channel 1 maximum", "RC Input"),
-            ("RC1_TRIM", "RC channel 1 trim", "RC Input"),
-            
-            // Motor/ESC
             ("MOT_PWM_MIN", "Motor PWM minimum", "Motors"),
             ("MOT_PWM_MAX", "Motor PWM maximum", "Motors"),
             ("MOT_SPIN_MIN", "Motor spin minimum", "Motors"),
             ("MOT_SPIN_MAX", "Motor spin maximum", "Motors"),
-            
-            // PID Tuning (critical)
             ("ATC_RAT_RLL_P", "Roll rate P gain", "PID Tuning"),
             ("ATC_RAT_PIT_P", "Pitch rate P gain", "PID Tuning"),
             ("ATC_RAT_YAW_P", "Yaw rate P gain", "PID Tuning"),
-            ("PSC_VELXY_P", "Velocity XY P gain", "PID Tuning"),
-            ("PSC_POSZ_P", "Position Z P gain", "PID Tuning")
         };
 
-        AvailableParameters.Clear();
         foreach (var (name, desc, group) in commonParams)
         {
-            AvailableParameters.Add(new ParameterItemModel
+            var item = new ParameterItemModel
             {
                 Name = name,
                 Description = desc,
                 Group = group,
                 IsSelected = false
-            });
+            };
+            item.PropertyChanged += (_, args) =>
+            {
+                if (args.PropertyName == nameof(ParameterItemModel.IsSelected))
+                    UpdateSelectedParamCount();
+            };
+            AvailableParameters.Add(item);
         }
-
-        FilterParameters();
     }
 
     [RelayCommand]

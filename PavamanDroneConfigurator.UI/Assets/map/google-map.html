@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html>
 <head>
     <meta charset="utf-8"/>
@@ -405,7 +405,7 @@
     <div class="mission-card glass">
         <div class="mission-row"><span class="label">ETA</span><span class="value" id="miniEta">N/A</span></div>
         <div class="mission-row"><span class="label">BATTERY</span><span class="value" id="miniBatt">--%</span></div>
-        <div class="mission-row"><span class="label">HEADING</span><span class="value" id="miniHeading">0°</span></div>
+        <div class="mission-row"><span class="label">HEADING</span><span class="value" id="miniHeading">0Â°</span></div>
     </div>
 
     <div class="bottom-telemetry glass" id="telemetryStrip">
@@ -508,26 +508,21 @@
         }
 
         function createDroneIconObject(isArmed, heading) {
-            // Always use green for the drone marker (matches Mission Planner behavior).
             const bodyColor = '#22c55e';
             const glowColor = 'rgba(34,197,94,0.7)';
             const h = heading || 0;
             const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" width="40" height="40">
                 <g transform="rotate(${h},20,20)">
                     <filter id="glow"><feDropShadow dx="0" dy="0" stdDeviation="2" flood-color="${glowColor}" flood-opacity="0.9"/></filter>
-                    <!-- drone body -->
                     <ellipse cx="20" cy="20" rx="7" ry="7" fill="${bodyColor}" opacity="0.95" filter="url(#glow)"/>
-                    <!-- arms -->
                     <line x1="20" y1="20" x2="6" y2="6"  stroke="${bodyColor}" stroke-width="2.5" opacity="0.85"/>
                     <line x1="20" y1="20" x2="34" y2="6"  stroke="${bodyColor}" stroke-width="2.5" opacity="0.85"/>
                     <line x1="20" y1="20" x2="6" y2="34" stroke="${bodyColor}" stroke-width="2.5" opacity="0.85"/>
                     <line x1="20" y1="20" x2="34" y2="34" stroke="${bodyColor}" stroke-width="2.5" opacity="0.85"/>
-                    <!-- propellers -->
                     <circle cx="6" cy="6"   r="5" fill="none" stroke="${bodyColor}" stroke-width="1.5" opacity="0.75"/>
                     <circle cx="34" cy="6"  r="5" fill="none" stroke="${bodyColor}" stroke-width="1.5" opacity="0.75"/>
                     <circle cx="6" cy="34"  r="5" fill="none" stroke="${bodyColor}" stroke-width="1.5" opacity="0.75"/>
                     <circle cx="34" cy="34" r="5" fill="none" stroke="${bodyColor}" stroke-width="1.5" opacity="0.75"/>
-                    <!-- heading arrow (points north / forward) -->
                     <polygon points="20,4 17,13 23,13" fill="white" opacity="0.9"/>
                 </g>
             </svg>`;
@@ -645,20 +640,18 @@
             if (isSprayActive) updateSprayTrail(lat, lng, heading);
             if (isFollowing) updateCameraFollow(position, heading);
 
-            positionSonarRings(position);
+            const gmLatLng = new google.maps.LatLng(lat, lng);
+            positionSonarRings(gmLatLng);
 
-            if (missionStartAt === null) {
-                missionStartAt = Date.now();
-            }
+            if (missionStartAt === null) missionStartAt = Date.now();
 
-            // Update compass rose needle rotation
             updateCompassNeedle(lastDroneHeading);
 
             document.getElementById('altVal').textContent = `${(alt || 0).toFixed(1)} m`;
             document.getElementById('speedVal').textContent = `${(groundSpeed || 0).toFixed(1)} m/s`;
             document.getElementById('vSpeedVal').textContent = `${(verticalSpeed || 0).toFixed(1)} m/s`;
             document.getElementById('flowVal').textContent = `${(flowRate != null ? flowRate : 0).toFixed(1)} L/min`;
-            document.getElementById('miniHeading').textContent = `${Math.round(lastDroneHeading)}°`;
+            document.getElementById('miniHeading').textContent = `${Math.round(lastDroneHeading)}Â°`;
             const elapsed = missionStartAt === null ? 0 : Math.max(0, Math.floor((Date.now() - missionStartAt) / 1000));
             const hh = String(Math.floor(elapsed / 3600)).padStart(2, '0');
             const mm = String(Math.floor((elapsed % 3600) / 60)).padStart(2, '0');
@@ -667,23 +660,18 @@
             document.getElementById('statSats').textContent = satelliteCount != null ? String(satelliteCount) : '0';
             document.getElementById('statMode').textContent = flightMode ? String(flightMode).substring(0, MAX_FLIGHT_MODE_DISPLAY_LENGTH).toUpperCase() : 'UNKN';
 
-            // Update area covered from flight path (dynamically, even when spray is off)
             updateFlightPathArea();
         }
 
         function updateCompassNeedle(heading) {
             const needle = document.querySelector('.compass-needle');
             if (!needle) return;
-            // Rotate needle around the center of the compass ring.
-            // The needle is positioned at top:6px within a 72px ring (center=36px).
-            // Transform-origin at 50% 30px rotates around the ring's center.
             needle.style.transformOrigin = '50% 30px';
             needle.style.transform = `translateX(-50%) rotate(${heading || 0}deg)`;
         }
 
         function updateFlightPathArea() {
-            if (isSprayActive) return; // spray trail area is handled in updateSprayTrail
-            // Compute approximate bounding-box area of the flight path for non-spray display
+            if (isSprayActive) return;
             if (flightPathCoords.length < 2) return;
             let minLat = Infinity, maxLat = -Infinity, minLng = Infinity, maxLng = -Infinity;
             for (const p of flightPathCoords) {
@@ -694,8 +682,7 @@
             }
             const latMeters = (maxLat - minLat) * 111320;
             const lngMeters = (maxLng - minLng) * 111320 * Math.cos(((minLat + maxLat) / 2) * Math.PI / 180);
-            const areaM2 = latMeters * lngMeters;
-            const areaAcres = areaM2 / SQUARE_METERS_PER_ACRE;
+            const areaAcres = (latMeters * lngMeters) / SQUARE_METERS_PER_ACRE;
             document.getElementById('areaVal').textContent = `${areaAcres.toFixed(2)} ac`;
         }
 
@@ -715,15 +702,13 @@
             const newPos = { lat, lng };
             if (flightPathCoords.length > 0) {
                 const lastPos = flightPathCoords[flightPathCoords.length - 1];
-                const distance = getDistance(lastPos, newPos);
-                if (distance < 0.5) return;
+                if (getDistance(lastPos, newPos) < 0.5) return;
             }
             flightPathCoords.push(newPos);
             while (flightPathCoords.length > CONFIG.maxFlightPathPoints) flightPathCoords.shift();
             flightPath.setOptions({ strokeColor: '#00E5C9' });
             flightPath.setPath(flightPathCoords);
-            const distKm = pathDistanceKm(flightPathCoords);
-            document.getElementById('distVal').textContent = `${distKm.toFixed(2)} km`;
+            document.getElementById('distVal').textContent = `${pathDistanceKm(flightPathCoords).toFixed(2)} km`;
         }
 
         function pathDistanceKm(path) {
@@ -789,8 +774,7 @@
         function setMapType(type) {
             if (!map) return;
             map.setMapTypeId(type || 'satellite');
-            const text = (type || 'satellite').toUpperCase();
-            document.getElementById('mapTypeText').textContent = text;
+            document.getElementById('mapTypeText').textContent = (type || 'satellite').toUpperCase();
             mapTypeIndex = Math.max(0, mapTypeCycle.indexOf(type));
         }
 
@@ -802,7 +786,6 @@
         function setHomePosition(lat, lng) {
             if (homeMarker) { homeMarker.setMap(null); homeMarker = null; }
             homePosition = { lat, lng };
-            // Home position is tracked internally but no icon is shown on the map.
         }
 
         function createWaypointIcon(number, isCurrent) {
@@ -825,11 +808,10 @@
             const pathCoords = [];
             waypoints.forEach((wp, index) => {
                 const position = { lat: wp.lat, lng: wp.lon };
-                const isCurrent = wp.isCurrent || false;
                 const marker = new google.maps.Marker({
                     map,
                     position,
-                    icon: createWaypointIcon(index + 1, isCurrent),
+                    icon: createWaypointIcon(index + 1, wp.isCurrent || false),
                     label: { text: String(index + 1), color: '#ffffff', fontWeight: '700', fontSize: '11px' },
                     title: `Waypoint ${index + 1} - ${(wp.alt || 50).toFixed(0)}m`,
                     zIndex: 800,
@@ -979,26 +961,18 @@
             clearSurveyGrid();
             if (!gridWaypoints || gridWaypoints.length < 2) return;
             for (let i = 0; i < gridWaypoints.length - 1; i += 2) {
-                const start = gridWaypoints[i];
-                const end = gridWaypoints[i + 1];
-                const line = new google.maps.Polyline({
-                    map,
-                    path: [{ lat: start.lat, lng: start.lon }, { lat: end.lat, lng: end.lon }],
-                    strokeColor: '#00E5C9',
-                    strokeOpacity: 0.8,
-                    strokeWeight: 3
-                });
-                surveyGridLines.push(line);
-            }
-            for (let i = 1; i < gridWaypoints.length - 1; i += 2) {
-                const turnLine = new google.maps.Polyline({
+                surveyGridLines.push(new google.maps.Polyline({
                     map,
                     path: [{ lat: gridWaypoints[i].lat, lng: gridWaypoints[i].lon }, { lat: gridWaypoints[i + 1].lat, lng: gridWaypoints[i + 1].lon }],
-                    strokeColor: '#ffb347',
-                    strokeOpacity: 0.6,
-                    strokeWeight: 2
-                });
-                surveyGridLines.push(turnLine);
+                    strokeColor: '#00E5C9', strokeOpacity: 0.8, strokeWeight: 3
+                }));
+            }
+            for (let i = 1; i < gridWaypoints.length - 1; i += 2) {
+                surveyGridLines.push(new google.maps.Polyline({
+                    map,
+                    path: [{ lat: gridWaypoints[i].lat, lng: gridWaypoints[i].lon }, { lat: gridWaypoints[i + 1].lat, lng: gridWaypoints[i + 1].lon }],
+                    strokeColor: '#ffb347', strokeOpacity: 0.6, strokeWeight: 2
+                }));
             }
         }
 
@@ -1030,11 +1004,8 @@
                     fillOpacity: 0.3
                 });
                 sprayOverlays.push(polygon);
-                const areaVal = Math.max(
-                    0,
-                    (sprayOverlays.length * sprayWidthMeters * AVERAGE_SPRAY_SEGMENT_LENGTH_METERS) / SQUARE_METERS_PER_ACRE
-                );
-                document.getElementById('areaVal').textContent = `${areaVal.toFixed(2)} ac`;
+                const areaVal = (sprayOverlays.length * sprayWidthMeters * AVERAGE_SPRAY_SEGMENT_LENGTH_METERS) / SQUARE_METERS_PER_ACRE;
+                document.getElementById('areaVal').textContent = `${Math.max(0, areaVal).toFixed(2)} ac`;
                 document.getElementById('consumedVal').textContent = `${(sprayOverlays.length * 0.05).toFixed(1)} L`;
                 document.getElementById('miniEta').textContent = estimateEta();
             }
@@ -1047,9 +1018,7 @@
             const d = getDistance(lastDronePosition, { lat: end.lat, lng: end.lon });
             const spd = lastDroneGroundSpeed > 0.1 ? lastDroneGroundSpeed : ESTIMATED_DRONE_SPEED_MS;
             const sec = Math.floor(d / spd);
-            const mm = String(Math.floor(sec / 60)).padStart(2, '0');
-            const ss = String(sec % 60).padStart(2, '0');
-            return `${mm}:${ss}`;
+            return `${String(Math.floor(sec / 60)).padStart(2, '0')}:${String(sec % 60).padStart(2, '0')}`;
         }
 
         function offsetPoint(point, angleDeg, distanceMeters) {
@@ -1072,8 +1041,7 @@
             if (!map) return;
             const z = map.getZoom() || 18;
             const approx = Math.max(5, Math.round(156543.03392 * Math.cos((map.getCenter()?.lat() || 0) * Math.PI / 180) / Math.pow(2, z) * 90));
-            const text = approx >= 1000 ? `${(approx / 1000).toFixed(1)} km` : `${approx} m`;
-            document.getElementById('scaleText').textContent = text;
+            document.getElementById('scaleText').textContent = approx >= 1000 ? `${(approx / 1000).toFixed(1)} km` : `${approx} m`;
         }
 
         function setGeofence(center, radius, maxAlt) {
@@ -1117,8 +1085,7 @@
                 flightPath.setOptions({ strokeColor: '#00E5C9' });
                 flightPath.setPath(flightPathCoords);
             }
-            const distKm = pathDistanceKm(flightPathCoords);
-            document.getElementById('distVal').textContent = `${distKm.toFixed(2)} km`;
+            document.getElementById('distVal').textContent = `${pathDistanceKm(flightPathCoords).toFixed(2)} km`;
         }
 
         window.updateDrone = updateDrone;
@@ -1147,6 +1114,7 @@
         window.ViewMode = ViewMode;
         window.MapMessageType = MapMessageType;
     </script>
-    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAMZgfUEgWyQmV9pSXnzA5AjAPAmDK0f1U&callback=initMap" async defer></script>
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAHZLfFHMyXVJhWUW28d9MqNRQq92bQCWY
+&callback=initMap" async defer></script>
 </body>
 </html>

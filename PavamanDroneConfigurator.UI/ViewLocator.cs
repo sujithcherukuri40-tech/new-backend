@@ -18,16 +18,26 @@ public class ViewLocator : IDataTemplate
     {
         if (param is null)
             return null;
-        
-        var name = param.GetType().FullName!.Replace("ViewModel", "View", StringComparison.Ordinal);
-        var type = Type.GetType(name);
 
-        if (type != null)
-        {
-            return (Control)Activator.CreateInstance(type)!;
-        }
-        
-        return new TextBlock { Text = "Not Found: " + name };
+        var fullName = param.GetType().FullName!;
+
+        // Strategy 1: XxxViewModel -> XxxView  (e.g. AdminDashboardViewModel -> AdminDashboardView)
+        // Note: this also converts "ViewModels." -> "Views." in the namespace automatically.
+        var nameAsView = fullName.Replace("ViewModel", "View", StringComparison.Ordinal);
+        var typeAsView = Type.GetType(nameAsView);
+        if (typeAsView != null)
+            return (Control)Activator.CreateInstance(typeAsView)!;
+
+        // Strategy 2: XxxViewModel -> Xxx  (e.g. CameraConfigPageViewModel -> CameraConfigPage)
+        // Fix namespace first so "ViewModels." doesn't collapse to "s."
+        var nameAsPage = fullName
+            .Replace(".ViewModels.", ".Views.", StringComparison.Ordinal)
+            .Replace("ViewModel", "", StringComparison.Ordinal);
+        var typeAsPage = Type.GetType(nameAsPage);
+        if (typeAsPage != null)
+            return (Control)Activator.CreateInstance(typeAsPage)!;
+
+        return new TextBlock { Text = "Not Found: " + fullName };
     }
 
     public bool Match(object? data)

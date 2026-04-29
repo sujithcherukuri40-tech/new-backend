@@ -50,6 +50,8 @@ public partial class ParamLockModel : ObservableObject
 
     public string DeviceDisplay => string.IsNullOrWhiteSpace(DeviceId) ? "All Devices" : DeviceId;
     
+    public string UserInitial => string.IsNullOrEmpty(UserName) ? "?" : UserName.Trim()[0].ToString().ToUpper();
+
     public string ParamCountDisplay => $"{ParamCount} parameter{(ParamCount != 1 ? "s" : "")}";
     
     public string CreatedAtDisplay => CreatedAt.ToLocalTime().ToString("MMM dd, yyyy HH:mm");
@@ -106,7 +108,8 @@ public partial class UserItemModel : ObservableObject
     private int _existingLocksCount;
 
     public string DisplayText => $"{FullName} ({Email})";
-    
+    public string Initial => string.IsNullOrWhiteSpace(FullName) ? "?" : FullName.Trim()[0].ToString().ToUpper();
+
     public string LocksInfo => ExistingLocksCount > 0 
         ? $"{ExistingLocksCount} existing lock{(ExistingLocksCount != 1 ? "s" : "")}"
         : "No locks";

@@ -25,6 +25,8 @@ public partial class FirmwarePageViewModel : ViewModelBase
     private readonly IConnectionService? _connectionService;
     private readonly FirmwareApiService? _firmwareApiService;
     private readonly ILogger<FirmwarePageViewModel> _logger;
+    private readonly ViewModels.Auth.AuthSessionViewModel? _authSession;
+    private readonly PavamanDroneConfigurator.Core.Interfaces.ITokenStorage? _tokenStorage;
     private CancellationTokenSource? _operationCts;
 
     #region Mode Selection
@@ -160,12 +162,16 @@ public partial class FirmwarePageViewModel : ViewModelBase
         IFirmwareService firmwareService, 
         ILogger<FirmwarePageViewModel> logger,
         IConnectionService? connectionService = null,
-        FirmwareApiService? firmwareApiService = null)
+        FirmwareApiService? firmwareApiService = null,
+        ViewModels.Auth.AuthSessionViewModel? authSession = null,
+        PavamanDroneConfigurator.Core.Interfaces.ITokenStorage? tokenStorage = null)
     {
         _firmwareService = firmwareService;
         _logger = logger;
         _connectionService = connectionService;
         _firmwareApiService = firmwareApiService;
+        _authSession = authSession;
+        _tokenStorage = tokenStorage;
 
         _firmwareService.ProgressChanged += OnProgressChanged;
         _firmwareService.BoardDetected += OnBoardDetected;
@@ -181,9 +187,7 @@ public partial class FirmwarePageViewModel : ViewModelBase
     private void LoadFirmwareSources()
     {
         FirmwareSources.Clear();
-        FirmwareSources.Add(new FirmwareSourceOption { Source = FirmwareSource.InApp, DisplayName = "In-App (offline)" });
-        FirmwareSources.Add(new FirmwareSourceOption { Source = FirmwareSource.WebLatest, DisplayName = "Web: Latest" });
-        FirmwareSources.Add(new FirmwareSourceOption { Source = FirmwareSource.WebBeta, DisplayName = "Web: Beta" });
+        FirmwareSources.Add(new FirmwareSourceOption { Source = FirmwareSource.InApp, DisplayName = "KFT Firmware (Assigned)" });
         SelectedFirmwareSource = FirmwareSources.First();
     }
 
@@ -302,80 +306,109 @@ public partial class FirmwarePageViewModel : ViewModelBase
         {
             if (_firmwareApiService != null)
             {
-                // Load firmwares from S3 via API
-                var firmwares = await _firmwareApiService.GetInAppFirmwaresAsync();
+                // If authenticated, fetch only user-assigned firmwares; fall back to all firmwares
+                var authState = _authSession?.CurrentState;
+                bool useUserEndpoint = authState?.IsAuthenticated == true && _tokenStorage != null;
                 
-                // Clear and populate CustomFirmwares collection
-                CustomFirmwares.Clear();
-                
-                if (firmwares != null && firmwares.Count > 0)
+                List<CustomFirmwareItem> items = new();
+
+                if (useUserEndpoint)
                 {
-                    AddLog($"Found {firmwares.Count} firmware(s) in S3");
-                    StatusMessage = $"Loaded {firmwares.Count} firmware(s) from S3";
-                    
-                    // Add each firmware to the custom firmwares list
-                    foreach (var firmware in firmwares)
+                    try
                     {
-                        var customItem = new CustomFirmwareItem
+                        var accessToken = await _tokenStorage!.GetAccessTokenAsync();
+                        if (!string.IsNullOrEmpty(accessToken))
                         {
-                            Key = firmware.Key,
-                            FileName = firmware.FileName,
-                            DisplayName = firmware.DisplayName,
-                            FirmwareName = firmware.FirmwareName,
-                            FirmwareVersion = firmware.FirmwareVersion,
-                            FirmwareDescription = firmware.FirmwareDescription,
-                            VehicleType = firmware.VehicleType,
-                            Size = firmware.Size,
-                            SizeDisplay = firmware.SizeDisplay,
-                            LastModified = firmware.LastModified,
-                            DownloadUrl = firmware.DownloadUrl,
-                            IsSelected = false
-                        };
-                        
-                        CustomFirmwares.Add(customItem);
-                        
-                        var logInfo = !string.IsNullOrWhiteSpace(firmware.FirmwareName)
-                            ? $"{firmware.FirmwareName} v{firmware.FirmwareVersion}"
-                            : firmware.FileName;
-                        AddLog($"  {firmware.VehicleType}: {logInfo} ({firmware.SizeDisplay})");
-                        
-                        if (!string.IsNullOrWhiteSpace(firmware.FirmwareDescription))
-                        {
-                            AddLog($"    Description: {firmware.FirmwareDescription}");
+                            var userFirmwares = await _firmwareApiService.GetMyFirmwaresAsync(accessToken);
+                            foreach (var fw in userFirmwares)
+                            {
+                                items.Add(new CustomFirmwareItem
+                                {
+                                    Key = fw.S3Key,
+                                    FileName = fw.FileName,
+                                    DisplayName = fw.DisplayName ?? fw.FileName,
+                                    FirmwareName = fw.FirmwareName,
+                                    FirmwareVersion = fw.FirmwareVersion,
+                                    FirmwareDescription = fw.Description,
+                                    VehicleType = fw.VehicleType,
+                                    Size = fw.FileSize,
+                                    SizeDisplay = fw.FileSizeDisplay,
+                                    LastModified = fw.AssignedAt,
+                                    DownloadUrl = fw.DownloadUrl ?? string.Empty,
+                                    IsSelected = false
+                                });
+                            }
+                            AddLog($"Loaded {items.Count} assigned firmware(s) for your account");
                         }
                     }
-                    
-                    HasNoCustomFirmwares = false;
-                    
-                    // Still match firmwares to vehicle types for legacy support
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Failed to fetch user-assigned firmwares, falling back to all firmwares");
+                        // Fall through to global fetch
+                        items.Clear();
+                    }
+                }
+
+                // If no user firmwares loaded, show empty state
+                if (items.Count == 0)
+                {
+                    AddLog("No firmwares assigned to your account. Contact admin to get firmware assigned.");
+                    HasNoCustomFirmwares = true;
                     foreach (var vehicleType in VehicleTypes)
                     {
-                        var matchingFirmware = firmwares.FirstOrDefault(f => 
+                        vehicleType.VersionText = "No firmware assigned";
+                        vehicleType.Availability = FirmwareAvailability.NotSupported;
+                    }
+                    StatusMessage = "No firmware assigned to your account. Please contact admin.";
+                    return;
+                }
+
+                // Clear and populate CustomFirmwares collection
+                CustomFirmwares.Clear();
+
+                if (items.Count > 0)
+                {
+                    AddLog($"Found {items.Count} firmware(s)");
+                    StatusMessage = $"Loaded {items.Count} firmware(s) from S3";
+
+                    foreach (var customItem in items)
+                    {
+                        CustomFirmwares.Add(customItem);
+
+                        var logInfo = !string.IsNullOrWhiteSpace(customItem.FirmwareName)
+                            ? $"{customItem.FirmwareName} v{customItem.FirmwareVersion}"
+                            : customItem.FileName;
+                        AddLog($"  {customItem.VehicleType}: {logInfo} ({customItem.SizeDisplay})");
+
+                        if (!string.IsNullOrWhiteSpace(customItem.FirmwareDescription))
+                            AddLog($"    Description: {customItem.FirmwareDescription}");
+                    }
+
+                    HasNoCustomFirmwares = false;
+
+                    // Match to vehicle types for legacy support
+                    foreach (var vehicleType in VehicleTypes)
+                    {
+                        var match = items.FirstOrDefault(f =>
                             f.VehicleType.Equals(vehicleType.ArduPilotId, StringComparison.OrdinalIgnoreCase) ||
                             (vehicleType.ArduPilotId == "Copter" && f.VehicleType == "Copter") ||
                             (vehicleType.ArduPilotId == "Plane" && f.VehicleType == "Plane") ||
                             (vehicleType.ArduPilotId == "Rover" && f.VehicleType == "Rover"));
-                        
-                        if (matchingFirmware != null)
+
+                        if (match != null)
                         {
                             var displayText = "S3: ";
-                            
-                            if (!string.IsNullOrWhiteSpace(matchingFirmware.FirmwareName))
+                            if (!string.IsNullOrWhiteSpace(match.FirmwareName))
                             {
-                                displayText += matchingFirmware.FirmwareName;
-                                
-                                if (!string.IsNullOrWhiteSpace(matchingFirmware.FirmwareVersion))
-                                {
-                                    displayText += $" v{matchingFirmware.FirmwareVersion}";
-                                }
+                                displayText += match.FirmwareName;
+                                if (!string.IsNullOrWhiteSpace(match.FirmwareVersion))
+                                    displayText += $" v{match.FirmwareVersion}";
                             }
                             else
                             {
-                                displayText += matchingFirmware.DisplayName;
+                                displayText += match.DisplayName;
                             }
-                            
-                            displayText += $" ({matchingFirmware.SizeDisplay})";
-                            
+                            displayText += $" ({match.SizeDisplay})";
                             vehicleType.VersionText = displayText;
                             vehicleType.Availability = FirmwareAvailability.Available;
                         }
@@ -388,14 +421,14 @@ public partial class FirmwarePageViewModel : ViewModelBase
                 }
                 else
                 {
-                    AddLog("No firmwares found in S3. Upload firmwares to S3 bucket.");
+                    AddLog("No firmwares found. Upload firmwares via the Admin Panel.");
                     HasNoCustomFirmwares = true;
                     foreach (var vehicleType in VehicleTypes)
                     {
-                        vehicleType.VersionText = "No firmwares in S3";
+                        vehicleType.VersionText = "No firmwares available";
                         vehicleType.Availability = FirmwareAvailability.NotSupported;
                     }
-                    StatusMessage = "No firmwares found in S3. Admin can upload firmwares in the Admin Panel.";
+                    StatusMessage = "No firmwares found. Admin can upload and assign firmwares.";
                 }
             }
             else

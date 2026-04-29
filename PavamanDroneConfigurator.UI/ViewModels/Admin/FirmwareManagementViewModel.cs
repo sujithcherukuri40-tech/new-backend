@@ -1,8 +1,11 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
+using PavamanDroneConfigurator.Core.Interfaces;
 using PavamanDroneConfigurator.Infrastructure.Services;
+using PavamanDroneConfigurator.Infrastructure.Services.Auth;
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
@@ -11,13 +14,14 @@ using System.Threading.Tasks;
 namespace PavamanDroneConfigurator.UI.ViewModels.Admin;
 
 /// <summary>
-/// ViewModel for Firmware Management admin panel.
+/// ViewModel for KFT Firmware Management admin panel.
 /// PRODUCTION: Connects to backend API which handles AWS S3 operations.
 /// Desktop app never accesses AWS directly for security.
 /// </summary>
 public partial class FirmwareManagementViewModel : ViewModelBase
 {
     private readonly FirmwareApiService _firmwareApi;
+    private readonly AdminApiService? _adminApiService;
     private readonly ILogger<FirmwareManagementViewModel>? _logger;
 
     #region Properties
@@ -57,12 +61,40 @@ public partial class FirmwareManagementViewModel : ViewModelBase
     
     public ObservableCollection<FirmwareItem> Firmwares { get; } = new();
     
+    // User Assignment
+    [ObservableProperty] private Core.Interfaces.AdminUserListItem? _selectedUser;
+    [ObservableProperty] private FirmwareItem? _firmwareToAssign;
+    [ObservableProperty] private bool _isLoadingUsers;
+    [ObservableProperty] private bool _isLoadingUserFirmwares;
+    [ObservableProperty] private bool _isAssigning;
+    [ObservableProperty] private string? _assignStatusMessage;
+    
+    public ObservableCollection<Core.Interfaces.AdminUserListItem> Users { get; } = new();
+    public ObservableCollection<UserFirmwareDto> SelectedUserFirmwares { get; } = new();
+    public ObservableCollection<FirmwareItem> FilteredFirmwares { get; } = new();
+
+    [ObservableProperty] private string? _firmwareSearchText;
+
+    // ── Google-style filter chips & sort ─────────────────────────────────────
+    /// Vehicle type filter chip selected by the user. "All" means no filter.
+    [ObservableProperty] private string _vehicleTypeFilter = "All";
+
+    /// Sort field: "name" | "version" | "size" | "date"
+    [ObservableProperty] private string _sortField = "date";
+
+    /// Sort direction: true = ascending
+    [ObservableProperty] private bool _sortAscending = false;
+
+    public int FilteredFirmwareCount => FilteredFirmwares.Count;
+
     public bool CanUpload => !string.IsNullOrEmpty(NewFirmwareName) 
                              && !string.IsNullOrEmpty(NewFirmwareVersion) 
                              && !string.IsNullOrEmpty(SelectedFirmwareFilePath)
                              && !IsUploading;
     
-    public bool HasNoFirmwares => !IsLoadingFirmwares && Firmwares.Count == 0;
+    public bool HasNoFirmwares => !IsLoadingFirmwares && FilteredFirmwares.Count == 0;
+    public bool HasNoUserFirmwares => !IsLoadingUserFirmwares && SelectedUserFirmwares.Count == 0;
+    public bool CanAssign => SelectedUser != null && FirmwareToAssign != null && !IsAssigning;
     
     #endregion
     
@@ -73,10 +105,13 @@ public partial class FirmwareManagementViewModel : ViewModelBase
     /// </summary>
     public FirmwareManagementViewModel(
         FirmwareApiService firmwareApi,
-        ILogger<FirmwareManagementViewModel> logger)
+        ILogger<FirmwareManagementViewModel> logger,
+        AdminApiService? adminApiService = null)
     {
         _firmwareApi = firmwareApi;
         _logger = logger;
+        _adminApiService = adminApiService;
+        SelectedUserFirmwares.CollectionChanged += (_, _) => OnPropertyChanged(nameof(HasNoUserFirmwares));
         
         // DON'T load firmwares in constructor - defer until page is opened
         // This prevents slow startup when API is not accessible
@@ -96,10 +131,90 @@ public partial class FirmwareManagementViewModel : ViewModelBase
     /// </summary>
     public async Task InitializeAsync()
     {
+        var tasks = new System.Collections.Generic.List<Task>();
         if (!IsLoadingFirmwares && Firmwares.Count == 0)
+            tasks.Add(LoadFirmwaresAsync());
+        if (!IsLoadingUsers && Users.Count == 0)
+            tasks.Add(LoadUsersAsync());
+        if (tasks.Count > 0)
+            await Task.WhenAll(tasks);
+    }
+    
+    partial void OnIsLoadingUserFirmwaresChanged(bool value) => OnPropertyChanged(nameof(HasNoUserFirmwares));
+
+    partial void OnSelectedUserChanged(Core.Interfaces.AdminUserListItem? value)
+    {
+        OnPropertyChanged(nameof(CanAssign));
+        AssignFirmwareToUserCommand.NotifyCanExecuteChanged();
+        if (value != null)
+            _ = LoadUserFirmwaresAsync(value.Id);
+        else
+            SelectedUserFirmwares.Clear();
+    }
+
+    partial void OnFirmwareToAssignChanged(FirmwareItem? value)
+    {
+        OnPropertyChanged(nameof(CanAssign));
+        AssignFirmwareToUserCommand.NotifyCanExecuteChanged();
+    }
+
+    partial void OnFirmwareSearchTextChanged(string? value) => ApplyFirmwareFilter();
+    partial void OnVehicleTypeFilterChanged(string value) => ApplyFirmwareFilter();
+    partial void OnSortFieldChanged(string value) => ApplyFirmwareFilter();
+    partial void OnSortAscendingChanged(bool value) => ApplyFirmwareFilter();
+
+    [RelayCommand]
+    private void SetVehicleFilter(string filter)
+    {
+        VehicleTypeFilter = filter;
+    }
+
+    [RelayCommand]
+    private void SetSort(string field)
+    {
+        if (SortField == field)
+            SortAscending = !SortAscending; // toggle direction
+        else
         {
-            await LoadFirmwaresAsync();
+            SortField = field;
+            SortAscending = field == "name" || field == "version";
         }
+    }
+
+    private void ApplyFirmwareFilter()
+    {
+        FilteredFirmwares.Clear();
+        var search = FirmwareSearchText?.Trim().ToLowerInvariant();
+
+        IEnumerable<FirmwareItem> source = Firmwares;
+
+        // Text search
+        if (!string.IsNullOrEmpty(search))
+            source = source.Where(f =>
+                (f.FirmwareName?.ToLowerInvariant().Contains(search) == true) ||
+                (f.FirmwareVersion?.ToLowerInvariant().Contains(search) == true) ||
+                (f.VehicleType?.ToLowerInvariant().Contains(search) == true) ||
+                (f.FileName?.ToLowerInvariant().Contains(search) == true));
+
+        // Vehicle type chip filter
+        if (!string.IsNullOrEmpty(VehicleTypeFilter) && VehicleTypeFilter != "All")
+            source = source.Where(f =>
+                string.Equals(f.VehicleType, VehicleTypeFilter, StringComparison.OrdinalIgnoreCase));
+
+        // Sort
+        source = SortField switch
+        {
+            "name"    => SortAscending ? source.OrderBy(f => f.FirmwareName)    : source.OrderByDescending(f => f.FirmwareName),
+            "version" => SortAscending ? source.OrderBy(f => f.FirmwareVersion) : source.OrderByDescending(f => f.FirmwareVersion),
+            "size"    => SortAscending ? source.OrderBy(f => f.FileSize)   : source.OrderByDescending(f => f.FileSize),
+            _         => SortAscending ? source.OrderBy(f => f.LastModified)    : source.OrderByDescending(f => f.LastModified),
+        };
+
+        foreach (var item in source)
+            FilteredFirmwares.Add(item);
+
+        OnPropertyChanged(nameof(HasNoFirmwares));
+        OnPropertyChanged(nameof(FilteredFirmwareCount));
     }
     
     /// <summary>
@@ -194,10 +309,12 @@ public partial class FirmwareManagementViewModel : ViewModelBase
             // Add to list
             Firmwares.Insert(0, firmware);
             TotalFirmwareCount = Firmwares.Count;
-            
+
             // Calculate storage
             var totalBytes = Firmwares.Sum(f => f.FileSize);
             TotalStorageUsed = FormatFileSize(totalBytes);
+
+            ApplyFirmwareFilter();
             
             // Clear form
             ClearUploadForm();
@@ -357,6 +474,75 @@ public partial class FirmwareManagementViewModel : ViewModelBase
     }
     
     /// <summary>
+    /// Assigns a firmware to the selected user
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanAssign))]
+    private async Task AssignFirmwareToUserAsync()
+    {
+        if (SelectedUser == null || FirmwareToAssign == null || _adminApiService == null) return;
+        
+        try
+        {
+            IsAssigning = true;
+            AssignStatusMessage = $"Assigning {FirmwareToAssign.FirmwareName} to {SelectedUser.FullName}...";
+            
+            await _adminApiService.AssignFirmwareToUserAsync(SelectedUser.Id, FirmwareToAssign.FilePath);
+            
+            AssignStatusMessage = $"✔ Assigned {FirmwareToAssign.FirmwareName} to {SelectedUser.FullName}";
+            _logger?.LogInformation("Assigned firmware {Firmware} to user {User}", FirmwareToAssign.FileName, SelectedUser.FullName);
+            
+            // Refresh user's firmware list
+            await LoadUserFirmwaresAsync(SelectedUser.Id);
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Failed to assign firmware to user");
+            AssignStatusMessage = $"✘ Failed: {ex.Message}";
+        }
+        finally
+        {
+            IsAssigning = false;
+            await Task.Delay(3000);
+            AssignStatusMessage = string.Empty;
+        }
+    }
+    
+    /// <summary>
+    /// Removes a firmware assignment from the selected user
+    /// </summary>
+    [RelayCommand]
+    private async Task RemoveUserFirmwareAsync(UserFirmwareDto? assignment)
+    {
+        if (assignment == null || SelectedUser == null || _adminApiService == null) return;
+        
+        try
+        {
+            AssignStatusMessage = $"Removing {assignment.FirmwareName ?? assignment.FileName}...";
+            
+            var success = await _adminApiService.RemoveUserFirmwareAsync(SelectedUser.Id, assignment.Id.ToString());
+            if (success)
+            {
+                SelectedUserFirmwares.Remove(assignment);
+                AssignStatusMessage = $"✔ Removed assignment";
+            }
+            else
+            {
+                AssignStatusMessage = $"✘ Failed to remove assignment";
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Failed to remove user firmware assignment");
+            AssignStatusMessage = $"✘ Error: {ex.Message}";
+        }
+        finally
+        {
+            await Task.Delay(3000);
+            AssignStatusMessage = string.Empty;
+        }
+    }
+    
+    /// <summary>
     /// Deletes firmware from S3 cloud via API
     /// </summary>
     [RelayCommand]
@@ -376,11 +562,11 @@ public partial class FirmwareManagementViewModel : ViewModelBase
             {
                 Firmwares.Remove(firmware);
                 TotalFirmwareCount = Firmwares.Count;
-                
+
                 var totalBytes = Firmwares.Sum(f => f.FileSize);
                 TotalStorageUsed = FormatFileSize(totalBytes);
-                
-                OnPropertyChanged(nameof(HasNoFirmwares));
+
+                ApplyFirmwareFilter();
                 
                 StatusMessage = $"? Deleted {firmware.FileName}";
                 _logger?.LogInformation("Firmware deleted successfully: {FileName}", firmware.FileName);
@@ -406,6 +592,50 @@ public partial class FirmwareManagementViewModel : ViewModelBase
     #endregion
     
     #region Private Methods
+    
+    private async Task LoadUsersAsync()
+    {
+        if (_adminApiService == null) return;
+        
+        IsLoadingUsers = true;
+        try
+        {
+            var response = await _adminApiService.GetAllUsersAsync();
+            Users.Clear();
+            foreach (var user in response.Users.Where(u => u.IsApproved))
+                Users.Add(user);
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Failed to load users");
+        }
+        finally
+        {
+            IsLoadingUsers = false;
+        }
+    }
+    
+    private async Task LoadUserFirmwaresAsync(string userId)
+    {
+        if (_adminApiService == null) return;
+        
+        IsLoadingUserFirmwares = true;
+        SelectedUserFirmwares.Clear();
+        try
+        {
+            var firmwares = await _adminApiService.GetUserFirmwaresAsync(userId);
+            foreach (var fw in firmwares)
+                SelectedUserFirmwares.Add(fw);
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Failed to load firmwares for user {UserId}", userId);
+        }
+        finally
+        {
+            IsLoadingUserFirmwares = false;
+        }
+    }
     
     private async Task LoadFirmwaresAsync()
     {
@@ -451,8 +681,7 @@ public partial class FirmwareManagementViewModel : ViewModelBase
             var totalBytes = Firmwares.Sum(f => f.FileSize);
             TotalStorageUsed = FormatFileSize(totalBytes);
             
-            OnPropertyChanged(nameof(HasNoFirmwares));
-            
+            ApplyFirmwareFilter();
             StatusMessage = $"? Loaded {Firmwares.Count} firmware(s) successfully";
             _logger?.LogInformation("Loaded {Count} firmwares from API", Firmwares.Count);
         }

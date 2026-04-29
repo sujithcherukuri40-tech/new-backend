@@ -15,6 +15,7 @@ using Microsoft.Extensions.Logging;
 using PavamanDroneConfigurator.Core.Interfaces;
 using PavamanDroneConfigurator.Core.Models;
 using PavamanDroneConfigurator.Infrastructure.Services;
+using PavamanDroneConfigurator.Infrastructure.Services.Auth;
 using PavamanDroneConfigurator.UI.ViewModels.Auth;
 using PavamanDroneConfigurator.UI.Views;
 
@@ -30,7 +31,13 @@ public partial class ParametersPageViewModel : ViewModelBase
     private readonly IDroneInfoService _droneInfoService;
     private readonly AuthSessionViewModel _authSession;
     private readonly FirmwareApiService? _firmwareApiService;
+    private readonly ParamLockApiService? _paramLockApiService;
+    private readonly ITokenStorage? _tokenStorage;
     private readonly ILogger<ParametersPageViewModel>? _logger;
+    
+    // Locked parameters set - maintained from cloud on login
+    private readonly HashSet<string> _lockedParams = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, float> _lockedParamValues = new(StringComparer.OrdinalIgnoreCase);
     
     // Track original values for change detection
     private readonly Dictionary<string, float> _originalValues = new();
@@ -137,6 +144,8 @@ public partial class ParametersPageViewModel : ViewModelBase
         IDroneInfoService droneInfoService,
         AuthSessionViewModel authSession,
         FirmwareApiService? firmwareApiService = null,
+        ParamLockApiService? paramLockApiService = null,
+        ITokenStorage? tokenStorage = null,
         ILogger<ParametersPageViewModel>? logger = null)
     {
         _parameterService = parameterService;
@@ -147,7 +156,13 @@ public partial class ParametersPageViewModel : ViewModelBase
         _droneInfoService = droneInfoService;
         _authSession = authSession;
         _firmwareApiService = firmwareApiService;
+        _paramLockApiService = paramLockApiService;
+        _tokenStorage = tokenStorage;
         _logger = logger;
+        
+        // Load locked params if already authenticated
+        if (_authSession.CurrentState.IsAuthenticated)
+            _ = LoadLockedParamsAsync();
 
         // Initialize group list
         InitializeGroupList();
@@ -175,6 +190,66 @@ public partial class ParametersPageViewModel : ViewModelBase
             GroupList.Add(group);
         }
     }
+
+    /// <summary>
+    /// Fetches locked parameters for the current user from the cloud and applies them to loaded parameters.
+    /// </summary>
+    private async Task LoadLockedParamsAsync()
+    {
+        if (_paramLockApiService == null || _tokenStorage == null) return;
+
+        try
+        {
+            var token = await _tokenStorage.GetAccessTokenAsync();
+            if (string.IsNullOrEmpty(token)) return;
+
+            var result = await _paramLockApiService.GetMyLockedParamsAsync(token);
+            if (result == null) return;
+
+            _lockedParams.Clear();
+            _lockedParamValues.Clear();
+
+            if (result.LockedParams != null)
+            {
+                foreach (var paramName in result.LockedParams)
+                {
+                    if (!string.IsNullOrEmpty(paramName))
+                        _lockedParams.Add(paramName);
+                }
+            }
+
+            // Apply locks to any already-loaded parameters
+            if (Parameters.Count > 0)
+                ApplyLocksToParameters(Parameters);
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogWarning(ex, "Failed to load locked parameters");
+        }
+    }
+
+    /// <summary>
+    /// Marks parameters as locked based on the currently loaded lock set and enforces locked values.
+    /// </summary>
+    private void ApplyLocksToParameters(IEnumerable<DroneParameter> parameters)
+    {
+        foreach (var param in parameters)
+        {
+            if (_lockedParams.Contains(param.Name))
+            {
+                param.IsLocked = true;
+                // Store current value as the locked value so edits revert to it
+                if (!_lockedParamValues.ContainsKey(param.Name))
+                    _lockedParamValues[param.Name] = param.Value;
+                param.LockedValue = _lockedParamValues[param.Name];
+            }
+            else
+            {
+                param.IsLocked = false;
+            }
+        }
+    }
+
 
     partial void OnSelectedGroupChanged(string value)
     {
@@ -407,6 +482,10 @@ public partial class ParametersPageViewModel : ViewModelBase
                 p.PropertyChanged += OnParameterPropertyChanged;
                 Parameters.Add(p);
             }
+            
+            // Apply admin locks if any are loaded
+            if (_lockedParams.Count > 0)
+                ApplyLocksToParameters(Parameters);
             
             ApplyFilterAsync();
             

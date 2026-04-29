@@ -84,16 +84,20 @@ Publisher: Pavaman Aviation";
             {
                 var firstButton = navMenu.Children.OfType<Button>()
                     .FirstOrDefault(b => b.Classes.Contains(NavItemClass));
-                if (firstButton != null && firstButton.CommandParameter is ViewModelBase pageVm)
+                if (firstButton != null)
                 {
-                    var view = CreateView(pageVm);
-                    if (view != null)
+                    var pageVm = ResolvePageFromButton(firstButton, vm);
+                    if (pageVm != null)
                     {
-                        vm.SetCurrentPage(pageVm, view);
-                        SetActiveButton(firstButton);
-                        
-                        // Initialize pages that need lazy loading
-                        _ = InitializePageIfNeededAsync(pageVm);
+                        var view = CreateView(pageVm);
+                        if (view != null)
+                        {
+                            vm.SetCurrentPage(pageVm, view);
+                            SetActiveButton(firstButton);
+
+                            // Initialize pages that need lazy loading
+                            _ = InitializePageIfNeededAsync(pageVm);
+                        }
                     }
                 }
             }
@@ -228,16 +232,9 @@ Publisher: Pavaman Aviation";
             if (sender is not Button button) return;
             if (DataContext is not MainWindowViewModel vm) return;
 
-            ViewModelBase? page = button.CommandParameter as ViewModelBase;
-
-            if (page == null && button.Tag is string propertyName && !string.IsNullOrEmpty(propertyName))
-            {
-                var prop = vm.GetType().GetProperty(propertyName);
-                if (prop?.GetValue(vm) is ViewModelBase reflectedVm)
-                {
-                    page = reflectedVm;
-                }
-            }
+            // Use explicit Tag->ViewModel mapping (most reliable).
+            // CommandParameter compiled bindings can return null when no Command is wired up.
+            var page = ResolvePageFromButton(button, vm);
 
             if (page != null)
             {
@@ -246,7 +243,7 @@ Publisher: Pavaman Aviation";
                 {
                     vm.SetCurrentPage(page, view);
                     SetActiveButton(button);
-                    
+
                     // Initialize pages that need lazy loading when navigated to
                     _ = InitializePageIfNeededAsync(page);
                 }
@@ -264,6 +261,48 @@ Publisher: Pavaman Aviation";
         {
             ShowNotification("Navigation Error", ex.Message, NotificationType.Error);
         }
+    }
+
+    /// <summary>
+    /// Resolves the target ViewModel for a navigation button.
+    /// Uses the button Tag for an explicit, binding-independent lookup.
+    /// Falls back to CommandParameter if Tag is not set (e.g. Profile navbar button).
+    /// </summary>
+    private static ViewModelBase? ResolvePageFromButton(Button button, MainWindowViewModel vm)
+    {
+        // Primary: explicit Tag-based lookup - not affected by compiled-binding evaluation order
+        if (button.Tag is string tag)
+        {
+            return tag switch
+            {
+                "ProfilePage"                   => vm.ProfilePage,
+                "LiveMapPage"                   => vm.LiveMapPage,
+                "TelemetryPage"                 => vm.TelemetryPage,
+                "AirframePage"                  => vm.AirframePage,
+                "SensorsCalibrationPage"        => vm.SensorsCalibrationPage,
+                "RcCalibrationPage"             => vm.RcCalibrationPage,
+                "FlightModePage"                => vm.FlightModePage,
+                "MotorEscPage"                  => vm.MotorEscPage,
+                "PowerPage"                     => vm.PowerPage,
+                "SafetyPage"                    => vm.SafetyPage,
+                "CameraConfigPage"              => vm.CameraConfigPage,
+                "SerialConfigPage"              => vm.SerialConfigPage,
+                "PidTuningPage"                 => vm.PidTuningPage,
+                "SprayingConfigPage"            => vm.SprayingConfigPage,
+                "DroneDetailsPage"              => vm.DroneDetailsPage,
+                "ParametersPage"                => vm.ParametersPage,
+                "LogAnalyzerPage"               => vm.LogAnalyzerPage,
+                "ResetParametersPage"           => vm.ResetParametersPage,
+                "AdminDashboardPage"            => vm.AdminDashboardPage,
+                "FirmwareManagementPage"        => vm.FirmwareManagementPage,
+                "ParamLogsPage"                 => vm.ParamLogsPage,
+                "ParameterLockManagementPage"   => vm.ParameterLockManagementPage,
+                _                               => null
+            };
+        }
+
+        // Fallback: CommandParameter binding (used by Profile button which has no Tag)
+        return button.CommandParameter as ViewModelBase;
     }
 
     /// <summary>

@@ -2,7 +2,9 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 using PavamanDroneConfigurator.Infrastructure.Services;
+using PavamanDroneConfigurator.Infrastructure.Services.Auth;
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Net.Http;
@@ -18,7 +20,13 @@ namespace PavamanDroneConfigurator.UI.ViewModels.Admin;
 public partial class ParamLogsViewModel : ViewModelBase
 {
     private readonly FirmwareApiService? _apiService;
+    private readonly AdminApiService? _adminApiService;
     private readonly ILogger<ParamLogsViewModel>? _logger;
+
+    // Maps userId (UUID) -> "FullName (email)" for display in filter
+    private readonly Dictionary<string, string> _userIdToDisplayName = new(StringComparer.OrdinalIgnoreCase);
+    // Reverse map: displayName -> userId for API filtering
+    private readonly Dictionary<string, string> _displayNameToUserId = new(StringComparer.OrdinalIgnoreCase);
 
     #region Backing Fields
     private string? _selectedUserId;
@@ -174,9 +182,13 @@ public partial class ParamLogsViewModel : ViewModelBase
     
     #region Constructor
     
-    public ParamLogsViewModel(FirmwareApiService apiService, ILogger<ParamLogsViewModel>? logger = null)
+    public ParamLogsViewModel(
+        FirmwareApiService apiService,
+        AdminApiService? adminApiService = null,
+        ILogger<ParamLogsViewModel>? logger = null)
     {
         _apiService = apiService;
+        _adminApiService = adminApiService;
         _logger = logger;
         
         // Set default date range (last 30 days)
@@ -204,15 +216,53 @@ public partial class ParamLogsViewModel : ViewModelBase
     }
     
     /// <summary>
-    /// Initialize the page - load param logs
+    /// Initialize the page - load param logs and available users for filtering
     /// </summary>
     public async Task InitializeAsync()
     {
+        // Run user-list load and log load in parallel for faster startup
+        var tasks = new List<Task>();
+        if (_adminApiService != null && _userIdToDisplayName.Count == 0)
+            tasks.Add(LoadUsersForFilterAsync());
         if (!IsLoading && ParamLogs.Count == 0)
+            tasks.Add(LoadParamLogsAsync());
+        if (tasks.Count > 0)
+            await Task.WhenAll(tasks);
+    }
+
+    /// <summary>
+    /// Loads the full user list from AdminApiService so the User filter dropdown
+    /// shows real names instead of raw UUIDs.
+    /// </summary>
+    private async Task LoadUsersForFilterAsync()
+    {
+        if (_adminApiService == null) return;
+        try
         {
-            await LoadParamLogsAsync();
+            var response = await _adminApiService.GetAllUsersAsync();
+            _userIdToDisplayName.Clear();
+            _displayNameToUserId.Clear();
+            foreach (var user in response.Users)
+            {
+                if (string.IsNullOrWhiteSpace(user.Id)) continue;
+                var display = !string.IsNullOrWhiteSpace(user.FullName)
+                    ? $"{user.FullName} ({user.Email})"
+                    : user.Email ?? user.Id;
+                _userIdToDisplayName[user.Id] = display;
+                _displayNameToUserId[display] = user.Id;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogWarning(ex, "Could not pre-load users for ParamLogs filter; will fall back to log-derived list");
         }
     }
+
+    /// <summary>
+    /// Returns a display-friendly name for a user ID, or the raw ID if unknown.
+    /// </summary>
+    private string GetUserDisplay(string userId) =>
+        _userIdToDisplayName.TryGetValue(userId, out var name) ? name : userId;
     
     #endregion
     
@@ -241,13 +291,16 @@ public partial class ParamLogsViewModel : ViewModelBase
             // Add search text filter
             if (!string.IsNullOrWhiteSpace(SearchText))
             {
-                // Search can match userId, droneId, or userName
                 queryParams.Add($"search={Uri.EscapeDataString(SearchText)}");
             }
             
-            // Only add filters if not "All Users" or "All Drones"
+            // If a display name is selected in the filter, resolve it back to a userId
             if (!string.IsNullOrWhiteSpace(SelectedUserId) && SelectedUserId != "All Users")
-                queryParams.Add($"userId={Uri.EscapeDataString(SelectedUserId)}");
+            {
+                // Try to map display name -> userId, otherwise pass as-is (may be a raw userId)
+                var actualUserId = _displayNameToUserId.TryGetValue(SelectedUserId, out var uid) ? uid : SelectedUserId;
+                queryParams.Add($"userId={Uri.EscapeDataString(actualUserId)}");
+            }
             
             if (!string.IsNullOrWhiteSpace(SelectedDroneId) && SelectedDroneId != "All Drones")
                 queryParams.Add($"droneId={Uri.EscapeDataString(SelectedDroneId)}");
@@ -261,18 +314,24 @@ public partial class ParamLogsViewModel : ViewModelBase
             var queryString = string.Join("&", queryParams);
             var result = await _apiService.GetParamLogsAsync(queryString);
             
-            
             if (result != null)
             {
                 ParamLogs.Clear();
                 foreach (var log in result.Logs)
                 {
+                    // Prefer backend-provided UserName, then our admin-user lookup, then raw ID
+                    var resolvedName = !string.IsNullOrWhiteSpace(log.UserName)
+                        ? log.UserName
+                        : _userIdToDisplayName.TryGetValue(log.UserId, out var mapped)
+                            ? mapped
+                            : null;
+
                     ParamLogs.Add(new ParamLogItem
                     {
                         Key = log.Key,
                         FileName = log.FileName,
                         UserId = log.UserId,
-                        UserName = log.UserName,
+                        UserName = resolvedName ?? log.UserName,
                         DroneId = log.DroneId,
                         Timestamp = log.Timestamp,
                         Size = log.Size,
@@ -283,16 +342,31 @@ public partial class ParamLogsViewModel : ViewModelBase
                 TotalCount = result.TotalCount;
                 TotalPages = result.TotalPages;
                 
-                // Update filter options
+                // Build AvailableUsers: use admin-loaded names where possible, fall back to log-derived list
                 AvailableUsers.Clear();
-                AvailableUsers.Add("All Users"); // Friendly "All" option
-                foreach (var user in result.AvailableUsers.Where(u => !string.IsNullOrWhiteSpace(u)))
+                AvailableUsers.Add("All Users");
+
+                // Merge: prefer the display names we already loaded from admin API;
+                // fall back to the log-derived user list for any users not in admin list
+                var logDerivedUsers = result.AvailableUsers
+                    .Where(u => !string.IsNullOrWhiteSpace(u))
+                    .ToList();
+
+                if (_userIdToDisplayName.Count > 0)
                 {
-                    AvailableUsers.Add(user);
+                    // Use the admin-loaded display names, ordered by display name
+                    foreach (var display in _userIdToDisplayName.Values.OrderBy(x => x))
+                        AvailableUsers.Add(display);
+                }
+                else
+                {
+                    // No admin API users loaded – show what the logs returned
+                    foreach (var user in logDerivedUsers)
+                        AvailableUsers.Add(user);
                 }
                 
                 AvailableDrones.Clear();
-                AvailableDrones.Add("All Drones"); // Friendly "All" option
+                AvailableDrones.Add("All Drones");
                 foreach (var drone in result.AvailableDrones.Where(d => !string.IsNullOrWhiteSpace(d)))
                 {
                     AvailableDrones.Add(drone);
