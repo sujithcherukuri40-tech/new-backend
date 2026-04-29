@@ -42,12 +42,18 @@ public class ParamLockApiService
 
             var error = await response.Content.ReadAsStringAsync();
             _logger.LogError("Failed to create parameter lock: {StatusCode} - {Error}", response.StatusCode, error);
-            return null;
+            return new ParamLockResponse
+            {
+                Success = false,
+                Message = (int)response.StatusCode == 401
+                    ? "Session expired. Please log out and log in again."
+                    : $"Server error ({(int)response.StatusCode}): {(string.IsNullOrWhiteSpace(error) ? response.ReasonPhrase : error)}"
+            };
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Exception creating parameter lock");
-            return null;
+            return new ParamLockResponse { Success = false, Message = "Network error. Please check connection." };
         }
     }
 
@@ -70,12 +76,18 @@ public class ParamLockApiService
 
             var error = await response.Content.ReadAsStringAsync();
             _logger.LogError("Failed to update parameter lock: {StatusCode} - {Error}", response.StatusCode, error);
-            return null;
+            return new ParamLockResponse
+            {
+                Success = false,
+                Message = (int)response.StatusCode == 401
+                    ? "Session expired. Please log out and log in again."
+                    : $"Server error ({(int)response.StatusCode}): {(string.IsNullOrWhiteSpace(error) ? response.ReasonPhrase : error)}"
+            };
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Exception updating parameter lock");
-            return null;
+            return new ParamLockResponse { Success = false, Message = "Network error. Please check connection." };
         }
     }
 
@@ -228,12 +240,16 @@ public class CreateParamLockRequest
     public Guid UserId { get; set; }
     public string? DeviceId { get; set; }
     public List<string> Params { get; set; } = new();
+    /// <summary>Current drone values for each locked parameter. Used for sync checks on login.</summary>
+    public Dictionary<string, float> ParamValues { get; set; } = new();
 }
 
 public class UpdateParamLockRequest
 {
     public int LockId { get; set; }
     public List<string> Params { get; set; } = new();
+    /// <summary>Current drone values for each locked parameter. Used for sync checks on login.</summary>
+    public Dictionary<string, float> ParamValues { get; set; } = new();
 }
 
 public class ParamLockResponse
@@ -266,6 +282,8 @@ public class MyLockedParamsResult
     public List<string> LockedParams { get; set; } = new();
     public int Count { get; set; }
     public int LockCount { get; set; }
+    /// <summary>Locked values per parameter name. Used to detect drift vs. drone's current values.</summary>
+    public Dictionary<string, float> ParamValues { get; set; } = new();
 }
 
 public class ParamLockInfo

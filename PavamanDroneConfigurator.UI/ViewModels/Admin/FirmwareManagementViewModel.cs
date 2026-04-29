@@ -73,6 +73,12 @@ public partial class FirmwareManagementViewModel : ViewModelBase
     public ObservableCollection<UserFirmwareDto> SelectedUserFirmwares { get; } = new();
     public ObservableCollection<FirmwareItem> FilteredFirmwares { get; } = new();
 
+    /// <summary>All users with their assigned firmwares grouped for the assignment cards panel.</summary>
+    public ObservableCollection<UserAssignmentGroup> AllUserAssignments { get; } = new();
+
+    [ObservableProperty] private bool _isLoadingAllAssignments;
+    [ObservableProperty] private UserFirmwareDto? _editingAssignment;
+
     [ObservableProperty] private string? _firmwareSearchText;
 
     // ── Google-style filter chips & sort ─────────────────────────────────────
@@ -94,6 +100,7 @@ public partial class FirmwareManagementViewModel : ViewModelBase
     
     public bool HasNoFirmwares => !IsLoadingFirmwares && FilteredFirmwares.Count == 0;
     public bool HasNoUserFirmwares => !IsLoadingUserFirmwares && SelectedUserFirmwares.Count == 0;
+    public bool HasNoAssignments => !IsLoadingAllAssignments && AllUserAssignments.Count == 0;
     public bool CanAssign => SelectedUser != null && FirmwareToAssign != null && !IsAssigning;
     
     #endregion
@@ -112,6 +119,7 @@ public partial class FirmwareManagementViewModel : ViewModelBase
         _logger = logger;
         _adminApiService = adminApiService;
         SelectedUserFirmwares.CollectionChanged += (_, _) => OnPropertyChanged(nameof(HasNoUserFirmwares));
+        AllUserAssignments.CollectionChanged += (_, _) => OnPropertyChanged(nameof(HasNoAssignments));
         
         // DON'T load firmwares in constructor - defer until page is opened
         // This prevents slow startup when API is not accessible
@@ -136,11 +144,14 @@ public partial class FirmwareManagementViewModel : ViewModelBase
             tasks.Add(LoadFirmwaresAsync());
         if (!IsLoadingUsers && Users.Count == 0)
             tasks.Add(LoadUsersAsync());
+        if (!IsLoadingAllAssignments && AllUserAssignments.Count == 0)
+            tasks.Add(LoadAllAssignmentsAsync());
         if (tasks.Count > 0)
             await Task.WhenAll(tasks);
     }
     
     partial void OnIsLoadingUserFirmwaresChanged(bool value) => OnPropertyChanged(nameof(HasNoUserFirmwares));
+    partial void OnIsLoadingAllAssignmentsChanged(bool value) => OnPropertyChanged(nameof(HasNoAssignments));
 
     partial void OnSelectedUserChanged(Core.Interfaces.AdminUserListItem? value)
     {
@@ -491,8 +502,9 @@ public partial class FirmwareManagementViewModel : ViewModelBase
             AssignStatusMessage = $"✔ Assigned {FirmwareToAssign.FirmwareName} to {SelectedUser.FullName}";
             _logger?.LogInformation("Assigned firmware {Firmware} to user {User}", FirmwareToAssign.FileName, SelectedUser.FullName);
             
-            // Refresh user's firmware list
+            // Refresh user's firmware list and all-assignment cards
             await LoadUserFirmwaresAsync(SelectedUser.Id);
+            await LoadAllAssignmentsAsync();
         }
         catch (Exception ex)
         {
@@ -524,6 +536,7 @@ public partial class FirmwareManagementViewModel : ViewModelBase
             {
                 SelectedUserFirmwares.Remove(assignment);
                 AssignStatusMessage = $"✔ Removed assignment";
+                await LoadAllAssignmentsAsync();
             }
             else
             {
@@ -543,11 +556,73 @@ public partial class FirmwareManagementViewModel : ViewModelBase
     }
     
     /// <summary>
+    /// Pre-fills the assign form so admin can edit (re-assign) a user's firmware.
+    /// </summary>
+    [RelayCommand]
+    private void EditAssignment(UserFirmwareDto? assignment)
+    {
+        if (assignment == null) return;
+        EditingAssignment = assignment;
+
+        // Select the user in the dropdown
+        var user = Users.FirstOrDefault(u => u.Id == assignment.UserId.ToString());
+        if (user != null) SelectedUser = user;
+
+        // Pre-select the firmware in the dropdown (match by S3 key / file path)
+        FirmwareToAssign = Firmwares.FirstOrDefault(f =>
+            f.FilePath == assignment.S3Key || f.FileName == assignment.FileName);
+    }
+
+    /// <summary>
+    /// Loads all users and their assignments into AllUserAssignments for the cards panel.
+    /// </summary>
+    [RelayCommand]
+    private async Task LoadAllAssignmentsAsync()
+    {
+        if (_adminApiService == null) return;
+
+        IsLoadingAllAssignments = true;
+        try
+        {
+            AllUserAssignments.Clear();
+            // Re-use Users list (already loaded). For each user load their firmwares.
+            var userList = Users.Count > 0 ? Users.ToList() : new List<Core.Interfaces.AdminUserListItem>();
+            if (userList.Count == 0)
+            {
+                var response = await _adminApiService.GetAllUsersAsync();
+                userList = response.Users.Where(u => u.IsApproved).ToList();
+            }
+
+            var tasks = userList.Select(async u =>
+            {
+                try
+                {
+                    var fws = await _adminApiService.GetUserFirmwaresAsync(u.Id);
+                    return (User: u, Firmwares: fws);
+                }
+                catch { return (User: u, Firmwares: new List<UserFirmwareDto>()); }
+            });
+
+            var results = await Task.WhenAll(tasks);
+
+            foreach (var r in results.Where(r => r.Firmwares.Count > 0))
+                AllUserAssignments.Add(new UserAssignmentGroup(r.User, r.Firmwares));
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Failed to load all user assignments");
+        }
+        finally
+        {
+            IsLoadingAllAssignments = false;
+        }
+    }
+
+    /// <summary>
     /// Deletes firmware from S3 cloud via API
     /// </summary>
     [RelayCommand]
-    private async Task DeleteFirmwareAsync(FirmwareItem? firmware)
-    {
+    private async Task DeleteFirmwareAsync(FirmwareItem? firmware)    {
         if (firmware == null || _firmwareApi == null) return;
         
         try
@@ -793,6 +868,28 @@ public class FirmwareItem
             len = len / 1024;
         }
         return $"{len:0.##} {sizes[order]}";
+    }
+}
+
+/// <summary>
+/// Groups a user with all their assigned firmwares for display in the assignment cards.
+/// </summary>
+public class UserAssignmentGroup
+{
+    public Core.Interfaces.AdminUserListItem User { get; }
+    public IReadOnlyList<UserFirmwareDto> Firmwares { get; }
+
+    public string UserInitials => string.IsNullOrEmpty(User.FullName)
+        ? "?"
+        : string.Concat(User.FullName.Split(' ', StringSplitOptions.RemoveEmptyEntries)
+              .Take(2).Select(w => w[0])).ToUpper();
+
+    public int FirmwareCount => Firmwares.Count;
+
+    public UserAssignmentGroup(Core.Interfaces.AdminUserListItem user, IEnumerable<UserFirmwareDto> firmwares)
+    {
+        User = user;
+        Firmwares = firmwares.ToList();
     }
 }
 

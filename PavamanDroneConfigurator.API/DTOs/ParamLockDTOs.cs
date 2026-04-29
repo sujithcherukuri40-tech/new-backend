@@ -25,6 +25,12 @@ public class CreateParamLockRequest
     [Required(ErrorMessage = "At least one parameter must be specified")]
     [MinLength(1, ErrorMessage = "At least one parameter must be specified")]
     public required List<string> Params { get; set; }
+
+    /// <summary>
+    /// Drone values at the time of lock creation, keyed by parameter name.
+    /// Used by clients to detect value drift on subsequent logins.
+    /// </summary>
+    public Dictionary<string, float> ParamValues { get; set; } = new();
 }
 
 /// <summary>
@@ -44,6 +50,12 @@ public class UpdateParamLockRequest
     [Required(ErrorMessage = "At least one parameter must be specified")]
     [MinLength(1, ErrorMessage = "At least one parameter must be specified")]
     public required List<string> Params { get; set; }
+
+    /// <summary>
+    /// Drone values at the time of lock update, keyed by parameter name.
+    /// Used by clients to detect value drift on subsequent logins.
+    /// </summary>
+    public Dictionary<string, float> ParamValues { get; set; } = new();
 }
 
 /// <summary>

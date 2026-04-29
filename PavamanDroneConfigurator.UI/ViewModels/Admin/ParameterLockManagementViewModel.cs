@@ -22,6 +22,7 @@ public partial class ParameterLockManagementViewModel : ViewModelBase
     private readonly AdminApiService _adminApiService;
     private readonly ILogger<ParameterLockManagementViewModel> _logger;
     private readonly IParameterService _parameterService;
+    private readonly ITokenStorage _tokenStorage;
     private string? _currentToken;
 
     [ObservableProperty]
@@ -105,11 +106,13 @@ public partial class ParameterLockManagementViewModel : ViewModelBase
         ParamLockApiService paramLockApiService,
         AdminApiService adminApiService,
         IParameterService parameterService,
+        ITokenStorage tokenStorage,
         ILogger<ParameterLockManagementViewModel> logger)
     {
         _paramLockApiService = paramLockApiService;
         _adminApiService = adminApiService;
         _parameterService = parameterService;
+        _tokenStorage = tokenStorage;
         _logger = logger;
     }
 
@@ -119,10 +122,27 @@ public partial class ParameterLockManagementViewModel : ViewModelBase
         await RefreshLocksAsync();
     }
 
+    /// <summary>
+    /// Gets a valid token — uses the stored token if available, otherwise
+    /// fetches fresh from ITokenStorage to handle race conditions and token refresh.
+    /// </summary>
+    private async Task<string?> GetTokenAsync()
+    {
+        if (!string.IsNullOrEmpty(_currentToken))
+            return _currentToken;
+
+        var fresh = await _tokenStorage.GetAccessTokenAsync();
+        if (!string.IsNullOrEmpty(fresh))
+            _currentToken = fresh;
+
+        return _currentToken;
+    }
+
     [RelayCommand]
     private async Task RefreshLocksAsync()
     {
-        if (string.IsNullOrEmpty(_currentToken))
+        var token = await GetTokenAsync();
+        if (string.IsNullOrEmpty(token))
         {
             StatusMessage = "Not authenticated";
             return;
@@ -133,7 +153,7 @@ public partial class ParameterLockManagementViewModel : ViewModelBase
 
         try
         {
-            var locks = await _paramLockApiService.GetAllLocksAsync(_currentToken);
+            var locks = await _paramLockApiService.GetAllLocksAsync(token);
 
             await Dispatcher.UIThread.InvokeAsync(() =>
             {
@@ -246,9 +266,10 @@ public partial class ParameterLockManagementViewModel : ViewModelBase
     [RelayCommand]
     private async Task SaveLockAsync()
     {
-        if (string.IsNullOrEmpty(_currentToken))
+        var token = await GetTokenAsync();
+        if (string.IsNullOrEmpty(token))
         {
-            DialogStatusMessage = "Not authenticated";
+            DialogStatusMessage = "Not authenticated. Please log in again.";
             return;
         }
 
@@ -259,6 +280,9 @@ public partial class ParameterLockManagementViewModel : ViewModelBase
         }
 
         var selectedParams = AvailableParameters.Where(p => p.IsSelected).Select(p => p.Name).ToList();
+        var selectedParamValues = AvailableParameters
+            .Where(p => p.IsSelected)
+            .ToDictionary(p => p.Name, p => p.Value);
 
         if (selectedParams.Count == 0)
         {
@@ -278,10 +302,11 @@ public partial class ParameterLockManagementViewModel : ViewModelBase
                 var request = new UpdateParamLockRequest
                 {
                     LockId = SelectedLock.Id,
-                    Params = selectedParams
+                    Params = selectedParams,
+                    ParamValues = selectedParamValues
                 };
 
-                response = await _paramLockApiService.UpdateLockAsync(request, _currentToken);
+                response = await _paramLockApiService.UpdateLockAsync(request, token);
             }
             else
             {
@@ -289,10 +314,11 @@ public partial class ParameterLockManagementViewModel : ViewModelBase
                 {
                     UserId = SelectedUser!.UserId,
                     DeviceId = ApplyToAllDevices ? null : DeviceId.Trim(),
-                    Params = selectedParams
+                    Params = selectedParams,
+                    ParamValues = selectedParamValues
                 };
 
-                response = await _paramLockApiService.CreateLockAsync(request, _currentToken);
+                response = await _paramLockApiService.CreateLockAsync(request, token);
             }
 
             if (response?.Success == true)
@@ -320,7 +346,9 @@ public partial class ParameterLockManagementViewModel : ViewModelBase
     [RelayCommand]
     private async Task DeleteLockAsync(ParamLockModel? lockModel)
     {
-        if (lockModel == null || string.IsNullOrEmpty(_currentToken)) return;
+        if (lockModel == null) return;
+        var token = await GetTokenAsync();
+        if (string.IsNullOrEmpty(token)) return;
 
         // In production, show confirmation dialog
         IsBusy = true;
@@ -328,7 +356,7 @@ public partial class ParameterLockManagementViewModel : ViewModelBase
 
         try
         {
-            var success = await _paramLockApiService.DeleteLockAsync(lockModel.Id, _currentToken);
+            var success = await _paramLockApiService.DeleteLockAsync(lockModel.Id, token);
 
             if (success)
             {
@@ -504,6 +532,7 @@ public partial class ParameterLockManagementViewModel : ViewModelBase
                     Name = dp.Name,
                     Description = dp.Description ?? string.Empty,
                     Group = GetGroupFromName(dp.Name),
+                    Value = dp.Value,
                     IsSelected = false
                 };
                 item.PropertyChanged += (_, args) =>

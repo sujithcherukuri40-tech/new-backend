@@ -50,6 +50,7 @@ public class UserParameterLocksController : ControllerBase
             // Merge all locked params across active locks for this user
             // (device-specific locks override global if deviceId is supplied)
             List<string> effectiveLockedParams;
+            var effectiveLockedValues = new Dictionary<string, float>(StringComparer.OrdinalIgnoreCase);
 
             if (!string.IsNullOrWhiteSpace(deviceId))
             {
@@ -59,9 +60,15 @@ public class UserParameterLocksController : ControllerBase
 
                 var combined = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                 if (globalLock != null)
+                {
                     foreach (var p in globalLock.LockedParams) combined.Add(p);
+                    foreach (var kv in globalLock.LockedParamValues) effectiveLockedValues[kv.Key] = kv.Value;
+                }
                 if (deviceLock != null)
+                {
                     foreach (var p in deviceLock.LockedParams) combined.Add(p);
+                    foreach (var kv in deviceLock.LockedParamValues) effectiveLockedValues[kv.Key] = kv.Value; // device overrides global
+                }
                 effectiveLockedParams = combined.OrderBy(p => p).ToList();
             }
             else
@@ -69,7 +76,10 @@ public class UserParameterLocksController : ControllerBase
                 // No device — return all locked params across all locks
                 var combined = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                 foreach (var l in locks)
+                {
                     foreach (var p in l.LockedParams) combined.Add(p);
+                    foreach (var kv in l.LockedParamValues) effectiveLockedValues[kv.Key] = kv.Value;
+                }
                 effectiveLockedParams = combined.OrderBy(p => p).ToList();
             }
 
@@ -81,6 +91,7 @@ public class UserParameterLocksController : ControllerBase
                 UserId = userId,
                 DeviceId = deviceId,
                 LockedParams = effectiveLockedParams,
+                ParamValues = effectiveLockedValues,
                 Count = effectiveLockedParams.Count,
                 LockCount = locks.Count
             });
@@ -98,6 +109,8 @@ public class MyLockedParamsResponse
     public Guid UserId { get; set; }
     public string? DeviceId { get; set; }
     public List<string> LockedParams { get; set; } = new();
+    /// <summary>Drone values at the time the lock was created, keyed by parameter name.</summary>
+    public Dictionary<string, float> ParamValues { get; set; } = new();
     public int Count { get; set; }
     public int LockCount { get; set; }
 }

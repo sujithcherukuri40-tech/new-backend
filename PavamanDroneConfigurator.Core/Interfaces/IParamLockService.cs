@@ -14,8 +14,9 @@ public interface IParamLockService
     /// <param name="deviceId">Device ID (null for user-wide lock)</param>
     /// <param name="paramKeys">List of parameter keys to lock</param>
     /// <param name="adminUserId">Admin user creating the lock</param>
+    /// <param name="paramValues">Optional values per parameter for drift detection on user login</param>
     /// <returns>S3 key where the lock data is stored</returns>
-    Task<string> CreateParamLockAsync(Guid userId, string? deviceId, List<string> paramKeys, Guid adminUserId);
+    Task<string> CreateParamLockAsync(Guid userId, string? deviceId, List<string> paramKeys, Guid adminUserId, Dictionary<string, float>? paramValues = null);
 
     /// <summary>
     /// Update an existing parameter lock.
@@ -23,8 +24,9 @@ public interface IParamLockService
     /// <param name="lockId">Lock ID to update</param>
     /// <param name="paramKeys">Updated list of parameter keys</param>
     /// <param name="adminUserId">Admin user updating the lock</param>
+    /// <param name="paramValues">Optional values per parameter for drift detection on user login</param>
     /// <returns>Updated S3 key</returns>
-    Task<string> UpdateParamLockAsync(int lockId, List<string> paramKeys, Guid adminUserId);
+    Task<string> UpdateParamLockAsync(int lockId, List<string> paramKeys, Guid adminUserId, Dictionary<string, float>? paramValues = null);
 
     /// <summary>
     /// Get locked parameters for a specific user/device.
@@ -76,6 +78,8 @@ public class ParamLockInfo
     public string? DeviceId { get; set; }
     public int ParamCount { get; set; }
     public List<string> LockedParams { get; set; } = new();
+    /// <summary>Locked values per parameter name. Populated from S3 when available.</summary>
+    public Dictionary<string, float> LockedParamValues { get; set; } = new();
     public DateTimeOffset CreatedAt { get; set; }
     public Guid CreatedBy { get; set; }
     public string? CreatedByName { get; set; }

@@ -21,7 +21,7 @@
             <Setter Property="BoxShadow" Value="0 2 8 0 #10000000"/>
             <Setter Property="BorderBrush" Value="#E2E8F0"/>
             <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="Margin" Value="0,0,0,16"/>
+            <Setter Property="Margin" Value="0"/>
         </Style>
 
         <!-- Firmware Card -->
@@ -82,6 +82,8 @@
             <Setter Property="FontWeight" Value="Bold"/>
             <Setter Property="FontSize" Value="14"/>
             <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
             <Setter Property="Cursor" Value="Hand"/>
         </Style>
         <Style Selector="Button.clay-primary:pointerover">
@@ -102,8 +104,8 @@
             <Setter Property="FontSize" Value="14"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="VerticalAlignment" Value="Bottom"/>
             <Setter Property="HorizontalContentAlignment" Value="Center"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
         </Style>
         <Style Selector="Button.clay-assign:pointerover">
             <Setter Property="Background" Value="#2563EB"/>
@@ -216,7 +218,7 @@
         <ScrollViewer Grid.Row="1" Padding="24,16,24,56"
                       VerticalScrollBarVisibility="Auto"
                       HorizontalScrollBarVisibility="Disabled">
-            <StackPanel Spacing="0">
+            <StackPanel Spacing="16">
 
                 <!-- â”€â”€ UPLOAD FIRMWARE CARD â”€â”€ -->
                 <Border Classes="clay-card">
@@ -234,8 +236,8 @@
                             </StackPanel>
                         </StackPanel>
 
-                        <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto"
-                              RowSpacing="14" ColumnSpacing="16">
+                        <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto,Auto"
+                              RowSpacing="8" ColumnSpacing="16">
                             <TextBlock Grid.Column="0" Grid.Row="0" Text="Firmware Name *"
                                        FontWeight="SemiBold" FontSize="12" Foreground="#6B7280"/>
                             <TextBlock Grid.Column="1" Grid.Row="0" Text="Version *"
@@ -245,22 +247,26 @@
                                      Watermark="e.g., KFT AgriCopter v2"
                                      Height="48" CornerRadius="12"
                                      Background="#F8F7FF" BorderBrush="#DDD8FF"
-                                     BorderThickness="1.5" Padding="14,0"/>
+                                     BorderThickness="1.5" Padding="14,0"
+                                     VerticalContentAlignment="Center"/>
                             <TextBox Grid.Column="1" Grid.Row="1"
                                      Text="{Binding NewFirmwareVersion}"
                                      Watermark="e.g., 2.1.0"
                                      Height="48" CornerRadius="12"
                                      Background="#F8F7FF" BorderBrush="#DDD8FF"
-                                     BorderThickness="1.5" Padding="14,0"/>
-                            <StackPanel Grid.Column="0" Grid.ColumnSpan="2" Grid.Row="2" Spacing="6">
-                                <TextBlock Text="Description" FontWeight="SemiBold"
-                                           FontSize="12" Foreground="#6B7280"/>
-                                <TextBox Text="{Binding NewFirmwareDescription}"
-                                         Watermark="Optional description..."
-                                         Height="48" CornerRadius="12"
-                                         Background="#F8F7FF" BorderBrush="#DDD8FF"
-                                         BorderThickness="1.5" Padding="14,0"/>
-                            </StackPanel>
+                                     BorderThickness="1.5" Padding="14,0"
+                                     VerticalContentAlignment="Center"/>
+                            <TextBlock Grid.Column="0" Grid.ColumnSpan="2" Grid.Row="2"
+                                       Text="Description"
+                                       FontWeight="SemiBold" FontSize="12" Foreground="#6B7280"
+                                       Margin="0,6,0,0"/>
+                            <TextBox Grid.Column="0" Grid.ColumnSpan="2" Grid.Row="3"
+                                     Text="{Binding NewFirmwareDescription}"
+                                     Watermark="Optional description..."
+                                     Height="48" CornerRadius="12"
+                                     Background="#F8F7FF" BorderBrush="#DDD8FF"
+                                     BorderThickness="1.5" Padding="14,0"
+                                     VerticalContentAlignment="Center"/>
                         </Grid>
 
                         <StackPanel Spacing="8">
@@ -285,6 +291,7 @@
                                         Foreground="White"
                                         Background="#3B82F6"
                                         VerticalAlignment="Stretch"
+                                        HorizontalContentAlignment="Center"
                                         VerticalContentAlignment="Center"
                                         Click="BrowseFirmware_Click"/>
                             </Grid>
@@ -501,7 +508,9 @@
                                 CornerRadius="18" Padding="24,20"
                                 IsVisible="{Binding HasNoFirmwares}">
                             <StackPanel Spacing="8" HorizontalAlignment="Center">
-                                <TextBlock Text="ðŸ“¦" FontSize="48" HorizontalAlignment="Center"/>
+                                <PathIcon Data="M20 7l-9-5-9 5v10l9 5 9-5V7zm-9 13.08L4 16.5V9.02l7 3.88v7.18zm1-8.98L5.03 7.5 12 3.56 18.97 7.5 12 11.1zm8 5.4l-7 3.58v-7.18l7-3.88v7.48z"
+                                          Width="48" Height="48" Foreground="#D97706"
+                                          HorizontalAlignment="Center"/>
                                 <TextBlock Text="No firmwares uploaded yet"
                                            FontSize="16" FontWeight="Bold"
                                            Foreground="#92400E" HorizontalAlignment="Center"/>
@@ -513,8 +522,8 @@
                     </StackPanel>
                 </Border>
 
-                <!-- â”€â”€ USER FIRMWARE ASSIGNMENT CARD â”€â”€ -->
-                <Border Classes="clay-card" Margin="0,0,0,0">
+                <!-- ── USER FIRMWARE ASSIGNMENT CARD ── -->
+                <Border Classes="clay-card">
                     <StackPanel Spacing="20">
 
                         <!-- Title -->
@@ -524,181 +533,300 @@
                                           Width="18" Height="18" Foreground="#DB2777"
                                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
                             </Border>
-                            <StackPanel Spacing="2">
+                            <StackPanel Spacing="2" VerticalAlignment="Center">
                                 <TextBlock Text="User Firmware Assignment" Classes="section-title"/>
                                 <TextBlock Text="Assign specific firmware files to individual users"
                                            FontSize="12" Foreground="#6B7280"/>
                             </StackPanel>
                         </StackPanel>
 
-                        <!-- Dropdowns + Assign Button -->
-                        <Grid ColumnDefinitions="*,*,Auto" ColumnSpacing="16">
+                        <!-- Assign / Edit form -->
+                        <Border Background="#F8F7FF" CornerRadius="14"
+                                BorderBrush="#DDD8FF" BorderThickness="1.5"
+                                Padding="20,16">
+                            <StackPanel Spacing="14">
+                                <Grid ColumnDefinitions="*,*,Auto" RowDefinitions="Auto,Auto"
+                                      RowSpacing="8" ColumnSpacing="16">
 
-                            <!-- User Dropdown -->
-                            <StackPanel Grid.Column="0" Spacing="8">
-                                <TextBlock Text="Select User"
-                                           FontSize="12" FontWeight="SemiBold" Foreground="#6B7280"/>
-                                <ComboBox Height="52"
-                                          CornerRadius="12"
-                                          Background="#F8F7FF"
-                                          BorderBrush="#DDD8FF"
-                                          BorderThickness="1.5"
-                                          HorizontalAlignment="Stretch"
-                                          ItemsSource="{Binding Users}"
-                                          SelectedItem="{Binding SelectedUser}">
-                                    <ComboBox.ItemTemplate>
-                                        <DataTemplate>
-                                            <StackPanel Orientation="Horizontal" Spacing="8">
-                                                <TextBlock Text="{Binding FullName}"
-                                                           FontWeight="SemiBold" Foreground="#1E1B4B"/>
-                                                <TextBlock Text="{Binding Email}"
-                                                           FontSize="12" Foreground="#9CA3AF"
-                                                           VerticalAlignment="Center"/>
-                                            </StackPanel>
-                                        </DataTemplate>
-                                    </ComboBox.ItemTemplate>
-                                </ComboBox>
+                                    <!-- User -->
+                                    <TextBlock Grid.Row="0" Grid.Column="0"
+                                               Text="Select User"
+                                               FontSize="12" FontWeight="SemiBold" Foreground="#6B7280"/>
+                                    <ComboBox Grid.Row="1" Grid.Column="0"
+                                              Height="52" CornerRadius="12"
+                                              Background="White" BorderBrush="#DDD8FF"
+                                              BorderThickness="1.5" HorizontalAlignment="Stretch"
+                                              ItemsSource="{Binding Users}"
+                                              SelectedItem="{Binding SelectedUser}">
+                                        <ComboBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                                    <TextBlock Text="{Binding FullName}"
+                                                               FontWeight="SemiBold" Foreground="#1E1B4B"/>
+                                                    <TextBlock Text="{Binding Email}"
+                                                               FontSize="12" Foreground="#9CA3AF"
+                                                               VerticalAlignment="Center"/>
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </ComboBox.ItemTemplate>
+                                    </ComboBox>
+
+                                    <!-- Firmware -->
+                                    <TextBlock Grid.Row="0" Grid.Column="1"
+                                               Text="Select Firmware"
+                                               FontSize="12" FontWeight="SemiBold" Foreground="#6B7280"/>
+                                    <ComboBox Grid.Row="1" Grid.Column="1"
+                                              Height="52" CornerRadius="12"
+                                              Background="White" BorderBrush="#DDD8FF"
+                                              BorderThickness="1.5" HorizontalAlignment="Stretch"
+                                              ItemsSource="{Binding Firmwares}"
+                                              SelectedItem="{Binding FirmwareToAssign}">
+                                        <ComboBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                                    <TextBlock Text="{Binding FirmwareName}"
+                                                               FontWeight="SemiBold" Foreground="#1E1B4B"/>
+                                                    <TextBlock Text="{Binding FirmwareVersion}"
+                                                               FontSize="12" Foreground="#9CA3AF"
+                                                               VerticalAlignment="Center"/>
+                                                    <Border Background="{Binding VehicleType, Converter={StaticResource VehicleTypeToBadgeColorConverter}}"
+                                                            CornerRadius="6" Padding="8,3">
+                                                        <TextBlock Text="{Binding VehicleType}"
+                                                                   FontSize="10" FontWeight="Bold"
+                                                                   Foreground="White"/>
+                                                    </Border>
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </ComboBox.ItemTemplate>
+                                    </ComboBox>
+
+                                    <!-- Assign Button -->
+                                    <Button Grid.Row="1" Grid.Column="2"
+                                            Classes="clay-assign"
+                                            Command="{Binding AssignFirmwareToUserCommand}">
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <PathIcon Data="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"
+                                                      Width="15" Height="15" Foreground="White"/>
+                                            <TextBlock Text="Assign" FontWeight="Bold"/>
+                                        </StackPanel>
+                                    </Button>
+                                </Grid>
+
+                                <!-- Status -->
+                                <Border Background="#EEF2FF" CornerRadius="10" Padding="12,8"
+                                        IsVisible="{Binding AssignStatusMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                                    <TextBlock Text="{Binding AssignStatusMessage}"
+                                               FontSize="13" Foreground="#4338CA"/>
+                                </Border>
                             </StackPanel>
-
-                            <!-- Firmware Dropdown -->
-                            <StackPanel Grid.Column="1" Spacing="8">
-                                <TextBlock Text="Select Firmware to Assign"
-                                           FontSize="12" FontWeight="SemiBold" Foreground="#6B7280"/>
-                                <ComboBox Height="52"
-                                          CornerRadius="12"
-                                          Background="#F8F7FF"
-                                          BorderBrush="#DDD8FF"
-                                          BorderThickness="1.5"
-                                          HorizontalAlignment="Stretch"
-                                          ItemsSource="{Binding Firmwares}"
-                                          SelectedItem="{Binding FirmwareToAssign}">
-                                    <ComboBox.ItemTemplate>
-                                        <DataTemplate>
-                                            <StackPanel Orientation="Horizontal" Spacing="8">
-                                                <TextBlock Text="{Binding FirmwareName}"
-                                                           FontWeight="SemiBold" Foreground="#1E1B4B"/>
-                                                <TextBlock Text="{Binding FirmwareVersion}"
-                                                           FontSize="12" Foreground="#9CA3AF"
-                                                           VerticalAlignment="Center"/>
-                                                <Border Background="{Binding VehicleType, Converter={StaticResource VehicleTypeToBadgeColorConverter}}"
-                                                        CornerRadius="6" Padding="8,3">
-                                                    <TextBlock Text="{Binding VehicleType}"
-                                                               FontSize="10" FontWeight="Bold"
-                                                               Foreground="White"/>
-                                                </Border>
-                                            </StackPanel>
-                                        </DataTemplate>
-                                    </ComboBox.ItemTemplate>
-                                </ComboBox>
-                            </StackPanel>
-
-                            <!-- Assign Button (Command handles enable/disable â€” no IsEnabled binding) -->
-                            <StackPanel Grid.Column="2" Spacing="8">
-                                <TextBlock Text=" " FontSize="12"/>
-                                <Button Classes="clay-assign"
-                                        Command="{Binding AssignFirmwareToUserCommand}">
-                                    <StackPanel Orientation="Horizontal" Spacing="8">
-                                        <PathIcon Data="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"
-                                                  Width="15" Height="15" Foreground="White"/>
-                                        <TextBlock Text="Assign" FontWeight="Bold"/>
-                                    </StackPanel>
-                                </Button>
-                            </StackPanel>
-                        </Grid>
-
-                        <!-- Assign Status -->
-                        <Border Background="#EEF2FF" CornerRadius="12" Padding="14,10"
-                                IsVisible="{Binding AssignStatusMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
-                            <TextBlock Text="{Binding AssignStatusMessage}"
-                                       FontSize="13" Foreground="#4338CA"/>
                         </Border>
 
-                        <!-- Divider -->
-                        <Border Background="#EDE9FE" Height="1.5" CornerRadius="1"
-                                IsVisible="{Binding SelectedUser, Converter={x:Static ObjectConverters.IsNotNull}}"/>
+                        <!-- ── All assignment user cards ── -->
+                        <StackPanel Spacing="12">
 
-                        <!-- Assigned firmwares for selected user -->
-                        <StackPanel Spacing="12"
-                                    IsVisible="{Binding SelectedUser, Converter={x:Static ObjectConverters.IsNotNull}}">
+                            <!-- Header row -->
                             <Grid ColumnDefinitions="*,Auto">
-                                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8">
-                                    <TextBlock Text="Assigned to:"
-                                               FontSize="14" Foreground="#6B7280"
-                                               VerticalAlignment="Center"/>
-                                    <Border CornerRadius="10" Background="#EDE9FE" Padding="14,5">
-                                        <TextBlock Text="{Binding SelectedUser.FullName}"
-                                                   FontSize="14" FontWeight="Bold"
-                                                   Foreground="#4338CA"/>
-                                    </Border>
-                                </StackPanel>
-                                <Border Grid.Column="1"
-                                        CornerRadius="10" Background="#FFF8C0" Padding="12,5"
-                                        IsVisible="{Binding IsLoadingUserFirmwares}">
-                                    <TextBlock Text="Loading..." FontSize="12" Foreground="#856404"/>
-                                </Border>
+                                <TextBlock Grid.Column="0"
+                                           Text="Current Assignments"
+                                           FontSize="15" FontWeight="Bold"
+                                           Foreground="#374151"
+                                           VerticalAlignment="Center"/>
+                                <Button Grid.Column="1"
+                                        Classes="clay-assign"
+                                        Command="{Binding LoadAllAssignmentsCommand}"
+                                        Padding="14,8">
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <PathIcon Data="M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"
+                                                  Width="13" Height="13" Foreground="White"/>
+                                        <TextBlock Text="Refresh" FontSize="13"/>
+                                    </StackPanel>
+                                </Button>
                             </Grid>
 
-                            <!-- No assignments -->
-                            <Border Background="#F9FAFB"
-                                    BorderBrush="#E5E7EB" BorderThickness="1.5"
-                                    CornerRadius="14" Padding="16,14"
-                                    IsVisible="{Binding HasNoUserFirmwares}">
-                                <TextBlock Text="No firmware assigned to this user yet."
-                                           FontSize="13" Foreground="#9CA3AF"
-                                           HorizontalAlignment="Center"/>
+                            <!-- Loading -->
+                            <Border Background="#FFF8C0" CornerRadius="10" Padding="14,10"
+                                    IsVisible="{Binding IsLoadingAllAssignments}">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <ProgressBar IsIndeterminate="True"
+                                                 Width="60" Height="4" CornerRadius="2"
+                                                 Foreground="#4338CA"/>
+                                    <TextBlock Text="Loading assignments..." FontSize="12" Foreground="#856404"
+                                               VerticalAlignment="Center"/>
+                                </StackPanel>
                             </Border>
 
-                            <!-- Assigned firmware rows -->
-                            <ItemsControl ItemsSource="{Binding SelectedUserFirmwares}">
+                            <!-- Empty state -->
+                            <Border Background="#F9FAFB" BorderBrush="#E5E7EB"
+                                    BorderThickness="1.5" CornerRadius="14"
+                                    Padding="24,20"
+                                    IsVisible="{Binding HasNoAssignments}">
+                                <StackPanel Spacing="8" HorizontalAlignment="Center">
+                                    <TextBlock Text="No firmware assignments yet."
+                                               FontSize="14" FontWeight="SemiBold"
+                                               Foreground="#6B7280"
+                                               HorizontalAlignment="Center"/>
+                                    <TextBlock Text="Use the form above to assign firmware to a user."
+                                               FontSize="12" Foreground="#9CA3AF"
+                                               HorizontalAlignment="Center"/>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- User assignment cards -->
+                            <ItemsControl ItemsSource="{Binding AllUserAssignments}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel Orientation="Horizontal"/>
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
-                                        <Border Classes="assigned-row">
-                                            <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="12">
-                                                <!-- Vehicle badge -->
-                                                <Border Grid.Column="0"
-                                                        Classes="vehicle-badge"
-                                                        Background="{Binding VehicleType, Converter={StaticResource VehicleTypeToBadgeColorConverter}}"
-                                                        VerticalAlignment="Center">
-                                                    <TextBlock Text="{Binding VehicleType}"
-                                                               FontSize="11" FontWeight="Bold"
-                                                               Foreground="White"/>
+                                        <Border Width="340"
+                                                Margin="0,0,16,16"
+                                                CornerRadius="16"
+                                                Background="White"
+                                                BorderBrush="#E5E7EB"
+                                                BorderThickness="1.5">
+                                            <StackPanel Spacing="0">
+
+                                                <!-- Card header — user info -->
+                                                <Border CornerRadius="14,14,0,0"
+                                                        Padding="18,14"
+                                                        Background="#F5F3FF">
+                                                    <Grid ColumnDefinitions="Auto,*,Auto">
+                                                        <!-- Avatar initials -->
+                                                        <Border Grid.Column="0"
+                                                                Width="44" Height="44"
+                                                                CornerRadius="22"
+                                                                Margin="0,0,12,0"
+                                                                VerticalAlignment="Center">
+                                                            <Border.Background>
+                                                                <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,100%">
+                                                                    <GradientStop Color="#7C3AED" Offset="0"/>
+                                                                    <GradientStop Color="#DB2777" Offset="1"/>
+                                                                </LinearGradientBrush>
+                                                            </Border.Background>
+                                                            <TextBlock Text="{Binding UserInitials}"
+                                                                       FontSize="16" FontWeight="Bold"
+                                                                       Foreground="White"
+                                                                       HorizontalAlignment="Center"
+                                                                       VerticalAlignment="Center"/>
+                                                        </Border>
+
+                                                        <!-- Name + email -->
+                                                        <StackPanel Grid.Column="1" Spacing="2"
+                                                                    VerticalAlignment="Center">
+                                                            <TextBlock Text="{Binding User.FullName}"
+                                                                       FontSize="14" FontWeight="Bold"
+                                                                       Foreground="#1E1B4B"
+                                                                       TextTrimming="CharacterEllipsis"/>
+                                                            <TextBlock Text="{Binding User.Email}"
+                                                                       FontSize="11" Foreground="#9CA3AF"
+                                                                       TextTrimming="CharacterEllipsis"/>
+                                                        </StackPanel>
+
+                                                        <!-- Count badge -->
+                                                        <Border Grid.Column="2"
+                                                                Background="#EDE9FE"
+                                                                CornerRadius="10"
+                                                                Padding="10,4"
+                                                                VerticalAlignment="Center"
+                                                                Margin="8,0,0,0">
+                                                            <TextBlock Text="{Binding FirmwareCount}"
+                                                                       FontSize="13" FontWeight="Bold"
+                                                                       Foreground="#4338CA"/>
+                                                        </Border>
+                                                    </Grid>
                                                 </Border>
-                                                <!-- Name + info -->
-                                                <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
-                                                    <TextBlock Text="{Binding FirmwareName}"
-                                                               FontWeight="SemiBold" FontSize="14"
-                                                               Foreground="#1E1B4B"/>
-                                                    <TextBlock FontSize="12" Foreground="#9CA3AF">
-                                                        <Run Text="v"/>
-                                                        <Run Text="{Binding FirmwareVersion}"/>
-                                                        <Run Text=" Â· "/>
-                                                        <Run Text="{Binding FileSizeDisplay}"/>
-                                                    </TextBlock>
-                                                </StackPanel>
-                                                <!-- Date -->
-                                                <TextBlock Grid.Column="2"
-                                                           Text="{Binding AssignedAt, StringFormat='{}{0:MMM dd, yyyy}'}"
-                                                           FontSize="12" Foreground="#9CA3AF"
-                                                           VerticalAlignment="Center"/>
-                                                <!-- Remove -->
-                                                <Button Grid.Column="3"
-                                                        Classes="clay-remove"
-                                                        ToolTip.Tip="Remove assignment"
-                                                        Command="{Binding $parent[UserControl].((vm:FirmwareManagementViewModel)DataContext).RemoveUserFirmwareCommand}"
-                                                        CommandParameter="{Binding}">
-                                                    <TextBlock Text="Remove"/>
-                                                </Button>
-                                            </Grid>
+
+                                                <!-- Divider -->
+                                                <Border Background="#E5E7EB" Height="1"/>
+
+                                                <!-- Firmware rows -->
+                                                <ItemsControl ItemsSource="{Binding Firmwares}">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <Border Padding="16,10"
+                                                                    BorderBrush="#F3F4F6"
+                                                                    BorderThickness="0,0,0,1">
+                                                                <Grid ColumnDefinitions="Auto,*,Auto,Auto"
+                                                                      ColumnSpacing="10">
+
+                                                                    <!-- Vehicle badge -->
+                                                                    <Border Grid.Column="0"
+                                                                            CornerRadius="6" Padding="8,3"
+                                                                            VerticalAlignment="Center"
+                                                                            Background="{Binding VehicleType, Converter={StaticResource VehicleTypeToBadgeColorConverter}}">
+                                                                        <TextBlock Text="{Binding VehicleType}"
+                                                                                   FontSize="10" FontWeight="Bold"
+                                                                                   Foreground="White"/>
+                                                                    </Border>
+
+                                                                    <!-- Name + version -->
+                                                                    <StackPanel Grid.Column="1"
+                                                                                Spacing="1"
+                                                                                VerticalAlignment="Center">
+                                                                        <TextBlock Text="{Binding FirmwareName}"
+                                                                                   FontSize="13" FontWeight="SemiBold"
+                                                                                   Foreground="#1E1B4B"
+                                                                                   TextTrimming="CharacterEllipsis"
+                                                                                   ToolTip.Tip="{Binding FirmwareName}"/>
+                                                                        <TextBlock FontSize="11" Foreground="#9CA3AF">
+                                                                            <Run Text="v"/>
+                                                                            <Run Text="{Binding FirmwareVersion}"/>
+                                                                            <Run Text=" · "/>
+                                                                            <Run Text="{Binding FileSizeDisplay}"/>
+                                                                        </TextBlock>
+                                                                    </StackPanel>
+
+                                                                    <!-- Edit button -->
+                                                                    <Button Grid.Column="2"
+                                                                            VerticalAlignment="Center"
+                                                                            Background="#EEF2FF"
+                                                                            Foreground="#4338CA"
+                                                                            BorderThickness="0"
+                                                                            CornerRadius="8"
+                                                                            Padding="10,5"
+                                                                            FontSize="12"
+                                                                            FontWeight="SemiBold"
+                                                                            Cursor="Hand"
+                                                                            ToolTip.Tip="Edit — pre-fill form to change firmware"
+                                                                            Command="{Binding $parent[UserControl].((vm:FirmwareManagementViewModel)DataContext).EditAssignmentCommand}"
+                                                                            CommandParameter="{Binding}">
+                                                                        <StackPanel Orientation="Horizontal" Spacing="5">
+                                                                            <PathIcon Data="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"
+                                                                                      Width="11" Height="11"
+                                                                                      Foreground="#4338CA"/>
+                                                                            <TextBlock Text="Edit"/>
+                                                                        </StackPanel>
+                                                                    </Button>
+
+                                                                    <!-- Remove button -->
+                                                                    <Button Grid.Column="3"
+                                                                            Classes="clay-remove"
+                                                                            VerticalAlignment="Center"
+                                                                            ToolTip.Tip="Remove this assignment"
+                                                                            Command="{Binding $parent[UserControl].((vm:FirmwareManagementViewModel)DataContext).RemoveUserFirmwareCommand}"
+                                                                            CommandParameter="{Binding}">
+                                                                        <TextBlock Text="Remove"/>
+                                                                    </Button>
+                                                                </Grid>
+                                                            </Border>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+
+                                            </StackPanel>
                                         </Border>
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
                         </StackPanel>
+
                     </StackPanel>
                 </Border>
+                <Border Height="120"/>
 
             </StackPanel>
         </ScrollViewer>
     </Grid>
 </UserControl>
-

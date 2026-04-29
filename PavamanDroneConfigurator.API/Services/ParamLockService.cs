@@ -30,7 +30,7 @@ public class ParamLockService : IParamLockService
         _logger = logger;
     }
 
-    public async Task<string> CreateParamLockAsync(Guid userId, string? deviceId, List<string> paramKeys, Guid adminUserId)
+    public async Task<string> CreateParamLockAsync(Guid userId, string? deviceId, List<string> paramKeys, Guid adminUserId, Dictionary<string, float>? paramValues = null)
     {
         if (paramKeys == null || paramKeys.Count == 0)
             throw new ArgumentException("At least one parameter must be locked", nameof(paramKeys));
@@ -49,6 +49,7 @@ public class ParamLockService : IParamLockService
         var lockData = new
         {
             lockedParams = paramKeys.Distinct().OrderBy(p => p).ToList(),
+            lockedParamValues = paramValues,
             userId = userId.ToString(),
             deviceId = deviceId,
             createdAt = DateTime.UtcNow,
@@ -108,7 +109,7 @@ public class ParamLockService : IParamLockService
         }
     }
 
-    public async Task<string> UpdateParamLockAsync(int lockId, List<string> paramKeys, Guid adminUserId)
+    public async Task<string> UpdateParamLockAsync(int lockId, List<string> paramKeys, Guid adminUserId, Dictionary<string, float>? paramValues = null)
     {
         if (paramKeys == null || paramKeys.Count == 0)
             throw new ArgumentException("At least one parameter must be locked", nameof(paramKeys));
@@ -128,6 +129,7 @@ public class ParamLockService : IParamLockService
         var lockData = new
         {
             lockedParams = paramKeys.Distinct().OrderBy(p => p).ToList(),
+            lockedParamValues = paramValues,
             userId = lockEntity.UserId.ToString(),
             deviceId = lockEntity.DeviceId,
             createdAt = lockEntity.CreatedAt,
@@ -285,12 +287,13 @@ public class ParamLockService : IParamLockService
                     IsActive = lockEntity.IsActive
                 };
 
-                // Optionally load actual param list from S3
+                // Load actual param list (and values) from S3
                 try
                 {
                     var json = await _s3Service.GetObjectAsStringAsync(lockEntity.S3Key);
-                    var lockData = JsonSerializer.Deserialize<LockedParamsJson>(json);
+                    var lockData = JsonSerializer.Deserialize<LockedParamsJson>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
                     info.LockedParams = lockData?.LockedParams ?? new List<string>();
+                    info.LockedParamValues = lockData?.LockedParamValues ?? new Dictionary<string, float>();
                 }
                 catch (Exception ex)
                 {
@@ -371,5 +374,7 @@ public class ParamLockService : IParamLockService
     private class LockedParamsJson
     {
         public List<string> LockedParams { get; set; } = new();
+        /// <summary>Drone values at the time the lock was created, keyed by parameter name.</summary>
+        public Dictionary<string, float>? LockedParamValues { get; set; }
     }
 }

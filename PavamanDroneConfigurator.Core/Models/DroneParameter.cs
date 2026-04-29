@@ -247,9 +247,15 @@ public class DroneParameter : INotifyPropertyChanged
             {
                 _isLocked = value;
                 OnPropertyChanged();
+                OnPropertyChanged(nameof(IsEditable));
             }
         }
     }
+
+    /// <summary>
+    /// Whether this parameter can be edited. False when IsLocked is true.
+    /// </summary>
+    public bool IsEditable => !_isLocked;
 
     /// <summary>
     /// The value enforced by the admin lock. When IsLocked is true, any attempt

@@ -1,0 +1,125 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:PavamanDroneConfigurator.UI.ViewModels"
+        x:Class="PavamanDroneConfigurator.UI.Views.ParamSyncDialog"
+        x:DataType="vm:ParamSyncDialogViewModel"
+        Title="Sync Locked Parameters"
+        Width="560"
+        Height="440"
+        MinWidth="460"
+        MinHeight="340"
+        CanResize="False"
+        WindowStartupLocation="CenterOwner"
+        Background="#FFFFFF">
+
+    <Window.Styles>
+        <Style Selector="Button.btn-primary">
+            <Setter Property="Background" Value="#3B82F6"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Padding" Value="20,10"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+        </Style>
+        <Style Selector="Button.btn-primary:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="#2563EB"/>
+        </Style>
+        <Style Selector="Button.btn-secondary">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="#6B7280"/>
+            <Setter Property="FontWeight" Value="Medium"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Padding" Value="20,10"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="BorderBrush" Value="#D1D5DB"/>
+            <Setter Property="Cursor" Value="Hand"/>
+        </Style>
+        <Style Selector="Button.btn-secondary:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="#F3F4F6"/>
+        </Style>
+    </Window.Styles>
+
+    <Grid RowDefinitions="Auto,*,Auto" Margin="24">
+
+        <!-- Header -->
+        <StackPanel Grid.Row="0" Spacing="6" Margin="0,0,0,16">
+            <StackPanel Orientation="Horizontal" Spacing="10">
+                <PathIcon Data="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"
+                          Width="22" Height="22" Foreground="#F59E0B"/>
+                <TextBlock Text="Parameter Value Mismatch" FontSize="18" FontWeight="Bold" Foreground="#1F2937" VerticalAlignment="Center"/>
+            </StackPanel>
+            <TextBlock Text="{Binding SubTitle}" FontSize="13" Foreground="#6B7280" TextWrapping="Wrap"/>
+            <TextBlock FontSize="12" Foreground="#6B7280" TextWrapping="Wrap"
+                       Text="The admin-locked values are shown below. Choose whether to sync the drone to the locked values or keep the current drone values."/>
+        </StackPanel>
+
+        <!-- Mismatch Table -->
+        <Border Grid.Row="1"
+                BorderBrush="#E5E7EB"
+                BorderThickness="1"
+                CornerRadius="8"
+                ClipToBounds="True"
+                Margin="0,0,0,16">
+            <Grid RowDefinitions="Auto,*">
+                <!-- Column headers -->
+                <Grid Grid.Row="0" ColumnDefinitions="*,110,110" Background="#F9FAFB"
+                      IsVisible="{Binding Mismatches.Count}">
+                    <TextBlock Grid.Column="0" Text="Parameter" FontSize="11" FontWeight="SemiBold"
+                               Foreground="#9CA3AF" Padding="12,10"/>
+                    <TextBlock Grid.Column="1" Text="Locked Value" FontSize="11" FontWeight="SemiBold"
+                               Foreground="#9CA3AF" Padding="8,10" TextAlignment="Center"/>
+                    <TextBlock Grid.Column="2" Text="Drone Value" FontSize="11" FontWeight="SemiBold"
+                               Foreground="#9CA3AF" Padding="8,10" TextAlignment="Center"/>
+                </Grid>
+
+                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                    <ItemsControl ItemsSource="{Binding Mismatches}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:ParamSyncMismatch">
+                                <Grid ColumnDefinitions="*,110,110"
+                                      Background="Transparent">
+                                    <Grid.Styles>
+                                        <Style Selector="Grid">
+                                            <Setter Property="Background" Value="Transparent"/>
+                                        </Style>
+                                    </Grid.Styles>
+                                    <Border Grid.ColumnSpan="3" BorderBrush="#E5E7EB" BorderThickness="0,0,0,1"/>
+                                    <TextBlock Grid.Column="0" Text="{Binding Name}"
+                                               FontSize="12" FontWeight="Medium" Foreground="#1F2937"
+                                               Padding="12,10" VerticalAlignment="Center"
+                                               TextTrimming="CharacterEllipsis"
+                                               ToolTip.Tip="{Binding Name}"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding LockedDisplay}"
+                                               FontSize="12" Foreground="#059669" FontWeight="SemiBold"
+                                               Padding="8,10" TextAlignment="Center" VerticalAlignment="Center"/>
+                                    <TextBlock Grid.Column="2" Text="{Binding DroneDisplay}"
+                                               FontSize="12" Foreground="#EF4444"
+                                               Padding="8,10" TextAlignment="Center" VerticalAlignment="Center"/>
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+            </Grid>
+        </Border>
+
+        <!-- Footer Buttons -->
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="12">
+            <Button Classes="btn-secondary" Click="OnKeepCurrentClick"
+                    ToolTip.Tip="Keep the drone's current values and leave locked parameters unchanged">
+                <TextBlock Text="Keep Current"/>
+            </Button>
+            <Button Classes="btn-primary" Click="OnSyncToDroneClick"
+                    ToolTip.Tip="Push the locked values to the drone now">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                    <PathIcon Data="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"
+                              Width="14" Height="14" Foreground="White"/>
+                    <TextBlock Text="Sync to Drone" Foreground="White" FontWeight="SemiBold"/>
+                </StackPanel>
+            </Button>
+        </StackPanel>
+    </Grid>
+</Window>

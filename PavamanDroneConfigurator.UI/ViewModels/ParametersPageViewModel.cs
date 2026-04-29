@@ -193,6 +193,7 @@ public partial class ParametersPageViewModel : ViewModelBase
 
     /// <summary>
     /// Fetches locked parameters for the current user from the cloud and applies them to loaded parameters.
+    /// Also stores locked values from the API for later sync comparison.
     /// </summary>
     private async Task LoadLockedParamsAsync()
     {
@@ -218,9 +219,22 @@ public partial class ParametersPageViewModel : ViewModelBase
                 }
             }
 
+            // Store locked values from the API (values saved by admin at lock creation time)
+            if (result.ParamValues != null)
+            {
+                foreach (var kv in result.ParamValues)
+                {
+                    if (!string.IsNullOrEmpty(kv.Key))
+                        _lockedParamValues[kv.Key] = kv.Value;
+                }
+            }
+
             // Apply locks to any already-loaded parameters
             if (Parameters.Count > 0)
+            {
                 ApplyLocksToParameters(Parameters);
+                await CheckForParamValueDriftAsync();
+            }
         }
         catch (Exception ex)
         {
@@ -229,7 +243,47 @@ public partial class ParametersPageViewModel : ViewModelBase
     }
 
     /// <summary>
+    /// Compares each locked parameter's admin-set value against the drone's current value.
+    /// Automatically writes any differing values to the drone (admin enforcement).
+    /// </summary>
+    private async Task CheckForParamValueDriftAsync()
+    {
+        if (_lockedParamValues.Count == 0 || Parameters.Count == 0) return;
+
+        var toSync = new List<(string name, float lockedValue)>();
+
+        foreach (var kv in _lockedParamValues)
+        {
+            var param = Parameters.FirstOrDefault(p =>
+                string.Equals(p.Name, kv.Key, StringComparison.OrdinalIgnoreCase));
+
+            if (param != null && Math.Abs(param.Value - kv.Value) > 0.0001f)
+                toSync.Add((kv.Key, kv.Value));
+        }
+
+        if (toSync.Count == 0) return;
+
+        // Auto-enforce: write admin-set values to drone without asking
+        _logger?.LogInformation("Enforcing {Count} locked parameter value(s) on drone", toSync.Count);
+
+        int synced = 0;
+        foreach (var (name, lockedValue) in toSync)
+        {
+            var ok = await _parameterService.SetParameterAsync(name, lockedValue);
+            if (ok) synced++;
+        }
+
+        await Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            StatusMessage = synced == toSync.Count
+                ? $"Enforced {synced} admin-locked parameter value(s) on drone."
+                : $"Enforced {synced}/{toSync.Count} admin-locked parameter value(s) (some failed).";
+        });
+    }
+
+    /// <summary>
     /// Marks parameters as locked based on the currently loaded lock set and enforces locked values.
+    /// Uses API-stored values if available; otherwise falls back to the drone's current value.
     /// </summary>
     private void ApplyLocksToParameters(IEnumerable<DroneParameter> parameters)
     {
@@ -238,7 +292,7 @@ public partial class ParametersPageViewModel : ViewModelBase
             if (_lockedParams.Contains(param.Name))
             {
                 param.IsLocked = true;
-                // Store current value as the locked value so edits revert to it
+                // Prefer API-stored locked value; fall back to current drone value
                 if (!_lockedParamValues.ContainsKey(param.Name))
                     _lockedParamValues[param.Name] = param.Value;
                 param.LockedValue = _lockedParamValues[param.Name];
@@ -485,7 +539,11 @@ public partial class ParametersPageViewModel : ViewModelBase
             
             // Apply admin locks if any are loaded
             if (_lockedParams.Count > 0)
+            {
                 ApplyLocksToParameters(Parameters);
+                // Check if drone values differ from stored locked values
+                _ = CheckForParamValueDriftAsync();
+            }
             
             ApplyFilterAsync();
             

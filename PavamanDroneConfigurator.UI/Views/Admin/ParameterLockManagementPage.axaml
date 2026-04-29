@@ -590,7 +590,7 @@
                         </Border>
 
                         <!-- ═══ RIGHT PANEL: Parameters ═══ -->
-                        <Grid Grid.Column="1" RowDefinitions="Auto,Auto,*" Margin="20,16,20,16">
+                        <Grid Grid.Column="1" RowDefinitions="Auto,Auto,Auto,*" Margin="20,16,20,16">
 
                             <!-- Header + Select All / Clear -->
                             <Grid Grid.Row="0" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8" Margin="0,0,0,10">
@@ -619,7 +619,7 @@
                                 </Button>
                             </Grid>
 
-                            <!-- Param search box -->
+        <!-- Param search box -->
                             <TextBox Grid.Row="1"
                                      Classes="search-input"
                                      Height="40"
@@ -627,47 +627,95 @@
                                      Text="{Binding ParamSearchText}"
                                      Watermark="Search parameters by name or group..."/>
 
-                            <!-- Scrollable params list — fills all remaining height -->
+                            <!-- Column headers for param list -->
                             <Border Grid.Row="2"
+                                    Padding="14,6,14,6"
+                                    Background="#F8F9FA"
+                                    BorderBrush="#E8EAED"
+                                    BorderThickness="1,1,1,0"
+                                    CornerRadius="10,10,0,0">
+                                <Grid ColumnDefinitions="170,90,*,100">
+                                    <TextBlock Grid.Column="0" Text="PARAMETER" FontSize="10" FontWeight="Bold" Foreground="#80868B"/>
+                                    <TextBlock Grid.Column="1" Text="GROUP" FontSize="10" FontWeight="Bold" Foreground="#80868B"/>
+                                    <TextBlock Grid.Column="2" Text="DESCRIPTION" FontSize="10" FontWeight="Bold" Foreground="#80868B"/>
+                                    <TextBlock Grid.Column="3" Text="LOCKED VALUE" FontSize="10" FontWeight="Bold" Foreground="#1A73E8" TextAlignment="Center"/>
+                                </Grid>
+                            </Border>
+
+                            <!-- Scrollable params list — fills all remaining height -->
+                            <Border Grid.Row="3"
+                                    Background="White"
                                     BorderBrush="#E8EAED"
                                     BorderThickness="1"
-                                    CornerRadius="10"
-                                    ClipToBounds="True">
-                                <ScrollViewer VerticalScrollBarVisibility="Visible"
-                                              HorizontalScrollBarVisibility="Disabled"
-                                              AllowAutoHide="False">
+                                    CornerRadius="0,0,10,10">
+                                <ScrollViewer HorizontalScrollBarVisibility="Disabled"
+                                              VerticalScrollBarVisibility="Auto">
                                     <ItemsControl ItemsSource="{Binding FilteredParameters}">
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate DataType="models:ParameterItemModel">
                                                 <Border Classes="param-row">
-                                                    <CheckBox IsChecked="{Binding IsSelected}"
-                                                              Padding="14,10">
-                                                        <Grid ColumnDefinitions="170,90,*">
-                                                            <TextBlock Grid.Column="0"
-                                                                       Text="{Binding Name}"
-                                                                       FontWeight="SemiBold"
-                                                                       FontFamily="Consolas, Courier New"
-                                                                       FontSize="13"
-                                                                       Foreground="#202124"
+                                                    <Grid ColumnDefinitions="Auto,170,90,*,100" Margin="4,4">
+                                                        <!-- Checkbox -->
+                                                        <CheckBox Grid.Column="0"
+                                                                  IsChecked="{Binding IsSelected}"
+                                                                  VerticalAlignment="Center"
+                                                                  Margin="10,0,6,0"/>
+                                                        <!-- Param name -->
+                                                        <TextBlock Grid.Column="1"
+                                                                   Text="{Binding Name}"
+                                                                   FontWeight="SemiBold"
+                                                                   FontFamily="Consolas, Courier New"
+                                                                   FontSize="13"
+                                                                   Foreground="#202124"
+                                                                   VerticalAlignment="Center"
+                                                                   TextTrimming="CharacterEllipsis"
+                                                                   ToolTip.Tip="{Binding Name}"/>
+                                                        <!-- Group chip -->
+                                                        <Border Grid.Column="2"
+                                                                CornerRadius="6" Padding="7,2"
+                                                                Margin="6,0"
+                                                                Background="#F1F3F4"
+                                                                VerticalAlignment="Center"
+                                                                HorizontalAlignment="Left">
+                                                            <TextBlock Text="{Binding Group}"
+                                                                       FontSize="10" FontWeight="SemiBold"
+                                                                       Foreground="#5F6368"/>
+                                                        </Border>
+                                                        <!-- Description -->
+                                                        <TextBlock Grid.Column="3"
+                                                                   Text="{Binding Description}"
+                                                                   FontSize="12" Foreground="#80868B"
+                                                                   TextTrimming="CharacterEllipsis"
+                                                                   VerticalAlignment="Center"
+                                                                   ToolTip.Tip="{Binding Description}"/>
+                                                        <!-- Locked value input (only when selected) -->
+                                                        <Border Grid.Column="4"
+                                                                IsVisible="{Binding IsSelected}"
+                                                                Padding="4,0"
+                                                                VerticalAlignment="Center">
+                                                            <TextBox Text="{Binding LockedValueText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                                     Height="30"
+                                                                     FontSize="12"
+                                                                     FontFamily="Consolas, Courier New"
+                                                                     TextAlignment="Right"
+                                                                     Padding="6,4"
+                                                                     BorderBrush="#1A73E8"
+                                                                     BorderThickness="1"
+                                                                     CornerRadius="6"
+                                                                     Background="#EEF4FD"
+                                                                     ToolTip.Tip="Set the value to enforce on the drone. Pre-filled with current drone value."/>
+                                                        </Border>
+                                                        <!-- Placeholder when not selected -->
+                                                        <Border Grid.Column="4"
+                                                                IsVisible="{Binding !IsSelected}"
+                                                                Padding="4,0"
+                                                                VerticalAlignment="Center">
+                                                            <TextBlock Text="—"
+                                                                       FontSize="12" Foreground="#BDBDBD"
+                                                                       TextAlignment="Center"
                                                                        VerticalAlignment="Center"/>
-                                                            <Border Grid.Column="1"
-                                                                    CornerRadius="6" Padding="7,2"
-                                                                    Margin="6,0"
-                                                                    Background="#F1F3F4"
-                                                                    VerticalAlignment="Center"
-                                                                    HorizontalAlignment="Left">
-                                                                <TextBlock Text="{Binding Group}"
-                                                                           FontSize="10" FontWeight="SemiBold"
-                                                                           Foreground="#5F6368"/>
-                                                            </Border>
-                                                            <TextBlock Grid.Column="2"
-                                                                       Text="{Binding Description}"
-                                                                       FontSize="12" Foreground="#80868B"
-                                                                       TextTrimming="CharacterEllipsis"
-                                                                       VerticalAlignment="Center"
-                                                                       ToolTip.Tip="{Binding Description}"/>
-                                                        </Grid>
-                                                    </CheckBox>
+                                                        </Border>
+                                                    </Grid>
                                                 </Border>
                                             </DataTemplate>
                                         </ItemsControl.ItemTemplate>

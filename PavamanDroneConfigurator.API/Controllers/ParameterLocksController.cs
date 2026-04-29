@@ -55,7 +55,8 @@ public class ParameterLocksController : ControllerBase
                 request.UserId,
                 request.DeviceId,
                 request.Params,
-                adminUserId.Value);
+                adminUserId.Value,
+                request.ParamValues.Count > 0 ? request.ParamValues : null);
 
             _logger.LogInformation("Admin {AdminId} created parameter lock for user {UserId}, device {DeviceId}, {Count} params",
                 adminUserId, request.UserId, request.DeviceId, request.Params.Count);
@@ -104,7 +105,8 @@ public class ParameterLocksController : ControllerBase
             var s3Key = await _paramLockService.UpdateParamLockAsync(
                 request.LockId,
                 request.Params,
-                adminUserId.Value);
+                adminUserId.Value,
+                request.ParamValues.Count > 0 ? request.ParamValues : null);
 
             _logger.LogInformation("Admin {AdminId} updated parameter lock {LockId}, {Count} params",
                 adminUserId, request.LockId, request.Params.Count);

@@ -82,6 +82,52 @@ public partial class ParameterItemModel : ObservableObject
 
     [ObservableProperty]
     private bool _isCurrentlyLocked;
+
+    /// <summary>
+    /// Current/locked value for this parameter. Updated when admin types in the value field.
+    /// </summary>
+    [ObservableProperty]
+    private float _value;
+
+    // Backing field for the editable text representation of Value.
+    private string _lockedValueText = "0";
+    private bool _syncingText;
+
+    /// <summary>
+    /// String representation of Value for two-way TextBox binding.
+    /// Parses to float on user input; synced back from Value changes.
+    /// </summary>
+    public string LockedValueText
+    {
+        get => _lockedValueText;
+        set
+        {
+            if (_lockedValueText == value) return;
+            _lockedValueText = value;
+            OnPropertyChanged();
+            if (_syncingText) return;
+            if (float.TryParse(value,
+                    System.Globalization.NumberStyles.Float,
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    out var f))
+            {
+                _syncingText = true;
+                Value = f;
+                _syncingText = false;
+            }
+        }
+    }
+
+    partial void OnValueChanged(float value)
+    {
+        if (_syncingText) return;
+        var text = value.ToString("G", System.Globalization.CultureInfo.InvariantCulture);
+        if (_lockedValueText != text)
+        {
+            _lockedValueText = text;
+            OnPropertyChanged(nameof(LockedValueText));
+        }
+    }
 }
 
 /// <summary>
