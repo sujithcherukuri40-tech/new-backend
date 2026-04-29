@@ -376,6 +376,40 @@ public class FirmwareApiService
         public string DownloadUrl { get; set; } = string.Empty;
         public int ExpiresIn { get; set; }
     }
+
+    /// <summary>
+    /// Fetch firmwares assigned to the currently authenticated user.
+    /// Requires Bearer token to be set on the HttpClient.
+    /// </summary>
+    public async Task<List<UserAssignedFirmware>> GetMyFirmwaresAsync(
+        string accessToken,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            _logger.LogInformation("Fetching user-assigned firmwares from API");
+
+            using var request = new HttpRequestMessage(HttpMethod.Get, "/api/firmware/my");
+            request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
+
+            var response = await _httpClient.SendAsync(request, cancellationToken);
+            response.EnsureSuccessStatusCode();
+
+            var firmwares = await response.Content.ReadFromJsonAsync<List<UserAssignedFirmware>>(cancellationToken);
+            _logger.LogInformation("Received {Count} assigned firmwares from API", firmwares?.Count ?? 0);
+            return firmwares ?? new List<UserAssignedFirmware>();
+        }
+        catch (HttpRequestException ex)
+        {
+            _logger.LogWarning(ex, "Failed to fetch user firmwares from API");
+            throw new Exception("Unable to connect to firmware server.", ex);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to fetch user firmwares from API");
+            throw new Exception("Failed to load assigned firmware list.", ex);
+        }
+    }
 }
 
 /// <summary>
@@ -391,11 +425,30 @@ public class S3FirmwareMetadata
     public string SizeDisplay { get; set; } = string.Empty;
     public DateTime LastModified { get; set; }
     public string DownloadUrl { get; set; } = string.Empty;
-    
+
     // Custom metadata
     public string? FirmwareName { get; set; }
     public string? FirmwareVersion { get; set; }
     public string? FirmwareDescription { get; set; }
+}
+
+/// <summary>
+/// Firmware assigned to the authenticated user (from GET /api/firmware/my).
+/// </summary>
+public class UserAssignedFirmware
+{
+    public Guid Id { get; set; }
+    public string S3Key { get; set; } = string.Empty;
+    public string FileName { get; set; } = string.Empty;
+    public string? DisplayName { get; set; }
+    public string? FirmwareName { get; set; }
+    public string? FirmwareVersion { get; set; }
+    public string? Description { get; set; }
+    public string VehicleType { get; set; } = string.Empty;
+    public long FileSize { get; set; }
+    public string FileSizeDisplay { get; set; } = string.Empty;
+    public DateTime AssignedAt { get; set; }
+    public string? DownloadUrl { get; set; }
 }
 
 /// <summary>

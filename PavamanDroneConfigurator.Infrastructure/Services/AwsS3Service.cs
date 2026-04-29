@@ -1,5 +1,4 @@
 using Amazon.S3;
-using Amazon.S3;
 using Amazon.S3.Model;
 using Amazon.Runtime;
 using Microsoft.Extensions.Configuration;
@@ -24,8 +23,8 @@ public class AwsS3Service : IDisposable
     private readonly ILogger<AwsS3Service> _logger;
     private readonly string _bucketName;
     private readonly string _region;
-    private const string FirmwarePrefix = "firmwares/";
-    private const string ParamsLogsPrefix = "params-logs/";
+    private const string FirmwarePrefix = "firmware/";
+    private const string ParamsLogsPrefix = "params-backup/";
     private bool _initializationFailed = false;
     private string? _initializationError = null;
     
@@ -37,7 +36,7 @@ public class AwsS3Service : IDisposable
         _bucketName = Environment.GetEnvironmentVariable("AWS_S3_BUCKET_NAME")
             ?? configuration?["S3:BucketName"]
             ?? configuration?["AWS:S3:BucketName"]
-            ?? "drone-config-param-logs";
+            ?? "kft-config-main";
             
         _region = Environment.GetEnvironmentVariable("AWS_S3_REGION")
             ?? Environment.GetEnvironmentVariable("AWS_REGION")
@@ -366,7 +365,7 @@ public class AwsS3Service : IDisposable
             var client = GetS3Client();
             var safeDeviceId = deviceId.Trim().Replace("/", "-").Replace("\\", "-");
             var timestamp = DateTime.UtcNow.ToString("yyyyMMdd_HHmmss");
-            var key = $"params-backup/{safeDeviceId}/{timestamp}.json";
+            var key = $"{ParamsLogsPrefix}{safeDeviceId}/{timestamp}.json";
 
             using var stream = new MemoryStream(Encoding.UTF8.GetBytes(jsonData));
             var request = new PutObjectRequest
@@ -733,6 +732,101 @@ public class AwsS3Service : IDisposable
         return "Unknown";
     }
     
+    /// <summary>
+    /// Upload JSON content to S3 with server-side encryption.
+    /// </summary>
+    public async Task UploadJsonAsync(string key, string jsonContent, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(key)) throw new ArgumentException("S3 key is required", nameof(key));
+        if (jsonContent == null) throw new ArgumentNullException(nameof(jsonContent));
+
+        try
+        {
+            var client = GetS3Client();
+            using var stream = new MemoryStream(Encoding.UTF8.GetBytes(jsonContent));
+            var request = new PutObjectRequest
+            {
+                BucketName = _bucketName,
+                Key = key,
+                InputStream = stream,
+                ContentType = "application/json",
+                ServerSideEncryptionMethod = ServerSideEncryptionMethod.AES256
+            };
+
+            await client.PutObjectAsync(request, cancellationToken);
+            _logger.LogInformation("[S3] JSON uploaded: {Key}", key);
+        }
+        catch (AmazonS3Exception ex)
+        {
+            _logger.LogError(ex, "[S3] AWS error uploading JSON to {Key}: {ErrorCode}", key, ex.ErrorCode);
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "[S3] Failed to upload JSON to {Key}", key);
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Read an S3 object and return its content as a string.
+    /// </summary>
+    public async Task<string> GetObjectAsStringAsync(string key, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(key)) throw new ArgumentException("S3 key is required", nameof(key));
+
+        try
+        {
+            var client = GetS3Client();
+            var request = new GetObjectRequest { BucketName = _bucketName, Key = key };
+
+            using var response = await client.GetObjectAsync(request, cancellationToken);
+            using var reader = new StreamReader(response.ResponseStream);
+            return await reader.ReadToEndAsync(cancellationToken);
+        }
+        catch (AmazonS3Exception ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+        {
+            _logger.LogWarning("[S3] Object not found: {Key}", key);
+            throw new KeyNotFoundException($"S3 object not found: {key}");
+        }
+        catch (AmazonS3Exception ex)
+        {
+            _logger.LogError(ex, "[S3] AWS error reading {Key}: {ErrorCode}", key, ex.ErrorCode);
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "[S3] Failed to read {Key}", key);
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Delete a single object from S3. Returns false if not found, true on success.
+    /// </summary>
+    public async Task<bool> DeleteObjectAsync(string key, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(key)) return false;
+
+        try
+        {
+            var client = GetS3Client();
+            await client.DeleteObjectAsync(_bucketName, key, cancellationToken);
+            _logger.LogInformation("[S3] Object deleted: {Key}", key);
+            return true;
+        }
+        catch (AmazonS3Exception ex)
+        {
+            _logger.LogWarning(ex, "[S3] AWS error deleting {Key}: {ErrorCode}", key, ex.ErrorCode);
+            return false;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "[S3] Failed to delete object: {Key}", key);
+            return false;
+        }
+    }
+
     public void Dispose()
     {
         _s3Client?.Dispose();
@@ -775,91 +869,6 @@ public class ParameterChange
     public float OldValue { get; set; }
     public float NewValue { get; set; }
     public DateTime ChangedAt { get; set; }
-}
-
-public static class AwsS3ServiceExtensions
-{
-    /// <summary>
-    /// Upload JSON content to S3.
-    /// </summary>
-    public static async Task<string> UploadJsonAsync(this AwsS3Service service, string key, string jsonContent, CancellationToken cancellationToken = default)
-    {
-        if (string.IsNullOrWhiteSpace(key)) throw new ArgumentException("S3 key is required", nameof(key));
-        if (jsonContent == null) throw new ArgumentNullException(nameof(jsonContent));
-
-        var client = (IAmazonS3)typeof(AwsS3Service)
-            .GetMethod("GetS3Client", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
-            .Invoke(service, null)!;
-
-        var bucketName = (string)typeof(AwsS3Service)
-            .GetField("_bucketName", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
-            .GetValue(service)!;
-
-        using var stream = new MemoryStream(Encoding.UTF8.GetBytes(jsonContent));
-        var request = new PutObjectRequest
-        {
-            BucketName = bucketName,
-            Key = key,
-            InputStream = stream,
-            ContentType = "application/json",
-            ServerSideEncryptionMethod = ServerSideEncryptionMethod.AES256
-        };
-
-        await client.PutObjectAsync(request, cancellationToken);
-        return key;
-    }
-
-    /// <summary>
-    /// Get JSON content from S3 as string.
-    /// </summary>
-    public static async Task<string> GetObjectAsStringAsync(this AwsS3Service service, string key, CancellationToken cancellationToken = default)
-    {
-        if (string.IsNullOrWhiteSpace(key)) throw new ArgumentException("S3 key is required", nameof(key));
-
-        var client = (IAmazonS3)typeof(AwsS3Service)
-            .GetMethod("GetS3Client", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
-            .Invoke(service, null)!;
-
-        var bucketName = (string)typeof(AwsS3Service)
-            .GetField("_bucketName", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
-            .GetValue(service)!;
-
-        var request = new GetObjectRequest
-        {
-            BucketName = bucketName,
-            Key = key
-        };
-
-        using var response = await client.GetObjectAsync(request, cancellationToken);
-        using var reader = new StreamReader(response.ResponseStream);
-        return await reader.ReadToEndAsync();
-    }
-
-    /// <summary>
-    /// Delete an object from S3.
-    /// </summary>
-    public static async Task<bool> DeleteObjectAsync(this AwsS3Service service, string key, CancellationToken cancellationToken = default)
-    {
-        if (string.IsNullOrWhiteSpace(key)) return false;
-
-        try
-        {
-            var client = (IAmazonS3)typeof(AwsS3Service)
-                .GetMethod("GetS3Client", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
-                .Invoke(service, null)!;
-
-            var bucketName = (string)typeof(AwsS3Service)
-                .GetField("_bucketName", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
-                .GetValue(service)!;
-
-            await client.DeleteObjectAsync(bucketName, key, cancellationToken);
-            return true;
-        }
-        catch
-        {
-            return false;
-        }
-    }
 }
 
 public class ParamLogEntry

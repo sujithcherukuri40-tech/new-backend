@@ -198,8 +198,8 @@ public class ParamLogsController : ControllerBase
                 return BadRequest(new { error = "Invalid key" });
             }
             
-            // SECURITY: Ensure key is within the params-logs folder
-            if (!key.StartsWith("params-logs/", StringComparison.OrdinalIgnoreCase))
+            // SECURITY: Ensure key is within the params-backup folder
+            if (!key.StartsWith("params-backup/", StringComparison.OrdinalIgnoreCase))
             {
                 _logger.LogWarning("Rejected param log request - invalid key path: {Key}", key);
                 return BadRequest(new { error = "Invalid parameter log key" });
@@ -247,7 +247,7 @@ public class ParamLogsController : ControllerBase
         try
         {
             // SECURITY: Validate key
-            if (string.IsNullOrWhiteSpace(key) || !key.StartsWith("params-logs/", StringComparison.OrdinalIgnoreCase))
+            if (string.IsNullOrWhiteSpace(key) || !key.StartsWith("params-backup/", StringComparison.OrdinalIgnoreCase))
             {
                 return BadRequest(new { error = "Invalid parameter log key" });
             }

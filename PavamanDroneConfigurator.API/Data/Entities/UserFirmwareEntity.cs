@@ -10,7 +10,7 @@ namespace PavamanDroneConfigurator.API.Data.Entities;
 /// Admins can upload firmwares and assign them to specific users.
 /// Only assigned users can see and download their firmwares.
 /// </summary>
-[Table("UserFirmwares")]
+[Table("user_firmwares")]
 public class UserFirmwareEntity
 {
     [Key]

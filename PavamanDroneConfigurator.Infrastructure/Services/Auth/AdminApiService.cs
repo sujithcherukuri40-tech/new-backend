@@ -259,4 +259,110 @@ public sealed class AdminApiService : IAdminService
     }
 
     #endregion
+
+    // =====================================================================
+    // FIRMWARE ASSIGNMENT API CALLS
+    // =====================================================================
+
+    public async Task<UserFirmwareDto?> AssignFirmwareToUserAsync(
+        string userId, string s3Key, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var accessToken = await _tokenStorage.GetAccessTokenAsync(cancellationToken);
+            if (string.IsNullOrEmpty(accessToken))
+                throw new InvalidOperationException("Not authenticated");
+
+            using var request = new HttpRequestMessage(HttpMethod.Post, $"/admin/users/{userId}/firmware");
+            request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
+            request.Content = JsonContent.Create(new { s3Key }, options: JsonOptions);
+
+            var response = await _httpClient.SendAsync(request, cancellationToken);
+            if (!response.IsSuccessStatusCode)
+            {
+                var err = await response.Content.ReadAsStringAsync(cancellationToken);
+                _logger.LogError("Failed to assign firmware: {StatusCode} - {Error}", response.StatusCode, err);
+                throw new HttpRequestException($"Server returned {(int)response.StatusCode}: {err}");
+            }
+
+            return await response.Content.ReadFromJsonAsync<UserFirmwareDto>(JsonOptions, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error assigning firmware to user {UserId}", userId);
+            throw;
+        }
+    }
+
+    public async Task<List<UserFirmwareDto>> GetUserFirmwaresAsync(
+        string userId, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var accessToken = await _tokenStorage.GetAccessTokenAsync(cancellationToken);
+            if (string.IsNullOrEmpty(accessToken))
+                throw new InvalidOperationException("Not authenticated");
+
+            using var request = new HttpRequestMessage(HttpMethod.Get, $"/admin/users/{userId}/firmware");
+            request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
+
+            var response = await _httpClient.SendAsync(request, cancellationToken);
+            response.EnsureSuccessStatusCode();
+
+            var result = await response.Content.ReadFromJsonAsync<List<UserFirmwareDto>>(JsonOptions, cancellationToken);
+            return result ?? new List<UserFirmwareDto>();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting firmwares for user {UserId}", userId);
+            throw;
+        }
+    }
+
+    public async Task<bool> RemoveUserFirmwareAsync(
+        string userId, string firmwareId, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var accessToken = await _tokenStorage.GetAccessTokenAsync(cancellationToken);
+            if (string.IsNullOrEmpty(accessToken))
+                throw new InvalidOperationException("Not authenticated");
+
+            using var request = new HttpRequestMessage(HttpMethod.Delete, $"/admin/users/{userId}/firmware/{firmwareId}");
+            request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
+
+            var response = await _httpClient.SendAsync(request, cancellationToken);
+            return response.IsSuccessStatusCode;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error removing firmware {FirmwareId} from user {UserId}", firmwareId, userId);
+            return false;
+        }
+    }
+}
+
+/// <summary>
+/// DTO for user firmware responses from the admin API.
+/// </summary>
+public class UserFirmwareDto
+{
+    public Guid Id { get; set; }
+    public Guid UserId { get; set; }
+    public string UserName { get; set; } = string.Empty;
+    public string UserEmail { get; set; } = string.Empty;
+    public string S3Key { get; set; } = string.Empty;
+    public string FileName { get; set; } = string.Empty;
+    public string? DisplayName { get; set; }
+    public string? FirmwareName { get; set; }
+    public string? FirmwareVersion { get; set; }
+    public string? Description { get; set; }
+    public string VehicleType { get; set; } = string.Empty;
+    public long FileSize { get; set; }
+    public string FileSizeDisplay { get; set; } = string.Empty;
+    public DateTime UploadedAt { get; set; }
+    public DateTime AssignedAt { get; set; }
+    public bool IsActive { get; set; }
+    public int DownloadCount { get; set; }
+    public string? DownloadUrl { get; set; }
 }

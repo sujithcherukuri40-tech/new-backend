@@ -134,6 +134,173 @@ public class SesEmailService : IEmailService
         }
     }
 
+    public async Task SendApprovalEmailAsync(string email, string fullName, bool approved)
+    {
+        if (string.IsNullOrWhiteSpace(email)) throw new ArgumentException("Email is required", nameof(email));
+
+        try
+        {
+            var encodedName = HtmlEncoder.Default.Encode((fullName ?? "User").Trim());
+            string subject, htmlBody;
+
+            if (approved)
+            {
+                subject = "Your account has been approved — Kapil Future Tech";
+                htmlBody = $"""
+                    <!DOCTYPE html>
+                    <html lang="en">
+                    <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+                    <body style="margin:0;padding:0;background:#F0F4FF;font-family:'Segoe UI',Arial,Helvetica,sans-serif;">
+                      <table width="100%" cellpadding="0" cellspacing="0" style="background:#F0F4FF;padding:40px 0;">
+                        <tr><td align="center">
+                          <table width="560" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);">
+                            <tr>
+                              <td style="background:linear-gradient(135deg,#1E3A8A 0%,#3B82F6 100%);padding:32px 40px;text-align:center;">
+                                <h1 style="margin:0;color:#ffffff;font-size:24px;font-weight:700;">Kapil Future Tech</h1>
+                                <p style="margin:6px 0 0;color:#BFDBFE;font-size:13px;">Drone Configurator</p>
+                              </td>
+                            </tr>
+                            <tr>
+                              <td style="padding:36px 40px;">
+                                <p style="margin:0 0 8px;color:#6B7280;font-size:14px;">Hello, {encodedName}</p>
+                                <h2 style="margin:0 0 20px;color:#111827;font-size:20px;font-weight:600;">Your account has been approved!</h2>
+                                <p style="margin:0 0 24px;color:#374151;font-size:15px;line-height:1.6;">
+                                  Your account has been reviewed and <strong style="color:#16A34A;">approved</strong> by an administrator.
+                                  You can now log in to the Kapil Future Tech Drone Configurator.
+                                </p>
+                                <div style="background:#F0FDF4;border:1px solid #86EFAC;border-radius:8px;padding:16px;margin-bottom:24px;">
+                                  <p style="margin:0;color:#166534;font-size:14px;font-weight:600;">✓ Account Active</p>
+                                  <p style="margin:4px 0 0;color:#15803D;font-size:13px;">You now have full access to all features.</p>
+                                </div>
+                                <p style="margin:0;color:#9CA3AF;font-size:12px;">
+                                  If you have any questions, please contact your administrator.
+                                </p>
+                              </td>
+                            </tr>
+                            <tr>
+                              <td style="background:#F8FAFC;padding:20px 40px;border-top:1px solid #E2E8F0;text-align:center;">
+                                <p style="margin:0;color:#9CA3AF;font-size:12px;">&copy; 2025 Kapil Future Tech. All rights reserved.</p>
+                              </td>
+                            </tr>
+                          </table>
+                        </td></tr>
+                      </table>
+                    </body>
+                    </html>
+                    """;
+            }
+            else
+            {
+                subject = "Your account access has been revoked — Kapil Future Tech";
+                htmlBody = $"""
+                    <!DOCTYPE html>
+                    <html lang="en">
+                    <head><meta charset="UTF-8"></head>
+                    <body style="margin:0;padding:0;background:#F0F4FF;font-family:'Segoe UI',Arial,Helvetica,sans-serif;">
+                      <table width="100%" cellpadding="0" cellspacing="0" style="background:#F0F4FF;padding:40px 0;">
+                        <tr><td align="center">
+                          <table width="560" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:16px;overflow:hidden;">
+                            <tr>
+                              <td style="background:linear-gradient(135deg,#1E3A8A 0%,#3B82F6 100%);padding:32px 40px;text-align:center;">
+                                <h1 style="margin:0;color:#ffffff;font-size:24px;font-weight:700;">Kapil Future Tech</h1>
+                              </td>
+                            </tr>
+                            <tr>
+                              <td style="padding:36px 40px;">
+                                <p style="margin:0 0 8px;color:#6B7280;font-size:14px;">Hello, {encodedName}</p>
+                                <h2 style="margin:0 0 20px;color:#111827;font-size:20px;">Account access revoked</h2>
+                                <p style="color:#374151;font-size:15px;line-height:1.6;">
+                                  Your access to the Kapil Future Tech Drone Configurator has been revoked by an administrator.
+                                  Please contact your administrator if you believe this is an error.
+                                </p>
+                              </td>
+                            </tr>
+                            <tr>
+                              <td style="background:#F8FAFC;padding:20px 40px;border-top:1px solid #E2E8F0;text-align:center;">
+                                <p style="margin:0;color:#9CA3AF;font-size:12px;">&copy; 2025 Kapil Future Tech. All rights reserved.</p>
+                              </td>
+                            </tr>
+                          </table>
+                        </td></tr>
+                      </table>
+                    </body>
+                    </html>
+                    """;
+            }
+
+            await SendEmailInternalAsync(email, subject, htmlBody);
+            _logger.LogInformation("Approval email ({Approved}) sent to {Email}", approved, email);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to send approval email to {Email}", email);
+            throw;
+        }
+    }
+
+    public async Task SendFirmwareAssignmentEmailAsync(string email, string fullName, string firmwareName, string firmwareVersion)
+    {
+        if (string.IsNullOrWhiteSpace(email)) throw new ArgumentException("Email is required", nameof(email));
+
+        try
+        {
+            var encodedName = HtmlEncoder.Default.Encode((fullName ?? "User").Trim());
+            var encodedFirmwareName = HtmlEncoder.Default.Encode(firmwareName?.Trim() ?? "");
+            var encodedVersion = HtmlEncoder.Default.Encode(firmwareVersion?.Trim() ?? "");
+
+            var subject = "New firmware assigned to your account — Kapil Future Tech";
+            var htmlBody = $"""
+                <!DOCTYPE html>
+                <html lang="en">
+                <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+                <body style="margin:0;padding:0;background:#F0F4FF;font-family:'Segoe UI',Arial,Helvetica,sans-serif;">
+                  <table width="100%" cellpadding="0" cellspacing="0" style="background:#F0F4FF;padding:40px 0;">
+                    <tr><td align="center">
+                      <table width="560" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);">
+                        <tr>
+                          <td style="background:linear-gradient(135deg,#1E3A8A 0%,#3B82F6 100%);padding:32px 40px;text-align:center;">
+                            <h1 style="margin:0;color:#ffffff;font-size:24px;font-weight:700;">Kapil Future Tech</h1>
+                            <p style="margin:6px 0 0;color:#BFDBFE;font-size:13px;">Drone Configurator</p>
+                          </td>
+                        </tr>
+                        <tr>
+                          <td style="padding:36px 40px;">
+                            <p style="margin:0 0 8px;color:#6B7280;font-size:14px;">Hello, {encodedName}</p>
+                            <h2 style="margin:0 0 20px;color:#111827;font-size:20px;font-weight:600;">New firmware available for your account</h2>
+                            <p style="margin:0 0 24px;color:#374151;font-size:15px;line-height:1.6;">
+                              An administrator has assigned new firmware to your account. You can access it from the Firmware page in the Drone Configurator.
+                            </p>
+                            <div style="background:#EFF6FF;border:1px solid #93C5FD;border-radius:8px;padding:16px;margin-bottom:24px;">
+                              <p style="margin:0;color:#1E40AF;font-size:14px;font-weight:600;">📦 {encodedFirmwareName}</p>
+                              <p style="margin:4px 0 0;color:#3B82F6;font-size:13px;">Version: {encodedVersion}</p>
+                            </div>
+                            <p style="margin:0;color:#9CA3AF;font-size:12px;">
+                              Log in to the Kapil Future Tech Drone Configurator to view and flash this firmware.
+                            </p>
+                          </td>
+                        </tr>
+                        <tr>
+                          <td style="background:#F8FAFC;padding:20px 40px;border-top:1px solid #E2E8F0;text-align:center;">
+                            <p style="margin:0;color:#9CA3AF;font-size:12px;">&copy; 2025 Kapil Future Tech. All rights reserved.</p>
+                          </td>
+                        </tr>
+                      </table>
+                    </td></tr>
+                  </table>
+                </body>
+                </html>
+                """;
+
+            await SendEmailInternalAsync(email, subject, htmlBody);
+            _logger.LogInformation("Firmware assignment email sent to {Email} for firmware {Name}", email, firmwareName);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to send firmware assignment email to {Email}", email);
+            throw;
+        }
+    }
+
     private async Task SendEmailInternalAsync(string toAddress, string subject, string htmlBody)
     {
         if (!IsValidEmail(toAddress))

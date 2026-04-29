@@ -34,7 +34,7 @@ builder.Configuration
 builder.Services.AddSingleton<AwsSecretsManagerService>();
 
 // Get configuration values
-var connectionString = GetConnectionString(builder);
+var connectionString = await GetConnectionStringAsync(builder);
 var secretKey = GetJwtSecret(builder);
 
 // Validate required configuration
@@ -301,7 +301,7 @@ app.Run();
 // Helper Methods
 // ============================================================================
 
-static string? GetConnectionString(WebApplicationBuilder builder)
+static async Task<string?> GetConnectionStringAsync(WebApplicationBuilder builder)
 {
     // Priority 1: Full connection string from environment
     var connStr = Environment.GetEnvironmentVariable("ConnectionStrings__PostgresDb");
@@ -332,6 +332,44 @@ static string? GetConnectionString(WebApplicationBuilder builder)
     {
         Console.WriteLine("[OK] Using appsettings.json connection string");
         return appSettings;
+    }
+
+    // Priority 4: AWS Secrets Manager (production fallback)
+    try
+    {
+        var secretName = builder.Configuration["AWS:Secrets:DatabaseSecret"]
+            ?? "drone-configurator/drone_configurator";
+        var region = Environment.GetEnvironmentVariable("AWS_REGION")
+            ?? builder.Configuration["AWS:Region"]
+            ?? "ap-south-1";
+
+        Console.WriteLine($"[INFO] Trying AWS Secrets Manager: {secretName} in {region}");
+
+        using var smClient = new Amazon.SecretsManager.AmazonSecretsManagerClient(
+            Amazon.RegionEndpoint.GetBySystemName(region));
+        var response = await smClient.GetSecretValueAsync(
+            new Amazon.SecretsManager.Model.GetSecretValueRequest { SecretId = secretName });
+
+        if (!string.IsNullOrEmpty(response.SecretString))
+        {
+            var secret = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>(response.SecretString);
+            if (secret != null &&
+                secret.TryGetValue("host", out var smHost) &&
+                secret.TryGetValue("username", out var smUser) &&
+                secret.TryGetValue("password", out var smPass))
+            {
+                secret.TryGetValue("dbname", out var smDb);
+                secret.TryGetValue("port", out var smPort);
+                var database = smDb ?? "drone_configurator";
+                var dbPort = smPort ?? "5432";
+                Console.WriteLine($"[OK] Using AWS Secrets Manager - host={smHost}, db={database}");
+                return $"Host={smHost};Port={dbPort};Database={database};Username={smUser};Password={smPass};Ssl Mode=Require";
+            }
+        }
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"[WARN] AWS Secrets Manager unavailable: {ex.Message}");
     }
 
     return null;

@@ -187,6 +187,38 @@ public class ParamLockApiService
             return null;
         }
     }
+
+    /// <summary>
+    /// Get the locked parameters for the currently authenticated user.
+    /// Calls GET /api/parameter-locks/my with the user's Bearer token.
+    /// </summary>
+    public async Task<MyLockedParamsResult?> GetMyLockedParamsAsync(string token, string? deviceId = null)
+    {
+        try
+        {
+            _httpClient.DefaultRequestHeaders.Clear();
+            _httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {token}");
+
+            var url = string.IsNullOrWhiteSpace(deviceId)
+                ? "/api/parameter-locks/my"
+                : $"/api/parameter-locks/my?deviceId={Uri.EscapeDataString(deviceId)}";
+
+            var response = await _httpClient.GetAsync(url);
+
+            if (response.IsSuccessStatusCode)
+            {
+                return await response.Content.ReadFromJsonAsync<MyLockedParamsResult>();
+            }
+
+            _logger.LogError("Failed to get my locked params: {StatusCode}", response.StatusCode);
+            return null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Exception getting locked params for current user");
+            return null;
+        }
+    }
 }
 
 #region DTOs
@@ -225,6 +257,15 @@ public class LockedParamsResponse
     public string? DeviceId { get; set; }
     public List<string> LockedParams { get; set; } = new();
     public int Count { get; set; }
+}
+
+public class MyLockedParamsResult
+{
+    public Guid UserId { get; set; }
+    public string? DeviceId { get; set; }
+    public List<string> LockedParams { get; set; } = new();
+    public int Count { get; set; }
+    public int LockCount { get; set; }
 }
 
 public class ParamLockInfo

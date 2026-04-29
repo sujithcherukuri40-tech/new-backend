@@ -9,8 +9,15 @@ public interface IEmailService
     /// <summary>
     /// Sends a password reset email with a 6-digit OTP code.
     /// </summary>
-    /// <param name="email">Recipient email address.</param>
-    /// <param name="fullName">Recipient full name for personalisation.</param>
-    /// <param name="code">6-digit reset code.</param>
     Task SendPasswordResetEmailAsync(string email, string fullName, string code);
+
+    /// <summary>
+    /// Sends an account approval notification email.
+    /// </summary>
+    Task SendApprovalEmailAsync(string email, string fullName, bool approved);
+
+    /// <summary>
+    /// Sends a firmware assignment notification email.
+    /// </summary>
+    Task SendFirmwareAssignmentEmailAsync(string email, string fullName, string firmwareName, string firmwareVersion);
 }

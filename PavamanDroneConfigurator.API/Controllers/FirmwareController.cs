@@ -1,12 +1,14 @@
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
+using PavamanDroneConfigurator.API.Data;
+using PavamanDroneConfigurator.API.Services;
 using PavamanDroneConfigurator.Infrastructure.Services;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -17,6 +19,7 @@ namespace PavamanDroneConfigurator.API.Controllers;
 public class FirmwareController : ControllerBase
 {
     private readonly AwsS3Service _s3Service;
+    private readonly IAdminService _adminService;
     private readonly ILogger<FirmwareController> _logger;
     
     // Allowed firmware file extensions
@@ -31,9 +34,10 @@ public class FirmwareController : ControllerBase
         { ".hex", new byte[] { 0x3A } }  // Intel HEX format starts with :
     };
     
-    public FirmwareController(AwsS3Service s3Service, ILogger<FirmwareController> logger)
+    public FirmwareController(AwsS3Service s3Service, IAdminService adminService, ILogger<FirmwareController> logger)
     {
         _s3Service = s3Service;
+        _adminService = adminService;
         _logger = logger;
     }
     
@@ -228,7 +232,7 @@ public class FirmwareController : ControllerBase
             }
             
             // SECURITY: Ensure key is within the firmware folder
-            if (!key.StartsWith("firmwares/", StringComparison.OrdinalIgnoreCase))
+            if (!key.StartsWith("firmware/", StringComparison.OrdinalIgnoreCase))
             {
                 _logger.LogWarning("Rejected firmware delete request - invalid key path: {Key}", key);
                 return BadRequest(new { error = "Invalid firmware key" });
@@ -279,7 +283,7 @@ public class FirmwareController : ControllerBase
         try
         {
             // SECURITY: Validate key
-            if (string.IsNullOrWhiteSpace(key) || !key.StartsWith("firmwares/", StringComparison.OrdinalIgnoreCase))
+            if (string.IsNullOrWhiteSpace(key) || !key.StartsWith("firmware/", StringComparison.OrdinalIgnoreCase))
             {
                 return BadRequest(new { error = "Invalid firmware key" });
             }
@@ -781,6 +785,43 @@ public class FirmwareController : ControllerBase
         catch
         {
             return false;
+        }
+    }
+
+    // =====================================================================
+    // USER-FACING FIRMWARE ENDPOINTS (requires auth)
+    // =====================================================================
+
+    /// <summary>
+    /// GET /api/firmware/my
+    /// Returns only the firmwares assigned to the currently logged-in user.
+    /// </summary>
+    [HttpGet("my")]
+    [Authorize]
+    [EnableRateLimiting("fixed")]
+    public async Task<ActionResult<List<PavamanDroneConfigurator.API.DTOs.UserFirmwareResponse>>> GetMyFirmwares(CancellationToken cancellationToken)
+    {
+        try
+        {
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
+                ?? User.FindFirst("sub")?.Value;
+
+            if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
+                return Unauthorized(new { error = "Invalid token" });
+
+            var firmwares = await _adminService.GetMyFirmwaresAsync(userId);
+
+            // Generate presigned download URLs
+            foreach (var f in firmwares)
+                f.DownloadUrl = _s3Service.GeneratePresignedUrl(f.S3Key, TimeSpan.FromHours(1));
+
+            _logger.LogInformation("User {UserId} fetched {Count} assigned firmwares", userId, firmwares.Count);
+            return Ok(firmwares);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to get firmwares for current user");
+            return StatusCode(500, new { error = "Failed to retrieve assigned firmwares" });
         }
     }
 }

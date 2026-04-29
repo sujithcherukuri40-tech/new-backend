@@ -44,6 +44,21 @@ public class DroneParameter : INotifyPropertyChanged
         get => _value;
         set
         {
+            // LOCK ENFORCEMENT: If parameter is admin-locked, revert to locked value
+            if (_isLocked && System.Math.Abs(value - _lockedValue) > 0.0001f)
+            {
+                ValidationError = $"Parameter is locked by admin. Value reverted to {_lockedValue:G}.";
+                if (System.Math.Abs(_value - _lockedValue) > 0.0001f)
+                {
+                    _value = _lockedValue;
+                    IsModified = false;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(ValueDisplay));
+                    UpdateSelectedOptionFromValue();
+                }
+                return;
+            }
+
             // STRICT VALIDATION: Revert to DefaultValue if out of range
             float validatedValue = value;
             bool isOutOfRange = false;
@@ -212,6 +227,42 @@ public class DroneParameter : INotifyPropertyChanged
             if (_isModified != value)
             {
                 _isModified = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    private bool _isLocked;
+    private float _lockedValue;
+
+    /// <summary>
+    /// Whether this parameter is locked by an admin and cannot be edited by the user.
+    /// </summary>
+    public bool IsLocked
+    {
+        get => _isLocked;
+        set
+        {
+            if (_isLocked != value)
+            {
+                _isLocked = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>
+    /// The value enforced by the admin lock. When IsLocked is true, any attempt
+    /// to set a different value is reverted to this value.
+    /// </summary>
+    public float LockedValue
+    {
+        get => _lockedValue;
+        set
+        {
+            if (System.Math.Abs(_lockedValue - value) > 0.0001f)
+            {
+                _lockedValue = value;
                 OnPropertyChanged();
             }
         }

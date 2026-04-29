@@ -6,6 +6,7 @@ using PavamanDroneConfigurator.API.DTOs;
 using PavamanDroneConfigurator.API.Exceptions;
 using PavamanDroneConfigurator.API.Models;
 using PavamanDroneConfigurator.API.Services;
+using PavamanDroneConfigurator.Infrastructure.Services;
 
 namespace PavamanDroneConfigurator.API.Controllers;
 
@@ -21,11 +22,13 @@ namespace PavamanDroneConfigurator.API.Controllers;
 public class AdminController : ControllerBase
 {
     private readonly IAdminService _adminService;
+    private readonly AwsS3Service _s3Service;
     private readonly ILogger<AdminController> _logger;
 
-    public AdminController(IAdminService adminService, ILogger<AdminController> logger)
+    public AdminController(IAdminService adminService, AwsS3Service s3Service, ILogger<AdminController> logger)
     {
         _adminService = adminService;
+        _s3Service = s3Service;
         _logger = logger;
     }
 
@@ -237,5 +240,209 @@ public class AdminController : ControllerBase
         }
 
         return userId;
+    }
+
+    // =====================================================================
+    // FIRMWARE ASSIGNMENT ENDPOINTS
+    // =====================================================================
+
+    /// <summary>
+    /// Assign an existing S3 firmware to a user.
+    /// POST /admin/users/{userId}/firmware
+    /// </summary>
+    [HttpPost("users/{userId}/firmware")]
+    [ProducesResponseType(typeof(UserFirmwareResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<UserFirmwareResponse>> AssignFirmwareToUser(
+        [FromRoute] Guid userId,
+        [FromBody] AssignFirmwareRequest request)
+    {
+        try
+        {
+            var adminId = GetCurrentUserId();
+            if (adminId == null)
+                return Unauthorized(new ErrorResponse { Message = "Invalid token", Code = "INVALID_TOKEN" });
+
+            if (string.IsNullOrWhiteSpace(request.S3Key))
+                return BadRequest(new ErrorResponse { Message = "S3Key is required", Code = "INVALID_REQUEST" });
+
+            // Fetch firmware metadata from S3 to get file details
+            var allFirmwares = await _s3Service.ListFirmwareFilesAsync();
+            var s3Info = allFirmwares.FirstOrDefault(f => f.Key == request.S3Key);
+            if (s3Info == null)
+                return NotFound(new ErrorResponse { Message = "Firmware not found in storage", Code = "FIRMWARE_NOT_FOUND" });
+
+            var response = await _adminService.AssignFirmwareToUserAsync(
+                userId, adminId.Value,
+                s3Info.Key, s3Info.FileName,
+                s3Info.FirmwareName ?? s3Info.FileName,
+                s3Info.FirmwareVersion ?? "Unknown",
+                s3Info.FirmwareDescription,
+                s3Info.VehicleType ?? "Copter",
+                s3Info.Size,
+                s3Info.DisplayName);
+
+            response.DownloadUrl = _s3Service.GeneratePresignedUrl(response.S3Key, TimeSpan.FromHours(1));
+
+            _logger.LogInformation("Admin {AdminId} assigned firmware {S3Key} to user {UserId}", adminId, request.S3Key, userId);
+            return Ok(response);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(new ErrorResponse { Message = ex.Message, Code = "ALREADY_ASSIGNED" });
+        }
+        catch (AuthException ex) when (ex.StatusCode == 404)
+        {
+            return NotFound(new ErrorResponse { Message = ex.Message, Code = ex.Code });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error assigning firmware to user {UserId}", userId);
+            return StatusCode(500, new ErrorResponse { Message = "Failed to assign firmware", Code = "SERVER_ERROR" });
+        }
+    }
+
+    /// <summary>
+    /// Upload firmware and directly assign to a user.
+    /// POST /admin/users/{userId}/firmware/upload
+    /// </summary>
+    [HttpPost("users/{userId}/firmware/upload")]
+    [RequestSizeLimit(52_428_800)]
+    [ProducesResponseType(typeof(UserFirmwareResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<UserFirmwareResponse>> UploadAndAssignFirmware(
+        [FromRoute] Guid userId,
+        [FromForm] IFormFile file,
+        [FromForm] string? firmwareName,
+        [FromForm] string? firmwareVersion,
+        [FromForm] string? description,
+        [FromForm] string? vehicleType,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var adminId = GetCurrentUserId();
+            if (adminId == null)
+                return Unauthorized(new ErrorResponse { Message = "Invalid token", Code = "INVALID_TOKEN" });
+
+            if (file == null || file.Length == 0)
+                return BadRequest(new ErrorResponse { Message = "No file uploaded", Code = "NO_FILE" });
+
+            var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
+            string[] allowed = { ".apj", ".px4", ".bin", ".hex" };
+            if (!allowed.Contains(ext))
+                return BadRequest(new ErrorResponse { Message = $"Invalid file type. Allowed: {string.Join(", ", allowed)}", Code = "INVALID_FILE_TYPE" });
+
+            if (file.Length > 50 * 1024 * 1024)
+                return BadRequest(new ErrorResponse { Message = "File too large (max 50MB)", Code = "FILE_TOO_LARGE" });
+
+            var sanitized = SanitizeFileName(file.FileName);
+            if (string.IsNullOrEmpty(sanitized))
+                return BadRequest(new ErrorResponse { Message = "Invalid file name", Code = "INVALID_FILE_NAME" });
+
+            var tempPath = Path.GetTempFileName();
+            try
+            {
+                using (var fs = new FileStream(tempPath, FileMode.Create))
+                    await file.CopyToAsync(fs, cancellationToken);
+
+                var s3Info = await _s3Service.UploadFirmwareAsync(
+                    tempPath, sanitized, firmwareName, firmwareVersion, description, cancellationToken);
+
+                var response = await _adminService.AssignFirmwareToUserAsync(
+                    userId, adminId.Value,
+                    s3Info.Key, s3Info.FileName,
+                    firmwareName ?? s3Info.FirmwareName ?? s3Info.FileName,
+                    firmwareVersion ?? s3Info.FirmwareVersion ?? "Unknown",
+                    description ?? s3Info.FirmwareDescription,
+                    vehicleType ?? s3Info.VehicleType ?? "Copter",
+                    s3Info.Size,
+                    s3Info.DisplayName);
+
+                response.DownloadUrl = _s3Service.GeneratePresignedUrl(response.S3Key, TimeSpan.FromHours(1));
+                return Ok(response);
+            }
+            finally
+            {
+                try { System.IO.File.Delete(tempPath); } catch { }
+            }
+        }
+        catch (AuthException ex) when (ex.StatusCode == 404)
+        {
+            return NotFound(new ErrorResponse { Message = ex.Message, Code = ex.Code });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error uploading and assigning firmware to user {UserId}", userId);
+            return StatusCode(500, new ErrorResponse { Message = "Failed to upload firmware", Code = "SERVER_ERROR" });
+        }
+    }
+
+    /// <summary>
+    /// Get all firmwares assigned to a user.
+    /// GET /admin/users/{userId}/firmware
+    /// </summary>
+    [HttpGet("users/{userId}/firmware")]
+    [ProducesResponseType(typeof(List<UserFirmwareResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<List<UserFirmwareResponse>>> GetUserFirmwares([FromRoute] Guid userId)
+    {
+        try
+        {
+            var firmwares = await _adminService.GetUserFirmwaresAsync(userId);
+
+            // Generate fresh presigned download URLs
+            foreach (var f in firmwares)
+                f.DownloadUrl = _s3Service.GeneratePresignedUrl(f.S3Key, TimeSpan.FromHours(1));
+
+            return Ok(firmwares);
+        }
+        catch (AuthException ex) when (ex.StatusCode == 404)
+        {
+            return NotFound(new ErrorResponse { Message = ex.Message, Code = ex.Code });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting firmwares for user {UserId}", userId);
+            return StatusCode(500, new ErrorResponse { Message = "Failed to get user firmwares", Code = "SERVER_ERROR" });
+        }
+    }
+
+    /// <summary>
+    /// Remove a firmware assignment from a user.
+    /// DELETE /admin/users/{userId}/firmware/{firmwareId}
+    /// </summary>
+    [HttpDelete("users/{userId}/firmware/{firmwareId}")]
+    [ProducesResponseType(typeof(SuccessResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<SuccessResponse>> RemoveUserFirmware(
+        [FromRoute] Guid userId,
+        [FromRoute] Guid firmwareId)
+    {
+        try
+        {
+            await _adminService.RemoveUserFirmwareAsync(userId, firmwareId);
+            var adminId = GetCurrentUserId();
+            _logger.LogInformation("Admin {AdminId} removed firmware {FirmwareId} from user {UserId}", adminId, firmwareId, userId);
+            return Ok(new SuccessResponse { Message = "Firmware assignment removed successfully" });
+        }
+        catch (AuthException ex) when (ex.StatusCode == 404)
+        {
+            return NotFound(new ErrorResponse { Message = ex.Message, Code = ex.Code });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error removing firmware {FirmwareId} from user {UserId}", firmwareId, userId);
+            return StatusCode(500, new ErrorResponse { Message = "Failed to remove firmware assignment", Code = "SERVER_ERROR" });
+        }
+    }
+
+    private static string SanitizeFileName(string fileName)
+    {
+        var name = Path.GetFileNameWithoutExtension(fileName);
+        var ext = Path.GetExtension(fileName);
+        var sanitized = System.Text.RegularExpressions.Regex.Replace(name, @"[^a-zA-Z0-9_\-\.]", "_");
+        return string.IsNullOrEmpty(sanitized) ? string.Empty : sanitized + ext;
     }
 }

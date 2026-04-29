@@ -8,28 +8,18 @@ namespace PavamanDroneConfigurator.API.Services;
 /// </summary>
 public interface IAdminService
 {
-    /// <summary>
-    /// Get all users for admin panel.
-    /// </summary>
     Task<UsersListResponse> GetAllUsersAsync();
-
-    /// <summary>
-    /// Approve or disapprove a user.
-    /// </summary>
     Task<bool> ApproveUserAsync(Guid userId, bool approve);
-
-    /// <summary>
-    /// Change a user's role.
-    /// </summary>
     Task<bool> ChangeUserRoleAsync(Guid userId, UserRole newRole);
-
-    /// <summary>
-    /// Delete a user permanently.
-    /// </summary>
     Task<bool> DeleteUserAsync(Guid userId);
-
-    /// <summary>
-    /// Get a user by ID.
-    /// </summary>
     Task<User?> GetUserByIdAsync(Guid userId);
+
+    // Firmware assignment
+    Task<UserFirmwareResponse> AssignFirmwareToUserAsync(
+        Guid userId, Guid adminId, string s3Key, string fileName,
+        string firmwareName, string firmwareVersion, string? description,
+        string vehicleType, long fileSize, string? displayName);
+    Task<List<UserFirmwareResponse>> GetUserFirmwaresAsync(Guid userId);
+    Task<List<UserFirmwareResponse>> GetMyFirmwaresAsync(Guid userId);
+    Task<bool> RemoveUserFirmwareAsync(Guid userId, Guid firmwareId);
 }
