@@ -140,6 +140,31 @@ public class ParamLockApiService
     }
 
     /// <summary>
+    /// Get full detail for a single parameter lock (all locked params + stored values).
+    /// </summary>
+    public async Task<ParamLockInfo?> GetLockDetailAsync(int lockId, string token)
+    {
+        try
+        {
+            _httpClient.DefaultRequestHeaders.Clear();
+            _httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {token}");
+
+            var response = await _httpClient.GetAsync($"/admin/parameter-locks/{lockId}");
+
+            if (response.IsSuccessStatusCode)
+                return await response.Content.ReadFromJsonAsync<ParamLockInfo>();
+
+            _logger.LogError("Failed to get lock detail {LockId}: {StatusCode}", lockId, response.StatusCode);
+            return null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Exception getting lock detail for {LockId}", lockId);
+            return null;
+        }
+    }
+
+    /// <summary>
     /// Get parameter locks for a specific user.
     /// </summary>
     public async Task<List<ParamLockInfo>> GetUserLocksAsync(Guid userId, string token)

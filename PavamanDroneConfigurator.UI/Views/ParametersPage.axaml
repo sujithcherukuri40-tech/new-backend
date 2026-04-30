@@ -44,12 +44,14 @@
             <Setter Property="Background" Value="#F3F4F6"/>
         </Style>
 
-        <!-- Locked row: tinted background to signal non-editable state -->
+        <!-- Locked row: ash-gray disabled appearance -->
         <Style Selector="Border.row.locked">
-            <Setter Property="Background" Value="#FFF5F5"/>
+            <Setter Property="Background" Value="#EFEFEF"/>
+            <Setter Property="Opacity" Value="0.75"/>
         </Style>
         <Style Selector="Border.row.locked:pointerover">
-            <Setter Property="Background" Value="#FEE2E2"/>
+            <Setter Property="Background" Value="#EFEFEF"/>
+            <Setter Property="Opacity" Value="0.75"/>
         </Style>
 
         <!-- Button Styles -->
@@ -116,6 +118,19 @@
             <Setter Property="VerticalAlignment" Value="Center"/>
             <Setter Property="TextAlignment" Value="Right"/>
             <Setter Property="MinWidth" Value="70"/>
+        </Style>
+
+        <!-- Locked-row disabled input overrides -->
+        <Style Selector="TextBox.value-input:disabled">
+            <Setter Property="Background" Value="#E5E7EB"/>
+            <Setter Property="BorderBrush" Value="#D1D5DB"/>
+            <Setter Property="Foreground" Value="#9CA3AF"/>
+            <Setter Property="Opacity" Value="1"/>
+        </Style>
+        <Style Selector="ComboBox.options-combo:disabled">
+            <Setter Property="Background" Value="#E5E7EB"/>
+            <Setter Property="BorderBrush" Value="#D1D5DB"/>
+            <Setter Property="Opacity" Value="1"/>
         </Style>
 
         <Style Selector="TextBox.value-input:focus">
@@ -336,6 +351,7 @@
                                 Classes.locked="{Binding IsLocked}"
                                 PointerPressed="OnParameterRowPressed"
                                 Tag="{Binding}">
+                            <Panel>
                             <Grid ColumnDefinitions="180,80,70,140,*" MinHeight="36">
                                 
                                 <!-- Name -->
@@ -375,41 +391,64 @@
 
                                 <!-- Options Column (USER EDITABLE - Enum ComboBox OR Bitmask Checkboxes OR TextBox) -->
                                 <Panel Grid.Column="3" Margin="4,4">
-                                    <!-- Bitmask Checkboxes (for parameters like ARMING_CHECK, GCS_PID_MASK) -->
-                                    <StackPanel IsVisible="{Binding HasBitmaskOptions}"
-                                                IsEnabled="{Binding IsEditable}">
-                                        <ItemsControl ItemsSource="{Binding Options}">
-                                            <ItemsControl.ItemTemplate>
-                                                <DataTemplate x:DataType="models:ParameterOption">
-                                                    <CheckBox Content="{Binding Label}"
-                                                              FontSize="10"
-                                                              Margin="0,2"
-                                                              Checked="OnBitmaskOptionChanged"
-                                                              Unchecked="OnBitmaskOptionChanged"
-                                                              Tag="{Binding}"/>
-                                                </DataTemplate>
-                                            </ItemsControl.ItemTemplate>
-                                        </ItemsControl>
-                                    </StackPanel>
-                                    
-                                    <!-- Enum ComboBox (for parameters with single-select options) -->
-                                    <ComboBox Classes="options-combo"
-                                              ItemsSource="{Binding Options}"
-                                              SelectedItem="{Binding SelectedOption, Mode=TwoWay}"
-                                              IsVisible="{Binding HasEnumOptions}"
-                                              IsEnabled="{Binding IsEditable}"
-                                              DisplayMemberBinding="{Binding Display}"/>
-                                    
-                                    <!-- TextBox for parameters with no options (EDITABLE - updates VALUE column) -->
-                                    <TextBox Text="{Binding OptionsInputText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                             Classes="value-input"
-                                             IsVisible="{Binding HasNoOptions}"
-                                             IsEnabled="{Binding IsEditable}"
-                                             Watermark="{Binding RangePlaceholder}"
-                                             ToolTip.Tip="{Binding RangePlaceholder}"
-                                             LostFocus="OptionsInput_LostFocus"
-                                             KeyUp="OptionsInput_KeyUp"
-                                             Background="White"/>
+
+                                    <!-- Edit controls — hidden when param is admin-locked -->
+                                    <Panel IsVisible="{Binding IsEditable}">
+                                        <!-- Bitmask Checkboxes (for parameters like ARMING_CHECK, GCS_PID_MASK) -->
+                                        <StackPanel IsVisible="{Binding HasBitmaskOptions}">
+                                            <ItemsControl ItemsSource="{Binding Options}">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate x:DataType="models:ParameterOption">
+                                                        <CheckBox Content="{Binding Label}"
+                                                                  FontSize="10"
+                                                                  Margin="0,2"
+                                                                  Checked="OnBitmaskOptionChanged"
+                                                                  Unchecked="OnBitmaskOptionChanged"
+                                                                  Tag="{Binding}"/>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </StackPanel>
+
+                                        <!-- Enum ComboBox (for parameters with single-select options) -->
+                                        <ComboBox Classes="options-combo"
+                                                  ItemsSource="{Binding Options}"
+                                                  SelectedItem="{Binding SelectedOption, Mode=TwoWay}"
+                                                  IsVisible="{Binding HasEnumOptions}"
+                                                  DisplayMemberBinding="{Binding Display}"/>
+
+                                        <!-- TextBox for parameters with no options (EDITABLE - updates VALUE column) -->
+                                        <TextBox Text="{Binding OptionsInputText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                 Classes="value-input"
+                                                 IsVisible="{Binding HasNoOptions}"
+                                                 Watermark="{Binding RangePlaceholder}"
+                                                 ToolTip.Tip="{Binding RangePlaceholder}"
+                                                 LostFocus="OptionsInput_LostFocus"
+                                                 KeyUp="OptionsInput_KeyUp"
+                                                 Background="White"/>
+                                    </Panel>
+
+                                    <!-- Locked chip — replaces edit controls for admin-locked params -->
+                                    <Border IsVisible="{Binding IsLocked}"
+                                            Background="#FEF2F2"
+                                            BorderBrush="#FECACA"
+                                            BorderThickness="1"
+                                            CornerRadius="6"
+                                            Padding="8,4"
+                                            VerticalAlignment="Center"
+                                            ToolTip.Tip="This parameter is locked by an admin and cannot be changed.">
+                                        <StackPanel Orientation="Horizontal" Spacing="4">
+                                            <PathIcon Data="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z"
+                                                      Width="10" Height="10"
+                                                      Foreground="#DC2626"
+                                                      VerticalAlignment="Center"/>
+                                            <TextBlock Text="Admin locked"
+                                                       FontSize="10"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="#DC2626"
+                                                       VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </Border>
                                 </Panel>
 
                                 <!-- Description -->
@@ -420,6 +459,13 @@
                                            TextTrimming="CharacterEllipsis"
                                            ToolTip.Tip="{Binding Description}"/>
                             </Grid>
+                            <!-- Ash-gray overlay: blocks all interaction for admin-locked rows -->
+                            <Border IsVisible="{Binding IsLocked}"
+                                    Background="#55AAAAAA"
+                                    IsHitTestVisible="True"
+                                    Cursor="Arrow"
+                                    ToolTip.Tip="This parameter is locked by an admin and cannot be changed."/>
+                            </Panel>
                         </Border>
                     </DataTemplate>
                 </ListBox.ItemTemplate>

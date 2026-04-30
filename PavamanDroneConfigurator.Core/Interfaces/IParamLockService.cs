@@ -64,6 +64,13 @@ public interface IParamLockService
     /// </summary>
     /// <returns>List of all lock metadata</returns>
     Task<List<ParamLockInfo>> GetAllLocksAsync();
+
+    /// <summary>
+    /// Get full detail for a single lock, including all locked parameters and their stored values.
+    /// </summary>
+    /// <param name="lockId">Lock ID</param>
+    /// <returns>Full lock info with LockedParams populated, or null if not found</returns>
+    Task<ParamLockInfo?> GetLockDetailAsync(int lockId);
 }
 
 /// <summary>

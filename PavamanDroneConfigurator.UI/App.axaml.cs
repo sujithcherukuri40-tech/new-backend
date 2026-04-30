@@ -742,6 +742,7 @@ public partial class App : Application
         services.AddTransient<FirmwarePageViewModel>();
         services.AddTransient<LiveMapPageViewModel>();
         services.AddTransient<TelemetryPageViewModel>();
+        services.AddSingleton<PavamanDroneConfigurator.UI.Services.ParameterChangeLogService>();
         services.AddSingleton<MavlinkLogsViewModel>();
         services.AddSingleton<LiveCameraViewModel>();
         services.AddTransient<ViewModels.Admin.ParamLogsViewModel>(sp =>

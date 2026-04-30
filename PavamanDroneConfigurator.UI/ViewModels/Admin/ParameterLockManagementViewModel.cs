@@ -668,4 +668,72 @@ public partial class ParameterLockManagementViewModel : ViewModelBase
         }
         UpdateSelectedParamCount();
     }
+
+    // ─── Detail panel (double-tap on a lock row) ───────────────────────────
+
+    [ObservableProperty]
+    private bool _isDetailPanelOpen;
+
+    [ObservableProperty]
+    private ParamLockModel? _detailLock;
+
+    [RelayCommand]
+    private async Task ViewLockDetailAsync(ParamLockModel? lockModel)
+    {
+        if (lockModel == null) return;
+
+        // Show panel immediately with cached data while full detail loads
+        DetailLock = lockModel;
+        IsDetailPanelOpen = true;
+
+        var token = await GetTokenAsync();
+        if (string.IsNullOrEmpty(token)) return;
+
+        try
+        {
+            var detail = await _paramLockApiService.GetLockDetailAsync(lockModel.Id, token);
+            if (detail != null && DetailLock?.Id == lockModel.Id)
+            {
+                await Dispatcher.UIThread.InvokeAsync(() =>
+                {
+                    DetailLock.LockedParams = detail.LockedParams;
+                    DetailLock.ParamCount   = detail.LockedParams.Count;
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to load full lock detail for lock {LockId}", lockModel.Id);
+        }
+    }
+
+    [RelayCommand]
+    private void CloseDetailPanel()
+    {
+        IsDetailPanelOpen = false;
+        DetailLock = null;
+    }
+
+    /// <summary>
+    /// Returns the current detail lock serialised as an indented JSON string for export.
+    /// </summary>
+    public string GetDetailLockJson()
+    {
+        if (DetailLock == null) return "{}";
+
+        var obj = new
+        {
+            lockId      = DetailLock.Id,
+            user        = DetailLock.UserName,
+            email       = DetailLock.UserEmail,
+            deviceId    = DetailLock.DeviceId,
+            createdAt   = DetailLock.CreatedAt.ToString("o"),
+            updatedAt   = DetailLock.UpdatedAt?.ToString("o"),
+            paramCount  = DetailLock.ParamCount,
+            lockedParameters = DetailLock.LockedParams
+        };
+
+        return System.Text.Json.JsonSerializer.Serialize(obj,
+            new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+    }
 }

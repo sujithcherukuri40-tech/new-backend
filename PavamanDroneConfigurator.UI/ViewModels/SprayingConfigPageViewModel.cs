@@ -16,6 +16,7 @@ public sealed partial class SprayingConfigPageViewModel : ViewModelBase
 {
     private readonly IParameterService _parameterService;
     private readonly IConnectionService _connectionService;
+    private readonly PavamanDroneConfigurator.UI.Services.ParameterChangeLogService? _paramLogService;
     private readonly SemaphoreSlim _writeLock = new(1, 1);
 
     private bool _isSyncing;
@@ -115,10 +116,14 @@ public sealed partial class SprayingConfigPageViewModel : ViewModelBase
 
     #endregion
 
-    public SprayingConfigPageViewModel(IParameterService parameterService, IConnectionService connectionService)
+    public SprayingConfigPageViewModel(
+        IParameterService parameterService,
+        IConnectionService connectionService,
+        PavamanDroneConfigurator.UI.Services.ParameterChangeLogService? paramLogService = null)
     {
         _parameterService = parameterService;
         _connectionService = connectionService;
+        _paramLogService = paramLogService;
 
         _parameterService.ParameterDownloadProgressChanged += OnParameterDownloadProgressChanged;
         _parameterService.ParameterUpdated += OnParameterUpdated;
@@ -319,7 +324,10 @@ public sealed partial class SprayingConfigPageViewModel : ViewModelBase
             return false;
         }
 
-        return await _parameterService.SetParameterAsync(name, value);
+        var result = await _parameterService.SetParameterAsync(name, value);
+        if (result && _paramLogService != null)
+            _ = _paramLogService.LogAsync(name, 0f, value, "SprayingConfig");
+        return result;
     }
 
     private async Task ExecuteWriteAsync(Func<Task> operation)

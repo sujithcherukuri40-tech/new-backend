@@ -196,7 +196,8 @@ public class ParamLockService : IParamLockService
 
             // Fetch JSON from S3
             var json = await _s3Service.GetObjectAsStringAsync(lockEntity.S3Key);
-            var lockData = JsonSerializer.Deserialize<LockedParamsJson>(json);
+            var lockData = JsonSerializer.Deserialize<LockedParamsJson>(json,
+                new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
 
             if (lockData?.LockedParams == null)
             {
@@ -342,12 +343,14 @@ public class ParamLockService : IParamLockService
                     IsActive = lockEntity.IsActive
                 };
 
-                // Load param list summary (first 5 params for overview)
+                // Load full param list from S3
                 try
                 {
                     var json = await _s3Service.GetObjectAsStringAsync(lockEntity.S3Key);
-                    var lockData = JsonSerializer.Deserialize<LockedParamsJson>(json);
-                    info.LockedParams = lockData?.LockedParams?.Take(5).ToList() ?? new List<string>();
+                    var lockData = JsonSerializer.Deserialize<LockedParamsJson>(json,
+                        new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                    info.LockedParams = lockData?.LockedParams?.ToList() ?? new List<string>();
+                    info.LockedParamValues = lockData?.LockedParamValues ?? new Dictionary<string, float>();
                 }
                 catch (Exception ex)
                 {
@@ -363,6 +366,48 @@ public class ParamLockService : IParamLockService
         {
             _logger.LogError(ex, "Failed to get all parameter locks");
             return new List<ParamLockInfo>();
+        }
+    }
+
+    public async Task<ParamLockInfo?> GetLockDetailAsync(int lockId)
+    {
+        try
+        {
+            var lockEntity = await _context.Set<ParameterLockEntity>()
+                .Include(l => l.User)
+                .Include(l => l.CreatedByUser)
+                .FirstOrDefaultAsync(l => l.Id == lockId);
+
+            if (lockEntity == null) return null;
+
+            var info = new ParamLockInfo
+            {
+                Id          = lockEntity.Id,
+                UserId      = lockEntity.UserId,
+                UserName    = lockEntity.User?.FullName,
+                UserEmail   = lockEntity.User?.Email,
+                DeviceId    = lockEntity.DeviceId,
+                ParamCount  = lockEntity.ParamCount,
+                CreatedAt   = lockEntity.CreatedAt,
+                CreatedBy   = lockEntity.CreatedBy,
+                CreatedByName = lockEntity.CreatedByUser?.FullName,
+                UpdatedAt   = lockEntity.UpdatedAt,
+                IsActive    = lockEntity.IsActive
+            };
+
+            var json = await _s3Service.GetObjectAsStringAsync(lockEntity.S3Key);
+            var lockData = JsonSerializer.Deserialize<LockedParamsJson>(json,
+                new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+            info.LockedParams = lockData?.LockedParams?.ToList() ?? new List<string>();
+            info.LockedParamValues = lockData?.LockedParamValues ?? new Dictionary<string, float>();
+
+            return info;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to get lock detail for lock {LockId}", lockId);
+            return null;
         }
     }
 

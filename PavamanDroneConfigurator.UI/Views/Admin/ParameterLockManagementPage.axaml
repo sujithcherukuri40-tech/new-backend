@@ -314,7 +314,9 @@
                         <ItemsControl ItemsSource="{Binding FilteredLocks}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate DataType="models:ParamLockModel">
-                                    <Border Classes="lock-row">
+                                    <Border Classes="lock-row"
+                                            DoubleTapped="OnLockRowDoubleTapped"
+                                            ToolTip.Tip="Double-tap to view details and download JSON">
                                         <Grid ColumnDefinitions="48,*,200,90,100" ColumnSpacing="12"
                                               VerticalAlignment="Top">
 
@@ -755,6 +757,206 @@
                                     <PathIcon Data="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"
                                               Width="13" Height="13" Foreground="White"/>
                                     <TextBlock Text="Save Lock"/>
+                                </StackPanel>
+                            </Button>
+                        </Grid>
+                    </Border>
+
+                </Grid>
+            </Border>
+        </Border>
+
+        <!-- DETAIL PANEL OVERLAY (shown on row double-tap) -->
+        <Border Grid.RowSpan="2"
+                Background="#66000000"
+                IsVisible="{Binding IsDetailPanelOpen}"
+                ZIndex="999">
+
+            <Border MaxWidth="580"
+                    MaxHeight="760"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    Margin="48,32"
+                    CornerRadius="20"
+                    Background="White"
+                    BoxShadow="0 8 40 0 #28000000">
+
+                <Grid RowDefinitions="Auto,*,Auto">
+
+                    <!-- Header -->
+                    <Border Grid.Row="0"
+                            CornerRadius="20,20,0,0"
+                            Background="White"
+                            Padding="28,20,28,16"
+                            BorderBrush="#E8EAED"
+                            BorderThickness="0,0,0,1">
+                        <Grid ColumnDefinitions="Auto,*,Auto">
+                            <Border Grid.Column="0"
+                                    Width="44" Height="44" CornerRadius="22"
+                                    Background="#E8F0FE" Margin="0,0,14,0">
+                                <PathIcon Data="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"
+                                          Width="20" Height="20" Foreground="#1A73E8"
+                                          HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                            <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                                <TextBlock Text="Parameter Lock Details"
+                                           FontSize="18" FontWeight="Bold" Foreground="#202124"/>
+                                <TextBlock Text="{Binding DetailLock.UserName}"
+                                           FontSize="13" Foreground="#80868B"/>
+                            </StackPanel>
+                            <Button Grid.Column="2"
+                                    Width="36" Height="36" CornerRadius="18"
+                                    Background="Transparent" BorderThickness="0"
+                                    Command="{Binding CloseDetailPanelCommand}"
+                                    Cursor="Hand">
+                                <PathIcon Data="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
+                                          Width="16" Height="16" Foreground="#5F6368"/>
+                            </Button>
+                        </Grid>
+                    </Border>
+
+                    <!-- Body -->
+                    <ScrollViewer Grid.Row="1"
+                                  Padding="28,20,28,4"
+                                  MaxHeight="520"
+                                  VerticalScrollBarVisibility="Auto"
+                                  HorizontalScrollBarVisibility="Disabled">
+                        <StackPanel Spacing="20">
+
+                            <!-- User info card -->
+                            <Border Background="#F8F9FA" CornerRadius="14"
+                                    BorderBrush="#E8EAED" BorderThickness="1" Padding="18,14">
+                                <Grid ColumnDefinitions="Auto,*,Auto">
+                                    <Border Grid.Column="0"
+                                            Width="48" Height="48" CornerRadius="24"
+                                            Background="#E8F0FE" Margin="0,0,14,0">
+                                        <TextBlock Text="{Binding DetailLock.UserInitial}"
+                                                   FontSize="18" FontWeight="Bold"
+                                                   Foreground="#1A73E8"
+                                                   HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center"/>
+                                    </Border>
+                                    <StackPanel Grid.Column="1" Spacing="3" VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding DetailLock.UserName}"
+                                                   FontSize="15" FontWeight="Bold" Foreground="#202124"/>
+                                        <TextBlock Text="{Binding DetailLock.UserEmail}"
+                                                   FontSize="12" Foreground="#80868B"/>
+                                        <StackPanel Orientation="Horizontal" Spacing="20" Margin="0,6,0,0">
+                                            <StackPanel Spacing="1">
+                                                <TextBlock Text="CREATED" FontSize="9" FontWeight="Bold" Foreground="#ADADAD"/>
+                                                <TextBlock Text="{Binding DetailLock.CreatedAtDisplay}"
+                                                           FontSize="11" Foreground="#5F6368" FontWeight="SemiBold"/>
+                                            </StackPanel>
+                                            <StackPanel Spacing="1">
+                                                <TextBlock Text="UPDATED" FontSize="9" FontWeight="Bold" Foreground="#ADADAD"/>
+                                                <TextBlock Text="{Binding DetailLock.UpdatedAtDisplay}"
+                                                           FontSize="11" Foreground="#5F6368" FontWeight="SemiBold"/>
+                                            </StackPanel>
+                                            <StackPanel Spacing="1">
+                                                <TextBlock Text="DEVICE" FontSize="9" FontWeight="Bold" Foreground="#ADADAD"/>
+                                                <TextBlock Text="{Binding DetailLock.DeviceDisplay}"
+                                                           FontSize="11" Foreground="#5F6368" FontWeight="SemiBold"/>
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </StackPanel>
+                                    <Border Grid.Column="2" CornerRadius="12" Padding="16,8"
+                                            Background="#E6F4EA" VerticalAlignment="Center">
+                                        <StackPanel Spacing="1" HorizontalAlignment="Center">
+                                            <TextBlock Text="{Binding DetailLock.ParamCount}"
+                                                       FontSize="22" FontWeight="Bold" Foreground="#188038"
+                                                       HorizontalAlignment="Center"/>
+                                            <TextBlock Text="params" FontSize="10" Foreground="#188038"
+                                                       HorizontalAlignment="Center"/>
+                                        </StackPanel>
+                                    </Border>
+                                </Grid>
+                            </Border>
+
+                            <!-- Locked parameters -->
+                            <StackPanel Spacing="8">
+                                <Grid ColumnDefinitions="*,Auto">
+                                    <TextBlock Grid.Column="0"
+                                               Text="Locked Parameters"
+                                               FontSize="13" FontWeight="Bold" Foreground="#3C4043"
+                                               VerticalAlignment="Center"/>
+                                    <Border Grid.Column="1" CornerRadius="10" Padding="10,4"
+                                            Background="#E8F0FE">
+                                        <TextBlock Text="{Binding DetailLock.ParamCount}"
+                                                   FontSize="12" FontWeight="Bold" Foreground="#1A73E8"/>
+                                    </Border>
+                                </Grid>
+                                <Border Background="White"
+                                        BorderBrush="#E8EAED"
+                                        BorderThickness="1"
+                                        CornerRadius="12"
+                                        Padding="14,10"
+                                        MaxHeight="220">
+                                    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                                  HorizontalScrollBarVisibility="Disabled">
+                                    <ItemsControl ItemsSource="{Binding DetailLock.LockedParams}">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <WrapPanel Orientation="Horizontal"/>
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Border CornerRadius="8" Padding="10,5"
+                                                        Background="#EEF2FF"
+                                                        BorderBrush="#C7D7FB"
+                                                        BorderThickness="1"
+                                                        Margin="0,0,6,6">
+                                                    <StackPanel Orientation="Horizontal" Spacing="5">
+                                                        <PathIcon Data="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"
+                                                                  Width="9" Height="9" Foreground="#4F46E5"
+                                                                  VerticalAlignment="Center"/>
+                                                        <TextBlock Text="{Binding}"
+                                                                   FontSize="12" FontWeight="SemiBold"
+                                                                   FontFamily="Consolas, Courier New"
+                                                                   Foreground="#3730A3"
+                                                                   VerticalAlignment="Center"/>
+                                                    </StackPanel>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                    </ScrollViewer>
+                                </Border>
+                            </StackPanel>
+
+                        </StackPanel>
+                    </ScrollViewer>
+
+                    <!-- Footer -->
+                    <Border Grid.Row="2"
+                            CornerRadius="0,0,20,20"
+                            Padding="28,14,28,20"
+                            Background="White"
+                            BorderBrush="#E8EAED"
+                            BorderThickness="0,1,0,0">
+                        <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+                            <TextBlock Grid.Column="0"
+                                       Text="Double-tap any row to view details"
+                                       FontSize="11" Foreground="#ADADAD"
+                                       VerticalAlignment="Center"/>
+                            <Button Grid.Column="1" Classes="btn-dialog-cancel"
+                                    Command="{Binding CloseDetailPanelCommand}">
+                                Close
+                            </Button>
+                            <Button Grid.Column="2"
+                                    Background="#188038"
+                                    Foreground="White"
+                                    CornerRadius="8"
+                                    Padding="20,12"
+                                    FontWeight="SemiBold"
+                                    FontSize="14"
+                                    BorderThickness="0"
+                                    Cursor="Hand"
+                                    Click="OnDownloadJsonClicked">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <PathIcon Data="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"
+                                              Width="14" Height="14" Foreground="White"/>
+                                    <TextBlock Text="Download JSON"/>
                                 </StackPanel>
                             </Button>
                         </Grid>

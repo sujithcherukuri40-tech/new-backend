@@ -199,6 +199,41 @@ public class ParameterLocksController : ControllerBase
     }
 
     /// <summary>
+    /// Get full detail for a single parameter lock, including all locked parameters.
+    /// </summary>
+    /// <param name="lockId">Lock ID</param>
+    /// <returns>Full lock info with all locked parameters</returns>
+    [HttpGet("{lockId:int}")]
+    [ProducesResponseType(typeof(ParamLockInfo), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ParamLockInfo>> GetLockDetail(int lockId)
+    {
+        try
+        {
+            var detail = await _paramLockService.GetLockDetailAsync(lockId);
+            if (detail == null)
+            {
+                return NotFound(new ErrorResponse
+                {
+                    Message = $"Lock {lockId} not found",
+                    Code = "LOCK_NOT_FOUND"
+                });
+            }
+
+            return Ok(detail);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to retrieve lock detail for {LockId}", lockId);
+            return StatusCode(500, new ErrorResponse
+            {
+                Message = "Failed to retrieve lock detail",
+                Code = "GET_LOCK_DETAIL_FAILED"
+            });
+        }
+    }
+
+    /// <summary>
     /// Get parameter locks for a specific user.
     /// </summary>
     /// <param name="userId">User ID</param>

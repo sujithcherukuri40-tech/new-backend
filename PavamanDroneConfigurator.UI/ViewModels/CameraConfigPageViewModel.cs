@@ -20,6 +20,7 @@ public partial class CameraConfigPageViewModel : ViewModelBase
     private readonly ILogger<CameraConfigPageViewModel> _logger;
     private readonly IParameterService _parameterService;
     private readonly IConnectionService _connectionService;
+    private readonly PavamanDroneConfigurator.UI.Services.ParameterChangeLogService? _paramLogService;
 
     #region Parameter Names
     
@@ -236,11 +237,13 @@ public partial class CameraConfigPageViewModel : ViewModelBase
     public CameraConfigPageViewModel(
         ILogger<CameraConfigPageViewModel> logger,
         IParameterService parameterService,
-        IConnectionService connectionService)
+        IConnectionService connectionService,
+        PavamanDroneConfigurator.UI.Services.ParameterChangeLogService? paramLogService = null)
     {
         _logger = logger;
         _parameterService = parameterService;
         _connectionService = connectionService;
+        _paramLogService = paramLogService;
 
         _parameterService.ParameterDownloadProgressChanged += OnParameterDownloadProgressChanged;
         _parameterService.ParameterUpdated += OnParameterUpdated;
@@ -876,6 +879,27 @@ public partial class CameraConfigPageViewModel : ViewModelBase
                 HasUnsavedChanges = false;
                 StatusMessage = "Camera parameters saved successfully";
                 _logger.LogInformation("Camera parameters saved");
+
+                if (_paramLogService != null)
+                {
+                    var changes = new List<(string, float, float)>();
+                    if (SelectedCameraRelay != null) changes.Add((ParamCameraRelayOn, 0f, SelectedCameraRelay.Value));
+                    changes.Add((ParamCameraRelayPin, 0f, CameraRelayPin));
+                    if (SelectedCameraTriggerType != null) changes.Add((ParamCameraType, 0f, SelectedCameraTriggerType.Value));
+                    changes.Add((ParamCameraServoOn, 0f, CameraServoOn));
+                    changes.Add((ParamCameraServoOff, 0f, CameraServoOff));
+                    changes.Add((ParamCameraTriggerDistance, 0f, CameraTriggerDistance));
+                    changes.Add((ParamCameraDuration, 0f, CameraTriggerDuration));
+                    if (SelectedGimbalControlMode != null) changes.Add((ParamMntDefltMode, 0f, SelectedGimbalControlMode.Value));
+                    changes.Add((ParamMntAngMinTil, 0f, GimbalTiltMin));
+                    changes.Add((ParamMntAngMaxTil, 0f, GimbalTiltMax));
+                    if (SelectedRcTiltChannel != null) changes.Add((ParamMntRcInTilt, 0f, SelectedRcTiltChannel.Value));
+                    changes.Add((ParamServo9Min, 0f, PwmMin));
+                    changes.Add((ParamServo9Max, 0f, PwmMax));
+                    changes.Add((ParamServo9Trim, 0f, PwmNeutral));
+                    changes.Add((ParamServo9Reversed, 0f, ReverseOutput ? 1f : 0f));
+                    _ = _paramLogService.LogAsync(changes, "CameraConfig");
+                }
             }
             else
             {
