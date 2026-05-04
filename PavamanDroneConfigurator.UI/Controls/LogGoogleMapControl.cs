@@ -31,7 +31,7 @@ public class LogGoogleMapControl : UserControl
     private CoreWebView2Controller? _webViewController;
     private nint _webViewHandle;
     private bool _isInitialized;
-    private bool _isDisposed;
+    private bool _isDisposed = false;
     private bool _mapReady;
     private EventHandler<AvaloniaPropertyChangedEventArgs>? _boundsChangedHandler;
 
@@ -271,12 +271,8 @@ public class LogGoogleMapControl : UserControl
             if (!File.Exists(mapPath))
                 throw new FileNotFoundException($"Log map HTML not found at: {mapPath}");
 
-            // Map a virtual HTTPS hostname so the page has a proper HTTP origin.
-            // This allows the Google Maps API key to be restricted to "https://kftapp.local/*"
-            // in Google Cloud Console under API key → Application restrictions → HTTP referrers.
-            var mapFolder = Path.GetDirectoryName(mapPath)!;
-            _webView.SetVirtualHostNameToFolderMapping("kftapp.local", mapFolder, CoreWebView2HostResourceAccessKind.Allow);
-            _webView.Navigate("https://kftapp.local/" + Path.GetFileName(mapPath));
+            var uri = new Uri(mapPath).AbsoluteUri;
+            _webView.Navigate(uri);
             _isInitialized = true;
 
             Debug.WriteLine("[LogGoogleMapControl] Initialized successfully");
@@ -716,6 +712,8 @@ public class LogGoogleMapControl : UserControl
                 {
                     // Always re-send current data when tab is switched back to ensure map is up to date
                     SendTrackToMapImmediate();
+                    SendEventsToMapImmediate();
+                    SendWaypointsToMapImmediate();
                 }
             }
         }
@@ -723,29 +721,10 @@ public class LogGoogleMapControl : UserControl
 
     protected override void OnUnloaded(RoutedEventArgs e)
     {
-        // NOTE: This override is called when the control is permanently removed from the visual tree
-        // (e.g., the whole window closes). Tab navigation triggers the instance `OnUnloaded` event
-        // handler (registered in ctor), NOT this override - so we only dispose here.
-        if (!_isDisposed)
-        {
-            _isDisposed = true;
-
-            if (TrackPoints is INotifyCollectionChanged trackCollection)
-                trackCollection.CollectionChanged -= OnTrackPointsCollectionChanged;
-            if (CriticalEvents is INotifyCollectionChanged eventsCollection)
-                eventsCollection.CollectionChanged -= OnCriticalEventsCollectionChanged;
-
-            if (_boundsChangedHandler != null)
-                PropertyChanged -= _boundsChangedHandler;
-
-            if (_webView != null)
-                _webView.WebMessageReceived -= OnWebMessageReceived;
-
-            _webViewController?.Close();
-            _webViewController = null;
-            _webView = null;
-            _mapReady = false;
-        }
+        // Do not dispose WebView on tab switch/unload; TabControl unloads non-selected tab content.
+        // Disposing here causes markers/waypoints to vanish after switching between Plot and Map tabs.
+        if (_webViewController != null)
+            _webViewController.IsVisible = false;
 
         base.OnUnloaded(e);
     }
